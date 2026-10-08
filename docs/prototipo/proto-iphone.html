@@ -1692,7 +1692,7 @@ function shell() {
   const side = `
     <aside class="side">
       <div class="marca">${logo()}<span>Mundo dos<br><em>iPhones</em></span></div>
-      <button class="novo" data-ir="vender">${ic('plus')}Nova venda</button>
+      <button class="novo" data-folha="novo">${ic('plus')}Novo</button>
       ${NAV.filter((n) => n.id !== 'vender').map((n) => `<button class="item ${S.tela === n.id ? 'on' : ''}" data-ir="${n.id}">${ic(n.icon)}${n.label}${n.id === 'cobrancas' && atr ? `<span class="cnt">${atr}</span>` : ''}</button>`).join('')}
       <div class="titulo">Mais</div>
       ${MAIS.map((n) => `<button class="item ${S.tela === n.id || (n.id === 'clientes' && S.tela === 'cliente') ? 'on' : ''}" data-mais="${n.id}">${ic(n.icon)}${n.label}${n.id === 'equipe' && aprovacoes.length ? `<span class="cnt" style="background:var(--warn)">${aprovacoes.length}</span>` : ''}</button>`).join('')}
@@ -1701,7 +1701,7 @@ function shell() {
   const NAVM = NAV.filter((n) => n.id !== 'vendas')
   const noMais = !NAVM.some((n) => n.id === S.tela)
   const tabs = `<nav class="tabs">${NAVM.map((n) => n.id === 'vender'
-    ? `<button class="vender ${S.tela === 'vender' ? 'on' : ''}" data-ir="vender"><span class="fab">${ic('plus')}</span>Vender</button>`
+    ? `<button class="vender ${S.tela === 'vender' ? 'on' : ''}" data-folha="novo"><span class="fab">${ic('plus')}</span>Novo</button>`
     : `<button class="${S.tela === n.id ? 'on' : ''}" data-ir="${n.id}">${ic(n.icon, 'icon')}${n.label}${n.id === 'cobrancas' && atr ? `<span class="badge-dot">${atr}</span>` : ''}</button>`).join('')}<button class="${noMais ? 'on' : ''}" data-folha="mais">${ic('menu')}Mais</button></nav>`
   return `${side}<div class="main"><header class="top">${S.tela === 'cliente' ? `<button class="avatar" style="background:var(--muted);color:var(--strong)" data-mais="clientes" aria-label="Voltar">${ic('chevron-left')}</button>` : `<span class="logo-m">${logo(true)}</span>`}<h1 class="${S.tela === 'inicio' ? '' : ''}">${TITULO[S.tela]}</h1>${topRight()}</header><div class="content">${TELAS[S.tela]()}</div></div>${tabs}`
 }
@@ -2014,7 +2014,7 @@ function folhaMenus() {
   const admin = `<section>
       <div class="quem"><span class="avatar">GC</span><div><h4>Admin</h4><div class="small">Você e quem cuida da loja</div></div></div>
       <div><div class="lbl" style="margin-bottom:8px">Menu de baixo (celular)</div>
-        <div class="mtabs">${tab('Início', 'house', true)}${tab('Cobranças', 'hand-coins', false, atr)}${fab('Vender', 'plus')}${tab('Estoque', 'smartphone')}${tab('Mais', 'menu')}</div></div>
+        <div class="mtabs">${tab('Início', 'house', true)}${tab('Cobranças', 'hand-coins', false, atr)}${fab('Novo', 'plus')}${tab('Estoque', 'smartphone')}${tab('Mais', 'menu')}</div></div>
       <div><div class="lbl" style="margin-bottom:8px">Dentro do “Mais” (no computador fica tudo na lateral)</div>
         <div class="mlist">${[NAV.find((n) => n.id === 'vendas'), ...MAIS].map((n) => item(n.label, n.icon)).join('')}</div></div>
       ${pode(['Vende, empresta e dá baixa nas parcelas', 'Paga repasse e muda o % de cada indicador', 'Vê caixa, lucro e relatórios'], [])}
@@ -2463,7 +2463,14 @@ function inputsSim(t) {
   return false
 }
 
-const FOLHAS = { simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
+function folhaNovo() {
+  const op = (attrs, icone, titulo, sub) => `<button class="opt" ${attrs} style="padding:14px"><span class="wa" style="width:42px;height:42px;border-radius:12px;background:var(--primary-soft);color:var(--primary)">${ic(icone)}</span><span style="flex:1;min-width:0"><span class="val" style="display:block">${titulo}</span><span class="small">${sub}</span></span>${ic('chevron-right', 'i-sm')}</button>`
+  return `<h3>O que você vai fazer?</h3><div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+    ${op('data-ir="vender" data-nova', 'smartphone', 'Venda de iPhone', 'Aparelho do estoque, parcelado com entrada e troca')}
+    ${op('data-folha="novoEmprestimo"', 'landmark', 'Empréstimo', 'Parcelado, só juros ou diária')}
+    ${op('data-mais="simulador"', 'calculator', 'Só simular uma venda', 'Monta as parcelas pra mandar pro cliente')}</div>`
+}
+const FOLHAS = { novo: folhaNovo, simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
 
 // ---------- render ----------
 function render() {
