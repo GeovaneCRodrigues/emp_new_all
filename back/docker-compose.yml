@@ -1,0 +1,16 @@
+# nome fixo: sem ele o Docker usa o nome da pasta ("back"), que colide com outros projetos da máquina
+name: mundo-iphones
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mundo_iphones_postgres
+    environment:
+      POSTGRES_USER: mundo
+      POSTGRES_PASSWORD: mundo
+      POSTGRES_DB: mundo_iphones
+    ports:
+      - '5440:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

@@ -1,0 +1,26 @@
+{
+  "name": "mundo-dos-iphones-front",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "lucide-vue-next": "^1.0.0",
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "typescript": "5.9",
+    "vite": "^8.3.4",
+    "vitest": "^4.1.11",
+    "vue-tsc": "^3.3.12"
+  }
+}
