@@ -18,7 +18,8 @@ const { sessao, pronto } = useApp()
 // telas já prontas, por perfil; o que não está aqui mostra "Em breve"
 const TELAS: Record<string, Record<string, unknown>> = {
   ADMIN: { inicio: Inicio, cobrancas: Cobrancas, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores },
-  VENDEDOR: { simulador: Simulador, clientes: Clientes },
+  // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil
+  VENDEDOR: { simulador: Simulador, clientes: Clientes, estoque: Estoque },
 }
 
 const secao = computed(() => (route.params.secao as string) || MENUS[sessao.value.perfil].inicio)

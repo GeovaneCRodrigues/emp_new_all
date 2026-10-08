@@ -130,6 +130,6 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
 </template>
 
 <style>
-/* no computador o botão "Sair" fica na lateral */
-@container (min-width: 880px) { .sair-cel { display: none; } }
+/* no computador o botão "Sair" fica na lateral (.btn.sair-cel: precisa vencer o display do .btn, que carrega depois) */
+@container (min-width: 880px) { .btn.sair-cel { display: none; } }
 </style>
