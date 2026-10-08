@@ -36,6 +36,8 @@ export interface AcessoCriado { email: string; senhaTemporaria: string }
 
 export interface IndicadoresApi {
   listar(s: Sessao): Promise<IndicadorApi[]>
+  /** Quem pode ser escolhido numa venda (só id e nome; o vendedor não vê o %). */
+  opcoes(s: Sessao): Promise<{ id: number; nome: string }[]>
   obter(s: Sessao, id: number): Promise<IndicadorApi>
   criar(s: Sessao, e: EntradaIndicador & { nome: string }): Promise<IndicadorApi>
   atualizar(s: Sessao, id: number, e: EntradaIndicador): Promise<IndicadorApi>

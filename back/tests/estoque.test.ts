@@ -10,6 +10,7 @@ import { createTokensService } from '../src/modules/auth/services/tokens.js'
 import { createEstoqueRepository } from '../src/modules/estoque/models/repository.js'
 import { createEstoqueService } from '../src/modules/estoque/services/estoque.service.js'
 import { imeiValido } from '../src/shared/documentos.js'
+import { hojeBR } from '../src/shared/relogio.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -57,7 +58,7 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
     const audit = createAuditoriaRepository(k)
     app = await buildApp({
       env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth,
-      clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: createEstoqueService(createEstoqueRepository(k), audit),
+      clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: createEstoqueService(createEstoqueRepository(k), audit), vendas: {} as never, config: {} as never,
     })
     for (const papel of ['admin', 'vendedorA', 'vendedorB', 'cobrador', 'indicador'])
       t[papel] = (await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: `${papel}@t.com`, senha: SENHA } })).json().accessToken
@@ -92,7 +93,7 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
     it('usa padrões: seminovo, compra, bateria 100, custo 0, disponível e data de hoje', async () => {
       const r = await req('POST', '/api/aparelhos', 'admin', { modelo: 'iPhone 12', gb: 64, cor: 'Branco', preco: 2400 })
       expect(r.json()).toMatchObject({ condicao: 'Seminovo', origem: 'COMPRA', bateria: 100, custo: 0, extras: 0, estado: 'DISPONIVEL', imei: null })
-      expect(r.json().dataCompra).toBe(new Date().toISOString().slice(0, 10))
+      expect(r.json().dataCompra).toBe(hojeBR())
     })
 
     it.each([

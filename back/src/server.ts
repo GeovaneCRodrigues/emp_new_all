@@ -10,6 +10,10 @@ import { createIndicadoresRepository } from './modules/indicadores/models/reposi
 import { createIndicadoresService } from './modules/indicadores/services/indicadores.service.js'
 import { createEstoqueRepository } from './modules/estoque/models/repository.js'
 import { createEstoqueService } from './modules/estoque/services/estoque.service.js'
+import { createConfigRepository } from './modules/config/models/repository.js'
+import { createConfigService } from './modules/config/services/config.service.js'
+import { createVendasRepository } from './modules/vendas/models/repository.js'
+import { createVendasService } from './modules/vendas/services/vendas.service.js'
 import { createClientesService } from './modules/clientes/services/clientes.service.js'
 import { createSessoesRepository, createUsuariosRepository } from './modules/auth/models/repository.js'
 import { createAuthService } from './modules/auth/services/auth.service.js'
@@ -28,7 +32,13 @@ const indicadores = createIndicadoresService(createIndicadoresRepository(db.knex
 
 const estoque = createEstoqueService(createEstoqueRepository(db.knex), createAuditoriaRepository(db.knex))
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque })
+const configRepo = createConfigRepository(db.knex)
+const vendas = createVendasService({
+  vendas: createVendasRepository(db.knex), config: configRepo, auditoria: createAuditoriaRepository(db.knex),
+  sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),
+})
+
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, config: createConfigService(configRepo) })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

@@ -14,6 +14,8 @@ export type TabelaNiveis = { niveis: Nivel[]; auto: boolean }
 
 export type IndicadoresService = {
   listar(s: Sessao): Promise<IndicadorComNivel[]>
+  /** Quem pode ser escolhido numa venda: só id e nome, sem o % (o vendedor não vê a parte do indicador). */
+  opcoes(s: Sessao): Promise<{ id: number; nome: string }[]>
   obter(s: Sessao, id: number): Promise<IndicadorComNivel>
   criar(s: Sessao, e: Entrada): Promise<IndicadorComNivel>
   atualizar(s: Sessao, id: number, e: Entrada): Promise<IndicadorComNivel>
@@ -100,6 +102,11 @@ export function createIndicadoresService(repo: IndicadoresRepository, auditoria:
       exigirAdmin(s)
       const niveis = await repo.niveis()
       return (await repo.listar()).map((i) => comNivel(i, niveis))
+    },
+
+    async opcoes(s) {
+      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw semPermissao('Você não tem acesso à lista de indicadores')
+      return (await repo.listar()).filter((i) => i.ativo).map((i) => ({ id: i.id, nome: i.nome }))
     },
 
     async obter(s, id) {

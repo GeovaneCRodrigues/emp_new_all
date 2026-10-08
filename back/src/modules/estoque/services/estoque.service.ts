@@ -1,5 +1,6 @@
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import { imeiValido, soDigitos } from '../../../shared/documentos.js'
+import { hojeBR } from '../../../shared/relogio.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { EstoqueRepository } from '../models/repository.js'
@@ -86,7 +87,7 @@ export function createEstoqueService(repo: EstoqueRepository, auditoria: Auditor
     if ('extras' in e || !parcial) d.extras = 'extras' in e ? dinheiro(e, 'extras', false) : 0
     if (tem('preco')) d.preco = dinheiro(e, 'preco', true)
     if ('dataCompra' in e) d.dataCompra = data(e.dataCompra)
-    else if (!parcial) d.dataCompra = new Date().toISOString().slice(0, 10)
+    else if (!parcial) d.dataCompra = hojeBR()
     if ('imei' in e) {
       if (e.imei === null || e.imei === '') d.imei = null
       else if (typeof e.imei !== 'string' || !imeiValido(e.imei)) throw requisicaoInvalida('IMEI inválido. Confira os 15 dígitos')

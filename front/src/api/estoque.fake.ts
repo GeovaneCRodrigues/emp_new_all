@@ -10,7 +10,16 @@ type Registro = Required<Omit<AparelhoApi, 'paraCliente'>> & { paraClienteId: nu
  * Versão de demonstração: guarda tudo na memória e aplica as mesmas regras do backend
  * (só o admin edita, vendedor sem custo, IMEI válido e único, estado e encomenda, vendido só leitura).
  */
-export function criarEstoqueFake(): EstoqueApi {
+/** Ganchos só da demonstração: a venda de mentira marca o aparelho como vendido e recebe a troca no estoque. */
+export interface EstoqueFake extends EstoqueApi {
+  _interno: {
+    travar(id: number): { id: number; modelo: string; gb: number; cor: string; estado: EstadoAparelho; custo: number; extras: number; preco: number; paraClienteId: number | null } | null
+    marcarVendido(id: number): void
+    receberTroca(d: { modelo: string; gb: number; cor: string; bateria: number; imei: string | null; custo: number; preco: number }): void
+  }
+}
+
+export function criarEstoqueFake(): EstoqueFake {
   const seed = criarSeed()
   let proximoId = 1000
   const nomeCliente = (id: number | null) => (id ? (seed.clientes.find((c) => c.id === id)?.nome ?? '') : '')
@@ -106,6 +115,13 @@ export function criarEstoqueFake(): EstoqueApi {
   const duplicado = () => new ErroApi(409, 'Já existe um aparelho com esse IMEI', 'IMEI_DUPLICADO')
 
   return {
+    _interno: {
+      travar: (id) => registros.find((r) => r.id === id) ?? null,
+      marcarVendido(id) { const r = registros.find((x) => x.id === id); if (r) { r.estado = 'VENDIDO'; r.paraClienteId = null } },
+      receberTroca(d) {
+        registros.push({ id: ++proximoId, modelo: d.modelo, gb: d.gb, cor: d.cor, bateria: d.bateria, condicao: 'Seminovo', imei: d.imei, preco: d.preco, estado: 'DISPONIVEL', origem: 'TROCA', dataCompra: seed.hoje, custo: d.custo, extras: 0, observacoes: null, paraClienteId: null })
+      },
+    },
     async listar(s, q) {
       ver(s)
       if (q.estado && !['DISPONIVEL', 'ENCOMENDADO', 'VENDIDO'].includes(q.estado)) throw erro('estado inválido')

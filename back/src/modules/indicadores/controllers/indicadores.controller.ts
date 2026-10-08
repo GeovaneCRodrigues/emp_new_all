@@ -15,6 +15,7 @@ function idDaRota(req: FastifyRequest): number {
 export function createIndicadoresController(service: IndicadoresService) {
   return {
     async listar(req: FastifyRequest) { return (await service.listar(sessaoOuErro(req))).map(indicadorView) },
+    async opcoes(req: FastifyRequest) { return service.opcoes(sessaoOuErro(req)) },
     async obter(req: FastifyRequest) { return indicadorView(await service.obter(sessaoOuErro(req), idDaRota(req))) },
     async criar(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(indicadorView(await service.criar(sessaoOuErro(req), corpo(req)))) },
     async atualizar(req: FastifyRequest) { return indicadorView(await service.atualizar(sessaoOuErro(req), idDaRota(req), corpo(req))) },

@@ -59,6 +59,12 @@ const mensagem = computed(() => {
   const corpo = ns.map((n) => { const l = linhas.value[n - 1]; return `${n}x de ${fmt(l.parc)}${n === s.n ? '  ⭐' : ''}` }).join('\n')
   return `*${nome}* · ${fmt(s.preco)}\n${entrada.value ? `Entrada: ${fmt(entrada.value)}\n` : ''}\n${corpo}\n\nQualquer dúvida me chama aqui!`
 })
+/** Abre a venda já preenchida com o que foi simulado. */
+function venderAssim() {
+  const q = new URLSearchParams({ preco: String(s.preco), entrada: String(entrada.value), n: String(s.n) })
+  if (s.bemId) q.set('bem', String(s.bemId))
+  router.push('/vender?' + q.toString())
+}
 async function copiar() {
   try { await navigator.clipboard.writeText(mensagem.value); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { /* sem permissão: o texto já está na tela */ }
 }
@@ -111,7 +117,7 @@ async function copiar() {
         <div class="small" style="text-align: center">Escolhido: <b style="color: var(--strong)">{{ entrada ? `${fmt(entrada)} + ` : '' }}{{ sel.n }}x {{ fmt(sel.parc) }}</b></div>
         <div class="row" style="gap: 8px">
           <button class="btn b-out" style="flex: 1" @click="waAberto = true"><Icon name="message-circle" small />Mandar pro cliente</button>
-          <button class="btn b-pri" style="flex: 1" @click="router.push('/vender')"><Icon name="plus" small />Vender assim</button>
+          <button class="btn b-pri" style="flex: 1" @click="venderAssim"><Icon name="plus" small />Vender assim</button>
         </div>
       </div>
     </div>

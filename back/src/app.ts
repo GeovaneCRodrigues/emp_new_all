@@ -17,6 +17,10 @@ import { indicadoresRoutes } from './modules/indicadores/routes.js'
 import type { IndicadoresService } from './modules/indicadores/services/indicadores.service.js'
 import { estoqueRoutes } from './modules/estoque/routes.js'
 import type { EstoqueService } from './modules/estoque/services/estoque.service.js'
+import { configRoutes } from './modules/config/routes.js'
+import type { ConfigService } from './modules/config/services/config.service.js'
+import { vendasRoutes } from './modules/vendas/routes.js'
+import type { VendasService } from './modules/vendas/services/vendas.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
 /** Tudo o que o app precisa vem de fora (injeção), assim os testes trocam o banco por um falso. */
@@ -29,6 +33,10 @@ export type Deps = {
   usuarios: UsuariosService
   indicadores: IndicadoresService
   estoque: EstoqueService
+  vendas: VendasService
+  config: ConfigService
+  /** Ajustes de limite; os testes sobem o limite para não esbarrar nele. */
+  limites?: { vendasPorMinuto?: number }
 }
 
 export async function buildApp(deps: Deps): Promise<FastifyInstance> {
@@ -55,6 +63,8 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(usuariosRoutes(deps.usuarios, exigir), { prefix: '/api' })
   await app.register(indicadoresRoutes(deps.indicadores, exigir), { prefix: '/api' })
   await app.register(estoqueRoutes(deps.estoque, exigir), { prefix: '/api' })
+  await app.register(vendasRoutes(deps.vendas, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
+  await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })
 
   return app
 }

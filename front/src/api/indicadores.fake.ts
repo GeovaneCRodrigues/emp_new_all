@@ -11,7 +11,12 @@ interface Registro { id: number; nome: string; whatsapp: string | null; chavePix
  * Versão de demonstração: guarda tudo na memória e aplica as mesmas regras do backend
  * (só o admin gerencia, % manual x automático, níveis, um acesso por indicador).
  */
-export function criarIndicadoresFake(): IndicadoresApi {
+/** Ganchos só da demonstração: a venda de mentira faz o contador do indicador andar. */
+export interface IndicadoresFake extends IndicadoresApi {
+  _interno: { ativo(id: number): { id: number; nome: string; pct: number } | null; contarOperacao(id: number): void }
+}
+
+export function criarIndicadoresFake(): IndicadoresFake {
   const seed = criarSeed()
   let proximoId = 100
   let auto = true
@@ -20,7 +25,8 @@ export function criarIndicadoresFake(): IndicadoresApi {
     id: i.id, nome: i.nome, whatsapp: i.id === 1 ? '11988887777' : null, chavePix: null, pct: i.pct, pctManual: true, ativo: true, email: null,
   }))
 
-  const operacoesDe = (id: number) => [...seed.vendas, ...seed.emprestimos].filter((o) => o.indicadorId === id && o.status !== ('CANCELADA' as never)).length
+  const novas = new Map<number, number>()
+  const operacoesDe = (id: number) => [...seed.vendas, ...seed.emprestimos].filter((o) => o.indicadorId === id && o.status !== ('CANCELADA' as never)).length + (novas.get(id) ?? 0)
   const comNiveis = () => niveis.map((n) => ({ id: n.id, nome: n.nome, min: n.minOperacoes, pct: n.pct }))
   const visao = (r: Registro): IndicadorApi => {
     const ops = operacoesDe(r.id)
@@ -59,7 +65,14 @@ export function criarIndicadoresFake(): IndicadoresApi {
     return d
   }
 
+  const opcoesPermitidas = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso à lista de indicadores', 'SEM_PERMISSAO') }
+
   return {
+    _interno: {
+      ativo: (id) => { const r = registros.find((x) => x.id === id && x.ativo); return r ? { id: r.id, nome: r.nome, pct: r.pct } : null },
+      contarOperacao(id) { novas.set(id, (novas.get(id) ?? 0) + 1); sincronizar() },
+    },
+    async opcoes(s) { opcoesPermitidas(s); return registros.filter((r) => r.ativo).map((r) => ({ id: r.id, nome: r.nome })) },
     async listar(s) { admin(s); return registros.map(visao).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')) },
     async obter(s, id) { admin(s); return visao(achar(id)) },
 

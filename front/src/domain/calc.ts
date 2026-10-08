@@ -10,8 +10,11 @@ export const investido = (b: Bem) => b.custo + b.extras
 
 /** Venda parcelada: juros simples de `pct`% por parcela sobre o que sobra depois da entrada e da troca. */
 export function planoParc(parcelado: number, n: number, juros: ConfigJuros = JUROS_PADRAO) {
-  const total = arred2(parcelado * (1 + (juros.pct / 100) * n))
-  return { total, parc: n > 0 ? ceilCent(total / n) : 0, juros: arred2(total - parcelado) }
+  if (n <= 0) return { total: 0, parc: 0, juros: 0 }
+  const parc = ceilCent(arred2(parcelado * (1 + (juros.pct / 100) * n)) / n)
+  // o cliente paga parcela × n (a parcela é arredondada para cima no centavo): é o mesmo número que o backend grava
+  const total = arred2(parc * n)
+  return { total, parc, juros: arred2(total - parcelado) }
 }
 
 /** Resumo financeiro de uma operação. `inv` é o capital investido nela. */

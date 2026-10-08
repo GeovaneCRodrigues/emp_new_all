@@ -141,7 +141,7 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
       </div>
       <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
         <button v-if="ficha.estado !== 'VENDIDO'" class="btn b-out" style="flex: 1" @click="simular(ficha)"><Icon name="calculator" small />Simular</button>
-        <button v-if="ficha.estado === 'DISPONIVEL'" class="btn b-pri" style="flex: 1" @click="router.push('/vender')"><Icon name="plus" small />Vender</button>
+        <button v-if="ficha.estado === 'DISPONIVEL'" class="btn b-pri" style="flex: 1" @click="router.push('/vender?bem=' + ficha.id)"><Icon name="plus" small />Vender</button>
         <button v-if="ehAdmin && ficha.estado !== 'VENDIDO'" class="btn b-sub" style="flex-basis: 100%" @click="editar(ficha)">Editar aparelho</button>
       </div>
       <div v-if="ficha.estado === 'VENDIDO'" class="small" style="margin-top: 8px">Aparelho vendido não pode ser alterado.</div>

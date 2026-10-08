@@ -18,6 +18,7 @@ export function criarIndicadoresHttp(baseUrl: string, requisicao: Requisicao): I
   const json = (v: unknown) => JSON.stringify(v)
   return {
     listar: () => chamar('/indicadores'),
+    opcoes: () => chamar('/indicadores/opcoes'),
     obter: (_s, id) => chamar(`/indicadores/${id}`),
     criar: (_s, e) => chamar('/indicadores', { method: 'POST', body: json(e) }),
     atualizar: (_s, id, e) => chamar(`/indicadores/${id}`, { method: 'PATCH', body: json(e) }),

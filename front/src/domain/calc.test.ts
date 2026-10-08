@@ -36,9 +36,12 @@ describe('juros da venda parcelada (10% por parcela, juros simples)', () => {
     expect(planoParc(1000, 4, { pct: 5, maxParcelas: 6 }).total).toBe(1200)
   })
 
-  it('arredonda a parcela para cima no centavo', () => {
-    expect(planoParc(1000, 3).parc).toBe(433.34) // 1300 / 3
+  it('arredonda a parcela para cima no centavo e o cliente paga parcela × n (igual ao backend)', () => {
+    const p = planoParc(1000, 3) // 1.300 ÷ 3 = 433,333…
+    expect(p.parc).toBe(433.34)
+    expect(p.total).toBe(1300.02)
   })
+  it('sem parcelas não há juros', () => expect(planoParc(0, 0)).toEqual({ total: 0, parc: 0, juros: 0 }))
 })
 
 describe('lucro: o capital volta primeiro', () => {
