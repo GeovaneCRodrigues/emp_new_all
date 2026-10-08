@@ -1,8 +1,10 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { AuthService } from '../modules/auth/services/auth.service.js'
 import type { TokensService } from '../modules/auth/services/tokens.js'
-import { naoAutenticado, semPermissao } from './errors.js'
+import { HttpError, naoAutenticado, semPermissao } from './errors.js'
 import type { Perfil, Sessao } from './perfis.js'
+
+const LIBERADAS_COM_SENHA_TEMPORARIA = new Set(['/api/auth/senha', '/api/auth/eu', '/api/auth/logout'])
 
 declare module 'fastify' {
   interface FastifyRequest { sessao?: Sessao }
@@ -17,7 +19,9 @@ export function exigirAuth(tokens: TokensService, auth: AuthService) {
     const h = req.headers.authorization
     if (!h?.startsWith('Bearer ')) throw naoAutenticado()
     const s = tokens.verificarAcesso(h.slice(7))
-    await auth.validarSessao(s)
+    const u = await auth.validarSessao(s)
+    // senha temporária: até trocar, só dá para trocar a senha, ver quem é e sair
+    if (u.senhaTemporaria && !LIBERADAS_COM_SENHA_TEMPORARIA.has(req.routeOptions.url ?? '')) throw new HttpError(403, 'Troque a senha temporária para continuar', 'TROCAR_SENHA')
     req.sessao = s
   }
 }

@@ -5,7 +5,7 @@ import type { SessaoRegistro, Usuario } from './types.js'
 export interface UsuariosRepository {
   buscarPorEmail(email: string): Promise<Usuario | null>
   buscarPorId(id: number): Promise<Usuario | null>
-  criar(dados: Pick<Usuario, 'nome' | 'email' | 'senhaHash' | 'perfil' | 'indicadorId' | 'ativo'>): Promise<Usuario>
+  criar(dados: Pick<Usuario, 'nome' | 'email' | 'senhaHash' | 'perfil' | 'indicadorId' | 'ativo'> & { senhaTemporaria?: boolean }): Promise<Usuario>
   /** soma uma falha e, se passou do limite, bloqueia até `bloquearAte` */
   registrarFalha(id: number, limite: number, bloquearAte: Date): Promise<void>
   zerarFalhas(id: number): Promise<void>
@@ -25,11 +25,11 @@ export interface SessoesRepository {
 
 type LinhaUsuario = {
   id: number; nome: string; email: string; senha_hash: string; perfil: Usuario['perfil']; indicador_id: number | null
-  ativo: boolean; falhas_login: number; bloqueado_ate: Date | null
+  ativo: boolean; falhas_login: number; bloqueado_ate: Date | null; senha_temporaria: boolean
 }
 const paraUsuario = (l: LinhaUsuario): Usuario => ({
   id: l.id, nome: l.nome, email: l.email, senhaHash: l.senha_hash, perfil: l.perfil, indicadorId: l.indicador_id,
-  ativo: l.ativo, falhasLogin: l.falhas_login, bloqueadoAte: l.bloqueado_ate,
+  ativo: l.ativo, falhasLogin: l.falhas_login, bloqueadoAte: l.bloqueado_ate, senhaTemporaria: l.senha_temporaria,
 })
 
 export function createUsuariosRepository(db: Knex): UsuariosRepository {
@@ -44,7 +44,7 @@ export function createUsuariosRepository(db: Knex): UsuariosRepository {
     },
     async criar(d) {
       const [l] = await db<LinhaUsuario>('users')
-        .insert({ nome: d.nome, email: d.email.toLowerCase(), senha_hash: d.senhaHash, perfil: d.perfil, indicador_id: d.indicadorId, ativo: d.ativo })
+        .insert({ nome: d.nome, email: d.email.toLowerCase(), senha_hash: d.senhaHash, perfil: d.perfil, indicador_id: d.indicadorId, ativo: d.ativo, senha_temporaria: d.senhaTemporaria ?? false })
         .returning('*')
       return paraUsuario(l)
     },
@@ -61,7 +61,7 @@ export function createUsuariosRepository(db: Knex): UsuariosRepository {
       await db('users').where({ id }).update({ falhas_login: 0, bloqueado_ate: null })
     },
     async atualizarSenha(id, senhaHash) {
-      await db('users').where({ id }).update({ senha_hash: senhaHash, senha_alterada_em: db.fn.now(), updated_at: db.fn.now() })
+      await db('users').where({ id }).update({ senha_hash: senhaHash, senha_temporaria: false, senha_alterada_em: db.fn.now(), updated_at: db.fn.now() })
     },
   }
 }

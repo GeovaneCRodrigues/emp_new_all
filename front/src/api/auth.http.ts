@@ -22,5 +22,6 @@ export function criarAuthHttp(baseUrl: string): AuthApi {
     renovar: (refreshToken) => chamar<Credenciais>('/renovar', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
     logout: (token) => chamar<void>('/logout', { method: 'POST', token }),
     eu: (token) => chamar<UsuarioAuth>('/eu', { token }),
+    trocarSenha: (token, senhaAtual, novaSenha) => chamar<void>('/senha', { method: 'POST', token, body: JSON.stringify({ senhaAtual, novaSenha }) }),
   }
 }

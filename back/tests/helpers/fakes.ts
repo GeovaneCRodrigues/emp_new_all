@@ -10,7 +10,7 @@ export function usuariosEmMemoria(): UsuariosRepository & { todos: Usuario[] } {
     async buscarPorEmail(e) { return todos.find((u) => u.email.toLowerCase() === e.toLowerCase()) ?? null },
     async buscarPorId(id) { return todos.find((u) => u.id === id) ?? null },
     async criar(d) {
-      const u: Usuario = { ...d, email: d.email.toLowerCase(), id: todos.length + 1, falhasLogin: 0, bloqueadoAte: null }
+      const u: Usuario = { ...d, email: d.email.toLowerCase(), id: todos.length + 1, falhasLogin: 0, bloqueadoAte: null, senhaTemporaria: d.senhaTemporaria ?? false }
       todos.push(u)
       return u
     },
@@ -20,7 +20,7 @@ export function usuariosEmMemoria(): UsuariosRepository & { todos: Usuario[] } {
       if (u.falhasLogin >= limite) u.bloqueadoAte = ate
     },
     async zerarFalhas(id) { const u = todos.find((x) => x.id === id)!; u.falhasLogin = 0; u.bloqueadoAte = null },
-    async atualizarSenha(id, h) { todos.find((x) => x.id === id)!.senhaHash = h },
+    async atualizarSenha(id, h) { const u = todos.find((x) => x.id === id)!; u.senhaHash = h; u.senhaTemporaria = false },
   }
 }
 

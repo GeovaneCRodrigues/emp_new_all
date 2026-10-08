@@ -30,6 +30,10 @@ export function criarAuthFake(): AuthApi {
       return emitir(u)
     },
     async logout() { /* nada a revogar no modo demonstração */ },
+    async trocarSenha(_t, atual, nova) {
+      if (atual !== SENHA_DEMO) throw new ErroAuth(401, 'Senha atual incorreta')
+      if (nova.length < 10) throw new ErroAuth(400, 'A nova senha precisa ter ao menos 10 caracteres')
+    },
     async eu(accessToken) {
       const u = conta(accessToken)
       if (!u) throw new ErroAuth(401, 'Sessão inválida ou expirada')

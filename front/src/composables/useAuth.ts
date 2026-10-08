@@ -60,6 +60,15 @@ export function useAuth() {
       aceitar(await api.login(email, senha))
     },
 
+    /** Senha temporária: enquanto não trocar, o app só mostra a tela de troca. */
+    precisaTrocarSenha: computed(() => usuario.value?.precisaTrocarSenha === true),
+
+    async trocarSenha(atual: string, nova: string) {
+      if (!accessToken) throw new ErroAuth(401, 'Sessão inválida ou expirada')
+      await api.trocarSenha(accessToken, atual, nova)
+      if (usuario.value) usuario.value = { ...usuario.value, precisaTrocarSenha: false }
+    },
+
     async sair() {
       const t = accessToken
       limpar() // sai da tela primeiro; se o servidor falhar, o token já foi descartado aqui

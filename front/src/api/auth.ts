@@ -6,6 +6,8 @@ export interface UsuarioAuth {
   email: string
   perfil: Perfil
   indicadorId: number | null
+  /** acesso criado pelo admin com senha temporária: só pode trocar a senha até concluir */
+  precisaTrocarSenha?: boolean
 }
 
 export interface Credenciais {
@@ -27,4 +29,5 @@ export interface AuthApi {
   renovar(refreshToken: string): Promise<Credenciais>
   logout(accessToken: string): Promise<void>
   eu(accessToken: string): Promise<UsuarioAuth>
+  trocarSenha(accessToken: string, senhaAtual: string, novaSenha: string): Promise<void>
 }

@@ -14,7 +14,7 @@ const router = useRouter()
 const { sessao, d, hoje, cobrancas } = useApp()
 const auth = useAuth()
 
-const ehLogin = computed(() => route.path === '/login')
+const ehLogin = computed(() => route.path === '/login' || route.path === '/trocar-senha')
 
 // quem entrou define o perfil da tela (no modo demonstração dá para trocar pela barra "Ver como")
 watch(auth.usuario, () => { const s = auth.sessao(); if (s) definirSessao(s) }, { immediate: true })

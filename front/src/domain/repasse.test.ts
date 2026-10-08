@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contasVenda } from './calc'
-import { nivelDe, previsaoRepasse, repassesDoIndicador, type OpComContas } from './repasse'
+import { NIVEIS_PADRAO, nivelDe, previsaoRepasse, repassesDoIndicador, validarNiveis, type OpComContas } from './repasse'
 import type { Bem, Parcela, Venda } from './types'
 
 const HOJE = '2026-10-08'
@@ -70,4 +70,13 @@ describe('níveis', () => {
     expect(nivelDe(4).prox?.nome).toBe('Ouro')
     expect(nivelDe(12).prox).toBeNull()
   })
+})
+
+describe('validarNiveis (formulário de níveis)', () => {
+  const N = NIVEIS_PADRAO
+  it('aceita a tabela padrão', () => expect(validarNiveis(N)).toBeNull())
+  it('primeiro nível começa em 0', () => expect(validarNiveis([{ ...N[0], min: 1 }, N[1]])).toMatch(/começar em 0/))
+  it('os mínimos precisam crescer', () => expect(validarNiveis([N[0], N[1], { ...N[2], min: 3 }])).toMatch(/depois do nível anterior/))
+  it('nível de cima não ganha menos', () => expect(validarNiveis([N[0], { ...N[1], pct: 0.2 }])).toMatch(/não pode ganhar menos/))
+  it.each([0, 1.2, NaN])('recusa % %s', (pct) => expect(validarNiveis([{ ...N[0], pct }])).toMatch(/entre 0 e 100/))
 })

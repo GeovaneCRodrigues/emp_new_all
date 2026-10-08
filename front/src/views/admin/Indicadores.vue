@@ -1,0 +1,231 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import { ErroApi } from '@/api/clientes'
+import type { AcessoCriado, IndicadorApi, TabelaNiveis } from '@/api/indicadores'
+import { indicadoresApi } from '@/api/recursos'
+import Abas from '@/components/Abas.vue'
+import Icon from '@/components/Icon.vue'
+import IndicadorForm from '@/components/IndicadorForm.vue'
+import SeloNivel from '@/components/SeloNivel.vue'
+import Sheet from '@/components/Sheet.vue'
+import { modoDemo } from '@/composables/useAuth'
+import { useApp } from '@/composables/useApp'
+import { mascaraFone } from '@/domain/documentos'
+import { iniciais } from '@/domain/format'
+import { validarNiveis } from '@/domain/repasse'
+
+const { sessao } = useApp()
+
+const aba = ref('indicadores')
+const abas = [
+  { id: 'repasses', label: 'Repasses', icon: 'send' },
+  { id: 'indicadores', label: 'Indicadores', icon: 'share-2' },
+  { id: 'niveis', label: 'Níveis', icon: 'award' },
+  { id: 'pagos', label: 'Já pagos', icon: 'wallet' },
+]
+
+const lista = ref<IndicadorApi[]>([])
+const carregando = ref(true)
+const erro = ref('')
+const aviso = ref('')
+const pct = (n: number) => `${Math.round(n * 1000) / 10}%`
+
+async function carregar() {
+  erro.value = ''
+  try {
+    lista.value = await indicadoresApi.listar(sessao.value)
+  } catch (e) {
+    erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os indicadores.'
+  } finally {
+    carregando.value = false
+  }
+}
+onMounted(() => { carregar(); carregarNiveis() })
+
+// ---- ficha e cadastro ----
+const ficha = ref<IndicadorApi | null>(null)
+const formAberto = ref(false)
+const editando = ref<IndicadorApi | null>(null)
+const mudando = ref(false)
+
+const novo = () => { editando.value = null; formAberto.value = true }
+const editar = (i: IndicadorApi) => { editando.value = i; ficha.value = null; formAberto.value = true }
+async function aoSalvar(i: IndicadorApi) {
+  formAberto.value = false
+  aviso.value = ''
+  await carregar()
+  if (ficha.value) ficha.value = lista.value.find((x) => x.id === i.id) ?? null
+}
+
+async function alternarAtivo(i: IndicadorApi) {
+  mudando.value = true
+  try {
+    await indicadoresApi.atualizar(sessao.value, i.id, { ativo: !i.ativo })
+    await carregar()
+    ficha.value = lista.value.find((x) => x.id === i.id) ?? null
+  } catch (e) {
+    aviso.value = e instanceof ErroApi ? e.message : 'Não consegui mudar o indicador.'
+  } finally {
+    mudando.value = false
+  }
+}
+
+// ---- acesso ----
+const acessoPara = ref<IndicadorApi | null>(null)
+const emailAcesso = ref('')
+const erroAcesso = ref('')
+const acesso = ref<AcessoCriado | null>(null)
+const copiado = ref(false)
+
+function abrirAcesso(i: IndicadorApi) { ficha.value = null; acessoPara.value = i; emailAcesso.value = ''; erroAcesso.value = ''; acesso.value = null; copiado.value = false }
+async function criarAcesso() {
+  if (!acessoPara.value) return
+  erroAcesso.value = ''
+  try {
+    acesso.value = await indicadoresApi.criarAcesso(sessao.value, acessoPara.value.id, emailAcesso.value)
+    carregar()
+  } catch (e) {
+    erroAcesso.value = e instanceof ErroApi ? e.message : 'Não consegui criar o acesso.'
+  }
+}
+async function copiarAcesso() {
+  if (!acesso.value) return
+  try { await navigator.clipboard.writeText(`E-mail: ${acesso.value.email}\nSenha temporária: ${acesso.value.senhaTemporaria}`); copiado.value = true } catch { /* o texto está na tela */ }
+}
+// a senha aparece uma vez: fechar descarta
+const fecharAcesso = () => { acessoPara.value = null; acesso.value = null }
+
+// ---- níveis ----
+const niveis = ref<TabelaNiveis | null>(null)
+const edicao = reactive({ min: [] as string[], pct: [] as string[], auto: true })
+const erroNiveis = ref('')
+const salvoNiveis = ref(false)
+
+async function carregarNiveis() {
+  try {
+    niveis.value = await indicadoresApi.niveis(sessao.value)
+    edicao.min = niveis.value.niveis.map((n) => String(n.minOperacoes))
+    edicao.pct = niveis.value.niveis.map((n) => String(Math.round(n.pct * 1000) / 10))
+    edicao.auto = niveis.value.auto
+  } catch { /* a aba mostra vazio */ }
+}
+async function salvarNiveis() {
+  if (!niveis.value) return
+  erroNiveis.value = ''
+  salvoNiveis.value = false
+  const novos = niveis.value.niveis.map((n, i) => ({ ...n, minOperacoes: Number(edicao.min[i]), pct: Number(edicao.pct[i].replace(',', '.')) / 100 }))
+  const problema = validarNiveis(novos.map((n) => ({ id: n.id, nome: n.nome, min: n.minOperacoes, pct: n.pct })))
+  if (problema) { erroNiveis.value = problema; return }
+  try {
+    niveis.value = await indicadoresApi.salvarNiveis(sessao.value, { niveis: novos, auto: edicao.auto })
+    salvoNiveis.value = true
+    await carregar()
+  } catch (e) {
+    erroNiveis.value = e instanceof ErroApi ? e.message : 'Não consegui salvar os níveis.'
+  }
+}
+
+const ativos = computed(() => lista.value.filter((i) => i.ativo).length)
+const linkZap = (f: string) => `https://wa.me/55${f}`
+</script>
+
+<template>
+  <div class="row" style="justify-content: space-between">
+    <p class="small" style="margin: 0; flex: 1">Quem traz cliente ganha uma parte do lucro. A parte dele só começa depois que o seu capital volta.</p>
+    <button v-if="aba === 'indicadores'" class="btn b-pri b-sm" @click="novo"><Icon name="plus" small />Indicador</button>
+  </div>
+  <Abas v-model="aba" :itens="abas" />
+
+  <div v-if="aviso" class="aviso" role="status" style="justify-content: space-between"><span>{{ aviso }}</span><button class="btn b-ghost b-sm" @click="aviso = ''">Ok</button></div>
+
+  <!-- indicadores -->
+  <template v-if="aba === 'indicadores'">
+    <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
+    <div class="resumo3">
+      <div><div class="lbl">Indicadores</div><div class="val num">{{ ativos }}</div></div>
+      <div><div class="lbl">Operações trazidas</div><div class="val num">{{ lista.reduce((s, i) => s + i.operacoes, 0) }}</div></div>
+      <div><div class="lbl">Com acesso</div><div class="val num">{{ lista.filter((i) => i.temAcesso).length }}</div></div>
+    </div>
+    <div class="fones">
+      <button v-for="i in lista" :key="i.id" class="card pad" style="text-align: left; display: flex; flex-direction: column; gap: 12px" :style="{ opacity: i.ativo ? 1 : 0.6 }" @click="ficha = i">
+        <div class="row">
+          <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(i.nome) }}</span>
+          <div style="flex: 1; min-width: 0"><div class="val">{{ i.nome }}</div><div class="small">{{ i.whatsapp ? mascaraFone(i.whatsapp) : 'sem WhatsApp' }}</div></div>
+          <span v-if="!i.ativo" class="chip c-neu">inativo</span>
+          <SeloNivel :id="i.nivel.id" :nome="i.nivel.nome" />
+          <span class="chip c-pri">{{ pct(i.pct) }}</span>
+        </div>
+        <div class="small">{{ i.operacoes }} {{ i.operacoes === 1 ? 'operação' : 'operações' }}<template v-if="i.proximoNivel"> · faltam {{ i.faltamParaProximo }} para {{ i.proximoNivel.nome }}</template></div>
+      </button>
+      <div v-if="!lista.length && !carregando && !erro" class="card empty">Nenhum indicador ainda.</div>
+    </div>
+  </template>
+
+  <!-- níveis -->
+  <div v-else-if="aba === 'niveis'" class="card pad" style="display: flex; flex-direction: column; gap: 14px">
+    <div><div class="val">Níveis dos indicadores</div><div class="small">Quanto mais indica, mais sobe e mais ganha do lucro.</div></div>
+    <div v-if="niveis" class="niveis">
+      <div v-for="(n, i) in niveis.niveis" :key="n.id" class="niv" :style="{ borderColor: 'var(--border)' }">
+        <SeloNivel :id="n.id" :nome="n.nome" grande />
+        <div class="field"><label :for="'nm' + i">A partir de</label><div class="inp" style="height: 38px"><input :id="'nm' + i" v-model="edicao.min[i]" inputmode="numeric" :disabled="i === 0" style="font-size: 14px" /><span class="small">operações</span></div></div>
+        <div class="field"><label :for="'np' + i">Ganha do lucro</label><div class="inp" style="height: 38px"><input :id="'np' + i" v-model="edicao.pct[i]" inputmode="decimal" style="font-size: 14px" /><span>%</span></div></div>
+      </div>
+    </div>
+    <label class="toggle" style="cursor: pointer"><button type="button" class="sw" :class="{ on: edicao.auto }" role="switch" :aria-checked="edicao.auto" aria-label="Subir o % sozinho" @click="edicao.auto = !edicao.auto"></button><span><span class="val" style="display: block">Subir o % sozinho nas próximas operações</span><span class="small">Só vale para quem não teve o % definido à mão.</span></span></label>
+    <div v-if="erroNiveis" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroNiveis }}</div>
+    <div v-if="salvoNiveis" class="aviso" role="status" style="background: var(--ok-soft); color: var(--ok)">Níveis salvos.</div>
+    <button class="btn b-pri" style="align-self: flex-start" @click="salvarNiveis">Salvar níveis</button>
+  </div>
+
+  <div v-else class="card empty" style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+    <Icon name="wallet" /><b style="color: var(--strong)">{{ aba === 'repasses' ? 'Repasses' : 'Já pagos' }}</b>
+    <span class="small">Entra junto com as vendas e o pagamento de repasse.</span>
+  </div>
+
+  <!-- ficha -->
+  <Sheet :aberto="ficha !== null" @fechar="ficha = null">
+    <template v-if="ficha">
+      <div class="row" style="gap: 12px"><span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(ficha.nome) }}</span><div style="flex: 1; min-width: 0"><h3>{{ ficha.nome }}</h3><div class="small">{{ ficha.whatsapp ? mascaraFone(ficha.whatsapp) : 'sem WhatsApp' }}<template v-if="ficha.chavePix"> · Pix {{ ficha.chavePix }}</template></div></div><span v-if="!ficha.ativo" class="chip c-neu">inativo</span></div>
+      <div class="dl card pad" style="margin-top: 14px">
+        <div><div class="lbl">Nível</div><SeloNivel :id="ficha.nivel.id" :nome="ficha.nivel.nome" grande /></div>
+        <div><div class="lbl">Parte do lucro</div><div class="val num">{{ pct(ficha.pct) }}</div><div class="small">{{ ficha.pctManual ? 'definido por você' : 'acompanha o nível' }}</div></div>
+        <div><div class="lbl">Operações</div><div class="val num">{{ ficha.operacoes }}</div><div v-if="ficha.proximoNivel" class="small">faltam {{ ficha.faltamParaProximo }} para {{ ficha.proximoNivel.nome }}</div></div>
+        <div><div class="lbl">Acesso ao sistema</div><div class="val">{{ ficha.temAcesso ? 'Criado' : 'Ainda não' }}</div></div>
+      </div>
+      <div class="small" style="margin-top: 8px">Mudar o % vale só para as próximas operações. As que já existem ficam com o % de quando foram feitas.</div>
+      <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
+        <button class="btn b-out" style="flex: 1" @click="editar(ficha)">Editar</button>
+        <a v-if="ficha.whatsapp" class="btn b-out" style="flex: 1" :href="linkZap(ficha.whatsapp)" target="_blank" rel="noopener"><Icon name="message-circle" small />WhatsApp</a>
+        <button v-if="!ficha.temAcesso && ficha.ativo" class="btn b-pri" style="flex-basis: 100%" @click="abrirAcesso(ficha)"><Icon name="key-round" small />Criar acesso ao sistema</button>
+        <button class="btn b-sub" style="flex-basis: 100%" :disabled="mudando" @click="alternarAtivo(ficha)">{{ ficha.ativo ? 'Desativar indicador' : 'Reativar indicador' }}</button>
+      </div>
+      <div v-if="ficha.ativo" class="small" style="margin-top: 6px">Desativar também bloqueia o acesso dele. O histórico continua.</div>
+    </template>
+  </Sheet>
+
+  <IndicadorForm :aberto="formAberto" :indicador="editando" @fechar="formAberto = false" @salvo="aoSalvar" />
+
+  <!-- acesso -->
+  <Sheet :aberto="acessoPara !== null" @fechar="fecharAcesso">
+    <template v-if="acessoPara">
+      <h3>Acesso de {{ acessoPara.nome }}</h3>
+      <form v-if="!acesso" style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" @submit.prevent="criarAcesso">
+        <div class="small">Ele entra com este e-mail e uma senha temporária que você vai ver uma única vez. No primeiro acesso ele escolhe a senha dele.</div>
+        <div class="field"><label for="aMail">E-mail dele</label><div class="inp"><input id="aMail" v-model="emailAcesso" type="email" autocomplete="off" required autofocus /></div></div>
+        <div v-if="erroAcesso" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroAcesso }}</div>
+        <button class="btn b-pri b-block" type="submit">Criar acesso</button>
+      </form>
+      <div v-else style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px">
+        <div class="aviso">Anote agora: esta senha <b>não aparece de novo</b>. Se perder, é preciso criar outro acesso.</div>
+        <div class="card pad" style="display: flex; flex-direction: column; gap: 8px"><div><div class="lbl">E-mail</div><div class="val">{{ acesso.email }}</div></div><div><div class="lbl">Senha temporária</div><div class="val mono" style="font-size: 16px" data-testid="senha-temporaria">{{ acesso.senhaTemporaria }}</div></div></div>
+        <div v-if="modoDemo" class="small">Modo demonstração: esta senha é só para ver como fica, o login falso não a reconhece.</div>
+        <button class="btn b-ok b-block" @click="copiarAcesso"><Icon name="copy" small />{{ copiado ? 'Copiado!' : 'Copiar e-mail e senha' }}</button>
+        <button class="btn b-ghost" @click="fecharAcesso">Já anotei</button>
+      </div>
+    </template>
+  </Sheet>
+</template>
+
+<style scoped>
+.erro-campo { font-size: 12px; color: var(--bad); }
+</style>

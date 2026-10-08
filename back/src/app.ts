@@ -13,6 +13,8 @@ import { clientesRoutes } from './modules/clientes/routes.js'
 import type { ClientesService } from './modules/clientes/services/clientes.service.js'
 import { usuariosRoutes } from './modules/usuarios/routes.js'
 import type { UsuariosService } from './modules/usuarios/services/usuarios.service.js'
+import { indicadoresRoutes } from './modules/indicadores/routes.js'
+import type { IndicadoresService } from './modules/indicadores/services/indicadores.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
 /** Tudo o que o app precisa vem de fora (injeção), assim os testes trocam o banco por um falso. */
@@ -23,6 +25,7 @@ export type Deps = {
   auth: AuthService
   clientes: ClientesService
   usuarios: UsuariosService
+  indicadores: IndicadoresService
 }
 
 export async function buildApp(deps: Deps): Promise<FastifyInstance> {
@@ -47,6 +50,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(authRoutes(deps.auth, exigir), { prefix: '/api' })
   await app.register(clientesRoutes(deps.clientes, exigir), { prefix: '/api' })
   await app.register(usuariosRoutes(deps.usuarios, exigir), { prefix: '/api' })
+  await app.register(indicadoresRoutes(deps.indicadores, exigir), { prefix: '/api' })
 
   return app
 }

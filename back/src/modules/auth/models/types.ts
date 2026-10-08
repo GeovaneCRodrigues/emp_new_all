@@ -10,6 +10,8 @@ export type Usuario = {
   ativo: boolean
   falhasLogin: number
   bloqueadoAte: Date | null
+  /** acesso criado pelo admin: precisa trocar a senha antes de usar o sistema */
+  senhaTemporaria: boolean
 }
 
 export type SessaoRegistro = {
