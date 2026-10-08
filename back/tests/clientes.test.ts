@@ -65,7 +65,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)
     const clientes = createClientesService(createClientesRepository(k), createAuditoriaRepository(k))
-    app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes, usuarios: createUsuariosService(createUsuariosListaRepository(k)), indicadores: {} as never })
+    app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes, usuarios: createUsuariosService(createUsuariosListaRepository(k)), indicadores: {} as never, estoque: {} as never })
     for (const papel of ['admin', 'vendedorA', 'vendedorB', 'cobrador', 'indicador1', 'indicador2']) {
       const r = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: `${papel}@t.com`, senha: SENHA } })
       t[papel] = r.json().accessToken

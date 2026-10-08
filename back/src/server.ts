@@ -8,6 +8,8 @@ import { createUsuariosListaRepository } from './modules/usuarios/models/reposit
 import { createUsuariosService } from './modules/usuarios/services/usuarios.service.js'
 import { createIndicadoresRepository } from './modules/indicadores/models/repository.js'
 import { createIndicadoresService } from './modules/indicadores/services/indicadores.service.js'
+import { createEstoqueRepository } from './modules/estoque/models/repository.js'
+import { createEstoqueService } from './modules/estoque/services/estoque.service.js'
 import { createClientesService } from './modules/clientes/services/clientes.service.js'
 import { createSessoesRepository, createUsuariosRepository } from './modules/auth/models/repository.js'
 import { createAuthService } from './modules/auth/services/auth.service.js'
@@ -24,7 +26,9 @@ const usuarios = createUsuariosService(createUsuariosListaRepository(db.knex))
 
 const indicadores = createIndicadoresService(createIndicadoresRepository(db.knex), createAuditoriaRepository(db.knex))
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores })
+const estoque = createEstoqueService(createEstoqueRepository(db.knex), createAuditoriaRepository(db.knex))
+
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

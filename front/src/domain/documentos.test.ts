@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cpfValido, mascaraCpf, mascaraFone, normalizarFone } from './documentos'
+import { cpfValido, imeiValido, mascaraCpf, mascaraFone, normalizarFone } from './documentos'
 
 describe('cpfValido', () => {
   it.each(['529.982.247-25', '52998224725', '111.444.777-35'])('aceita %s', (c) => expect(cpfValido(c)).toBe(true))
@@ -14,4 +14,9 @@ describe('normalizarFone', () => {
 describe('máscaras', () => {
   it.each([['5', '5'], ['5299', '529.9'], ['529982', '529.982'], ['5299822', '529.982.2'], ['52998224725', '529.982.247-25'], ['529982247259999', '529.982.247-25'], ['abc', '']])('CPF %s → %s', (e, s) => expect(mascaraCpf(e)).toBe(s))
   it.each([['', ''], ['1', '(1'], ['11', '(11'], ['119', '(11) 9'], ['1198812', '(11) 9881-2'], ['11988124410', '(11) 98812-4410'], ['1133221100', '(11) 3322-1100'], ['+5511988124410', '(11) 98812-4410']])('fone %s → %s', (e, s) => expect(mascaraFone(e)).toBe(s))
+})
+
+describe('imeiValido', () => {
+  it.each(['490154203237518', '49-015420-323751-8', '356938035643809'])('aceita %s', (i) => expect(imeiValido(i)).toBe(true))
+  it.each(['490154203237519', '123456789012345', '000000000000000', '49015420323751', '', 'abc'])('recusa "%s"', (i) => expect(imeiValido(i)).toBe(false))
 })

@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { criarApiFalsa } from '@/api/fake'
+import { modoDemo } from '@/composables/useAuth'
 import type { Api } from '@/api'
 import { contasOp, investido } from '@/domain/calc'
 import type { Contas } from '@/domain/calc'
@@ -59,7 +60,8 @@ export const NOME_MOD = { PARCELADO: 'Empréstimo', JUROS: 'Empréstimo só juro
 export function useApp() {
   const d = computed(() => dados.value)
   const pronto = computed(() => dados.value !== null)
-  const hoje = computed(() => dados.value?.hoje ?? new Date().toISOString().slice(0, 10))
+  // na demonstração o dia é fixo (bate com os dados de exemplo); fora dela, é o dia de hoje de verdade
+  const hoje = computed(() => (modoDemo ? dados.value?.hoje : null) ?? new Date().toISOString().slice(0, 10))
   const pode = computed(() => permissoes(sessao.value.perfil))
 
   const bens = computed(() => new Map((dados.value?.bens ?? []).map((b) => [b.id, b])))

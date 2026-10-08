@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js'
 const ORIGEM = 'http://127.0.0.1:5177'
 
 async function montar() {
-  return buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [ORIGEM] }, db: { ping: async () => {} }, tokens: {} as never, auth: {} as never, clientes: {} as never, usuarios: {} as never, indicadores: {} as never })
+  return buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [ORIGEM] }, db: { ping: async () => {} }, tokens: {} as never, auth: {} as never, clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: {} as never })
 }
 const preflight = (app: Awaited<ReturnType<typeof montar>>, origem: string, metodo: string) =>
   app.inject({ method: 'OPTIONS', url: '/api/clientes/1', headers: { origin: origem, 'access-control-request-method': metodo, 'access-control-request-headers': 'authorization,content-type' } })

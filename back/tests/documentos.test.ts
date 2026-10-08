@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cpfValido, normalizarFone, soDigitos } from '../src/shared/documentos.js'
+import { cpfValido, imeiValido, normalizarFone, soDigitos } from '../src/shared/documentos.js'
 
 describe('cpfValido', () => {
   it.each(['529.982.247-25', '52998224725', '111.444.777-35'])('aceita %s', (c) => expect(cpfValido(c)).toBe(true))
@@ -16,4 +16,9 @@ describe('normalizarFone', () => {
   ])('%s → %s', (entrada, saida) => expect(normalizarFone(entrada)).toBe(saida))
   it.each(['', '123', '(11) 88812-4410', '(01) 98812-4410', '98812-4410', '119881244100'])('recusa "%s"', (t) => expect(normalizarFone(t)).toBeNull())
   it('soDigitos', () => expect(soDigitos('(11) 9-8812')).toBe('1198812'))
+})
+
+describe('imeiValido', () => {
+  it.each(['490154203237518', '49-015420-323751-8', '356938035643809'])('aceita %s', (i) => expect(imeiValido(i)).toBe(true))
+  it.each(['490154203237519', '123456789012345', '000000000000000', '49015420323751', '4901542032375180', '', 'abc'])('recusa "%s"', (i) => expect(imeiValido(i)).toBe(false))
 })

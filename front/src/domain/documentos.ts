@@ -36,3 +36,16 @@ export function mascaraFone(v: string): string {
   const cauda = d.length > 10 ? d.slice(2, 7) + '-' + d.slice(7) : d.slice(2, 6) + (d.length > 6 ? '-' + d.slice(6) : '')
   return `(${d.slice(0, 2)}) ${cauda}`
 }
+
+/** IMEI: 15 dígitos com o dígito verificador (Luhn) certo. Aceita com ou sem separadores. */
+export function imeiValido(valor: string): boolean {
+  const d = soDigitos(valor)
+  if (d.length !== 15 || /^(\d)\1{14}$/.test(d)) return false
+  let soma = 0
+  for (let i = 0; i < 15; i++) {
+    let n = Number(d[14 - i])
+    if (i % 2 === 1) { n *= 2; if (n > 9) n -= 9 }
+    soma += n
+  }
+  return soma % 10 === 0
+}

@@ -1,26 +1,35 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import MoneyInput from '@/components/MoneyInput.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
-import { investido, planoParc } from '@/domain/calc'
+import { estoqueApi } from '@/api/recursos'
+import type { AparelhoApi } from '@/api/estoque'
+import { investidoApi } from '@/api/estoque'
+import { planoParc } from '@/domain/calc'
 import { fmt, fmt0 } from '@/domain/format'
 
 const route = useRoute()
 const router = useRouter()
-const { d, pode } = useApp()
+const { d, pode, sessao } = useApp()
 
 const juros = computed(() => d.value?.juros ?? { pct: 10, maxParcelas: 10 })
-const disponiveis = computed(() => (d.value?.bens ?? []).filter((b) => b.estado === 'DISPONIVEL'))
+const disponiveis = ref<AparelhoApi[]>([])
+onMounted(async () => {
+  disponiveis.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => ({ itens: [] as AparelhoApi[] }))).itens
+  // /simulador?bem=ID: o aparelho pode não estar na primeira página
+  const id = Number(route.query.bem)
+  if (id) { if (!disponiveis.value.some((b) => b.id === id)) { const b = await estoqueApi.obter(sessao.value, id).catch(() => null); if (b && b.estado === 'DISPONIVEL') disponiveis.value.push(b) } escolherBem(id) }
+})
 
 const s = reactive({ bemId: null as number | null, preco: 7500, entrada: 0, n: 10 })
 const waAberto = ref(false)
 const copiado = ref(false)
 
 // abrir pelo aparelho do estoque: /simulador?bem=4
-watch(() => route.query.bem, (id) => { if (id) escolherBem(Number(id)) }, { immediate: true })
+watch(() => route.query.bem, (id) => { if (id) escolherBem(Number(id)) })
 
 function escolherBem(id: number | null) {
   s.bemId = id
@@ -38,7 +47,7 @@ const linhas = computed(() =>
     const n = i + 1
     const pl = planoParc(parcelado.value, n, juros.value)
     const totalCli = entrada.value + pl.total
-    return { n, ...pl, totalCli, lucro: bem.value ? totalCli - investido(bem.value) : null }
+    return { n, ...pl, totalCli, lucro: bem.value && bem.value.custo !== undefined ? totalCli - investidoApi(bem.value) : null }
   }),
 )
 const sel = computed(() => linhas.value.find((l) => l.n === s.n) ?? linhas.value.at(-1)!)

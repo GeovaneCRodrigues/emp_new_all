@@ -1,0 +1,135 @@
+import { expect, test } from '@playwright/test'
+import { entrar } from './helpers'
+
+const botaoAparelho = (page: import('@playwright/test').Page) => page.locator('.content').getByRole('button', { name: 'Aparelho', exact: true })
+const card = (page: import('@playwright/test').Page, texto: string) => page.locator('.fone', { hasText: texto }).first()
+
+test.describe('estoque', () => {
+  test('admin vê o resumo com capital e margem, e os cards com custo e lucro', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await expect(page.locator('.resumo3')).toContainText('6 aparelhos')
+    await expect(page.locator('.resumo3')).toContainText('Capital parado')
+    await expect(page.locator('.resumo3')).toContainText('Margem média')
+    await expect(card(page, 'iPhone 15 Pro')).toContainText(/custo .* lucro/)
+    await expect(page.getByRole('button', { name: /Disponível · 6/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Encomendado · 1/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Vendidos' })).toBeVisible()
+  })
+
+  test('busca por modelo e por IMEI, e filtra por estado', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await page.getByLabel('Buscar aparelho').fill('15 pro')
+    await expect(page.locator('.fone')).toHaveCount(1)
+    await page.getByLabel('Buscar aparelho').fill('0114')
+    await expect(page.locator('.fone')).toHaveCount(0)
+    await page.getByLabel('Buscar aparelho').fill('')
+    await page.getByRole('button', { name: /Encomendado/ }).click()
+    await expect(page.locator('.fone')).toHaveCount(1)
+    await expect(page.locator('.fone')).toContainText('Para Patrícia Gomes')
+    await page.getByRole('button', { name: 'Vendidos' }).click()
+    await expect(page.locator('.fone').first()).toContainText('vendido')
+  })
+
+  test('cadastra: recusa IMEI inválido e preço vazio; aceita o válido e atualiza os números', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await botaoAparelho(page).click()
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByText('Informe o modelo')).toBeVisible()
+    await expect(page.getByText('Informe o preço de venda')).toBeVisible()
+
+    await page.fill('#aModelo', 'iPhone 14')
+    await page.fill('#aCor', 'Azul')
+    await page.fill('#aImei', '490154203237519')
+    await page.fill('#aCusto', '300000')
+    await expect(page.locator('#aCusto')).toHaveValue('3.000,00')
+    await page.fill('#aPreco', '450000')
+    await expect(page.getByText(/Lucro se vender por este preço/)).toContainText('1.500,00')
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByText('IMEI inválido. Confira os 15 dígitos')).toBeVisible()
+
+    await page.fill('#aImei', '490154203237518')
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByRole('button', { name: /Disponível · 7/ })).toBeVisible()
+    await expect(card(page, 'iPhone 14 · 128 GB').first()).toBeVisible()
+
+    // mesmo IMEI de novo: bloqueado
+    await botaoAparelho(page).click()
+    await page.fill('#aModelo', 'iPhone 14')
+    await page.fill('#aCor', 'Preto')
+    await page.fill('#aImei', '490154203237518')
+    await page.fill('#aPreco', '400000')
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByText('Já existe um aparelho com esse IMEI')).toBeVisible()
+  })
+
+  test('encomendado pede o cliente', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await botaoAparelho(page).click()
+    await page.fill('#aModelo', 'iPhone 16')
+    await page.fill('#aCor', 'Preto')
+    await page.fill('#aPreco', '700000')
+    await page.getByRole('dialog').getByRole('button', { name: 'Encomendado', exact: true }).click()
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByText('Escolha quem encomendou')).toBeVisible()
+    await page.selectOption('#aCliente', { label: 'Lucas Martins' })
+    await page.getByRole('button', { name: 'Cadastrar aparelho' }).click()
+    await expect(page.getByRole('button', { name: /Encomendado · 2/ })).toBeVisible()
+  })
+
+  test('abre a ficha, edita o preço e o Esc fecha; vendido não tem edição', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await card(page, 'iPhone 13').click()
+    await expect(page.getByRole('dialog')).toContainText('Custo + extras')
+    await expect(page.getByRole('dialog')).toContainText('Lucro previsto')
+    await page.getByRole('button', { name: 'Editar aparelho' }).click()
+    await page.fill('#aPreco', '399000')
+    await page.getByRole('button', { name: 'Salvar alterações' }).click()
+    await expect(card(page, 'iPhone 13')).toContainText('3.990')
+    await card(page, 'iPhone 13').click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Vendidos' }).click()
+    await page.locator('.fone').first().click()
+    await expect(page.getByRole('dialog')).toContainText('não pode ser alterado')
+    await expect(page.getByRole('button', { name: 'Editar aparelho' })).toHaveCount(0)
+  })
+
+  test('Simular pela ficha abre o simulador já com o aparelho', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/estoque')
+    await card(page, 'iPhone 16 · 128 GB').click()
+    await page.getByRole('button', { name: 'Simular' }).click()
+    await expect(page).toHaveURL(/\/simulador\?bem=/)
+    await expect(page.locator('#simBem')).toHaveValue('6')
+    await expect(page.locator('#simPreco')).toHaveValue('7.600,00')
+  })
+
+  test('vendedor não vê custo, lucro, capital, margem nem a aba de vendidos, e não cadastra', async ({ page }) => {
+    await entrar(page, 'vendedor')
+    await page.goto('/estoque')
+    await expect(page.locator('.fone').first()).toBeVisible()
+    await expect(page.getByText(/custo/i)).toHaveCount(0)
+    await expect(page.getByText(/lucro/i)).toHaveCount(0)
+    await expect(page.getByText(/capital parado|margem/i)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Vendidos' })).toHaveCount(0)
+    await expect(botaoAparelho(page)).toHaveCount(0)
+    await expect(page.locator('.resumo3')).toContainText('Valor em vitrine')
+    await card(page, 'iPhone 15 Pro').click()
+    await expect(page.getByRole('dialog')).toContainText('Preço de venda')
+    await expect(page.getByRole('dialog')).not.toContainText(/custo|lucro/i)
+    await expect(page.getByRole('button', { name: 'Editar aparelho' })).toHaveCount(0)
+  })
+
+  test('o vendedor só vê o nome de quem encomendou se for cliente da carteira dele', async ({ page }) => {
+    await entrar(page, 'vendedor') // vendedor 2: Patrícia (id 9) é da carteira dele
+    await page.goto('/estoque')
+    await page.getByRole('button', { name: /Encomendado/ }).click()
+    await expect(page.locator('.fone')).toContainText('Para Patrícia Gomes')
+  })
+})

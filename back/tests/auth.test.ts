@@ -21,7 +21,7 @@ async function montar() {
   await users.criar({ nome: 'Geovane', email: 'geovane@loja.com', senhaHash: await hashSenha(SENHA), perfil: 'ADMIN', indicadorId: null, ativo: true })
   const tokens = createTokensService(SEGREDO, '15m')
   const auth = createAuthService(users, sessoes, tokens, { agora: () => new Date(relogio) })
-  app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes: {} as never, usuarios: {} as never, indicadores: {} as never })
+  app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: {} as never })
 }
 
 const post = (url: string, payload?: unknown, token?: string) =>
