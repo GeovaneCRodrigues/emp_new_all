@@ -118,7 +118,8 @@ Layout geral:
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
 
 ### Admin
-- **Barra de baixo:** Início, Cobranças, **Vender** (central), Estoque, Mais.
+- **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.
+- **Botão Novo** (central no celular, e o botão de destaque da lateral no computador): abre a escolha entre **Venda de iPhone**, **Empréstimo** e **Só simular**. Pedido do Geovane.
 - **Mais / lateral:** Operações, Simulador, Clientes, Cronograma, Caixa, Relatórios, Contratos, Indicadores e repasses, Equipe, Configurações.
 - **Início:** o que cobrar hoje, atrasados, vendas do mês, lucro no bolso.
 - **Cobranças:**
