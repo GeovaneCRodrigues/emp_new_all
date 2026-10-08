@@ -1,0 +1,230 @@
+import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
+import type { Sessao } from '../../../shared/perfis.js'
+import { hojeBR } from '../../../shared/relogio.js'
+import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
+import { arred2 } from '../../vendas/services/calculo.js'
+import type { RecebimentosRepository } from '../models/repository.js'
+import type { Aba, EscopoRecebimentos, FormaPagamento, LinhaCobranca, ParcelaAberta, ResumoRecibo, ReciboRegistro } from '../models/types.js'
+import { calcularRecebimento, ErroRecebimento, falta, referencia, type EfeitoRecebimento } from './calculo.js'
+
+export type Entrada = Record<string, unknown>
+
+export type Recibo = {
+  id: number
+  numero: string
+  empresa: { nome: string; cnpj: string | null }
+  cliente: { id: number; nome: string; fone: string }
+  aparelho: string
+  valor: number
+  forma: FormaPagamento
+  data: string
+  recebidoPor: string
+  desfeita: boolean
+  referencia: string
+  faltaDepois: number
+  proxima: ResumoRecibo['proxima']
+  restantes: number
+  ficaDevendo: ResumoRecibo['ficaDevendo']
+  /** texto pronto para o WhatsApp do cliente */
+  mensagem: string
+}
+
+export type Registrado = { recibo: Recibo; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean }
+export type PagamentoView = { transacaoId: number; numero: string; data: string; forma: FormaPagamento; valor: number; recebidoPor: string; referencia: string; tipo: 'ENTRADA' | 'PARCELA'; desfeita: boolean; podeDesfazer: boolean }
+export type ListaCobrancas = { itens: (LinhaCobranca & { atrasoDias: number })[]; total: number; valorTotal: number; pagina: number; limite: number; contagens: { atrasadas: number; hoje: number; proximas: number } }
+
+export type RecebimentosService = {
+  registrar(s: Sessao, vendaId: number, e: Entrada): Promise<Registrado>
+  recibo(s: Sessao, transacaoId: number): Promise<Recibo>
+  pagamentos(s: Sessao, vendaId: number): Promise<PagamentoView[]>
+  desfazer(s: Sessao, transacaoId: number): Promise<void>
+  cobrancas(s: Sessao, q: { aba?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
+}
+
+const FORMAS: FormaPagamento[] = ['PIX', 'DINHEIRO', 'CARTAO']
+const NOME_FORMA: Record<FormaPagamento, string> = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' }
+const ABAS: Aba[] = ['atrasadas', 'hoje', 'proximas', 'recebidas']
+const LIMITE_MAX = 100
+const DINHEIRO_MAX = 100_000_000
+const DATA = /^\d{4}-\d{2}-\d{2}$/
+
+const dataValida = (v: unknown): v is string => typeof v === 'string' && DATA.test(v) && new Date(v + 'T12:00:00Z').toISOString().slice(0, 10) === v
+const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+const dmyA = (iso: string) => `${dmy(iso)}/${iso.slice(0, 4)}`
+const brl = (v: number) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const primeiroNome = (n: string | null) => (n ?? '').trim().split(/\s+/)[0] || '—'
+
+const CODIGO_HTTP: Record<ErroRecebimento['codigo'], number> = { PARCELA_INEXISTENTE: 404, PARCELA_PAGA: 409, VALOR_INVALIDO: 400, EXCEDE_DIVIDA: 400, RESTO_OBRIGATORIO: 400, VENCIMENTO_INVALIDO: 400 }
+
+function escopoDe(s: Sessao): EscopoRecebimentos {
+  if (s.perfil === 'ADMIN') return { tipo: 'TODOS' }
+  if (s.perfil === 'COBRADOR') return { tipo: 'CARTEIRA', usuarioId: s.usuarioId }
+  throw semPermissao('Só o administrador e o cobrador mexem com recebimentos')
+}
+
+/** O texto que vai para o WhatsApp do cliente. */
+export function mensagemRecibo(r: Omit<Recibo, 'mensagem'>): string {
+  const empresa = r.empresa.nome.replace(/\s+LTDA\.?$/i, '')
+  const prox = r.proxima
+    ? `Próxima: ${r.proxima.numero}ª, ${brl(r.proxima.valor)}, vence ${dmy(r.proxima.vencimento)}. ${r.restantes === 1 ? 'Falta 1 parcela' : `Faltam ${r.restantes} parcelas`} (${brl(r.faltaDepois)}).`
+    : 'Tudo quitado! Obrigado pela confiança.'
+  const resto = r.ficaDevendo ? `\nNa ${r.ficaDevendo.numero}ª ainda ficam ${brl(r.ficaDevendo.valor)}, para ${dmy(r.ficaDevendo.vencimento)}.` : ''
+  return `*${empresa}* · Recibo nº ${r.numero}\n\nOi ${primeiroNome(r.cliente.nome)}! Recebemos ${brl(r.valor)} em ${dmyA(r.data)} (${NOME_FORMA[r.forma]}), referente à ${r.referencia} do seu ${r.aparelho}.${resto}\n\n${prox}\n\nObrigado!`
+}
+
+export type Dependencias = {
+  repo: RecebimentosRepository
+  auditoria: AuditoriaRepository
+  hoje?: () => string
+  /** Só para teste: segura a transação logo depois de ler as parcelas, para forçar duas transações a se sobreporem. */
+  depoisDeLerParcelas?: () => Promise<void>
+}
+
+export function createRecebimentosService(dep: Dependencias): RecebimentosService {
+  const hoje = dep.hoje ?? (() => hojeBR())
+
+  async function montarRecibo(r: ReciboRegistro): Promise<Recibo> {
+    const empresa = await dep.repo.empresa()
+    const res = r.resumo ?? { tipo: r.tipo === 'ENTRADA' ? ('ENTRADA' as const) : ('PARCELAS' as const), referencia: r.tipo === 'ENTRADA' ? 'entrada' : 'pagamento', faltaDepois: 0, proxima: null, restantes: 0, ficaDevendo: null }
+    const base = {
+      id: r.id, numero: String(r.numeroRecibo).padStart(6, '0'), empresa, cliente: { id: r.clienteId, nome: r.clienteNome, fone: r.clienteFone }, aparelho: r.modelo,
+      valor: r.valorTotal, forma: r.forma, data: r.data, recebidoPor: primeiroNome(r.recebidoPorNome), desfeita: r.desfeita, referencia: res.referencia,
+      faltaDepois: res.faltaDepois, proxima: res.proxima, restantes: res.restantes, ficaDevendo: res.ficaDevendo,
+    }
+    return { ...base, mensagem: mensagemRecibo(base) }
+  }
+
+  async function reciboDe(s: Sessao, transacaoId: number): Promise<Recibo> {
+    const escopo = escopoDe(s)
+    const r = await dep.repo.buscarRecibo(transacaoId)
+    if (!r || (escopo.tipo === 'CARTEIRA' && r.responsavelId !== escopo.usuarioId)) throw naoEncontrado('Recibo não encontrado')
+    return montarRecibo(r)
+  }
+
+  return {
+    async registrar(s, vendaId, e) {
+      const escopo = escopoDe(s)
+      const numero = e.parcela
+      if (typeof numero !== 'number' || !Number.isInteger(numero) || numero < 1) throw requisicaoInvalida('Informe qual parcela está sendo paga')
+      if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0 || e.valor > DINHEIRO_MAX) throw requisicaoInvalida('Informe quanto foi recebido')
+      if (!FORMAS.includes(e.forma as FormaPagamento)) throw requisicaoInvalida('Informe a forma de pagamento (PIX, DINHEIRO ou CARTAO)')
+      const forma = e.forma as FormaPagamento
+      const dia = hoje()
+      const data = e.data === undefined || e.data === null ? dia : e.data
+      if (!dataValida(data)) throw requisicaoInvalida('data precisa ser uma data válida (AAAA-MM-DD)')
+      if (data > dia) throw requisicaoInvalida('A data do recebimento não pode ser no futuro')
+      if (e.resto !== undefined && e.resto !== 'FICA' && e.resto !== 'DESCONTO') throw requisicaoInvalida('resto deve ser FICA ou DESCONTO')
+      if (e.novoVencimento !== undefined && e.novoVencimento !== null && !dataValida(e.novoVencimento)) throw requisicaoInvalida('novoVencimento precisa ser uma data válida (AAAA-MM-DD)')
+      // cobrador: só lança o que recebeu hoje, e desconto só com a aprovação do administrador
+      if (s.perfil === 'COBRADOR' && data !== dia) throw semPermissao('O cobrador só lança o que recebeu hoje')
+      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador')
+
+      const feito = await dep.repo.emTransacao(async (tx) => {
+        const venda = await tx.travarVenda(vendaId, escopo)
+        if (!venda) throw naoEncontrado('Venda não encontrada')
+        if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, 'Esta venda foi retomada ou cancelada: não recebe pagamentos', 'VENDA_ENCERRADA')
+        if (data < venda.dataVenda) throw requisicaoInvalida('A data do recebimento não pode ser antes da venda')
+
+        const parcelas = await tx.parcelas(vendaId)
+        await dep.depoisDeLerParcelas?.()
+        let r
+        try {
+          r = calcularRecebimento(parcelas, { numero, valor: e.valor as number, data, hoje: dia, resto: e.resto as 'FICA' | 'DESCONTO' | undefined, novoVenc: (e.novoVencimento as string | undefined) ?? undefined })
+        } catch (err) {
+          if (err instanceof ErroRecebimento) throw new HttpError(CODIGO_HTTP[err.codigo], err.message, err.codigo)
+          throw err
+        }
+
+        // como a venda fica depois: base do recibo e do status
+        const depois: ParcelaAberta[] = parcelas.map((p) => {
+          const it = r.itens.find((x) => x.parcelaId === p.id)
+          return it ? { ...p, ...it.depois, pago: arred2(p.pago + it.valorPago) } : p
+        })
+        const abertas = depois.filter((p) => falta(p) > 0.009).sort((a, b) => a.numero - b.numero)
+        const fica = r.efeitos.find((x): x is Extract<EfeitoRecebimento, { tipo: 'FICA' }> => x.tipo === 'FICA')
+        const resumo: ResumoRecibo = {
+          tipo: 'PARCELAS', referencia: referencia(r.itens.map((i) => i.numero), venda.nParcelas), faltaDepois: arred2(depois.reduce((x, p) => x + Math.max(0, falta(p)), 0)),
+          proxima: abertas[0] ? { numero: abertas[0].numero, valor: falta(abertas[0]), vencimento: abertas[0].vencimento } : null, restantes: abertas.length,
+          ficaDevendo: fica ? { numero: fica.numero, valor: fica.resta, vencimento: fica.vencimento } : null,
+        }
+        const t = await tx.criarTransacao({ clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: s.usuarioId, resumo })
+        for (const it of r.itens) {
+          await tx.criarRecebimento({ transacaoId: t.id, vendaParcelaId: it.parcelaId, valor: it.valorPago, antes: it.antes })
+          const mudou = it.depois.vencimento !== it.antes.vencimento || it.depois.desconto !== it.antes.desconto || it.depois.quitadaEm !== it.antes.quitadaEm || it.depois.vencimentoOriginal !== it.antes.vencimentoOriginal
+          if (mudou) await tx.atualizarParcela(it.parcelaId, it.depois)
+        }
+        const quitada = abertas.length === 0
+        await tx.definirStatusVenda(vendaId, quitada ? 'QUITADA' : 'ATIVA')
+        return { transacaoId: t.id, efeitos: r.efeitos, quitada, primeiro: r.itens[0] }
+      })
+
+      // trilha de auditoria: baixa, desconto e mudança de vencimento
+      const base = { usuarioId: s.usuarioId, entidade: 'venda', entidadeId: vendaId }
+      await dep.auditoria.registrar({ ...base, acao: 'RECEBIMENTO_REGISTRADO', depois: { transacaoId: feito.transacaoId, parcela: numero, valor: e.valor, forma, data, efeitos: feito.efeitos } })
+      const desc = feito.efeitos.find((x) => x.tipo === 'DESCONTO')
+      if (desc) await dep.auditoria.registrar({ ...base, acao: 'DESCONTO_CONCEDIDO', depois: { transacaoId: feito.transacaoId, ...desc } })
+      if (feito.primeiro.depois.vencimento !== feito.primeiro.antes.vencimento) await dep.auditoria.registrar({ ...base, acao: 'VENCIMENTO_ALTERADO', antes: { parcela: numero, vencimento: feito.primeiro.antes.vencimento }, depois: { parcela: numero, vencimento: feito.primeiro.depois.vencimento } })
+
+      return { recibo: await reciboDe(s, feito.transacaoId), efeitos: feito.efeitos, vendaQuitada: feito.quitada }
+    },
+
+    recibo: reciboDe,
+
+    async pagamentos(s, vendaId) {
+      const escopo = escopoDe(s)
+      if (!(await dep.repo.vendaNoEscopo(vendaId, escopo))) throw naoEncontrado('Venda não encontrada')
+      const lista = await dep.repo.pagamentosDaVenda(vendaId) // da mais nova para a mais antiga
+      const ultimaId = lista.find((p) => p.tipo === 'PARCELA' && !p.desfeita)?.id
+      const dia = hoje()
+      return lista.map((p) => ({
+        transacaoId: p.id, numero: String(p.numeroRecibo).padStart(6, '0'), data: p.data, forma: p.forma, valor: p.valorTotal, recebidoPor: primeiroNome(p.recebidoPorNome),
+        referencia: p.resumo?.referencia ?? (p.tipo === 'ENTRADA' ? 'entrada' : 'pagamento'), tipo: p.tipo, desfeita: p.desfeita,
+        podeDesfazer: p.tipo === 'PARCELA' && !p.desfeita && p.id === ultimaId && (s.perfil === 'ADMIN' || (p.recebidoPor === s.usuarioId && p.data === dia)),
+      }))
+    },
+
+    async desfazer(s, transacaoId) {
+      const escopo = escopoDe(s)
+      const vendaId = await dep.repo.vendaDaTransacao(transacaoId)
+      if (vendaId === null) {
+        // ou não existe, ou é a entrada de uma venda (que só some cancelando a venda)
+        if (await dep.repo.buscarRecibo(transacaoId)) throw new HttpError(409, 'A entrada da venda não se desfaz aqui', 'ENTRADA_NAO_DESFAZ')
+        throw naoEncontrado('Recebimento não encontrado')
+      }
+      const dia = hoje()
+      const feito = await dep.repo.emTransacao(async (tx) => {
+        const venda = await tx.travarVenda(vendaId, escopo)
+        if (!venda) throw naoEncontrado('Recebimento não encontrado')
+        const t = await tx.travarTransacao(transacaoId)
+        if (!t) throw naoEncontrado('Recebimento não encontrado')
+        if (t.desfeita) throw new HttpError(409, 'Este recebimento já foi desfeito', 'JA_DESFEITO')
+        if (s.perfil === 'COBRADOR' && (t.recebidoPor !== s.usuarioId || t.data !== dia)) throw semPermissao('O cobrador só desfaz o que ele mesmo recebeu hoje')
+        // só o último: desfazer um antigo bagunçaria o que veio depois
+        if (!(await tx.ehUltimaDaVenda(vendaId, transacaoId))) throw new HttpError(409, 'Só o último recebimento da venda pode ser desfeito', 'NAO_E_O_ULTIMO')
+
+        const recs = await tx.recebimentosDaTransacao(transacaoId)
+        for (const r of recs) {
+          if (!r.antes) throw new HttpError(409, 'Este recebimento não tem como ser desfeito', 'SEM_RETRATO')
+          await tx.atualizarParcela(r.vendaParcelaId, r.antes) // volta vencimento, desconto e quitação como estavam
+        }
+        await tx.marcarDesfeita(transacaoId, s.usuarioId)
+        const parcelas = await tx.parcelas(vendaId) // agora sem esta transação
+        await tx.definirStatusVenda(vendaId, parcelas.every((p) => falta(p) <= 0.009) ? 'QUITADA' : 'ATIVA')
+        return { valor: t.valorTotal, parcelas: recs.map((r) => r.numero) }
+      })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'RECEBIMENTO_DESFEITO', entidade: 'venda', entidadeId: vendaId, antes: { transacaoId, ...feito } })
+    },
+
+    async cobrancas(s, q) {
+      const escopo = escopoDe(s)
+      const aba = (q.aba ?? 'atrasadas') as Aba
+      if (!ABAS.includes(aba)) throw requisicaoInvalida('aba inválida')
+      const limite = Math.min(Math.max(Math.trunc(q.limite ?? 20) || 20, 1), LIMITE_MAX)
+      const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
+      const dia = hoje()
+      const r = await dep.repo.cobrancas(escopo, { aba, hoje: dia, limite, offset: (pagina - 1) * limite })
+      const atraso = (l: LinhaCobranca) => (l.falta > 0.009 && l.vencimento < dia ? Math.round((Date.parse(dia) - Date.parse(l.vencimento)) / 864e5) : 0)
+      return { ...r, itens: r.itens.map((l) => ({ ...l, atrasoDias: atraso(l) })), pagina, limite }
+    },
+  }
+}

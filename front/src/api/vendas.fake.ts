@@ -8,8 +8,8 @@ import type { EstoqueFake } from './estoque.fake'
 import type { IndicadoresFake } from './indicadores.fake'
 import type { EntradaVenda, FormaPagamentoApi, JurosApi, StatusVenda, VendaApi, VendasApi } from './vendas'
 
-interface Parcela { numero: number; vencimento: string; valor: number; desconto: number; pago: number }
-interface Registro {
+interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
+export interface Registro {
   id: number; aparelho: VendaApi['aparelho']; cliente: VendaApi['cliente']; vendedorId: number | null; indicador: VendaApi['indicador']; pct: number
   dataVenda: string; precoAcordado: number; entrada: number; troca: number; jurosPct: number; investido: number; status: StatusVenda
   contrato: VendaApi['contrato']; parcelas: Parcela[]
@@ -21,15 +21,49 @@ const JUROS: JurosApi = { pct: 10, maxParcelas: 10 }
 
 interface Dependencias { estoque: EstoqueFake; indicadores: IndicadoresFake; clientes: ClientesApi }
 
+/** Uma transação de recebimento (recibo): a entrada da venda ou um pagamento de parcelas. */
+export interface Transacao {
+  id: number
+  numero: number
+  vendaId: number
+  clienteId: number
+  tipo: 'ENTRADA' | 'PARCELA'
+  valor: number
+  forma: FormaPagamentoApi
+  data: string
+  recebidoPorId: number | null
+  recebidoPorNome: string
+  desfeita: boolean
+  resumo: { referencia: string; faltaDepois: number; proxima: { numero: number; valor: number; vencimento: string } | null; restantes: number; ficaDevendo: { numero: number; valor: number; vencimento: string } | null }
+  /** parcelas tocadas, com o estado de antes (para o "desfazer") */
+  itens: { numero: number; valorPago: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null } }[]
+}
+
+/** Ganchos só da demonstração: o recebimento de mentira mexe nas mesmas vendas e transações. */
+export interface VendasFake extends VendasApi {
+  _interno: {
+    hoje: string
+    registros: Registro[]
+    transacoes: Transacao[]
+    proximoRecibo(): number
+    proximaTransacao(): number
+    noEscopo(s: Sessao): Registro[]
+    calcular(r: Registro, perfil: Sessao['perfil']): VendaApi
+  }
+}
+
 /**
  * Versão de demonstração: o servidor de mentira refaz as contas como o de verdade (juros por parcela,
  * % do indicador congelado, custo gravado no dia, vendedor sem lucro) e conversa com o estoque e os
  * indicadores de demonstração (aparelho vira vendido, contador do indicador anda).
  */
-export function criarVendasFake(dep: Dependencias): VendasApi {
+export function criarVendasFake(dep: Dependencias): VendasFake {
   const seed = criarSeed()
   const hoje = seed.hoje
   let proximoId = 1000
+  let seqRecibo = 0
+  let seqTransacao = 0
+  const transacoes: Transacao[] = []
 
   const registros: Registro[] = seed.vendas.map((v) => {
     const b = seed.bens.find((x) => x.id === v.bemId)!
@@ -39,9 +73,23 @@ export function criarVendasFake(dep: Dependencias): VendasApi {
       id: v.id, aparelho: { id: b.id, modelo: b.modelo, gb: b.gb, cor: b.cor }, cliente: { id: cli.id, nome: cli.nome }, vendedorId: cli.responsavelId,
       indicador: ind ? { id: ind.id, nome: ind.nome } : null, pct: v.pct, dataVenda: v.data, precoAcordado: b.preco, entrada: v.entrada, troca: v.troca,
       jurosPct: 10, investido: b.custo + b.extras, status: v.status, contrato: v.contrato,
-      parcelas: v.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((s, g) => s + g.valor, 0) })),
+      parcelas: v.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((s, g) => s + g.valor, 0), quitadaEm: p.pago })),
     }
   })
+
+  // as transações dos dados de exemplo: a entrada de cada venda e os pagamentos já feitos
+  for (const r of registros) {
+    const ant = { vencimento: '', vencimentoOriginal: null, desconto: 0, quitadaEm: null }
+    const falta = arred2(r.parcelas.reduce((x, p) => x + p.valor - p.pago - p.desconto, 0))
+    const abertas = r.parcelas.filter((p) => arred2(p.valor - p.pago - p.desconto) > 0.009)
+    if (r.entrada > 0) transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'ENTRADA', valor: r.entrada, forma: 'PIX', data: r.dataVenda, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false, itens: [], resumo: { referencia: 'entrada', faltaDepois: arred2(r.parcelas.reduce((x, p) => x + p.valor, 0)), proxima: r.parcelas[0] ? { numero: 1, valor: r.parcelas[0].valor, vencimento: r.parcelas[0].vencimento } : null, restantes: r.parcelas.length, ficaDevendo: null } })
+    const sv = seed.vendas.find((x) => x.id === r.id)!
+    for (const p of sv.parcelas) for (const g of p.pagos) {
+      transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'PARCELA', valor: g.valor, forma: g.forma === 'Dinheiro' ? 'DINHEIRO' : g.forma === 'Cartão' ? 'CARTAO' : 'PIX', data: g.data, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false,
+        itens: [{ numero: p.n, valorPago: g.valor, antes: { ...ant, vencimento: p.venc } }],
+        resumo: { referencia: `parcela ${p.n}/${r.parcelas.length}`, faltaDepois: falta, proxima: abertas[0] ? { numero: abertas[0].numero, valor: arred2(abertas[0].valor - abertas[0].pago - abertas[0].desconto), vencimento: abertas[0].vencimento } : null, restantes: abertas.length, ficaDevendo: null } })
+    }
+  }
 
   const clientesDe = (r: Registro, s: Sessao) => (s.perfil === 'VENDEDOR' ? r.vendedorId === s.usuarioId || seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId : seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId)
   const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : registros.filter((r) => clientesDe(r, s)))
@@ -59,7 +107,7 @@ export function criarVendasFake(dep: Dependencias): VendasApi {
       id: r.id, aparelho: r.aparelho, cliente: r.cliente, indicador: r.indicador, dataVenda: r.dataVenda, precoAcordado: r.precoAcordado, entrada: r.entrada,
       troca: r.troca, jurosPct: r.jurosPct, nParcelas: r.parcelas.length, valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta,
       atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status, contrato: r.contrato,
-      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: null, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: arred2(p.valor - p.pago - p.desconto) <= 0.009 ? p.vencimento : null })),
+      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm })),
     }
     if (perfil !== 'ADMIN') return base
     return {
@@ -75,6 +123,7 @@ export function criarVendasFake(dep: Dependencias): VendasApi {
   const dinheiro = (v: unknown, c: string, positivo = false) => { if (typeof v !== 'number' || !Number.isFinite(v) || v > 1e8 || (positivo ? v <= 0 : v < 0)) throw erro(positivo ? `${c} precisa ser maior que zero` : `${c} não pode ser negativo`); return arred2(v) }
 
   return {
+    _interno: { hoje, registros, transacoes, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, noEscopo, calcular },
     async juros(s) {
       if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso a esta configuração', 'SEM_PERMISSAO')
       return { ...JUROS }
@@ -127,9 +176,13 @@ export function criarVendasFake(dep: Dependencias): VendasApi {
         vendedorId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : (e.vendedorId ?? null), indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null,
         pct: indicador?.pct ?? 0, dataVenda: hoje, precoAcordado: preco, entrada, troca: trocaValor, jurosPct: JUROS.pct, investido: arred2(ap.custo + ap.extras),
         status: parcelado === 0 ? 'QUITADA' : 'ATIVA', contrato: 'AGUARDANDO',
-        parcelas: Array.from({ length: n }, (_, i) => ({ numero: i + 1, vencimento: somaMes(hoje, i + 1, dia), valor: parc, desconto: 0, pago: 0 })),
+        parcelas: Array.from({ length: n }, (_, i) => ({ numero: i + 1, vencimento: somaMes(hoje, i + 1, dia), vencimentoOriginal: null, valor: parc, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)
+      if (entrada > 0) {
+        transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: reg.id, clienteId: cliente.id, tipo: 'ENTRADA', valor: entrada, forma: e.formaEntrada ?? 'PIX', data: hoje, recebidoPorId: s.usuarioId ?? null, recebidoPorNome: s.perfil === 'ADMIN' ? 'Geovane' : 'Vendedor', desfeita: false, itens: [],
+          resumo: { referencia: 'entrada', faltaDepois: arred2(parc * n), proxima: n > 0 ? { numero: 1, valor: parc, vencimento: reg.parcelas[0].vencimento } : null, restantes: n, ficaDevendo: null } })
+      }
       dep.estoque._interno.marcarVendido(ap.id)
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)
       return calcular(reg, s.perfil)

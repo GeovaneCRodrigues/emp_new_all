@@ -290,3 +290,4 @@ input,select{font:inherit;color:var(--strong)}
 .msg{background:var(--elevated);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;white-space:pre-wrap;color:var(--strong)}
 .dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}
 .dl>div{min-width:0}
+.esmaecido{opacity:.55}

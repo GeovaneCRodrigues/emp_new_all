@@ -5,6 +5,7 @@ import { ErroApi } from '@/api/clientes'
 import { vendasApi } from '@/api/recursos'
 import type { ResumoVendasApi, VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
+import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
 import OperacaoCard from '@/components/OperacaoCard.vue'
 import Seg from '@/components/Seg.vue'
 import VendaCard from '@/components/VendaCard.vue'
@@ -28,6 +29,13 @@ const resumo = ref<ResumoVendasApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 const ficha = ref<VendaApi | null>(null)
+const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
+
+/** Depois de um recebimento: recarrega a lista, o resumo e a ficha aberta. */
+async function aposMudar() {
+  await Promise.all([carregar(), carregarResumo()])
+  if (ficha.value) ficha.value = await vendasApi.obter(sessao.value, ficha.value.id).catch(() => null)
+}
 
 let pedido = 0
 async function carregar(mais = false) {
@@ -113,5 +121,6 @@ const abas = computed(() => [
     </div>
   </template>
 
-  <VendaFicha :venda="ficha" @fechar="ficha = null" />
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar(ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

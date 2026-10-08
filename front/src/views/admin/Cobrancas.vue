@@ -1,62 +1,80 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import Abas from '@/components/Abas.vue'
-import CobLinha from '@/components/CobLinha.vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ErroApi } from '@/api/clientes'
+import type { AbaCobranca, CobrancaApi, ListaCobrancasApi } from '@/api/recebimentos'
+import { recebimentosApi, vendasApi } from '@/api/recursos'
+import type { VendaApi } from '@/api/vendas'
+import CobrancaLinha from '@/components/CobrancaLinha.vue'
+import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
 import Seg from '@/components/Seg.vue'
-import { useApp, type ItemCobranca } from '@/composables/useApp'
-import { faltaP, pagoP } from '@/domain/calc'
-import { addDia, diasEntre } from '@/domain/datas'
+import VendaFicha from '@/components/VendaFicha.vue'
+import { useApp } from '@/composables/useApp'
+import { useAtrasadas } from '@/composables/useAtrasadas'
 import { fmt } from '@/domain/format'
 
-const router = useRouter()
-const { hoje, cobrancas } = useApp()
+const { sessao } = useApp()
+const { atualizar } = useAtrasadas()
 
-const tipo = ref('todos')
-const aba = ref('atrasadas')
+const aba = ref<AbaCobranca>('atrasadas')
+const itens = ref<CobrancaApi[]>([])
+const total = ref(0)
+const valorTotal = ref(0)
+const pagina = ref(1)
+const contagens = ref<ListaCobrancasApi['contagens']>({ atrasadas: 0, hoje: 0, proximas: 0 })
+const carregando = ref(true)
+const erro = ref('')
+const ficha = ref<VendaApi | null>(null)
+const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
 
-const porTipo = computed(() => (tipo.value === 'todos' ? cobrancas.value : cobrancas.value.filter((x) => (x.op.tipo === 'EMP') === (tipo.value === 'emp'))))
-const poVenc = (a: ItemCobranca, b: ItemCobranca) => a.p.venc.localeCompare(b.p.venc)
-const grupos = computed(() => {
-  const h = hoje.value
-  const abertas = porTipo.value.filter((x) => !x.p.pago)
-  const desde = addDia(h, -30)
-  return {
-    atrasadas: abertas.filter((x) => x.p.venc < h).sort(poVenc),
-    hoje: abertas.filter((x) => x.p.venc >= h && diasEntre(h, x.p.venc) <= 7).sort(poVenc),
-    proximas: abertas.filter((x) => diasEntre(h, x.p.venc) > 7 && diasEntre(h, x.p.venc) <= 45).sort(poVenc),
-    recebidas: porTipo.value.filter((x) => x.p.pagos.some((g) => g.data >= desde)).sort((a, b) => b.p.pagos.at(-1)!.data.localeCompare(a.p.pagos.at(-1)!.data)),
+let pedido = 0
+async function carregar(mais = false) {
+  const meu = ++pedido
+  carregando.value = true
+  erro.value = ''
+  try {
+    const p = mais ? pagina.value + 1 : 1
+    const r = await recebimentosApi.cobrancas(sessao.value, { aba: aba.value, pagina: p, limite: 20 })
+    if (meu !== pedido) return
+    itens.value = mais ? [...itens.value, ...r.itens] : r.itens
+    total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens; pagina.value = p
+  } catch (e) {
+    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.'
+  } finally {
+    if (meu === pedido) carregando.value = false
   }
-})
-const lista = computed(() => grupos.value[aba.value as keyof typeof grupos.value])
-const total = computed(() => lista.value.reduce((s, x) => s + (aba.value === 'recebidas' ? pagoP(x.p) : faltaP(x.p)), 0))
-const legenda = computed(() => ({ atrasadas: 'em atraso', hoje: 'vence nos próximos 7 dias', proximas: 'nos próximos 45 dias', recebidas: 'nos últimos 30 dias' })[aba.value])
+}
+watch(aba, () => carregar())
+onMounted(() => { carregar(); atualizar(sessao.value) })
 
-const atrasoDe = (f: (x: ItemCobranca) => boolean) => new Set(cobrancas.value.filter((x) => !x.p.pago && x.p.venc < hoje.value && f(x)).map((x) => x.op.id)).size
-const tipos = computed(() => [
-  { id: 'todos', label: 'Tudo', icon: 'layers', n: atrasoDe(() => true) },
-  { id: 'iphone', label: 'iPhones', icon: 'smartphone', n: atrasoDe((x) => x.op.tipo !== 'EMP') },
-  { id: 'emp', label: 'Empréstimos', icon: 'landmark', n: atrasoDe((x) => x.op.tipo === 'EMP') },
-])
-const filtros = computed(() => [
-  { id: 'atrasadas', label: 'Atrasadas' + (grupos.value.atrasadas.length ? ` · ${grupos.value.atrasadas.length}` : '') },
-  { id: 'hoje', label: 'Esta semana' + (grupos.value.hoje.length ? ` · ${grupos.value.hoje.length}` : '') },
-  { id: 'proximas', label: 'Próximas' + (grupos.value.proximas.length ? ` · ${grupos.value.proximas.length}` : '') },
+const abas = computed(() => [
+  { id: 'atrasadas', label: 'Atrasadas' + (contagens.value.atrasadas ? ` · ${contagens.value.atrasadas}` : '') },
+  { id: 'hoje', label: 'Esta semana' + (contagens.value.hoje ? ` · ${contagens.value.hoje}` : '') },
+  { id: 'proximas', label: 'Próximas' + (contagens.value.proximas ? ` · ${contagens.value.proximas}` : '') },
   { id: 'recebidas', label: 'Recebidas' },
 ])
+const legenda = computed(() => ({ atrasadas: 'em atraso', hoje: 'vence nos próximos 7 dias', proximas: 'nos próximos 45 dias', recebidas: 'nos últimos 30 dias' })[aba.value])
+
+async function abrirFicha(c: CobrancaApi) { ficha.value = await vendasApi.obter(sessao.value, c.vendaId).catch(() => null) }
+const receber = (c: CobrancaApi) => fluxo.value?.iniciar(c.vendaId, c.parcela)
+const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
 </script>
 
 <template>
-  <Abas v-model="tipo" :itens="tipos" />
-  <Seg v-model="aba" :itens="filtros" />
+  <Seg v-model="aba as string" :itens="abas" />
+  <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
   <div class="card">
     <div class="totbar">
-      <span class="small">{{ lista.length }} {{ lista.length === 1 ? 'parcela' : 'parcelas' }} {{ legenda }}</span>
-      <b class="num" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(total) }}</b>
+      <span class="small">{{ total }} {{ total === 1 ? 'parcela' : 'parcelas' }} {{ legenda }}</span>
+      <b class="num" data-testid="cobrancas-total" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(valorTotal) }}</b>
     </div>
     <div class="list">
-      <CobLinha v-for="x in lista" :key="x.op.id + '-' + x.p.n" :x="x" @abrir="router.push('/operacoes')" />
-      <div v-if="!lista.length" class="empty">Nada aqui.</div>
+      <CobrancaLinha v-for="c in itens" :key="c.vendaId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" />
+      <div v-if="!itens.length && !carregando && !erro" class="empty">Nada aqui.</div>
+      <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
     </div>
   </div>
+  <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar(ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <RecebimentoFluxo ref="fluxo" @mudou="carregar()" />
 </template>

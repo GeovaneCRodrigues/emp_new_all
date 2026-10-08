@@ -168,7 +168,11 @@ export function createVendasService(d: Dependencias): VendasService {
           })
           const vcs = vencimentos(dataVenda, e.parcelas, e.dia ?? 1)
           await tx.criarParcelas(id, vcs.map((vencimento, i) => ({ numero: i + 1, vencimento, valor: plano.parc })))
-          if (e.entrada > 0) await tx.registrarEntrada({ vendaId: id, clienteId: cliente.id, valor: e.entrada, forma: e.forma, data: dataVenda, recebidoPor: s.usuarioId })
+          if (e.entrada > 0) {
+            // o recibo da entrada mostra o que ficou combinado para pagar
+            const resumo = { tipo: 'ENTRADA', referencia: 'entrada', faltaDepois: plano.totalParcelas, proxima: e.parcelas > 0 ? { numero: 1, valor: plano.parc, vencimento: vcs[0] } : null, restantes: e.parcelas, ficaDevendo: null }
+            await tx.registrarEntrada({ vendaId: id, clienteId: cliente.id, valor: e.entrada, forma: e.forma, data: dataVenda, recebidoPor: s.usuarioId, resumo })
+          }
           await tx.marcarVendido(ap.id)
           return id
         })

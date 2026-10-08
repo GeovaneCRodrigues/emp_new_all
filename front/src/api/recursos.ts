@@ -2,6 +2,9 @@ import { useAuth, modoDemo } from '@/composables/useAuth'
 import type { ClientesApi } from './clientes'
 import type { EstoqueApi } from './estoque'
 import { criarEstoqueFake } from './estoque.fake'
+import type { RecebimentosApi } from './recebimentos'
+import { criarRecebimentosFake } from './recebimentos.fake'
+import { criarRecebimentosHttp } from './recebimentos.http'
 import type { VendasApi } from './vendas'
 import { criarVendasFake } from './vendas.fake'
 import { criarVendasHttp } from './vendas.http'
@@ -26,4 +29,6 @@ const indicadoresFake = modoDemo ? criarIndicadoresFake() : null
 export const clientesApi: ClientesApi = clientesFake ?? criarClientesHttp(URL_API, requisicao)
 export const estoqueApi: EstoqueApi = estoqueFake ?? criarEstoqueHttp(URL_API, requisicao)
 export const indicadoresApi: IndicadoresApi = indicadoresFake ?? criarIndicadoresHttp(URL_API, requisicao)
-export const vendasApi: VendasApi = modoDemo ? criarVendasFake({ estoque: estoqueFake!, indicadores: indicadoresFake!, clientes: clientesFake! }) : criarVendasHttp(URL_API, requisicao)
+const vendasFake = modoDemo ? criarVendasFake({ estoque: estoqueFake!, indicadores: indicadoresFake!, clientes: clientesFake! }) : null
+export const vendasApi: VendasApi = vendasFake ?? criarVendasHttp(URL_API, requisicao)
+export const recebimentosApi: RecebimentosApi = vendasFake ? criarRecebimentosFake(vendasFake) : criarRecebimentosHttp(URL_API, requisicao)

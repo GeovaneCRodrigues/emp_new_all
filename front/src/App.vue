@@ -3,6 +3,8 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import Sheet from '@/components/Sheet.vue'
+import Toast from '@/components/Toast.vue'
+import { useAtrasadas } from '@/composables/useAtrasadas'
 import { SESSOES, definirSessao, useApp } from '@/composables/useApp'
 import { modoDemo, useAuth } from '@/composables/useAuth'
 import { iniciais } from '@/domain/format'
@@ -11,7 +13,8 @@ import { MENUS, TITULOS, type ItemMenu } from '@/layouts/menus'
 
 const route = useRoute()
 const router = useRouter()
-const { sessao, d, hoje, cobrancas } = useApp()
+const { sessao, d } = useApp()
+const { atrasadas, atualizar: atualizarAtrasadas } = useAtrasadas()
 const auth = useAuth()
 
 const ehLogin = computed(() => route.path === '/login' || route.path === '/trocar-senha')
@@ -41,8 +44,8 @@ const nomeLogado = computed(() => {
   return d.value?.usuarios.find((u) => u.id === s.usuarioId)?.nome ?? 'Geovane Cataneo'
 })
 
-/** Parcelas atrasadas (uma conta por operação), para o contador do menu. */
-const atrasadas = computed(() => new Set(cobrancas.value.filter((x) => !x.p.pago && x.p.venc < hoje.value).map((x) => x.op.id)).size)
+// o contador do menu vem do servidor (parcelas atrasadas) e é atualizado a cada recebimento
+watch(() => sessao.value, (s) => atualizarAtrasadas(s), { immediate: true, deep: true })
 const contador = (id: string) => (id === 'cobrancas' || id === 'cobranca' || id === 'hoje') && sessao.value.perfil !== 'INDICADOR' && atrasadas.value ? atrasadas.value : 0
 
 const noMais = computed(() => !menu.value.abas.some((a) => a.id === secao.value))
@@ -120,6 +123,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
       </div>
     </div>
 
+    <Toast />
     <Sheet :aberto="maisAberto" @fechar="maisAberto = false">
       <h3>Mais</h3>
       <div class="list card" style="margin-top: 12px">

@@ -7,7 +7,7 @@ export function criarEstoqueHttp(baseUrl: string, requisicao: Requisicao): Estoq
   async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
     let r: Response
     try {
-      r = await requisicao(`${baseUrl}/api${caminho}`, { ...init, headers: { 'content-type': 'application/json', ...init.headers } })
+      r = await requisicao(`${baseUrl}/api${caminho}`, { ...init, headers: { ...(init.body ? { 'content-type': 'application/json' } : {}), ...init.headers } })
     } catch {
       throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.')
     }

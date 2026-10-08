@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { calcularRecebimento, descreverEfeitos, ErroRecebimento, referencia, type ParcelaAberta } from './recebimento'
+import { calcularRecebimento, ErroRecebimento, referencia, type ParcelaAberta } from '../src/modules/recebimentos/services/calculo.js'
 
-// Mesmos cenários de back/tests/recebimento-calculo.test.ts: a tela e a demonstração têm de prever o que o servidor vai fazer.
 const HOJE = '2026-10-08'
 const p = (numero: number, valor: number, vencimento: string, extra: Partial<ParcelaAberta> = {}): ParcelaAberta => ({ id: numero, numero, vencimento, vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, ...extra })
 const pedido = (extra: object) => ({ numero: 1, valor: 100, data: HOJE, hoje: HOJE, ...extra })
@@ -10,46 +9,64 @@ const erro = (f: () => unknown) => { try { f() } catch (e) { return e as ErroRec
 describe('pagamento parcial', () => {
   // parcela de 800 vencida em 01/09, cliente paga 100 em 08/10 e escolhe "+7 dias"
   const base = [p(1, 800, '2026-09-01'), p(2, 800, '2026-10-01')]
+
   it('a parcela fica com 700, vence 15/10 e guarda o vencimento antigo', () => {
     const r = calcularRecebimento(base, pedido({ resto: 'FICA', novoVenc: '2026-10-15' }))
+    expect(r.itens).toHaveLength(1)
     expect(r.itens[0]).toMatchObject({ numero: 1, valorPago: 100, faltaDepois: 700 })
     expect(r.itens[0].depois).toMatchObject({ vencimento: '2026-10-15', vencimentoOriginal: '2026-09-01', quitadaEm: null })
     expect(r.efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 700, vencimento: '2026-10-15' }])
   })
-  it('sem data escolhida, o restante vai para +7 dias quando já venceu; mantém a data se não venceu', () => {
+  it('sem data escolhida, o restante vai para +7 dias quando já venceu', () => {
     expect(calcularRecebimento(base, pedido({ resto: 'FICA' })).itens[0].depois.vencimento).toBe('2026-10-15')
-    expect(calcularRecebimento([p(1, 800, '2026-10-20')], pedido({ resto: 'FICA' })).itens[0].depois).toMatchObject({ vencimento: '2026-10-20', vencimentoOriginal: null })
+  })
+  it('mantém a data se a parcela ainda não venceu', () => {
+    const r = calcularRecebimento([p(1, 800, '2026-10-20')], pedido({ resto: 'FICA' }))
+    expect(r.itens[0].depois).toMatchObject({ vencimento: '2026-10-20', vencimentoOriginal: null })
   })
   it('o vencimento original não é sobrescrito numa segunda remarcação', () => {
     const r = calcularRecebimento([p(1, 800, '2026-10-15', { vencimentoOriginal: '2026-09-01', pago: 100 })], pedido({ valor: 50, resto: 'FICA', novoVenc: '2026-10-22' }))
     expect(r.itens[0].depois).toMatchObject({ vencimento: '2026-10-22', vencimentoOriginal: '2026-09-01' })
     expect(r.itens[0].faltaDepois).toBe(650)
   })
+  it('as próximas parcelas não mudam', () => expect(calcularRecebimento(base, pedido({ resto: 'FICA' })).itens.map((i) => i.numero)).toEqual([1]))
   it('"dar desconto" quita a parcela e registra o desconto', () => {
     const r = calcularRecebimento(base, pedido({ resto: 'DESCONTO' }))
     expect(r.itens[0].depois).toMatchObject({ desconto: 700, quitadaEm: HOJE })
+    expect(r.itens[0].faltaDepois).toBe(0)
     expect(r.efeitos).toEqual([{ tipo: 'DESCONTO', numero: 1, valor: 700 }])
   })
-  it('sem dizer o que fazer com o resto: recusa; nova data fora do intervalo: recusa', () => {
-    expect(erro(() => calcularRecebimento(base, pedido({})))?.codigo).toBe('RESTO_OBRIGATORIO')
-    for (const novoVenc of ['2026-10-07', '2027-10-09', 'amanhã']) expect(erro(() => calcularRecebimento(base, pedido({ resto: 'FICA', novoVenc })))?.codigo).toBe('VENCIMENTO_INVALIDO')
+  it('pagou menos sem dizer o que fazer com o resto: recusa', () => expect(erro(() => calcularRecebimento(base, pedido({})))?.codigo).toBe('RESTO_OBRIGATORIO'))
+  it.each([['antes de hoje', '2026-10-07'], ['mais de um ano', '2027-10-09'], ['texto', 'amanhã']])('recusa nova data %s', (_n, novoVenc) =>
+    expect(erro(() => calcularRecebimento(base, pedido({ resto: 'FICA', novoVenc })))?.codigo).toBe('VENCIMENTO_INVALIDO'))
+})
+
+describe('pagou o valor certo', () => {
+  it('quita a parcela', () => {
+    const r = calcularRecebimento([p(1, 300, '2026-10-05')], pedido({ valor: 300 }))
+    expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
+    expect(r.itens[0].depois.quitadaEm).toBe(HOJE)
+  })
+  it('conta o que já tinha sido pago antes', () => {
+    const r = calcularRecebimento([p(1, 800, '2026-10-05', { pago: 100 })], pedido({ valor: 700 }))
+    expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
+  })
+  it('conta o desconto de antes', () => {
+    expect(calcularRecebimento([p(1, 800, '2026-10-05', { desconto: 50 })], pedido({ valor: 750 })).efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
   })
 })
 
-describe('pagou o valor certo e pagou a mais', () => {
-  it('quita a parcela, contando o que já tinha sido pago e o desconto de antes', () => {
-    expect(calcularRecebimento([p(1, 300, '2026-10-05')], pedido({ valor: 300 })).efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
-    expect(calcularRecebimento([p(1, 800, '2026-10-05', { pago: 100 })], pedido({ valor: 700 })).efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
-    expect(calcularRecebimento([p(1, 800, '2026-10-05', { desconto: 50 })], pedido({ valor: 750 })).efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
-  })
-  const base = [p(1, 300, '2026-10-05'), p(2, 300, '2026-11-05'), p(3, 300, '2026-12-05')] // cliente paga 750
+describe('pagou a mais', () => {
+  // parcelas de 300 e cliente paga 750
+  const base = [p(1, 300, '2026-10-05'), p(2, 300, '2026-11-05'), p(3, 300, '2026-12-05')]
   it('quita a atual e a próxima, e abate 150 da seguinte', () => {
     const r = calcularRecebimento(base, pedido({ valor: 750 }))
-    expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }, { tipo: 'QUITA', numero: 2 }, { tipo: 'ABATE', numero: 3, valor: 150 }])
     expect(r.itens.map((i) => [i.numero, i.valorPago, i.faltaDepois])).toEqual([[1, 300, 0], [2, 300, 0], [3, 150, 150]])
+    expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }, { tipo: 'QUITA', numero: 2 }, { tipo: 'ABATE', numero: 3, valor: 150 }])
+    expect(r.valorTotal).toBe(750)
   })
   it('começa pela parcela escolhida e pula as que já estão pagas', () => {
-    const r = calcularRecebimento([p(1, 300, '2026-10-05', { pago: 300 }), p(2, 300, '2026-11-05'), p(3, 300, '2026-12-05')], pedido({ numero: 2, valor: 450 }))
+    const r = calcularRecebimento([p(1, 300, '2026-10-05', { pago: 300, quitadaEm: '2026-10-01' }), p(2, 300, '2026-11-05'), p(3, 300, '2026-12-05')], pedido({ numero: 2, valor: 450 }))
     expect(r.itens.map((i) => i.numero)).toEqual([2, 3])
   })
   it('valor acima do que falta é recusado (não vira crédito)', () => {
@@ -72,15 +89,9 @@ describe('entradas inválidas', () => {
   })
 })
 
-describe('textos', () => {
-  it('referencia: uma parcela ou várias', () => {
+describe('referencia', () => {
+  it('uma parcela ou várias', () => {
     expect(referencia([2], 12)).toBe('parcela 2/12')
     expect(referencia([4, 2, 3], 12)).toBe('parcelas 2 a 4 de 12')
-  })
-  it('descreve o efeito em português', () => {
-    const fmt = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
-    const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
-    expect(descreverEfeitos([{ tipo: 'QUITA', numero: 1 }, { tipo: 'QUITA', numero: 2 }, { tipo: 'ABATE', numero: 3, valor: 150 }], fmt, dmy)).toBe('Quita a 1ª, quita a 2ª, abate R$ 150,00 da 3ª')
-    expect(descreverEfeitos([{ tipo: 'FICA', numero: 1, resta: 700, vencimento: '2026-10-15' }], fmt, dmy)).toBe('A 1ª fica com R$ 700,00, para 15/10')
   })
 })

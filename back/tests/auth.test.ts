@@ -21,7 +21,7 @@ async function montar() {
   await users.criar({ nome: 'Geovane', email: 'geovane@loja.com', senhaHash: await hashSenha(SENHA), perfil: 'ADMIN', indicadorId: null, ativo: true })
   const tokens = createTokensService(SEGREDO, '15m')
   const auth = createAuthService(users, sessoes, tokens, { agora: () => new Date(relogio) })
-  app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: {} as never, vendas: {} as never, config: {} as never })
+  app = await buildApp({ env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: {} as never, vendas: {} as never, config: {} as never, recebimentos: {} as never })
 }
 
 const post = (url: string, payload?: unknown, token?: string) =>
@@ -230,6 +230,32 @@ describe('trocar senha', () => {
     const a = await entrar()
     expect((await trocar(a.accessToken, SENHA, 'curta')).statusCode).toBe(400)
     expect((await trocar(a.accessToken, SENHA, SENHA)).statusCode).toBe(400)
+  })
+})
+
+describe('clientes que mandam Content-Type JSON com corpo vazio (o navegador faz isso)', () => {
+  const comJsonVazio = (url: string, token: string) => app.inject({ method: 'POST', url, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' } })
+
+  it('o logout funciona e REVOGA a sessão (antes era 400 e a sessão ficava aberta)', async () => {
+    const { accessToken, refreshToken } = await entrar()
+    expect((await comJsonVazio('/api/auth/logout', accessToken)).statusCode).toBe(204)
+    expect((await get('/api/auth/eu', accessToken)).statusCode).toBe(401)
+    expect((await post('/api/auth/renovar', { refreshToken })).statusCode).toBe(401)
+  })
+  it('"sair de todos os aparelhos" também', async () => {
+    const a = await entrar()
+    const b = await entrar()
+    expect((await comJsonVazio('/api/auth/logout-todas', a.accessToken)).statusCode).toBe(204)
+    expect((await get('/api/auth/eu', b.accessToken)).statusCode).toBe(401)
+  })
+  it('JSON quebrado continua sendo 400 (só o corpo vazio é aceito)', async () => {
+    const r = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'content-type': 'application/json' }, payload: '{ isto não é json' })
+    expect(r.statusCode).toBe(400)
+  })
+  it('corpo vazio em rota que exige dados dá a mensagem de sempre (400)', async () => {
+    const r = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'content-type': 'application/json' } })
+    expect(r.statusCode).toBe(400)
+    expect(r.json().erro).toMatch(/e-mail e senha/)
   })
 })
 

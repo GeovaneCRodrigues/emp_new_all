@@ -11,7 +11,7 @@ export interface VendasTx {
   criarAparelhoTroca(d: NovaTroca): Promise<number>
   criarVenda(d: NovaVenda): Promise<number>
   criarParcelas(vendaId: number, itens: { numero: number; vencimento: string; valor: number }[]): Promise<void>
-  registrarEntrada(d: { vendaId: number; clienteId: number; valor: number; forma: FormaPagamento; data: string; recebidoPor: number }): Promise<void>
+  registrarEntrada(d: { vendaId: number; clienteId: number; valor: number; forma: FormaPagamento; data: string; recebidoPor: number; resumo: object }): Promise<void>
   marcarVendido(bemId: number): Promise<void>
 }
 
@@ -120,7 +120,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
           async registrarEntrada(d) {
             const [{ n }] = (await trx.raw("select nextval('recibo_numero_seq') as n")).rows
             const [{ id: transacaoId }] = await trx('transacoes_recebimento').insert({
-              numero_recibo: Number(n), cliente_id: d.clienteId, valor_total: d.valor, forma_pagamento: d.forma, data_recebimento: d.data, recebido_por: d.recebidoPor,
+              numero_recibo: Number(n), cliente_id: d.clienteId, valor_total: d.valor, forma_pagamento: d.forma, data_recebimento: d.data, recebido_por: d.recebidoPor, resumo: JSON.stringify(d.resumo),
             }).returning('id')
             await trx('recebimentos').insert({ transacao_id: transacaoId, tipo: 'ENTRADA', venda_id: d.vendaId, valor: d.valor })
           },

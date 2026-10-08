@@ -7,7 +7,7 @@ export function criarAuthHttp(baseUrl: string): AuthApi {
     try {
       r = await fetch(`${baseUrl}/api/auth${caminho}`, {
         ...resto,
-        headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        headers: { ...(resto.body ? { 'content-type': 'application/json' } : {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
       })
     } catch {
       throw new ErroAuth(0, 'Sem conexão com o servidor. Tente de novo.')

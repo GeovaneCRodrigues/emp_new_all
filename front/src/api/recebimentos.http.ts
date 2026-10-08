@@ -1,9 +1,9 @@
-import { ErroApi, type ClientesApi } from './clientes'
+import { ErroApi } from './clientes'
+import type { RecebimentosApi } from './recebimentos'
 
 type Requisicao = (url: string, init?: RequestInit) => Promise<Response>
 
-/** Fala com `/api/clientes` do backend. `requisicao` coloca o token e renova a sessão se precisar. */
-export function criarClientesHttp(baseUrl: string, requisicao: Requisicao): ClientesApi {
+export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): RecebimentosApi {
   async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
     let r: Response
     try {
@@ -11,6 +11,7 @@ export function criarClientesHttp(baseUrl: string, requisicao: Requisicao): Clie
     } catch {
       throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.')
     }
+    if (r.status === 204) return undefined as T
     const corpo = await r.json().catch(() => ({}))
     if (!r.ok) throw new ErroApi(r.status, corpo.erro ?? 'Algo deu errado. Tente de novo.', corpo.codigo)
     return corpo as T
@@ -22,10 +23,10 @@ export function criarClientesHttp(baseUrl: string, requisicao: Requisicao): Clie
     return s ? `?${s}` : ''
   }
   return {
-    listar: (_s, q) => chamar('/clientes' + qs(q)),
-    obter: (_s, id) => chamar(`/clientes/${id}`),
-    criar: (_s, e) => chamar('/clientes', { method: 'POST', body: JSON.stringify(e) }),
-    atualizar: (_s, id, e) => chamar(`/clientes/${id}`, { method: 'PATCH', body: JSON.stringify(e) }),
-    responsaveis: () => chamar('/usuarios/responsaveis'),
+    registrar: (_s, vendaId, e) => chamar(`/vendas/${vendaId}/recebimentos`, { method: 'POST', body: JSON.stringify(e) }),
+    recibo: (_s, id) => chamar(`/recibos/${id}`),
+    pagamentos: (_s, vendaId) => chamar(`/vendas/${vendaId}/pagamentos`),
+    desfazer: (_s, id) => chamar(`/recebimentos/${id}/desfazer`, { method: 'POST' }),
+    cobrancas: (_s, q) => chamar('/cobrancas' + qs(q)),
   }
 }

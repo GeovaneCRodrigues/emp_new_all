@@ -14,6 +14,8 @@ import { createConfigRepository } from './modules/config/models/repository.js'
 import { createConfigService } from './modules/config/services/config.service.js'
 import { createVendasRepository } from './modules/vendas/models/repository.js'
 import { createVendasService } from './modules/vendas/services/vendas.service.js'
+import { createRecebimentosRepository } from './modules/recebimentos/models/repository.js'
+import { createRecebimentosService } from './modules/recebimentos/services/recebimentos.service.js'
 import { createClientesService } from './modules/clientes/services/clientes.service.js'
 import { createSessoesRepository, createUsuariosRepository } from './modules/auth/models/repository.js'
 import { createAuthService } from './modules/auth/services/auth.service.js'
@@ -38,7 +40,9 @@ const vendas = createVendasService({
   sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),
 })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, config: createConfigService(configRepo) })
+const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
+
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, config: createConfigService(configRepo), recebimentos })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

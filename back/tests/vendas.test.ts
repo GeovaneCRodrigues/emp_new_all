@@ -65,7 +65,7 @@ describe.skipIf(!db)('vendas (Postgres de verdade)', () => {
       env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth,
       clientes: {} as never, usuarios: {} as never, indicadores, estoque: createEstoqueService(createEstoqueRepository(k), audit),
       vendas: createVendasService({ vendas: createVendasRepository(k), config, auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
-      config: createConfigService(config), limites: { vendasPorMinuto: 100_000 },
+      config: createConfigService(config), recebimentos: {} as never, limites: { vendasPorMinuto: 100_000 },
     })
     for (const papel of ['admin', 'vendedorA', 'vendedorB', 'cobrador', 'indicador'])
       t[papel] = (await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: `${papel}@t.com`, senha: SENHA } })).json().accessToken

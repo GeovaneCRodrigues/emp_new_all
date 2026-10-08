@@ -1,9 +1,9 @@
-import { addDia } from './datas'
-import { arred2 } from './format'
+import { addDia } from '../../../shared/datas.js'
+import { arred2 } from '../../vendas/services/calculo.js'
 
 export type RestoPagamento = 'FICA' | 'DESCONTO'
 
-export interface ParcelaAberta {
+export type ParcelaAberta = {
   id: number
   numero: number
   vencimento: string
@@ -15,9 +15,9 @@ export interface ParcelaAberta {
   quitadaEm: string | null
 }
 
-export interface EstadoParcela { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null }
+export type EstadoParcela = { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null }
 
-export interface PedidoRecebimento {
+export type PedidoRecebimento = {
   /** parcela escolhida */
   numero: number
   valor: number
@@ -35,10 +35,11 @@ export type EfeitoRecebimento =
   | { tipo: 'FICA'; numero: number; resta: number; vencimento: string }
   | { tipo: 'DESCONTO'; numero: number; valor: number }
 
-export interface ItemRecebimento { parcelaId: number; numero: number; valorPago: number; antes: EstadoParcela; depois: EstadoParcela; faltaDepois: number }
-export interface ResultadoRecebimento { itens: ItemRecebimento[]; efeitos: EfeitoRecebimento[]; valorTotal: number }
+export type ItemRecebimento = { parcelaId: number; numero: number; valorPago: number; antes: EstadoParcela; depois: EstadoParcela; faltaDepois: number }
 
-/** Erro de regra de negócio do recebimento. */
+export type ResultadoRecebimento = { itens: ItemRecebimento[]; efeitos: EfeitoRecebimento[]; valorTotal: number }
+
+/** Erro de regra de negócio (vira 400/409 na camada de cima). */
 export class ErroRecebimento extends Error {
   constructor(public readonly codigo: 'PARCELA_INEXISTENTE' | 'PARCELA_PAGA' | 'VALOR_INVALIDO' | 'EXCEDE_DIVIDA' | 'RESTO_OBRIGATORIO' | 'VENCIMENTO_INVALIDO', mensagem: string) {
     super(mensagem)
@@ -53,7 +54,7 @@ export const vencPadraoResto = (vencimento: string, hoje: string) => (vencimento
 const MAX_DIAS_REMARCAR = 365
 
 /**
- * O que um recebimento faz nas parcelas (mesma regra do backend). Não mexe em nada: devolve o que mudaria.
+ * O que um recebimento faz nas parcelas. Não mexe em nada: devolve o que mudaria.
  *  - pagou o certo: quita a parcela;
  *  - pagou menos: o resto fica devendo (com nova data) OU vira desconto (quita, e sai do lucro);
  *  - pagou mais: o excedente abate as próximas parcelas, em ordem.
@@ -80,6 +81,7 @@ export function calcularRecebimento(parcelas: ParcelaAberta[], p: PedidoRecebime
   }
   if (sobra > 0.009) throw new ErroRecebimento('EXCEDE_DIVIDA', `O valor passa do que falta pagar (faltam ${arred2(valor - sobra).toFixed(2).replace('.', ',')})`)
 
+  // a parcela escolhida ficou aberta: ou o resto fica devendo (com data nova) ou vira desconto
   const primeiro = itens[0]
   if (primeiro.faltaDepois > 0.009) {
     if (p.resto !== 'FICA' && p.resto !== 'DESCONTO') throw new ErroRecebimento('RESTO_OBRIGATORIO', 'Pagou menos que a parcela: diga se o resto fica devendo ou vira desconto')
@@ -103,16 +105,4 @@ export function calcularRecebimento(parcelas: ParcelaAberta[], p: PedidoRecebime
 export function referencia(numeros: number[], total: number): string {
   const ns = numeros.slice().sort((a, b) => a - b)
   return ns.length > 1 ? `parcelas ${ns[0]} a ${ns[ns.length - 1]} de ${total}` : `parcela ${ns[0]}/${total}`
-}
-
-/** A prévia em português do que o recebimento vai fazer ("Quita a 1ª e abate R$ 150,00 da 3ª"). */
-export function descreverEfeitos(efeitos: EfeitoRecebimento[], fmt: (v: number) => string, dmy: (iso: string) => string): string {
-  const partes = efeitos.map((e) => {
-    if (e.tipo === 'QUITA') return `quita a ${e.numero}ª`
-    if (e.tipo === 'ABATE') return `abate ${fmt(e.valor)} da ${e.numero}ª`
-    if (e.tipo === 'DESCONTO') return `dá ${fmt(e.valor)} de desconto na ${e.numero}ª`
-    return `a ${e.numero}ª fica com ${fmt(e.resta)}, para ${dmy(e.vencimento)}`
-  })
-  const texto = partes.join(', ')
-  return texto.charAt(0).toUpperCase() + texto.slice(1)
 }
