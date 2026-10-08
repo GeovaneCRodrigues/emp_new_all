@@ -50,6 +50,16 @@ input,select{font:inherit;color:var(--strong)}
 .rc-valor{border-block:1px solid var(--border);padding-block:10px}
 .simtab .li{padding:9px 16px;text-align:left;width:100%}
 .simtab .li.on{background:var(--primary-soft);box-shadow:inset 3px 0 0 var(--primary)}
+/* deixa claro o que é clicável */
+button.li,button.card,.cob button.mid,.fones button.fone,.side .item{cursor:pointer;transition:background-color .12s,border-color .12s,box-shadow .12s}
+@media (hover:hover){
+  button.li:hover,.list>button.li:hover{background:var(--muted)}
+  button.li:hover .icon:last-child{color:var(--primary)}
+  .cob:has(button.mid:hover){background:var(--muted)}
+  button.card:hover,.fones button.fone:hover{border-color:color-mix(in oklab,var(--primary) 45%,var(--border));box-shadow:0 6px 18px rgba(15,143,95,.12)}
+  .simtab .li:hover{background:var(--muted)}
+}
+button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .pode{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--strong)}
 .pode li{display:flex;gap:8px;align-items:flex-start}
 .pode li .icon{width:15px;height:15px;flex:none;margin-top:2px;color:var(--ok)}

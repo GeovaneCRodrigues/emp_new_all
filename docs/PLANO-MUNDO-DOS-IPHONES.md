@@ -115,6 +115,7 @@ Layout geral:
 - No celular fica uma barra embaixo com um botão central em destaque.
 - Botões, não links, na navegação do celular.
 - Campos de dinheiro usam máscara BRL que digita pelos centavos: digitar `400000` vira `4.000,00`.
+- Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Vender** (central), Estoque, Mais.
