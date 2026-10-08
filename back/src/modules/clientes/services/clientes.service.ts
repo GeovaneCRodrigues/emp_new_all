@@ -70,10 +70,13 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
     return d
   }
 
-  async function avisosDeFone(fone: string | undefined, exceto?: number): Promise<string[]> {
+  /** O nome do outro cliente só aparece se ele está no escopo de quem pediu; senão o aviso é genérico (não vaza clientes de outra carteira). */
+  async function avisosDeFone(s: Sessao, fone: string | undefined, exceto?: number): Promise<string[]> {
     if (!fone) return []
     const outro = await repo.buscarPorFone(fone, exceto)
-    return outro ? [`Já existe um cliente com esse telefone: ${outro.nome}`] : []
+    if (!outro) return []
+    const visivel = await repo.buscar(outro.id, escopoDe(s))
+    return [visivel ? `Já existe um cliente com esse telefone: ${outro.nome}` : 'Já existe um cliente com esse telefone, em outra carteira']
   }
 
   async function checarResponsavel(id: unknown): Promise<number> {
@@ -109,7 +112,7 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
       else d.responsavelId = entrada.responsavelId == null ? null : await checarResponsavel(entrada.responsavelId)
 
       if (d.cpf && (await repo.buscarPorCpf(d.cpf))) throw CPF_DUPLICADO
-      const avisos = await avisosDeFone(d.fone)
+      const avisos = await avisosDeFone(s, d.fone)
       const cliente = await repo.criar(d).catch(trataDuplicado)
       await auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CLIENTE_CRIADO', entidade: 'cliente', entidadeId: cliente.id, depois: cliente })
       return { cliente, avisos }
@@ -129,7 +132,7 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
         const outro = await repo.buscarPorCpf(d.cpf)
         if (outro && outro.id !== id) throw CPF_DUPLICADO
       }
-      const avisos = await avisosDeFone(d.fone !== antes.fone ? d.fone : undefined, id)
+      const avisos = await avisosDeFone(s, d.fone !== antes.fone ? d.fone : undefined, id)
       const cliente = await repo.atualizar(id, d).catch(trataDuplicado)
       await auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CLIENTE_ALTERADO', entidade: 'cliente', entidadeId: id, antes, depois: cliente })
       return { cliente, avisos }

@@ -49,7 +49,9 @@ export function criarClientesFake(): ClientesApi {
 
   const salvar = (s: Sessao, c: Required<ClienteApi>, avisoDe?: number): SalvoCliente => {
     const outro = lista.find((x) => x.fone === c.fone && x.id !== (avisoDe ?? c.id))
-    return { cliente: visao(c, s), avisos: outro ? [`Já existe um cliente com esse telefone: ${outro.nome}`] : [] }
+    // o nome só aparece se o outro cliente está no escopo de quem pediu (não vaza carteira alheia)
+    const aviso = outro && (noEscopo(s).includes(outro) ? `Já existe um cliente com esse telefone: ${outro.nome}` : 'Já existe um cliente com esse telefone, em outra carteira')
+    return { cliente: visao(c, s), avisos: aviso ? [aviso] : [] }
   }
   const podeEditar = (s: Sessao) => {
     if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Só o administrador e o vendedor cadastram clientes', 'SEM_PERMISSAO')

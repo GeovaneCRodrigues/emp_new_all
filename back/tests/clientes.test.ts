@@ -164,6 +164,19 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
       expect(r.json().avisos).toEqual(['Já existe um cliente com esse telefone: Ana Souza'])
     })
 
+    it('o aviso de telefone repetido não revela cliente de outra carteira', async () => {
+      // Bruno (11977612209) é da carteira do vendedor B; o vendedor A não pode descobrir o nome dele
+      const r = await req('POST', '/api/clientes', 'vendedorA', { nome: 'Teste Vazamento', fone: '11977612209' })
+      expect(r.statusCode).toBe(201)
+      expect(r.json().avisos).toEqual(['Já existe um cliente com esse telefone, em outra carteira'])
+      expect(JSON.stringify(r.json())).not.toContain('Bruno')
+    })
+
+    it('mostra o nome quando o outro cliente é da própria carteira', async () => {
+      const r = await req('POST', '/api/clientes', 'vendedorA', { nome: 'Outra Ana', fone: '11988124410' })
+      expect(r.json().avisos).toEqual(['Já existe um cliente com esse telefone: Ana Souza'])
+    })
+
     it('CPF é opcional', async () => {
       const r = await req('POST', '/api/clientes', 'admin', { nome: 'Sem Cpf', fone: '11933330000' })
       expect(r.statusCode).toBe(201)
@@ -234,7 +247,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     })
 
     it('telefone igual ao de outro cliente avisa, mas não avisa de si mesmo', async () => {
-      expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { fone: '11977612209' })).json().avisos).toEqual(['Já existe um cliente com esse telefone: Bruno Lima'])
+      expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { fone: '11977612209' })).json().avisos.join()).toContain('Bruno Lima')
       expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { fone: '11977612209' })).json().avisos).toEqual([])
     })
 
