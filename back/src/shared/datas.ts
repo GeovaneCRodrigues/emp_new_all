@@ -12,3 +12,14 @@ export function somaMes(iso: string, n: number, dia: number): string {
   const ultimo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`
 }
+
+/** Soma `n` dias pulando os domingos (empréstimo diário). Feriado não é considerado. */
+export function somaDiasUteis(iso: string, n: number): string {
+  const d = new Date(iso + 'T12:00:00Z')
+  let k = 0
+  while (k < n) {
+    d.setUTCDate(d.getUTCDate() + 1)
+    if (d.getUTCDay() !== 0) k++
+  }
+  return d.toISOString().slice(0, 10)
+}

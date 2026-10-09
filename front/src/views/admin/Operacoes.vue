@@ -2,20 +2,23 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ErroApi } from '@/api/clientes'
-import { vendasApi } from '@/api/recursos'
+import type { EmprestimoApi, ResumoEmprestimosApi } from '@/api/emprestimos'
+import { emprestimosApi, vendasApi } from '@/api/recursos'
 import type { ResumoVendasApi, VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
-import OperacaoCard from '@/components/OperacaoCard.vue'
+import EmprestimoCard from '@/components/EmprestimoCard.vue'
+import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
+import EmprestimoForm from '@/components/EmprestimoForm.vue'
+import Icon from '@/components/Icon.vue'
 import Seg from '@/components/Seg.vue'
 import VendaCard from '@/components/VendaCard.vue'
 import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
 import { fmt0 } from '@/domain/format'
-import type { Operacao } from '@/domain/types'
 
 const route = useRoute()
-const { d, contas, sessao } = useApp()
+const { sessao } = useApp()
 
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
 const aba = ref<'iphone' | 'emp'>('iphone')
@@ -33,8 +36,9 @@ const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
 
 /** Depois de um recebimento: recarrega a lista, o resumo e a ficha aberta. */
 async function aposMudar() {
-  await Promise.all([carregar(), carregarResumo()])
+  await Promise.all([carregar(), carregarResumo(), carregarEmp(), carregarResumoEmp()])
   if (ficha.value) ficha.value = await vendasApi.obter(sessao.value, ficha.value.id).catch(() => null)
+  if (fichaEmp.value) fichaEmp.value = await emprestimosApi.obter(sessao.value, fichaEmp.value.id).catch(() => null)
 }
 
 let pedido = 0
@@ -68,22 +72,42 @@ onMounted(async () => {
 
 const filtrosIphone = [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', label: 'Com atraso' }, { id: 'QUITADA', label: 'Quitadas' }, { id: 'RETOMADA', label: 'Retomadas' }]
 
-// ---- Empréstimos: ainda com dados de exemplo (módulo próprio vem depois) ----
+// ---- Empréstimos: vem da API ----
 const filtroEmp = ref('ATIVA')
-const emps = computed(() => (d.value?.emprestimos ?? []).map((o: Operacao) => ({ o, k: contas(o) })))
-const empsAtivos = computed(() => emps.value.filter(({ k }) => k.status === 'ATIVA'))
-const listaEmp = computed(() =>
-  emps.value.filter(({ k }) => (filtroEmp.value === 'ATRASO' ? k.status === 'ATIVA' && k.atrasadas.length : k.status === filtroEmp.value)).sort((a, b) => b.o.data.localeCompare(a.o.data)),
-)
-const filtrosEmp = computed(() => [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', label: `Com atraso · ${empsAtivos.value.filter(({ k }) => k.atrasadas.length).length}` }, { id: 'QUITADA', label: 'Quitados' }])
-const empAReceber = computed(() => empsAtivos.value.reduce((s, { k }) => s + k.falta, 0))
-const empCapital = computed(() => empsAtivos.value.reduce((s, { k }) => s + (k.inv - k.capitalDeVolta), 0))
-const empLucro = computed(() => empsAtivos.value.reduce((s, { k }) => s + Math.max(0, k.seuLucro - k.lucroRealizado), 0))
+const emps = ref<EmprestimoApi[]>([])
+const totalEmp = ref(0)
+const paginaEmp = ref(1)
+const resumoEmp = ref<ResumoEmprestimosApi | null>(null)
+const carregandoEmp = ref(false)
+const erroEmp = ref('')
+const fichaEmp = ref<EmprestimoApi | null>(null)
+const formEmp = ref(false)
+let pedidoEmp = 0
+async function carregarEmp(mais = false) {
+  const meu = ++pedidoEmp
+  carregandoEmp.value = true; erroEmp.value = ''
+  try {
+    const p = mais ? paginaEmp.value + 1 : 1
+    const r = await emprestimosApi.listar(sessao.value, { status: filtroEmp.value, pagina: p, limite: 20 })
+    if (meu !== pedidoEmp) return
+    emps.value = mais ? [...emps.value, ...r.itens] : r.itens
+    totalEmp.value = r.total; paginaEmp.value = p
+  } catch (e) {
+    if (meu === pedidoEmp) erroEmp.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os empréstimos.'
+  } finally {
+    if (meu === pedidoEmp) carregandoEmp.value = false
+  }
+}
+async function carregarResumoEmp() { try { resumoEmp.value = await emprestimosApi.resumo(sessao.value) } catch { /* os números ficam em branco */ } }
+watch(filtroEmp, () => carregarEmp())
+watch(aba, (a) => { if (a === 'emp' && ehAdmin.value && !emps.value.length && !carregandoEmp.value) { carregarEmp(); carregarResumoEmp() } })
+async function aoSalvarEmp(e: EmprestimoApi) { formEmp.value = false; filtroEmp.value = 'ATIVA'; await Promise.all([carregarEmp(), carregarResumoEmp()]); fichaEmp.value = e }
+const filtrosEmp = [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', label: 'Com atraso' }, { id: 'QUITADA', label: 'Quitados' }]
 
 // só o admin tem empréstimos; o vendedor só vê as vendas dele
 const abas = computed(() => [
   { id: 'iphone', label: 'iPhones', icon: 'smartphone', n: resumo.value ? undefined : undefined },
-  ...(ehAdmin.value ? [{ id: 'emp', label: 'Empréstimos', icon: 'landmark', n: empsAtivos.value.length }] : []),
+  ...(ehAdmin.value ? [{ id: 'emp', label: 'Empréstimos', icon: 'landmark' }] : []),
 ])
 </script>
 
@@ -110,17 +134,22 @@ const abas = computed(() => [
 
   <template v-else>
     <div class="resumo3">
-      <div><div class="lbl">A receber</div><div class="val num">{{ fmt0(empAReceber) }}</div></div>
-      <div><div class="lbl">Capital na rua</div><div class="val num">{{ fmt0(empCapital) }}</div></div>
-      <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ fmt0(empLucro) }}</div></div>
+      <div><div class="lbl">A receber</div><div class="val num">{{ resumoEmp ? fmt0(resumoEmp.aReceber) : '—' }}</div></div>
+      <div><div class="lbl">Capital na rua</div><div class="val num">{{ resumoEmp ? fmt0(resumoEmp.capitalNaRua ?? 0) : '—' }}</div></div>
+      <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ resumoEmp ? fmt0(resumoEmp.lucroPorVir ?? 0) : '—' }}</div></div>
     </div>
-    <Seg v-model="filtroEmp" :itens="filtrosEmp" />
+    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><Seg v-model="filtroEmp" :itens="filtrosEmp" /></div><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <div v-if="erroEmp" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erroEmp }}</span><button class="btn b-ghost b-sm" @click="carregarEmp()">Tentar de novo</button></div>
     <div class="fones">
-      <OperacaoCard v-for="{ o, k } in listaEmp" :key="o.id" :o="o" :k="k" />
-      <div v-if="!listaEmp.length" class="card empty">Nenhum empréstimo aqui.</div>
+      <EmprestimoCard v-for="e in emps" :key="e.id" :e="e" @abrir="fichaEmp = $event" />
+      <div v-if="!emps.length && !carregandoEmp && !erroEmp" class="card empty">Nenhum empréstimo aqui.</div>
+      <div v-if="carregandoEmp && !emps.length" class="card empty">Carregando…</div>
     </div>
+    <button v-if="emps.length < totalEmp" class="btn b-out" :disabled="carregandoEmp" @click="carregarEmp(true)">{{ carregandoEmp ? 'Carregando…' : 'Carregar mais' }}</button>
   </template>
 
-  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar(ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <EmprestimoForm :aberto="formEmp" @fechar="formEmp = false" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

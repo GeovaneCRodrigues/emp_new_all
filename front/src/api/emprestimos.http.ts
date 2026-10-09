@@ -1,11 +1,9 @@
 import { ErroApi } from './clientes'
-import type { RecebimentosApi } from './recebimentos'
-
-const CAMINHO = { VENDA: 'vendas', EMPRESTIMO: 'emprestimos' } as const
+import type { EmprestimosApi } from './emprestimos'
 
 type Requisicao = (url: string, init?: RequestInit) => Promise<Response>
 
-export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): RecebimentosApi {
+export function criarEmprestimosHttp(baseUrl: string, requisicao: Requisicao): EmprestimosApi {
   async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
     let r: Response
     try {
@@ -13,7 +11,6 @@ export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): 
     } catch {
       throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.')
     }
-    if (r.status === 204) return undefined as T
     const corpo = await r.json().catch(() => ({}))
     if (!r.ok) throw new ErroApi(r.status, corpo.erro ?? 'Algo deu errado. Tente de novo.', corpo.codigo)
     return corpo as T
@@ -25,10 +22,9 @@ export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): 
     return s ? `?${s}` : ''
   }
   return {
-    registrar: (_s, alvo, id, e) => chamar(`/${CAMINHO[alvo]}/${id}/recebimentos`, { method: 'POST', body: JSON.stringify(e) }),
-    recibo: (_s, id) => chamar(`/recibos/${id}`),
-    pagamentos: (_s, alvo, id) => chamar(`/${CAMINHO[alvo]}/${id}/pagamentos`),
-    desfazer: (_s, id) => chamar(`/recebimentos/${id}/desfazer`, { method: 'POST' }),
-    cobrancas: (_s, q) => chamar('/cobrancas' + qs(q)),
+    criar: (_s, e) => chamar('/emprestimos', { method: 'POST', body: JSON.stringify(e) }),
+    listar: (_s, q) => chamar('/emprestimos' + qs(q)),
+    obter: (_s, id) => chamar(`/emprestimos/${id}`),
+    resumo: () => chamar('/emprestimos/resumo'),
   }
 }

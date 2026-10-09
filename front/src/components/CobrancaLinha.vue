@@ -25,7 +25,7 @@ const linkWhatsApp = computed(() => {
 </script>
 
 <template>
-  <div class="cob" :data-cobranca="`${c.vendaId}:${c.parcela}`">
+  <div class="cob" :data-cobranca="`${c.tipo === 'VENDA' ? '' : 'E'}${c.operacaoId}:${c.parcela}`">
     <span class="ini">{{ iniciais(c.cliente.nome) }}</span>
     <button class="mid" style="flex: 1; min-width: 0; text-align: left" @click="$emit('abrir', c)">
       <div class="t" style="font-weight: 500; color: var(--strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.cliente.nome }}</div>

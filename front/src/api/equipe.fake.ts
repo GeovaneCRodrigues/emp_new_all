@@ -110,7 +110,7 @@ export function criarFechamentosFake(vendas: VendasFake): FechamentosApi {
       const f = fechamentos.find((x) => x.usuarioId === u && x.data === hoje)
       const caixa: CaixaApi = {
         data: hoje, dinheiro: d, pix: p, cartao: c, total: arred2(d + p + c), fechamento: f ? visao(f) : null,
-        recebimentos: doDia(u, hoje).sort((a, b) => b.id - a.id).map((t) => ({ transacaoId: t.id, numero: String(t.numero).padStart(6, '0'), cliente: t.resumo ? vendas._interno.registros.find((r) => r.id === t.vendaId)!.cliente.nome : '', valor: t.valor, forma: t.forma, referencia: t.resumo.referencia })),
+        recebimentos: doDia(u, hoje).sort((a, b) => b.id - a.id).map((t) => ({ transacaoId: t.id, numero: String(t.numero).padStart(6, '0'), cliente: t.clienteNome, valor: t.valor, forma: t.forma, referencia: t.resumo.referencia })),
       }
       return caixa
     },
