@@ -486,18 +486,19 @@ function vencimentos(primeira, freq, n) {
   const passo = freq === 'QUINZENAL' ? 15 : freq === 'SEMANAL' ? 7 : 0
   return Array.from({ length: n }, (_, i) => (passo ? somaDias(primeira, passo * i) : somaMes(primeira, i, Number(primeira.slice(8, 10)))))
 }
-// Parcelado: juros simples por período (mês, quinzena ou semana) sobre o capital.
-// Só juros: paga o juro a cada período e o capital junto da última.
-// Diária: capital + juros no total, divididos em parcelas diárias (sem domingo).
+// Parcelado e diária: % de juros no total (100% = cliente paga o dobro), dividido nas parcelas.
+// Só juros: paga o % a cada parcela e o capital junto da última.
 function planoEmprestimo({ capital, mod, taxa, n, data, freq, primeira }) {
   const c = Number(capital) || 0, t = (Number(taxa) || 0) / 100
   freq = mod === 'DIARIA' ? 'DIARIA' : freq || 'MENSAL'
   const vs = vencimentos(primeira || primeiroVenc(data, freq), freq, n)
   if (mod === 'JUROS') return vs.map((venc, i) => ({ venc, valor: Math.round(c * t * 100) / 100 + (i === n - 1 ? c : 0) }))
-  const parc = mod === 'DIARIA' ? Math.ceil(c * (1 + t) / n * 100) / 100 : Math.ceil(c * (1 + t * n) / n * 100) / 100
+  const parc = Math.ceil(c * (1 + t) / n * 100) / 100
   return vs.map((venc) => ({ venc, valor: parc }))
 }
 const freqEmp = (e) => (e.mod === 'DIARIA' ? 'DIARIA' : e.freq || 'MENSAL')
+const pctBR = (x) => String(Math.round(x * 100) / 100).replace('.', ',')
+const taxaTxt = (e) => `${pctBR(e.taxa)}% ${e.mod === 'JUROS' ? FREQ[freqEmp(e)].por.replace('ao mês', 'por mês') : 'no total'}`
 const nomeModEmp = (e) => `${MOD[e.mod].label}${e.mod !== 'DIARIA' && freqEmp(e) !== 'MENSAL' ? ` ${FREQ[freqEmp(e)].label.toLowerCase()}` : ''}`
 function criarEmp({ clienteId, data, capital, mod, taxa, n, parceiroId = 0, pagarAte = null, freq = 'MENSAL', primeira = null }) {
   if (mod === 'DIARIA') freq = 'DIARIA'
@@ -507,12 +508,12 @@ function criarEmp({ clienteId, data, capital, mod, taxa, n, parceiroId = 0, paga
   return e
 }
 const emprestimos = [
-  criarEmp({ clienteId: 7, data: '2026-06-25', capital: 5000, mod: 'PARCELADO', taxa: 10, n: 6, pagarAte: '2026-09-30' }),
+  criarEmp({ clienteId: 7, data: '2026-06-25', capital: 5000, mod: 'PARCELADO', taxa: 60, n: 6, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 6, data: '2026-05-10', capital: 3000, mod: 'JUROS', taxa: 12, n: 6, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 8, data: '2026-09-24', capital: 1000, mod: 'DIARIA', taxa: 20, n: 24, pagarAte: '2026-10-06' }),
-  criarEmp({ clienteId: 5, data: '2026-05-15', capital: 2000, mod: 'PARCELADO', taxa: 8, n: 4, pagarAte: '2026-09-30' }),
+  criarEmp({ clienteId: 5, data: '2026-05-15', capital: 2000, mod: 'PARCELADO', taxa: 32, n: 4, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 2, data: '2026-10-01', capital: 600, mod: 'DIARIA', taxa: 20, n: 20, parceiroId: 1, pagarAte: '2026-10-07' }),
-  criarEmp({ clienteId: 9, data: '2026-08-01', capital: 4000, mod: 'PARCELADO', taxa: 10, n: 10, parceiroId: 1, pagarAte: '2026-08-31' }),
+  criarEmp({ clienteId: 9, data: '2026-08-01', capital: 4000, mod: 'PARCELADO', taxa: 100, n: 10, parceiroId: 1, pagarAte: '2026-08-31' }),
 ]
 const usuarios = [
   { id: 1, nome: 'Geovane Cataneo', perfil: 'ADMIN', fone: '(11) 99000-1100' },
@@ -657,7 +658,7 @@ function empCard(e, k) {
   return `<button class="card pad" style="text-align:left;display:flex;flex-direction:column;gap:10px" data-venda="${e.id}">
     <div class="row"><span class="pic" style="width:38px;height:38px;border-radius:10px;background:var(--gold-soft);color:var(--warn);display:grid;place-items:center;flex:none">${ic(MOD[e.mod].icon, 'i-sm')}</span>
     <div style="flex:1;min-width:0"><div class="between"><span class="val" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.nome}</span>${k.atrasadas.length ? `<span class="chip c-bad">${k.atrasadas.length} atrasada${k.atrasadas.length > 1 ? 's' : ''}</span>` : k.status === 'QUITADA' ? '<span class="chip c-ok">quitado</span>' : '<span class="chip c-pri">em dia</span>'}</div>
-    <div class="small">${nomeModEmp(e)} · ${fmt0(e.capital)} a ${e.taxa}%${e.mod === 'DIARIA' ? '' : ` ${FREQ[freqEmp(e)].por}`} · ${e.parcelas.length}x ${fmt0(e.parcelas[0].valor)}</div></div></div>
+    <div class="small">${nomeModEmp(e)} · ${fmt0(e.capital)} a ${taxaTxt(e)} · ${e.parcelas.length}x ${fmt0(e.parcelas[0].valor)}</div></div></div>
     <div><div class="between small"><span><b class="num" style="color:var(--strong)">${fmt0(k.recebido)}</b> de ${fmt0(k.total)}</span><span class="num">${pct}%</span></div>
     <div class="bar" style="margin-top:5px"><i style="width:${pct}%;background:${k.atrasadas.length ? 'var(--bad)' : 'var(--primary)'}"></i></div></div>
     <div class="between small"><span>liberado ${dmy(e.data)} · ${k.p.id ? k.p.nome : 'direto'}</span><span>seu lucro <b class="num" style="color:var(--ok)">${fmt0(k.seuLucro)}</b></span></div>
@@ -681,7 +682,7 @@ function folhaEmprestimo(id) {
   const e = opById(id), k = contasEmp(e), c = cliente(e.clienteId)
   const tl = e.parcelas.map((p) => `<i class="${p.pago ? 'p' : p.venc < HOJE ? 'a' : diasEntre(HOJE, p.venc) <= 7 ? 'h' : ''}" style="${!p.pago && pagoP(p) ? 'box-shadow:inset 0 -6px 0 var(--ok)' : ''}" title="${p.n}ª · ${dmy(p.venc)}">${p.n}</i>`).join('')
   const capPct = Math.round(k.capitalDeVolta / k.inv * 100), prox = e.parcelas.find((p) => !p.pago)
-  return `<div class="row" style="gap:12px"><span class="ini">${iniciais(c.nome)}</span><div style="flex:1;min-width:0"><h3>${c.nome}</h3><div class="small">${nomeModEmp(e)} · ${fmt(e.capital)} a ${e.taxa}%${e.mod === 'DIARIA' ? ' no total' : ` ${FREQ[freqEmp(e)].por}`} · liberado ${dmy(e.data)}</div></div></div>
+  return `<div class="row" style="gap:12px"><span class="ini">${iniciais(c.nome)}</span><div style="flex:1;min-width:0"><h3>${c.nome}</h3><div class="small">${nomeModEmp(e)} · ${fmt(e.capital)} a ${taxaTxt(e)} · liberado ${dmy(e.data)}</div></div></div>
     <div class="dl" style="margin-top:16px">
       <div><div class="lbl">Já recebeu</div><div class="val num">${fmt(k.recebido)}</div><div class="small">de ${fmt(k.total)}</div></div>
       <div><div class="lbl">Falta</div><div class="val num">${fmt(k.falta)}</div><div class="small">${e.parcelas.filter((p) => !p.pago).length} parcelas</div></div>
@@ -695,42 +696,79 @@ function folhaEmprestimo(id) {
       ${prox ? `<button class="btn b-out" style="flex:1" data-reneg="${e.id}">${ic('calendar-days', 'i-sm')}Acordo ou vencimento</button>` : ''}<button class="btn b-sub" style="flex:1" data-cli="${e.clienteId}">Ver cliente</button>
     </div>`
 }
-function neNovo(clienteId) { return { clienteId, capital: 1000, mod: 'PARCELADO', freq: 'MENSAL', taxa: 10, n: 6, parceiroId: 0, data: HOJE, primeira: null } }
+const JUROS_EMP = { padrao: 30, opcoes: [20, 30, 50, 80, 100], soJuros: [5, 10, 15, 20, 30] }
+function neNovo(clienteId) { return { passo: 1, clienteId, capital: 1000, mod: 'PARCELADO', freq: 'MENSAL', taxa: JUROS_EMP.padrao, n: 6, parceiroId: 0, data: HOJE, primeira: null } }
 const nePrimeira = (ne) => ne.primeira || primeiroVenc(ne.data, ne.freq)
+const nePlano = (ne) => planoEmprestimo({ capital: numBR(ne.capital), mod: ne.mod, taxa: ne.taxa, n: ne.n, data: ne.data, freq: ne.freq, primeira: nePrimeira(ne) })
+// os três campos andam juntos: mexeu no %, no total ou na parcela, os outros se ajustam
+function neValores(ne) {
+  const cap = numBR(ne.capital), t = ne.taxa / 100
+  if (ne.mod === 'JUROS') return { cap, juro: Math.round(cap * t * 100) / 100, total: Math.round((cap * t * ne.n + cap) * 100) / 100 }
+  const total = Math.round(cap * (1 + t) * 100) / 100
+  return { cap, total, parc: Math.ceil(total / ne.n * 100) / 100 }
+}
 function folhaNovoEmprestimo() {
-  const ne = S.ne, cap = numBR(ne.capital), F = FREQ[ne.freq]
-  const tipos = [['PARCELADO', 'Parcelado', 'capital + juros divididos nas parcelas'], ['JUROS', 'Só juros', 'paga o juro a cada parcela e o capital no fim']]
-  return `<h3>Novo empréstimo</h3>
-    <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
-      <div class="field"><label>Cliente</label><div class="inp"><select id="neCliente" style="font-size:15px">${clientes.map((c) => `<option value="${c.id}" ${ne.clienteId === c.id ? 'selected' : ''}>${c.nome}</option>`).join('')}</select></div></div>
+  const ne = S.ne, F = FREQ[ne.freq], c = cliente(ne.clienteId)
+  const P = ['Cliente e valor', 'Como paga', 'Datas e confirmar']
+  const steps = `<div class="steps" style="margin-top:12px">${P.map((l, i) => `<button class="${ne.passo === i + 1 ? 'on' : ne.passo > i + 1 ? 'done' : ''}" data-ne-passo="${i + 1}"><i></i>${i + 1}. ${l}</button>`).join('')}</div>`
+  const voltar = (n) => `<button class="btn b-sub" data-ne-passo="${n}">Voltar</button>`
+  let corpo
+  if (ne.passo === 1) {
+    corpo = `<div class="field"><label>Cliente</label><div class="inp"><select id="neCliente" style="font-size:15px">${clientes.map((x) => `<option value="${x.id}" ${ne.clienteId === x.id ? 'selected' : ''}>${x.nome}</option>`).join('')}</select></div></div>
       <div class="grid2">
         <div class="field"><label>Quanto vai emprestar</label><div class="inp"><span>R$</span><input id="neCapital" class="money" inputmode="numeric" value="${moneyBR(ne.capital)}"></div></div>
         <div class="field"><label>Data do empréstimo</label><div class="inp"><input type="date" id="neData" value="${ne.data}" style="font-size:14px"></div></div>
       </div>
-      <div class="field"><label>Como o cliente paga</label><div class="pills">${tipos.map(([k, l]) => `<button class="pill ${(ne.mod === 'DIARIA' ? 'PARCELADO' : ne.mod) === k ? 'on' : ''}" data-ne-mod="${k}" ${ne.freq === 'DIARIA' && k === 'JUROS' ? 'disabled title="Na diária é sempre parcelado"' : ''}>${l}</button>`).join('')}</div>
-        <div class="small">${ne.freq === 'DIARIA' ? 'Na diária é sempre parcelado.' : tipos.find(([k]) => k === ne.mod)[2]}</div></div>
-      <div class="field"><label>De quanto em quanto tempo</label><div class="pills">${Object.entries(FREQ).map(([k, f]) => `<button class="pill ${ne.freq === k ? 'on' : ''}" data-ne-freq="${k}">${f.label}</button>`).join('')}</div></div>
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div class="field"><label>Juros ${F.por}</label><div class="pills">${[5, 8, 10, 12, 15, 20].map((t) => `<button class="pill ${ne.taxa === t ? 'on' : ''}" data-ne-taxa="${t}">${t}%</button>`).join('')}</div></div>
-        <div class="field"><label>Quantas parcelas${ne.freq === 'DIARIA' ? ' (sem domingo)' : ''}</label><div class="pills">${F.qtd.map((n) => `<button class="pill ${ne.n === n ? 'on' : ''}" data-ne-n="${n}">${n}x</button>`).join('')}</div></div>
-      </div>
-      <div class="field"><label>1º vencimento</label><div class="inp" style="max-width:220px"><input type="date" id="nePrimeira" value="${nePrimeira(ne)}" min="${ne.data}" style="font-size:14px"></div>
-        <div class="small">${ne.primeira ? 'Data escolhida por você.' : `Sugestão: ${F.cada === 'todo mês' ? 'um mês' : F.cada === 'a cada 15 dias' ? '15 dias' : F.cada === 'toda semana' ? 'uma semana' : 'um dia'} depois do empréstimo. Pode trocar.`}</div></div>
       <div class="field"><label>Veio por indicação?</label><div class="pills">${parceiros.map((p) => `<button class="pill ${ne.parceiroId === p.id ? 'on' : ''}" data-ne-parc="${p.id}">${p.id ? `${p.nome.split(' ')[0]} ${Math.round(p.pct * 100)}%` : 'Não'}</button>`).join('')}</div></div>
-      <div class="card pad" id="prevEmp" style="background:var(--elevated)">${prevEmp(cap)}</div>
-      <button class="btn b-pri b-block" data-ne-salvar>Liberar empréstimo</button>
-    </div>`
+      <button class="btn b-pri b-block" data-ne-passo="2">Continuar</button>`
+  } else if (ne.passo === 2) {
+    const V = neValores(ne), sj = ne.mod === 'JUROS'
+    const tipos = [['PARCELADO', 'Parcelado', 'Capital + juros divididos nas parcelas.'], ['JUROS', 'Só juros', 'Paga o juro a cada parcela e devolve o capital junto da última.']]
+    corpo = `<div class="field"><label>Como o cliente paga</label><div class="pills">${tipos.map(([k, l]) => `<button class="pill ${(sj ? 'JUROS' : 'PARCELADO') === k ? 'on' : ''}" data-ne-mod="${k}" ${ne.freq === 'DIARIA' && k === 'JUROS' ? 'disabled' : ''}>${l}</button>`).join('')}</div>
+        <div class="small">${ne.freq === 'DIARIA' ? 'Na diária é sempre parcelado.' : tipos.find(([k]) => k === (sj ? 'JUROS' : 'PARCELADO'))[2]}</div></div>
+      <div class="field"><label>De quanto em quanto tempo</label><div class="pills">${Object.entries(FREQ).map(([k, f]) => `<button class="pill ${ne.freq === k ? 'on' : ''}" data-ne-freq="${k}">${f.label}</button>`).join('')}</div></div>
+      <div class="field"><label>Quantas parcelas${ne.freq === 'DIARIA' ? ' (sem domingo)' : ''}</label><div class="row" style="gap:8px;flex-wrap:wrap"><div class="pills">${F.qtd.map((n) => `<button class="pill ${ne.n === n ? 'on' : ''}" data-ne-n="${n}">${n}x</button>`).join('')}</div>
+        <div class="inp" style="height:38px;width:92px"><input id="neNum" inputmode="numeric" value="${ne.n}" style="font-size:15px"><span>x</span></div></div></div>
+      <div class="field"><label>Juros ${sj ? `em cada parcela (${F.por.replace('ao mês', 'por mês')})` : 'no total'}</label><div class="row" style="gap:8px;flex-wrap:wrap"><div class="pills" id="neTaxaPills">${(sj ? JUROS_EMP.soJuros : JUROS_EMP.opcoes).map((t) => `<button class="pill ${ne.taxa === t ? 'on' : ''}" data-ne-taxa="${t}">${t}%</button>`).join('')}</div>
+        <div class="inp" style="height:38px;width:104px"><input id="neTaxa" inputmode="decimal" value="${pctBR(ne.taxa)}" style="font-size:15px"><span>%</span></div></div>
+        <div class="small">${sj ? '' : 'Padrão 30%. Com 100% o cliente paga o dobro. Pode digitar qualquer valor.'}</div></div>
+      <div class="grid2">${sj
+        ? `<div class="field"><label>Juro de cada parcela</label><div class="inp"><span>R$</span><input id="neJuro" class="money" inputmode="numeric" value="${moneyBR(V.juro)}"></div></div>
+           <div class="field"><label>Total que ele paga</label><div class="inp" style="background:var(--muted)"><span>R$</span><input id="neTotalRO" value="${moneyBR(V.total)}" readonly tabindex="-1"></div></div>`
+        : `<div class="field"><label>Total que ele paga</label><div class="inp"><span>R$</span><input id="neTotal" class="money" inputmode="numeric" value="${moneyBR(V.total)}"></div></div>
+           <div class="field"><label>Valor da parcela</label><div class="inp"><span>R$</span><input id="neParcV" class="money" inputmode="numeric" value="${moneyBR(V.parc)}"></div></div>`}</div>
+      <div class="small" style="margin-top:-6px">Se já combinou o valor com o cliente, digite o total ou a parcela que o % se ajusta sozinho.</div>
+      <div class="card pad" id="prevEmp" style="background:var(--elevated)">${prevEmp()}</div>
+      <div class="row" style="gap:8px">${voltar(1)}<button class="btn b-pri" style="flex:1" data-ne-passo="3">Continuar</button></div>`
+  } else {
+    const plano = nePlano(ne)
+    corpo = `<div class="card pad small" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span><b style="color:var(--strong)">${c.nome}</b> · ${fmt(numBR(ne.capital))} em ${dmy(ne.data)}</span><span>${ne.mod === 'JUROS' ? 'Só juros' : 'Parcelado'} · ${FREQ[ne.freq].label.toLowerCase()} · ${pctBR(ne.taxa)}%</span></div>
+      <div class="field"><label>1º vencimento</label><div class="inp" style="max-width:220px"><input type="date" id="nePrimeira" value="${nePrimeira(ne)}" min="${ne.data}" style="font-size:14px"></div>
+        <div class="small">${ne.primeira ? 'Data escolhida por você.' : `Sugestão: ${ne.freq === 'MENSAL' ? 'mesmo dia do mês que vem' : ne.freq === 'QUINZENAL' ? '15 dias depois' : ne.freq === 'SEMANAL' ? 'uma semana depois' : 'o próximo dia útil'}. Pode trocar.`} As outras seguem ${FREQ[ne.freq].cada}.</div></div>
+      <div class="card"><div class="totbar"><b style="color:var(--strong)">Parcelas</b><span class="small">${plano.length}</span></div>
+        <div class="list" style="max-height:260px;overflow-y:auto">${plano.map((x, i) => `<div class="li" style="padding:8px 16px"><span class="mid"><span class="t">${i + 1}ª</span> <span class="s">· ${dmy(x.venc)} · ${['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date(x.venc + 'T12:00:00Z').getUTCDay()]}</span></span><b class="num">${fmt(x.valor)}</b></div>`).join('')}</div></div>
+      <div class="card pad" id="prevEmp" style="background:var(--elevated)">${prevEmp()}</div>
+      <div class="row" style="gap:8px">${voltar(2)}<button class="btn b-pri" style="flex:1" data-ne-salvar>Liberar empréstimo</button></div>`
+  }
+  return `<h3>Novo empréstimo</h3>${steps}<div style="display:flex;flex-direction:column;gap:14px;margin-top:16px">${corpo}</div>`
 }
-function prevEmp(cap) {
-  const ne = S.ne, plano = planoEmprestimo({ capital: cap, mod: ne.mod, taxa: ne.taxa, n: ne.n, data: ne.data, freq: ne.freq, primeira: nePrimeira(ne) })
+function prevEmp() {
+  const ne = S.ne, cap = numBR(ne.capital), plano = nePlano(ne)
   const total = plano.reduce((s, x) => s + x.valor, 0), lucro = total - cap, pct = parceiro(ne.parceiroId).pct
-  const resumo = ne.mod === 'JUROS' ? `${ne.n - 1}x ${fmt(plano[0].valor)} + última de ${fmt(plano.at(-1).valor)}` : `${ne.n}x ${fmt(plano[0]?.valor || 0)}`
+  const resumo = ne.mod === 'JUROS' ? `${ne.n - 1}x ${fmt(plano[0]?.valor || 0)} + última de ${fmt(plano.at(-1)?.valor || 0)}` : `${ne.n}x ${fmt(plano[0]?.valor || 0)}`
   const datas = plano.slice(0, 4).map((x) => dmy(x.venc)).join(', ') + (plano.length > 4 ? ` … última ${dmy(plano.at(-1).venc)}` : '')
   return `<div class="lbl">Cliente paga</div><div class="disp num" style="font-size:22px;color:var(--strong)">${resumo}</div>
     <div class="small">${FREQ[ne.freq].cada}: ${datas}</div>
     <div class="linhas" style="margin-top:10px"><div><span>Total a receber</span><b class="num">${fmt(total)}</b></div><div><span>Você empresta</span><span class="num">− ${fmt(cap)}</span></div>
     ${pct ? `<div><span>Parte do parceiro (${Math.round(pct * 100)}%)</span><span class="num">− ${fmt(lucro * pct)}</span></div>` : ''}
     <div class="tot"><span>Seu lucro</span><span class="num" style="color:var(--ok)">${fmt(lucro * (1 - pct))}</span></div></div>`
+}
+// atualiza os campos ligados sem redesenhar (pra não perder o foco de quem está digitando)
+function neSync(menos) {
+  const ne = S.ne, V = neValores(ne), set = (id, v) => { const el = document.getElementById(id); if (el && id !== menos) el.value = v }
+  set('neTaxa', pctBR(ne.taxa)); set('neTotal', moneyBR(V.total)); set('neParcV', moneyBR(V.parc)); set('neJuro', moneyBR(V.juro)); set('neTotalRO', moneyBR(V.total))
+  document.querySelectorAll('#neTaxaPills [data-ne-taxa]').forEach((b) => b.classList.toggle('on', Number(b.dataset.neTaxa) === ne.taxa))
+  const pv = document.getElementById('prevEmp'); if (pv) pv.innerHTML = prevEmp()
 }
 
 // ---------- Caixa ----------
@@ -1046,12 +1084,16 @@ Object.assign(parceiros[1], { fone: '(11) 98877-6655', pix: 'roberto@exemplo.com
 Object.assign(parceiros[2], { fone: '(11) 3344-5566', pix: '00.000.000/0001-99' })
 
 // ----- Cronograma -----
+const semAcento = (x) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 function telaCronograma() {
+  const q = semAcento((S.cronBusca || '').trim())
+  const todas = cobrancas().filter(filtroTipo).filter((x) => !q || semAcento(x.c.nome).includes(q))
   return `${abasTipo([['todos', 'Tudo', 'layers', 0], ['iphone', 'iPhones', 'smartphone', 0], ['emp', 'Empréstimos', 'landmark', 0]], S.cobTipo, 'cobtipo')}
-    ${cronCalendario(cobrancas().filter(filtroTipo), cobLinha)}`
+    <div class="busca">${ic('search', 'i-sm')}<input id="cronBusca" placeholder="Buscar cliente pelo nome" value="${(S.cronBusca || '').replace(/"/g, '&quot;')}"></div>
+    ${cronCalendario(todas, cobLinha, q)}`
 }
 // calendário do mês: serve pro admin (Cronograma) e pro indicador (Cobrança › Calendário)
-function cronCalendario(todas, linha) {
+function cronCalendario(todas, linha, busca) {
   const ym = S.cronMes || HOJE.slice(0, 7)
   const doMes = todas.filter((x) => x.p.venc.slice(0, 7) === ym)
   const previsto = doMes.reduce((s, x) => s + x.p.valor, 0)
@@ -1069,11 +1111,13 @@ function cronCalendario(todas, linha) {
     cel.push(`<button class="d ${iso === HOJE ? 'hoje' : ''} ${iso === sel ? 'sel' : ''}" data-cron-dia="${iso}"><span class="n">${d}</span>${xs.length ? `<span class="v num" style="color:${cor}">${kfmt(tot)}</span><span class="q">${xs.length} ${xs.length === 1 ? 'parcela' : 'parcelas'}</span>` : ''}</button>`)
   }
   const doDia = sel ? doMes.filter((x) => x.p.venc === sel) : []
+  // com busca, embaixo vêm todas as parcelas do mês desse cliente, não só as do dia
+  const listaBusca = busca ? `<div class="card"><div class="totbar"><b style="color:var(--strong)">${doMes.length ? `${doMes.length} ${doMes.length === 1 ? 'parcela' : 'parcelas'} em ${MESES[m - 1]}` : `Nada em ${MESES[m - 1]}`}</b><span class="small">${todas.length ? `${new Set(todas.map((x) => x.c.id)).size} cliente(s)` : 'nenhum cliente com esse nome'}</span></div>${doMes.length ? `<div class="list">${doMes.slice().sort((a, b) => a.p.venc.localeCompare(b.p.venc)).map(linha).join('')}</div>` : ''}</div>` : ''
   return `<div class="between" style="gap:8px"><div class="row" style="gap:6px"><button class="btn b-out b-sm" data-cron-mes="-1" aria-label="Mês anterior">${ic('chevron-left', 'i-sm')}</button><b style="color:var(--strong);font-size:15px;min-width:140px;text-align:center;text-transform:capitalize">${mesLabel(ym)}</b><button class="btn b-out b-sm" data-cron-mes="1" aria-label="Próximo mês">${ic('chevron-right', 'i-sm')}</button></div>${ym !== HOJE.slice(0, 7) ? '<button class="btn b-ghost b-sm" data-cron-mes="0">Hoje</button>' : ''}</div>
     <div class="resumo3"><div><div class="lbl">Previsto</div><div class="val num">${fmt0(previsto)}</div></div><div><div class="lbl">Recebido</div><div class="val num" style="color:var(--ok)">${fmt0(recebido)}</div></div><div><div class="lbl">Em atraso</div><div class="val num" style="color:${atrasado ? 'var(--bad)' : 'var(--strong)'}">${fmt0(atrasado)}</div></div></div>
     <div class="card pad"><div class="cal sem">${['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => `<span>${d}</span>`).join('')}</div><div class="cal">${cel.join('')}</div>
       <div class="small" style="margin-top:10px">Vermelho atrasado · laranja vence esta semana · verde pago</div></div>
-    ${sel ? `<div class="card"><div class="totbar"><b style="color:var(--strong)">${Number(sel.slice(8))} de ${MESES[Number(sel.slice(5, 7)) - 1]}</b><span class="small">${doDia.length ? `${doDia.length} ${doDia.length === 1 ? 'parcela' : 'parcelas'}` : 'nada vence neste dia'}</span></div>${doDia.length ? `<div class="list">${doDia.map(linha).join('')}</div>` : ''}</div>` : ''}`
+    ${listaBusca || (sel ? `<div class="card"><div class="totbar"><b style="color:var(--strong)">${Number(sel.slice(8))} de ${MESES[Number(sel.slice(5, 7)) - 1]}</b><span class="small">${doDia.length ? `${doDia.length} ${doDia.length === 1 ? 'parcela' : 'parcelas'}` : 'nada vence neste dia'}</span></div>${doDia.length ? `<div class="list">${doDia.map(linha).join('')}</div>` : ''}</div>` : '')}`
 }
 
 // ----- Indicadores -----
@@ -1685,10 +1729,11 @@ function cliquesNovos(t, d) {
   if (d.cliVender) { S.nv = null; novaVenda(); S.nv.clienteId = Number(d.cliVender); S.tela = 'vender'; render(); return true }
   if (d.cliEmp) { S.ne = neNovo(Number(d.cliEmp)); abrir('novoEmprestimo'); return true }
   if (d.folha === 'novoEmprestimo' && !S.ne) S.ne = neNovo(clientes[0].id)
-  if (d.neMod) { S.ne.mod = d.neMod; abrir('novoEmprestimo'); return true }
+  if (d.nePasso) { const ne = S.ne, n = Number(d.nePasso); if (n > 1 && numBR(ne.capital) <= 0) { toast('Coloque quanto vai emprestar'); return true } ne.passo = n; abrir('novoEmprestimo'); document.querySelector('.sheet')?.scrollTo(0, 0); return true }
+  if (d.neMod) { const ne = S.ne; if (ne.mod !== d.neMod) ne.taxa = d.neMod === 'JUROS' ? 10 : JUROS_EMP.padrao; ne.mod = d.neMod; abrir('novoEmprestimo'); return true }
   if (d.neFreq) {
     const ne = S.ne; ne.freq = d.neFreq; ne.primeira = null
-    if (ne.freq === 'DIARIA') { ne.mod = 'DIARIA'; ne.taxa = 20 } else if (ne.mod === 'DIARIA') { ne.mod = 'PARCELADO'; ne.taxa = 10 }
+    if (ne.freq === 'DIARIA') { if (ne.mod === 'JUROS') ne.taxa = JUROS_EMP.padrao; ne.mod = 'DIARIA' } else if (ne.mod === 'DIARIA') ne.mod = 'PARCELADO'
     if (!FREQ[ne.freq].qtd.includes(ne.n)) ne.n = FREQ[ne.freq].qtd[ne.freq === 'DIARIA' ? 1 : 2]
     abrir('novoEmprestimo'); return true
   }
@@ -1719,7 +1764,15 @@ function cliquesNovos(t, d) {
 function inputsNovos(t) {
   if (inputsExtra(t)) return true
   if (t.id === 'buscaClientes') { S.buscaCli = t.value; const pos = t.selectionStart; render(); const n = document.getElementById('buscaClientes'); n.focus(); n.setSelectionRange(pos, pos); return true }
-  if (t.id === 'neCapital') { S.ne.capital = t.value; document.getElementById('prevEmp').innerHTML = prevEmp(Number(t.value.replace(/\./g, '').replace(',', '.')) || 0); return true }
+  if (t.id === 'neCapital') { S.ne.capital = t.value; return true }
+  if (t.id === 'neTaxa') { const v = Number(t.value.replace(/[^\d,]/g, '').replace(',', '.')); if (!isNaN(v)) { S.ne.taxa = v; neSync('neTaxa') } return true }
+  if (t.id === 'neNum') { const n = Math.min(120, Math.max(1, parseInt(t.value) || 0)); if (parseInt(t.value) > 0) { S.ne.n = n; neSync('neNum'); document.querySelectorAll('[data-ne-n]').forEach((b) => b.classList.toggle('on', Number(b.dataset.neN) === n)) } return true }
+  if (t.id === 'neTotal' || t.id === 'neParcV' || t.id === 'neJuro') {
+    const ne = S.ne, cap = numBR(ne.capital), v = numBR(t.value); if (cap <= 0) return true
+    const total = t.id === 'neParcV' ? v * ne.n : v
+    ne.taxa = Math.round((t.id === 'neJuro' ? v / cap : total / cap - 1) * 1e6) / 1e4
+    neSync(t.id); return true
+  }
   if (t.id === 'neCliente') { S.ne.clienteId = Number(t.value); return true }
   if (t.id === 'neData') { if (t.value) { S.ne.data = t.value; if (S.ne.primeira && S.ne.primeira < t.value) S.ne.primeira = null; abrir('novoEmprestimo') } return true }
   if (t.id === 'nePrimeira') { if (t.value) { S.ne.primeira = t.value; abrir('novoEmprestimo') } return true }
@@ -2749,6 +2802,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('input', (e) => {
   const t = e.target
   if (inputsSim(t) || inputsEquipe(t) || inputsNovos(t)) return
+  if (t.id === 'cronBusca') { S.cronBusca = t.value; const pos = t.selectionStart; render(); const n = document.getElementById('cronBusca'); n.focus(); n.setSelectionRange(pos, pos); return }
   if (t.id === 'busca') { S.busca = t.value; const pos = t.selectionStart; render(); const n = document.getElementById('busca'); n.focus(); n.setSelectionRange(pos, pos); return }
   if (t.id === 'buscaCli') { S.nv.busca = t.value; const pos = t.selectionStart; render(); const n = document.getElementById('buscaCli'); n.focus(); n.setSelectionRange(pos, pos); return }
   if (t.id === 'recNovoVenc') { if (t.value) { S.rec.novoVenc = t.value; atualizarRec() } return }

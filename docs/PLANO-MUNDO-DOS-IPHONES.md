@@ -138,13 +138,16 @@ Layout geral:
   - abas iPhones / Empréstimos, com **os mesmos 3 números no topo nas duas**: A receber, Capital na rua, Lucro por vir;
   - botão no topo "+ Venda" ou "+ Empréstimo", conforme a aba;
   - ficha da operação: recebido/falta, barra "seu capital de volta", linha do tempo das parcelas, últimos pagamentos com Recibo, renegociar/mudar vencimento, retomar aparelho.
-- **Novo empréstimo** (pedido do Geovane):
-  - cliente, quanto vai emprestar e **data do empréstimo** (padrão: hoje);
-  - **como paga:** Parcelado (capital + juros divididos) ou Só juros (juro a cada parcela, capital junto da última);
-  - **de quanto em quanto tempo:** Mensal, Quinzenal (15 dias), Semanal (7 dias) ou Diária (todo dia menos domingo). Diária é sempre parcelado;
-  - juros por período (ao mês, por quinzena, por semana; na diária é o % no total) e quantidade de parcelas;
-  - **1º vencimento:** sugere um período depois da data do empréstimo (no mensal, o mesmo dia do mês seguinte, que é o caso mais comum), e dá pra trocar. As outras parcelas seguem a frequência a partir dele;
-  - indicação, e o resumo mostra as primeiras datas, a última, o total e o lucro.
+- **Novo empréstimo em 3 passos** (pedido do Geovane):
+  1. **Cliente e valor:** cliente, quanto vai emprestar, data do empréstimo (padrão: hoje) e indicação.
+  2. **Como paga:**
+     - Parcelado (capital + juros divididos) ou Só juros (o juro a cada parcela, e o capital junto da última);
+     - de quanto em quanto tempo: Mensal, Quinzenal (15 dias), Semanal (7 dias) ou Diária (todo dia menos domingo, sempre parcelado);
+     - quantidade de parcelas, com atalhos e campo pra digitar;
+     - **juros:** no parcelado e na diária é **% no total**, padrão **30%**, atalhos 20/30/50/80/100% e campo livre (pode passar de 100%). No só juros é % por parcela;
+     - campos **"Total que ele paga"** e **"Valor da parcela"** (no só juros, "Juro de cada parcela"). Mexeu em um, os outros e o % se ajustam.
+  3. **Datas e confirmar:** 1º vencimento (sugere um período depois; no mensal, o mesmo dia do mês seguinte), lista de todas as parcelas com data, dia da semana e valor, e o resumo de total e lucro.
+- **Cronograma:** tem **busca por nome do cliente** (ignora acento). Com busca, o calendário mostra só os dias dele e embaixo vêm todas as parcelas dele no mês.
 - **Nova venda em 3 passos:** Aparelho, Cliente, Pagamento.
   - Pagamento tem preço, entrada, troca, parcelas de 1 a 10x, dia do vencimento e indicação.
   - Ao lado fica o resumo com juros, total, custo, parte do indicador, seu lucro e em qual parcela o capital volta.
@@ -245,7 +248,7 @@ Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a 
   - Resultado: a parcela fica com 700 e vence 15/10, `vencimento_original` = 01/09, e ela sai dos atrasados.
   - O recibo diz "ainda ficam 700,00, para 15/10".
 - **Pagamento a mais:** parcelas de 300 e cliente paga 750. Quita a atual e a próxima, e abate 150 da seguinte. É uma transação e um recibo só.
-- **Empréstimo:** 1.000 a 10% por período em 6x dá 6x de 266,67 (arredonda pra cima no centavo). Só juros, 1.000 a 10% em 6x: 5x de 100,00 e a última de 1.100,00. Diária, 1.000 a 20% no total em 24x: 24x de 50,00. Semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10…
+- **Empréstimo:** 3.000 a 30% no total em 6x dá 3.900 (6x de 650,00). Digitando 6.000 de total, o % vira 100% (6x de 1.000,00). Digitando parcela de 700 em 6x, total 4.200 e 40%. Só juros, 1.000 a 10% em 6x: 5x de 100,00 e a última de 1.100,00. Parcela arredonda pra cima no centavo. Semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10…
 - **Vendedor:** em nenhuma tela ou resposta da API aparece custo (`valor_compra`, `valor_investido`) ou lucro.
 - **Indicador:** a API não devolve cliente de outro indicador, nem com o id na URL.
 
