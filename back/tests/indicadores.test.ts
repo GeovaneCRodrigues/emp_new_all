@@ -56,7 +56,7 @@ describe.skipIf(!db)('indicadores (Postgres de verdade)', () => {
     app = await buildApp({
       env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth,
       clientes: createClientesService(createClientesRepository(k), audit), usuarios: {} as never,
-      indicadores: createIndicadoresService(createIndicadoresRepository(k), audit), estoque: {} as never, vendas: {} as never, config: {} as never, recebimentos: {} as never,
+      indicadores: createIndicadoresService(createIndicadoresRepository(k), audit), estoque: {} as never, vendas: {} as never, config: {} as never, recebimentos: {} as never, aprovacoes: {} as never, fechamentos: {} as never, equipe: {} as never,
     })
     for (const papel of ['admin', 'vendedor', 'cobrador']) t[papel] = (await login(`${papel}@t.com`, SENHA)).json().accessToken
   })

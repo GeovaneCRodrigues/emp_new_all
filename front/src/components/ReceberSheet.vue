@@ -21,7 +21,7 @@ const venda = ref<VendaApi | null>(null)
 const carregando = ref(false)
 const erro = ref('')
 const enviando = ref(false)
-const f = reactive({ data: '', valor: 0, forma: 'PIX' as FormaPagamentoApi, resto: 'FICA' as RestoPagamento, novoVenc: '' })
+const f = reactive({ data: '', valor: 0, forma: 'PIX' as FormaPagamentoApi, resto: 'FICA' as RestoPagamento, novoVenc: '', pedir: false, motivo: '' })
 
 const parcela = computed(() => venda.value?.parcelas.find((p) => p.numero === props.alvo?.parcela) ?? null)
 const faltaAlvo = computed(() => (parcela.value ? falta({ valor: parcela.value.valor, pago: parcela.value.pago, desconto: parcela.value.desconto }) : 0))
@@ -35,7 +35,7 @@ watch(() => props.alvo, async (a) => {
     const p = venda.value.parcelas.find((x) => x.numero === a.parcela)
     f.data = hoje.value
     f.valor = p ? falta({ valor: p.valor, pago: p.pago, desconto: p.desconto }) : 0
-    f.forma = 'PIX'; f.resto = 'FICA'; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
+    f.forma = 'PIX'; f.resto = 'FICA'; f.pedir = false; f.motivo = ''; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir a venda.'
   } finally {
@@ -44,6 +44,8 @@ watch(() => props.alvo, async (a) => {
 }, { immediate: true })
 
 const parcial = computed(() => f.valor > 0 && f.valor < faltaAlvo.value - 0.009)
+const pedindo = computed(() => parcial.value && !ehAdmin.value && f.pedir)
+const motivoOk = computed(() => !pedindo.value || (f.motivo.trim().length >= 3 && f.motivo.trim().length <= 500))
 
 /** A prévia do que o recebimento vai fazer, com a mesma regra do servidor. */
 const previa = computed(() => {
@@ -67,13 +69,14 @@ const opcoesNovaData = computed(() => {
 })
 
 async function confirmar() {
-  if (enviando.value || !props.alvo || previa.value.erro || !(f.valor > 0)) return
+  if (enviando.value || !props.alvo || previa.value.erro || !(f.valor > 0) || !motivoOk.value) return
   enviando.value = true
   erro.value = ''
   try {
     const r = await recebimentosApi.registrar(sessao.value, props.alvo.vendaId, {
       parcela: props.alvo.parcela, valor: f.valor, forma: f.forma, data: f.data || hoje.value,
       ...(parcial.value ? { resto: f.resto, ...(f.resto === 'FICA' ? { novoVencimento: f.novoVenc } : {}) } : {}),
+      ...(pedindo.value ? { pedirDesconto: { motivo: f.motivo.trim() } } : {}),
     })
     emit('registrado', r)
   } catch (e) {
@@ -123,16 +126,26 @@ async function confirmar() {
             </div>
             <div class="small">{{ f.novoVenc === parcela.vencimento ? 'O vencimento continua o mesmo.' : `A ${parcela.numero}ª passa a vencer ${dmyA(f.novoVenc || hoje)}${parcela.vencimento < hoje ? ' e sai dos atrasados' : ''}.` }}</div>
           </div>
-          <button type="button" class="opt" :class="{ on: f.resto === 'DESCONTO' }" :disabled="!ehAdmin" data-resto="DESCONTO" @click="ehAdmin && (f.resto = 'DESCONTO')">
+          <button v-if="ehAdmin" type="button" class="opt" :class="{ on: f.resto === 'DESCONTO' }" data-resto="DESCONTO" @click="f.resto = 'DESCONTO'">
             <span class="radio"></span>
-            <span><span class="val" style="display: block">Dar desconto de {{ fmt(faltaAlvo - f.valor) }}</span><span class="small">{{ ehAdmin ? `A ${parcela.numero}ª fica quitada. O desconto sai do seu lucro` : 'Só o administrador dá desconto. Peça a ele.' }}</span></span>
+            <span><span class="val" style="display: block">Dar desconto de {{ fmt(faltaAlvo - f.valor) }}</span><span class="small">A {{ parcela.numero }}ª fica quitada. O desconto sai do seu lucro</span></span>
           </button>
+          <template v-else>
+            <button type="button" class="opt" :class="{ on: f.pedir }" data-resto="PEDIR" @click="f.pedir = !f.pedir; f.resto = 'FICA'">
+              <span class="radio"></span>
+              <span><span class="val" style="display: block">Pedir desconto de {{ fmt(faltaAlvo - f.valor) }} ao administrador</span><span class="small">O pagamento é lançado agora; o resto fica devendo até ele responder</span></span>
+            </button>
+            <div v-if="f.pedir" class="field" style="padding: 2px 4px 4px 34px">
+              <label for="rMotivo">Por que pedir o desconto?</label>
+              <div class="inp"><input id="rMotivo" v-model="f.motivo" maxlength="500" placeholder="Ex.: cliente só tinha esse valor" /></div>
+            </div>
+          </template>
         </div>
 
         <div v-if="previa.texto" class="chip c-pri" style="white-space: normal; line-height: 1.4; padding: 6px 10px" data-testid="previa">{{ previa.texto }}</div>
         <div v-else-if="previa.erro" class="chip c-bad" style="white-space: normal; line-height: 1.4; padding: 6px 10px" role="alert">{{ previa.erro }}</div>
         <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
-        <button class="btn b-ok b-block" type="submit" :disabled="enviando || !!previa.erro || !(f.valor > 0)">{{ enviando ? 'Registrando…' : 'Confirmar recebimento' }}</button>
+        <button class="btn b-ok b-block" type="submit" :disabled="enviando || !!previa.erro || !(f.valor > 0) || !motivoOk">{{ enviando ? 'Registrando…' : 'Confirmar recebimento' }}</button>
       </form>
     </template>
   </Sheet>

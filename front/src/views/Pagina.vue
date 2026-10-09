@@ -11,6 +11,7 @@ import Simulador from './admin/Simulador.vue'
 import Clientes from './admin/Clientes.vue'
 import Indicadores from './admin/Indicadores.vue'
 import Vender from './admin/Vender.vue'
+import Equipe from './admin/Equipe.vue'
 import EmBreve from './EmBreve.vue'
 
 const route = useRoute()
@@ -18,7 +19,7 @@ const { sessao, pronto } = useApp()
 
 // telas já prontas, por perfil; o que não está aqui mostra "Em breve"
 const TELAS: Record<string, Record<string, unknown>> = {
-  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender },
+  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe },
   // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil
   VENDEDOR: { simulador: Simulador, clientes: Clientes, estoque: Estoque, vender: Vender, vendas: Operacoes },
 }

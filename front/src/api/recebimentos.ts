@@ -23,7 +23,7 @@ export interface ReciboApi {
   mensagem: string
 }
 
-export interface RegistradoApi { recibo: ReciboApi; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean }
+export interface RegistradoApi { recibo: ReciboApi; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean; pedidoDescontoId: number | null }
 
 export interface PagamentoApi {
   transacaoId: number
@@ -74,6 +74,8 @@ export interface EntradaRecebimento {
   /** obrigatório quando pagou menos que a parcela */
   resto?: RestoPagamento
   novoVencimento?: string
+  /** só o cobrador: lança o pagamento, deixa o resto devendo e pede desconto do resto ao administrador */
+  pedirDesconto?: { motivo: string }
 }
 
 export interface RecebimentosApi {

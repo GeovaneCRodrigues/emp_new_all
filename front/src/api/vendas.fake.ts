@@ -39,12 +39,46 @@ export interface Transacao {
   itens: { numero: number; valorPago: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null } }[]
 }
 
+/** Pedido de desconto do cobrador, esperando o administrador. */
+export interface Pedido {
+  id: number
+  vendaId: number
+  parcela: number
+  valor: number
+  motivo: string
+  solicitanteId: number
+  solicitanteNome: string
+  status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'
+  criadaEm: string
+  respondidoPor: string | null
+  respondidoEm: string | null
+  resposta: string | null
+}
+
+/** O dia de um cobrador, fechado por ele e (depois) conferido pelo administrador. */
+export interface FechamentoReg {
+  id: number
+  usuarioId: number
+  usuarioNome: string
+  data: string
+  dinheiro: number
+  pix: number
+  cartao: number
+  status: 'PENDENTE' | 'CONFERIDO'
+  conferidoPor: string | null
+  conferidoEm: string | null
+}
+
 /** Ganchos só da demonstração: o recebimento de mentira mexe nas mesmas vendas e transações. */
 export interface VendasFake extends VendasApi {
   _interno: {
     hoje: string
     registros: Registro[]
     transacoes: Transacao[]
+    pedidos: Pedido[]
+    fechamentos: FechamentoReg[]
+    proximoPedido(): number
+    proximoFechamento(): number
     proximoRecibo(): number
     proximaTransacao(): number
     noEscopo(s: Sessao): Registro[]
@@ -63,6 +97,10 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   let proximoId = 1000
   let seqRecibo = 0
   let seqTransacao = 0
+  let seqPedido = 0
+  let seqFechamento = 0
+  const pedidos: Pedido[] = []
+  const fechamentos: FechamentoReg[] = []
   const transacoes: Transacao[] = []
 
   const registros: Registro[] = seed.vendas.map((v) => {
@@ -77,6 +115,9 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     }
   })
 
+  // nos dados de exemplo, as parcelas dos clientes da carteira do cobrador (id 3) foram recebidas por ele
+  const quemRecebeu = (clienteId: number) => (seed.clientes.find((c) => c.id === clienteId)?.responsavelId === 3 ? { id: 3, nome: 'Diego Ramos' } : { id: 1, nome: 'Geovane' })
+
   // as transações dos dados de exemplo: a entrada de cada venda e os pagamentos já feitos
   for (const r of registros) {
     const ant = { vencimento: '', vencimentoOriginal: null, desconto: 0, quitadaEm: null }
@@ -85,11 +126,19 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     if (r.entrada > 0) transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'ENTRADA', valor: r.entrada, forma: 'PIX', data: r.dataVenda, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false, itens: [], resumo: { referencia: 'entrada', faltaDepois: arred2(r.parcelas.reduce((x, p) => x + p.valor, 0)), proxima: r.parcelas[0] ? { numero: 1, valor: r.parcelas[0].valor, vencimento: r.parcelas[0].vencimento } : null, restantes: r.parcelas.length, ficaDevendo: null } })
     const sv = seed.vendas.find((x) => x.id === r.id)!
     for (const p of sv.parcelas) for (const g of p.pagos) {
-      transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'PARCELA', valor: g.valor, forma: g.forma === 'Dinheiro' ? 'DINHEIRO' : g.forma === 'Cartão' ? 'CARTAO' : 'PIX', data: g.data, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false,
+      transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'PARCELA', valor: g.valor, forma: g.forma === 'Dinheiro' ? 'DINHEIRO' : g.forma === 'Cartão' ? 'CARTAO' : 'PIX', data: g.data, recebidoPorId: quemRecebeu(r.cliente.id).id, recebidoPorNome: quemRecebeu(r.cliente.id).nome, desfeita: false,
         itens: [{ numero: p.n, valorPago: g.valor, antes: { ...ant, vencimento: p.venc } }],
         resumo: { referencia: `parcela ${p.n}/${r.parcelas.length}`, faltaDepois: falta, proxima: abertas[0] ? { numero: abertas[0].numero, valor: arred2(abertas[0].valor - abertas[0].pago - abertas[0].desconto), vencimento: abertas[0].vencimento } : null, restantes: abertas.length, ficaDevendo: null } })
     }
   }
+
+  // dois pedidos de desconto esperando o administrador e um fechamento de ontem para conferir
+  const vendaDe = (clienteId: number) => registros.find((r) => r.cliente.id === clienteId)!
+  pedidos.push(
+    { id: ++seqPedido, vendaId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+    { id: ++seqPedido, vendaId: vendaDe(4).id, parcela: 3, valor: 100, motivo: 'Está sem trabalho e prometeu pagar o resto dia 15', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+  )
+  fechamentos.push({ id: ++seqFechamento, usuarioId: 3, usuarioNome: 'Diego Ramos', data: '2026-10-07', dinheiro: 350, pix: 500, cartao: 0, status: 'PENDENTE', conferidoPor: null, conferidoEm: null })
 
   const clientesDe = (r: Registro, s: Sessao) => (s.perfil === 'VENDEDOR' ? r.vendedorId === s.usuarioId || seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId : seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId)
   const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : registros.filter((r) => clientesDe(r, s)))
@@ -123,7 +172,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   const dinheiro = (v: unknown, c: string, positivo = false) => { if (typeof v !== 'number' || !Number.isFinite(v) || v > 1e8 || (positivo ? v <= 0 : v < 0)) throw erro(positivo ? `${c} precisa ser maior que zero` : `${c} não pode ser negativo`); return arred2(v) }
 
   return {
-    _interno: { hoje, registros, transacoes, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, noEscopo, calcular },
+    _interno: { hoje, registros, transacoes, pedidos, fechamentos, proximoPedido: () => ++seqPedido, proximoFechamento: () => ++seqFechamento, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, noEscopo, calcular },
     async juros(s) {
       if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso a esta configuração', 'SEM_PERMISSAO')
       return { ...JUROS }

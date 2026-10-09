@@ -1,7 +1,7 @@
 import type { ListaCobrancas, PagamentoView, Recibo, Registrado } from '../services/recebimentos.service.js'
 
 export const reciboView = (r: Recibo) => r
-export const registradoView = (r: Registrado) => ({ recibo: r.recibo, efeitos: r.efeitos, vendaQuitada: r.vendaQuitada })
+export const registradoView = (r: Registrado) => ({ recibo: r.recibo, efeitos: r.efeitos, vendaQuitada: r.vendaQuitada, pedidoDescontoId: r.pedidoDescontoId })
 export const pagamentosView = (ps: PagamentoView[]) => ps
 
 export const cobrancasView = (l: ListaCobrancas) => ({

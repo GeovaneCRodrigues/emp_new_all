@@ -58,7 +58,7 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
     const audit = createAuditoriaRepository(k)
     app = await buildApp({
       env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth,
-      clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: createEstoqueService(createEstoqueRepository(k), audit), vendas: {} as never, config: {} as never, recebimentos: {} as never,
+      clientes: {} as never, usuarios: {} as never, indicadores: {} as never, estoque: createEstoqueService(createEstoqueRepository(k), audit), vendas: {} as never, config: {} as never, recebimentos: {} as never, aprovacoes: {} as never, fechamentos: {} as never, equipe: {} as never,
     })
     for (const papel of ['admin', 'vendedorA', 'vendedorB', 'cobrador', 'indicador'])
       t[papel] = (await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: `${papel}@t.com`, senha: SENHA } })).json().accessToken

@@ -76,7 +76,16 @@ export function criarRecebimentosFake(vendas: VendasFake): RecebimentosApi {
       if (data > hoje) throw new ErroApi(400, 'A data do recebimento não pode ser no futuro')
       if (e.resto !== undefined && e.resto !== 'FICA' && e.resto !== 'DESCONTO') throw new ErroApi(400, 'resto deve ser FICA ou DESCONTO')
       if (s.perfil === 'COBRADOR' && data !== hoje) throw new ErroApi(403, 'O cobrador só lança o que recebeu hoje', 'SEM_PERMISSAO')
-      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw new ErroApi(403, 'Desconto precisa da aprovação do administrador', 'SEM_PERMISSAO')
+      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw new ErroApi(403, 'Desconto precisa da aprovação do administrador: use "pedir desconto"', 'SEM_PERMISSAO')
+      let motivoPedido: string | null = null
+      if (e.pedirDesconto !== undefined && e.pedirDesconto !== null) {
+        if (s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o cobrador pede desconto (o administrador dá o desconto direto)', 'SEM_PERMISSAO')
+        const m = typeof e.pedirDesconto.motivo === 'string' ? e.pedirDesconto.motivo.trim() : ''
+        if (m.length < 3 || m.length > 500) throw new ErroApi(400, 'Explique o motivo do pedido de desconto (de 3 a 500 letras)')
+        if (e.resto !== 'FICA') throw new ErroApi(400, 'Para pedir desconto, o resto precisa ficar devendo até o administrador responder')
+        motivoPedido = m
+      }
+      if (s.perfil === 'COBRADOR' && vendas._interno.fechamentos.some((f) => f.usuarioId === s.usuarioId && f.data === data)) throw new ErroApi(409, 'O seu dia já foi fechado. Peça ao administrador para reabrir.', 'DIA_FECHADO')
       if (r.status === 'RETOMADA' || r.status === 'CANCELADA') throw new ErroApi(409, 'Esta venda foi retomada ou cancelada: não recebe pagamentos', 'VENDA_ENCERRADA')
       if (data < r.dataVenda) throw new ErroApi(400, 'A data do recebimento não pode ser antes da venda')
 
@@ -84,6 +93,14 @@ export function criarRecebimentosFake(vendas: VendasFake): RecebimentosApi {
       try { res = calcularRecebimento(comoAberta(r), { numero: e.parcela, valor: e.valor, data, hoje, resto: e.resto, novoVenc: e.novoVencimento }) }
       catch (err) { if (err instanceof ErroRecebimento) throw new ErroApi(HTTP[err.codigo], err.message, err.codigo); throw err }
 
+      let pedidoId: number | null = null
+      if (motivoPedido) {
+        const resta = res.itens[0].faltaDepois
+        if (resta <= 0.009) throw new ErroApi(400, 'Não sobrou nada na parcela para pedir desconto')
+        if (vendas._interno.pedidos.some((x) => x.vendaId === r.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+        pedidoId = vendas._interno.proximoPedido()
+        vendas._interno.pedidos.push({ id: pedidoId, vendaId: r.id, parcela: e.parcela, valor: resta, motivo: motivoPedido, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null })
+      }
       for (const it of res.itens) {
         const p = r.parcelas.find((x) => x.numero === it.numero)!
         p.pago = arred2(p.pago + it.valorPago)
@@ -103,7 +120,7 @@ export function criarRecebimentosFake(vendas: VendasFake): RecebimentosApi {
       }
       transacoes.push(t)
       r.status = aberta.length === 0 ? 'QUITADA' : 'ATIVA'
-      return { recibo: recibo(t), efeitos: res.efeitos, vendaQuitada: aberta.length === 0 }
+      return { recibo: recibo(t), efeitos: res.efeitos, vendaQuitada: aberta.length === 0, pedidoDescontoId: pedidoId }
     },
 
     async recibo(s, id) {
@@ -132,6 +149,7 @@ export function criarRecebimentosFake(vendas: VendasFake): RecebimentosApi {
       if (t.desfeita) throw new ErroApi(409, 'Este recebimento já foi desfeito', 'JA_DESFEITO')
       if (s.perfil === 'COBRADOR' && (t.recebidoPorId !== s.usuarioId || t.data !== hoje)) throw new ErroApi(403, 'O cobrador só desfaz o que ele mesmo recebeu hoje', 'SEM_PERMISSAO')
       if (!ehUltima(t)) throw new ErroApi(409, 'Só o último recebimento da venda pode ser desfeito', 'NAO_E_O_ULTIMO')
+      if (t.recebidoPorId !== null && vendas._interno.fechamentos.some((f) => f.usuarioId === t.recebidoPorId && f.data === t.data)) throw new ErroApi(409, 'O dia desse recebimento já foi fechado. Reabra o fechamento antes de desfazer.', 'DIA_FECHADO')
       for (const it of t.itens) {
         const p = r.parcelas.find((x) => x.numero === it.numero)!
         p.pago = arred2(p.pago - it.valorPago)

@@ -16,6 +16,12 @@ import { createVendasRepository } from './modules/vendas/models/repository.js'
 import { createVendasService } from './modules/vendas/services/vendas.service.js'
 import { createRecebimentosRepository } from './modules/recebimentos/models/repository.js'
 import { createRecebimentosService } from './modules/recebimentos/services/recebimentos.service.js'
+import { createAprovacoesRepository } from './modules/aprovacoes/models/repository.js'
+import { createAprovacoesService } from './modules/aprovacoes/services/aprovacoes.service.js'
+import { createFechamentosRepository } from './modules/fechamentos/models/repository.js'
+import { createFechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
+import { createEquipeRepository } from './modules/equipe/models/repository.js'
+import { createEquipeService } from './modules/equipe/services/equipe.service.js'
 import { createClientesService } from './modules/clientes/services/clientes.service.js'
 import { createSessoesRepository, createUsuariosRepository } from './modules/auth/models/repository.js'
 import { createAuthService } from './modules/auth/services/auth.service.js'
@@ -42,7 +48,12 @@ const vendas = createVendasService({
 
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, config: createConfigService(configRepo), recebimentos })
+const aud = createAuditoriaRepository(db.knex)
+const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db.knex), auditoria: aud })
+const fechamentos = createFechamentosService({ repo: createFechamentosRepository(db.knex), auditoria: aud })
+const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
+
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)
