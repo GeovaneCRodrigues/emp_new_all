@@ -61,6 +61,8 @@ export interface CobrancaApi {
   aparelho: string
   ultimaTransacaoId: number | null
   ultimoRecebimentoEm: string | null
+  /** o indicador avisou que recebeu esta parcela e a loja ainda não respondeu */
+  baixaPendente: { id: number; valor: number; por: string } | null
 }
 
 export type AbaCobranca = 'atrasadas' | 'hoje' | 'proximas' | 'recebidas'

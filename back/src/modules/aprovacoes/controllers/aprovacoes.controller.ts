@@ -18,7 +18,7 @@ export function createAprovacoesController(service: AprovacoesService) {
       const q = req.query as Record<string, unknown>
       return listaView(await service.listar(sessaoOuErro(req), { status: typeof q.status === 'string' ? q.status : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))
     },
-    async aprovar(req: FastifyRequest) { return aprovacaoView(await service.aprovar(sessaoOuErro(req), idDaRota(req))) },
+    async aprovar(req: FastifyRequest) { return await service.aprovar(sessaoOuErro(req), idDaRota(req), (req.body ?? {}) as Record<string, unknown>) },
     async recusar(req: FastifyRequest) { return aprovacaoView(await service.recusar(sessaoOuErro(req), idDaRota(req), (req.body ?? {}) as Record<string, unknown>)) },
   }
 }

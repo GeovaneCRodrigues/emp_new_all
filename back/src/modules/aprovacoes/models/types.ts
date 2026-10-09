@@ -2,7 +2,7 @@ export type StatusAprovacao = 'PENDENTE' | 'APROVADO' | 'RECUSADO'
 
 /** O que o pedido mexe: uma venda de iPhone ou um empréstimo. */
 export type Alvo = 'VENDA' | 'EMPRESTIMO'
-export type TipoAprovacao = 'DESCONTO' | 'RETOMADA' | 'ACORDO'
+export type TipoAprovacao = 'DESCONTO' | 'RETOMADA' | 'ACORDO' | 'BAIXA'
 
 export type Aprovacao = {
   id: number
@@ -18,6 +18,8 @@ export type Aprovacao = {
   valor: number
   /** só no pedido de acordo: o que o cobrador propôs */
   acordo: { parcelas: number; primeiraParcela: string; saldoNoPedido: number } | null
+  /** só no aviso de baixa do indicador: como e quando ele diz que recebeu (o `valor` é o que ele recebeu) */
+  baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null } | null
   motivo: string | null
   solicitante: { id: number; nome: string }
   cliente: { id: number; nome: string }
@@ -29,7 +31,7 @@ export type Aprovacao = {
   resposta: string | null
 }
 
-/** Quais pedidos um pedido pode enxergar: o admin vê todos; o cobrador, só os dele. */
+/** Quais pedidos um pedido pode enxergar: o admin vê todos; o cobrador e o indicador, só os dele. */
 export type EscopoAprovacoes = { tipo: 'TODOS' } | { tipo: 'SOLICITANTE'; usuarioId: number }
 
 export type ParcelaDaOperacao = { id: number; numero: number; valor: number; desconto: number; pago: number; vencimento: string }

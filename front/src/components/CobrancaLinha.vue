@@ -5,9 +5,9 @@ import { useApp } from '@/composables/useApp'
 import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
 import Icon from './Icon.vue'
 
-/** `semReceber`: o indicador só acompanha (e cobra pelo WhatsApp); o botão Recebi é de quem dá a baixa. */
-const props = defineProps<{ c: CobrancaApi; recebida?: boolean; semReceber?: boolean }>()
-defineEmits<{ abrir: [c: CobrancaApi]; receber: [c: CobrancaApi]; recibo: [id: number] }>()
+/** `indicador`: o Recebi dele não dá a baixa, só AVISA a loja (`avisar`); depois da aviso, a parcela fica "esperando a loja". */
+const props = defineProps<{ c: CobrancaApi; recebida?: boolean; indicador?: boolean }>()
+defineEmits<{ abrir: [c: CobrancaApi]; receber: [c: CobrancaApi]; avisar: [c: CobrancaApi]; recibo: [id: number] }>()
 const { hoje } = useApp()
 
 const aberta = computed(() => props.c.falta > 0.009)
@@ -39,6 +39,8 @@ const linkWhatsApp = computed(() => {
         <span v-else-if="venceHoje" style="color: var(--warn)" data-situacao="hoje">vence hoje</span>
         <span v-else class="num" style="color: var(--soft)" data-situacao="aberta">vence {{ dmy(c.vencimento) }}</span>
       </div>
+      <!-- a loja e o cobrador veem quem avisou que recebeu e ainda espera a confirmação -->
+      <div v-if="c.baixaPendente && !indicador && aberta" class="s" style="font-size: 12px; font-weight: 600; color: var(--warn)" data-baixa-pendente>{{ c.baixaPendente.por.split(' ')[0] }} avisou {{ fmt(c.baixaPendente.valor) }}</div>
     </button>
     <div class="valor-cob">
       <b class="num">{{ fmt(valorLinha) }}</b>
@@ -48,7 +50,11 @@ const linkWhatsApp = computed(() => {
       <template v-if="recebida && c.ultimaTransacaoId"><button class="btn b-out b-sm" @click="$emit('recibo', c.ultimaTransacaoId)">Recibo</button></template>
       <template v-else-if="aberta">
         <a class="wa" :href="linkWhatsApp" target="_blank" rel="noopener" aria-label="Cobrar no WhatsApp"><Icon name="message-circle" small /></a>
-        <button v-if="!semReceber" class="btn b-ok b-sm" @click="$emit('receber', c)">Recebi</button>
+        <template v-if="indicador">
+          <span v-if="c.baixaPendente" class="chip c-warn" data-aguardando>esperando a loja</span>
+          <button v-else class="btn b-ok b-sm" data-avisar @click="$emit('avisar', c)">Recebi</button>
+        </template>
+        <button v-else class="btn b-ok b-sm" @click="$emit('receber', c)">Recebi</button>
       </template>
     </div>
   </div>

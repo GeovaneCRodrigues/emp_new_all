@@ -6,6 +6,7 @@ import type { IndicadorApi } from '@/api/indicadores'
 import type { CobrancaApi } from '@/api/recebimentos'
 import type { DetalheRepasseApi } from '@/api/repasses'
 import { emprestimosApi, indicadoresApi, recebimentosApi, repassesApi, vendasApi } from '@/api/recursos'
+import AvisarRecebiForm from '@/components/AvisarRecebiForm.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
@@ -19,6 +20,7 @@ const router = useRouter()
 const { sessao, hoje } = useApp()
 const { atualizar } = useAtrasadas()
 const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
+const aviso = ref<InstanceType<typeof AvisarRecebiForm> | null>(null)
 
 const atrasadas = ref<CobrancaApi[]>([])
 const venceHoje = ref<CobrancaApi[]>([])
@@ -28,7 +30,7 @@ const eu = ref<IndicadorApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
-onMounted(async () => {
+async function carregar() {
   try {
     const s = sessao.value
     const [atr, ho, rv, re, rep, ind] = await Promise.all([
@@ -45,7 +47,8 @@ onMounted(async () => {
   } finally {
     carregando.value = false
   }
-})
+}
+onMounted(carregar)
 
 const prax = computed(() => [...atrasadas.value, ...venceHoje.value])
 const praCobrarHoje = computed(() => Math.round(prax.value.reduce((x, c) => x + c.falta, 0) * 100) / 100)
@@ -69,13 +72,13 @@ const chave = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
   <div class="atalhos" data-testid="atalhos">
     <button data-atalho="indicar" @click="fluxo?.abrir()"><span class="ic"><Icon name="user-plus" /></span>Indicar</button>
-    <button data-atalho="cobranca" @click="router.push('/cobranca')"><span class="ic"><Icon name="hand-coins" /></span>Cobrança</button>
+    <button data-atalho="recebi" @click="router.push('/cobranca')"><span class="ic"><Icon name="hand-coins" /></span>Recebi</button>
     <button data-atalho="simular" @click="router.push('/simulador')"><span class="ic"><Icon name="calculator" /></span>Simular</button>
   </div>
 
   <div class="sec-t"><h2>Pra cobrar hoje · <span class="num" data-testid="pra-cobrar-hoje">{{ carregando ? '—' : fmt(praCobrarHoje) }}</span></h2><button @click="router.push('/cobranca')">Cobrança</button></div>
   <div class="card list" data-testid="cobrar-hoje">
-    <CobrancaLinha v-for="c in prax.slice(0, 5)" :key="chave(c)" :c="c" sem-receber />
+    <CobrancaLinha v-for="c in prax.slice(0, 5)" :key="chave(c)" :c="c" indicador @avisar="aviso?.abrir($event)" />
     <div v-if="!prax.length && !carregando" class="empty">Nada pra cobrar hoje 🎉</div>
     <div v-if="carregando" class="empty">Carregando…</div>
   </div>
@@ -104,4 +107,5 @@ const chave = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
     </div>
   </div>
   <IndicarFluxo ref="fluxo" />
+  <AvisarRecebiForm ref="aviso" @enviado="carregar" />
 </template>

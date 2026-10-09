@@ -46,9 +46,10 @@ const pedir = (s: Sessao, vendaId: number, e: Partial<{ parcela: number; valor: 
 const parcela = async (vendaId: number, n: number) => (await vendas.obter(ADMIN, vendaId)).parcelas[n - 1]
 
 describe('pedir desconto', () => {
-  it('só o cobrador pede (403 para admin, vendedor e indicador)', async () => {
+  it('só cobrador e indicador pedem: admin e vendedor não (403); o indicador só de operação dele (404 nas outras)', async () => {
     const v = await venda()
-    for (const s of [ADMIN, VEND, IND]) expect((await falha(pedir(s, v)))?.status).toBe(403)
+    for (const s of [ADMIN, VEND]) expect((await falha(pedir(s, v)))?.status).toBe(403)
+    expect((await falha(pedir(IND, v)))?.status).toBe(404) // a venda não tem este indicador
   })
   it('nasce PENDENTE com tudo o que o admin precisa ver; a parcela não muda enquanto espera', async () => {
     const v = await venda()
@@ -72,13 +73,14 @@ describe('pedir desconto', () => {
 })
 
 describe('listar, aprovar e recusar', () => {
-  it('o admin vê todos e o cobrador só os dele; vendedor e indicador, 403; filtra por status', async () => {
+  it('o admin vê todos e o cobrador só os dele; o vendedor, 403; o indicador vê só os dele (nenhum aqui); filtra por status', async () => {
     const v = await venda(); await pedir(COBR, v)
     const adm = await aprovacoes.listar(ADMIN, { limite: 100 })
     expect(adm.itens.length).toBeGreaterThanOrEqual(3) // 2 dos dados de exemplo + o novo
     expect((await aprovacoes.listar(COBR, { limite: 100 })).itens.every((x) => x.solicitante.nome === 'Diego Ramos')).toBe(true)
     expect((await aprovacoes.listar(COBR2, { limite: 100 })).itens).toHaveLength(0)
-    for (const s of [VEND, IND]) expect((await falha(aprovacoes.listar(s, {})))?.status).toBe(403)
+    expect((await falha(aprovacoes.listar(VEND, {})))?.status).toBe(403)
+    expect((await aprovacoes.listar(IND, { limite: 100 })).itens).toHaveLength(0)
     expect((await aprovacoes.listar(ADMIN, { status: 'PENDENTE', limite: 100 })).itens.every((x) => x.status === 'PENDENTE')).toBe(true)
   })
   it('só o admin responde', async () => {

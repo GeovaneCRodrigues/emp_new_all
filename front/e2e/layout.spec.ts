@@ -31,7 +31,7 @@ test.describe('layout', () => {
     const menus: Record<string, string[]> = {
       cobrador: ['Hoje', 'Carteira', 'Recebi', 'Caixa', 'Pedidos'],
       vendedor: ['Início', 'Estoque', 'Vender', 'Clientes', 'Vendas'],
-      indicador: ['Início', 'Cobrança', 'Indicar', '(Meus )?[Cc]lientes', 'Repasse'], // "Meus clientes" na lateral, "Clientes" na barra de baixo
+      indicador: ['Início', 'Cobrança', '(Novo|Indicar)', '(Meus )?[Cc]lientes', 'Repasse'], // "Meus clientes" na lateral, "Clientes" na barra de baixo
     }
     for (const [conta, itens] of Object.entries(menus)) {
       await entrar(page, conta as 'cobrador')

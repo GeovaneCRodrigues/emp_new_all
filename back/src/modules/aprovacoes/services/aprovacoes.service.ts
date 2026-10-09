@@ -10,11 +10,14 @@ import type { Alvo, Aprovacao, EscopoAprovacoes, StatusAprovacao, TipoAprovacao 
 export type Entrada = Record<string, unknown>
 export type ListaAprovacoes = { itens: Aprovacao[]; total: number; pendentes: number; pagina: number; limite: number }
 
+export type AprovadoComRecibo = Aprovacao & { recibo?: unknown }
+
 export type AprovacoesService = {
-  /** O cobrador pede desconto (padrão), retomada do aparelho ou acordo. */
+  /** O cobrador pede desconto (padrão), retomada ou acordo; o indicador avisa uma baixa (BAIXA) ou pede desconto. */
   pedir(s: Sessao, e: Entrada): Promise<Aprovacao>
   listar(s: Sessao, q: { status?: string; pagina?: number; limite?: number }): Promise<ListaAprovacoes>
-  aprovar(s: Sessao, id: number): Promise<Aprovacao>
+  /** `e`: só para BAIXA, o que fazer se veio menos que a parcela (resto/novoVencimento). A baixa devolve também o recibo. */
+  aprovar(s: Sessao, id: number, e?: Entrada): Promise<AprovadoComRecibo>
   recusar(s: Sessao, id: number, e: Entrada): Promise<Aprovacao>
 }
 
@@ -25,9 +28,11 @@ const brl = (v: number) => v.toFixed(2).replace('.', ',')
 
 function escopoDe(s: Sessao): EscopoAprovacoes {
   if (s.perfil === 'ADMIN') return { tipo: 'TODOS' }
-  if (s.perfil === 'COBRADOR') return { tipo: 'SOLICITANTE', usuarioId: s.usuarioId }
-  throw semPermissao('Só o administrador e o cobrador usam os pedidos de aprovação')
+  if (s.perfil === 'COBRADOR' || s.perfil === 'INDICADOR') return { tipo: 'SOLICITANTE', usuarioId: s.usuarioId }
+  throw semPermissao('Só o administrador, o cobrador e o indicador usam os pedidos de aprovação')
 }
+/** De quem é a operação que o pedido pode mexer: a carteira do cobrador ou as operações do indicador. */
+const donoDe = (s: Sessao) => (s.perfil === 'INDICADOR' ? { indicadorId: s.indicadorId ?? -1 } : { usuarioId: s.usuarioId })
 const exigirAdmin = (s: Sessao) => { if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador aprova ou recusa pedidos') }
 
 function lerMotivo(e: Entrada): string {
@@ -42,6 +47,8 @@ export function createAprovacoesService(dep: {
   hoje?: () => string
   /** Só para teste: segura a transação depois de ler as parcelas, para forçar duas aprovações a se sobreporem. */
   depoisDeLerParcelas?: () => Promise<void>
+  /** Confirmar um aviso de baixa vira recebimento: quem sabe fazer isso é o serviço de recebimentos. */
+  baixas?: { confirmar(s: Sessao, id: number, e: Entrada): Promise<{ recibo: unknown }> }
 }): AprovacoesService {
   const hoje = dep.hoje ?? (() => hojeBR())
   const duplicado = (err: unknown, mensagem: string): never => {
@@ -53,7 +60,8 @@ export function createAprovacoesService(dep: {
   // ===================== pedir =====================
 
   async function pedirDesconto(s: Sessao, e: Entrada): Promise<Aprovacao> {
-    if (s.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede desconto (o administrador dá o desconto direto ao receber)')
+    if (s.perfil !== 'COBRADOR' && s.perfil !== 'INDICADOR') throw semPermissao('Só o cobrador e o indicador pedem desconto (o administrador dá o desconto direto ao receber)')
+    const dono = donoDe(s)
     const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as Alvo
     if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('alvo deve ser VENDA ou EMPRESTIMO')
     if (typeof e.operacaoId !== 'number' || !Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw requisicaoInvalida(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
@@ -64,7 +72,7 @@ export function createAprovacoesService(dep: {
 
     const id = await dep.repo
       .emTransacao(async (tx) => {
-        const op = await tx.travarOperacao(alvo, e.operacaoId as number, { usuarioId: s.usuarioId })
+        const op = await tx.travarOperacao(alvo, e.operacaoId as number, dono)
         if (!op) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
         if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
         const p = await tx.parcela(alvo, op.id, e.parcela as number)
@@ -77,6 +85,48 @@ export function createAprovacoesService(dep: {
       .catch((err) => duplicado(err, 'Já existe um pedido de desconto esperando para esta parcela'))
 
     await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_PEDIDO', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, motivo } })
+    return reler(id)
+  }
+
+  async function pedirBaixa(s: Sessao, e: Entrada): Promise<Aprovacao> {
+    if (s.perfil !== 'INDICADOR') throw semPermissao('Só o indicador avisa que recebeu (a loja confirma e dá a baixa)')
+    const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as Alvo
+    if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('alvo deve ser VENDA ou EMPRESTIMO')
+    if (typeof e.operacaoId !== 'number' || !Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw requisicaoInvalida(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
+    if (typeof e.parcela !== 'number' || !Number.isInteger(e.parcela) || e.parcela < 1) throw requisicaoInvalida('Informe a parcela')
+    if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0 || e.valor > 100_000_000) throw requisicaoInvalida('Informe quanto você recebeu')
+    if (e.forma !== 'PIX' && e.forma !== 'DINHEIRO' && e.forma !== 'CARTAO') throw requisicaoInvalida('Informe a forma de pagamento (PIX, DINHEIRO ou CARTAO)')
+    const dia = hoje()
+    const data = e.data === undefined || e.data === null ? dia : e.data
+    if (typeof data !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data) || new Date(data + 'T12:00:00Z').toISOString().slice(0, 10) !== data) throw requisicaoInvalida('data precisa ser uma data válida (AAAA-MM-DD)')
+    if (data > dia) throw requisicaoInvalida('A data do recebimento não pode ser no futuro')
+    let comprovante: string | null = null
+    if (e.comprovante !== undefined && e.comprovante !== null && e.comprovante !== '') {
+      if (typeof e.comprovante !== 'string' || e.comprovante.trim().length > 120) throw requisicaoInvalida('comprovante: no máximo 120 letras')
+      comprovante = e.comprovante.trim() || null
+    }
+    let motivo: string | null = null
+    if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
+      if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('observação: no máximo 500 letras')
+      motivo = e.motivo.trim() || null
+    }
+    const valor = arred2(e.valor)
+
+    const id = await dep.repo
+      .emTransacao(async (tx) => {
+        const op = await tx.travarOperacao(alvo, e.operacaoId as number, donoDe(s)) // fora das operações dele: 404
+        if (!op) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
+        if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+        const p = await tx.parcela(alvo, op.id, e.parcela as number)
+        if (!p) throw naoEncontrado('Parcela não encontrada')
+        const f = falta(p)
+        if (f <= 0.009) throw new HttpError(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
+        if (valor > f + 0.009) throw requisicaoInvalida(`O valor não pode passar do que falta na parcela (${brl(f)})`)
+        return tx.criarBaixa({ alvo, operacaoId: op.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo, forma: e.forma as string, data, comprovante })
+      })
+      .catch((err) => duplicado(err, 'Já existe um aviso de recebimento esperando a loja para esta parcela'))
+
+    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_AVISADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, forma: e.forma, data } })
     return reler(id)
   }
 
@@ -127,8 +177,15 @@ export function createAprovacoesService(dep: {
 
   // ===================== aprovar =====================
 
-  async function aprovar(s: Sessao, id: number): Promise<Aprovacao> {
+  async function aprovar(s: Sessao, id: number, e: Entrada = {}): Promise<AprovadoComRecibo> {
     exigirAdmin(s)
+    // o aviso de baixa do indicador vira recebimento (e o recibo sai): quem faz é o serviço de recebimentos
+    const previo = await dep.repo.buscar(id, { tipo: 'TODOS' })
+    if (previo?.tipo === 'BAIXA') {
+      if (!dep.baixas) throw new HttpError(501, 'Confirmação de baixa indisponível', 'NAO_IMPLEMENTADO')
+      const r = await dep.baixas.confirmar(s, id, e)
+      return { ...(await reler(id)), recibo: r.recibo }
+    }
     const dia = hoje()
     const aplicado = await dep.repo.emTransacao(async (tx) => {
       const pedido = await tx.travarPedido(id)
@@ -205,7 +262,8 @@ export function createAprovacoesService(dep: {
       if (tipo === 'DESCONTO') return pedirDesconto(s, e)
       if (tipo === 'RETOMADA') return pedirRetomada(s, e)
       if (tipo === 'ACORDO') return pedirAcordo(s, e)
-      throw requisicaoInvalida('tipo deve ser DESCONTO, RETOMADA ou ACORDO')
+      if (tipo === 'BAIXA') return pedirBaixa(s, e)
+      throw requisicaoInvalida('tipo deve ser DESCONTO, RETOMADA, ACORDO ou BAIXA')
     },
 
     async listar(s, q) {

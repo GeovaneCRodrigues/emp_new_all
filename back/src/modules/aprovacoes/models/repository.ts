@@ -6,10 +6,12 @@ import type { Alvo, Aprovacao, EscopoAprovacoes, OperacaoDoPedido, ParcelaDaOper
 
 export interface AprovacoesTx {
   /** Trava a venda/empréstimo: um desconto aprovado e um recebimento ao mesmo tempo não se atropelam. `carteira`: só se o cliente é dele. */
-  travarOperacao(alvo: Alvo, id: number, carteira?: { usuarioId: number }): Promise<OperacaoDoPedido | null>
+  travarOperacao(alvo: Alvo, id: number, dono?: { usuarioId: number } | { indicadorId: number }): Promise<OperacaoDoPedido | null>
   parcela(alvo: Alvo, operacaoId: number, numero: number): Promise<ParcelaDaOperacao | null>
   parcelas(alvo: Alvo, operacaoId: number): Promise<ParcelaDaOperacao[]>
   criar(d: { alvo: Alvo; operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
+  /** O indicador avisa que recebeu (o `valor` é o recebido; forma, data e comprovante vão em `dados`). */
+  criarBaixa(d: { alvo: Alvo; operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string | null; forma: string; data: string; comprovante: string | null }): Promise<number>
   /** Pedido de retomada do aparelho de uma venda. */
   criarRetomada(d: { vendaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
   /** Pedido de acordo (a proposta do cobrador vai em `dados`). */
@@ -46,7 +48,7 @@ type Linha = {
 }
 const paraAprovacao = (l: Linha): Aprovacao => ({
   id: l.id, tipo: l.tipo, status: l.status, alvo: l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO', operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcela: l.numero ?? null, nParcelas: Number(l.n_parcelas),
-  valor: Number(l.valor), acordo: l.tipo === 'ACORDO' ? l.dados : null, motivo: l.motivo, solicitante: { id: l.solicitado_por, nome: l.solicitante }, cliente: { id: l.cliente_id, nome: l.cliente_nome },
+  valor: Number(l.valor), acordo: l.tipo === 'ACORDO' ? (l.dados as Aprovacao['acordo']) : null, baixa: l.tipo === 'BAIXA' ? (l.dados as unknown as Aprovacao['baixa']) : null, motivo: l.motivo, solicitante: { id: l.solicitado_por, nome: l.solicitante }, cliente: { id: l.cliente_id, nome: l.cliente_nome },
   aparelho: l.venda_id !== null ? (l.modelo ?? '') : nomeEmprestimo(l.modalidade!, l.periodicidade!),
   criadaEm: l.created_at.toISOString(), respondidoPor: l.respondente, respondidoEm: l.respondido_em ? l.respondido_em.toISOString() : null, resposta: l.resposta,
 })
@@ -69,10 +71,12 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
     async emTransacao(fn) {
       return db.transaction(async (trx) => {
         const tx: AprovacoesTx = {
-          async travarOperacao(alvo, id, carteira) {
+          async travarOperacao(alvo, id, dono) {
             const t = T[alvo]
             const q = trx(`${t.op} as o`).join('clientes as c', 'c.id', 'o.cliente_id').where('o.id', id).forUpdate('o')
-            if (carteira) q.where('c.responsavel_id', carteira.usuarioId)
+            // cobrador: clientes da carteira dele; indicador: operações em que ele é o indicador
+            if (dono && 'usuarioId' in dono) q.where('c.responsavel_id', dono.usuarioId)
+            else if (dono) q.where('o.indicador_id', dono.indicadorId)
             const l = await q.first<{ id: number; cliente_id: number; status: OperacaoDoPedido['status'] } | undefined>('o.id', 'o.cliente_id', 'o.status')
             return l ? { id: l.id, alvo, clienteId: l.cliente_id, status: l.status } : null
           },
@@ -88,6 +92,14 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
           async criar(d) {
             const t = T[d.alvo]
             const [{ id }] = await trx('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: d.solicitadoPor, [t.pedidoOp]: d.operacaoId, [t.pedidoParcela]: d.parcelaId, valor: d.valor, motivo: d.motivo }).returning('id')
+            return id
+          },
+          async criarBaixa(d) {
+            const t = T[d.alvo]
+            const [{ id }] = await trx('aprovacoes').insert({
+              tipo: 'BAIXA', solicitado_por: d.solicitadoPor, [t.pedidoOp]: d.operacaoId, [t.pedidoParcela]: d.parcelaId, valor: d.valor, motivo: d.motivo,
+              dados: JSON.stringify({ forma: d.forma, data: d.data, comprovante: d.comprovante }),
+            }).returning('id')
             return id
           },
           async criarRetomada(d) {

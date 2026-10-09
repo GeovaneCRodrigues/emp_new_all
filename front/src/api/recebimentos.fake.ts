@@ -7,7 +7,7 @@ import { arred2 } from '@/domain/format'
 import { calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
 import { ErroApi } from './clientes'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
-import type { AbaCobranca, AlvoApi, CobrancaApi, PagamentoApi, ReciboApi, RecebimentosApi } from './recebimentos'
+import type { AbaCobranca, AlvoApi, CobrancaApi, EntradaRecebimento, PagamentoApi, ReciboApi, RecebimentosApi, RegistradoApi } from './recebimentos'
 import type { FormaPagamentoApi } from './vendas'
 import type { Registro, Transacao, VendasFake } from './vendas.fake'
 
@@ -50,7 +50,12 @@ interface Op {
  * Versão de demonstração: mesmas regras do backend (quem pode, data, desconto só do admin, desfazer só o último,
  * cobranças por aba e tipo, só juros que amortiza o capital), sobre as mesmas vendas e empréstimos da demonstração.
  */
-export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: EmprestimosFake): RecebimentosApi {
+/** Ganchos só da demonstração: a confirmação do aviso de baixa lança o recebimento "em nome" do indicador. */
+export interface RecebimentosFake extends RecebimentosApi {
+  _interno: { registrarComo(s: Sessao, quem: { id: number; nome: string }, alvo: AlvoApi, operacaoId: number, e: EntradaRecebimento, baixaId?: number): Promise<RegistradoApi> }
+}
+
+export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: EmprestimosFake): RecebimentosFake {
   const { hoje, registros, transacoes } = vendas._interno
   const fones = new Map(criarSeed().clientes.map((c) => [c.id, soDigitos(c.fone)]))
   const foneDe = (id: number) => fones.get(id) ?? ''
@@ -95,8 +100,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
   const podeDesfazer = (s: Sessao, t: Transacao) => t.tipo === 'PARCELA' && !t.desfeita && ehUltima(t) && (s.perfil === 'ADMIN' || (t.recebidoPorId === s.usuarioId && t.data === hoje))
   const capitalAberto = (r: RegistroEmprestimo) => arred2(r.capital - r.amortizado)
 
-  return {
-    async registrar(s, alvo, operacaoId, e) {
+  const registrarCom = async (s: Sessao, quem: { id: number; nome: string } | undefined, alvo: AlvoApi, operacaoId: number, e: EntradaRecebimento, baixaId?: number): Promise<RegistradoApi> => {
       permitido(s)
       const o = doEscopo(s, alvo, operacaoId)
       if (!Number.isInteger(e.parcela) || e.parcela < 1) throw new ErroApi(400, 'Informe qual parcela está sendo paga')
@@ -156,7 +160,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       const fica = res.efeitos.find((x): x is Extract<EfeitoRecebimento, { tipo: 'FICA' }> => x.tipo === 'FICA')
       const t: Transacao = {
         id: vendas._interno.proximaTransacao(), numero: vendas._interno.proximoRecibo(), alvo, operacaoId: o.id, clienteId: o.cliente.id, clienteNome: o.cliente.nome, tipo: 'PARCELA', valor: res.valorTotal, forma: e.forma, data,
-        recebidoPorId: s.usuarioId ?? null, recebidoPorNome: s.perfil === 'ADMIN' ? 'Geovane' : 'Diego Ramos', desfeita: false,
+        recebidoPorId: quem ? quem.id : (s.usuarioId ?? null), recebidoPorNome: quem ? quem.nome : (s.perfil === 'ADMIN' ? 'Geovane' : 'Diego Ramos'), desfeita: false,
         itens: res.itens.map((i) => ({ numero: i.numero, valorPago: i.valorPago, antes: i.antes })),
         ...(ajustes.length || amortizacao > 0 ? { ajustes: { amortizacao, parcelas: ajustes.map((a) => ({ numero: a.numero, antes: a.antes })) } } : {}),
         resumo: {
@@ -167,9 +171,22 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         },
       }
       transacoes.push(t)
+      // parcela quitada por aqui: o aviso de baixa do indicador que ainda esperava não faz mais sentido
+      for (const it of res.itens) {
+        if (it.faltaDepois > 0.009) continue
+        for (const x of vendas._interno.pedidos) {
+          if (x.tipo === 'BAIXA' && x.status === 'PENDENTE' && x.alvo === alvo && x.operacaoId === o.id && x.parcela === it.numero && x.id !== baixaId) {
+            x.status = 'RECUSADO'; x.respondidoPor = 'Geovane Cataneo'; x.respondidoEm = `${hoje}T12:00:00.000Z`; x.resposta = 'A loja já lançou este pagamento'
+          }
+        }
+      }
       definirStatus(o, aberta.length === 0 ? 'QUITADA' : 'ATIVA')
       return { recibo: recibo(t), efeitos: res.efeitos, quitada: aberta.length === 0, pedidoDescontoId: pedidoId }
-    },
+  }
+
+  return {
+    _interno: { registrarComo: (s, quem, alvo, operacaoId, e, baixaId) => registrarCom(s, quem, alvo, operacaoId, e, baixaId) },
+    async registrar(s, alvo, operacaoId, e) { return registrarCom(s, undefined, alvo, operacaoId, e) },
 
     async recibo(s, id) {
       permitido(s)
@@ -239,6 +256,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
             tipo: o.alvo, operacaoId: o.id, parcela: p.numero, nParcelas: o.parcelas.length, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, pago: p.pago, falta: f,
             atrasoDias: f > 0.009 && p.vencimento < hoje ? Math.round((Date.parse(hoje) - Date.parse(p.vencimento)) / 864e5) : 0,
             cliente: { id: o.cliente.id, nome: o.cliente.nome, fone: foneDe(o.cliente.id) }, aparelho: o.descricao, ultimaTransacaoId: u?.id ?? null, ultimoRecebimentoEm: u?.data ?? null,
+            baixaPendente: (() => { const b = vendas._interno.pedidos.find((x) => x.tipo === 'BAIXA' && x.status === 'PENDENTE' && x.alvo === o.alvo && x.operacaoId === o.id && x.parcela === p.numero); return b ? { id: b.id, valor: b.valor, por: b.solicitanteNome } : null })(),
           }
         }),
       )

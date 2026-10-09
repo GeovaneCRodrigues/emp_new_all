@@ -50,11 +50,12 @@ const vendasFake = modoDemo ? criarVendasFake({ estoque: estoqueFake!, indicador
 export const vendasApi: VendasApi = vendasFake ?? criarVendasHttp(URL_API, requisicao)
 const emprestimosFake = modoDemo ? criarEmprestimosFake({ clientes: clientesFake!, indicadores: indicadoresFake! }) : null
 export const emprestimosApi: EmprestimosApi = emprestimosFake ?? criarEmprestimosHttp(URL_API, requisicao)
-export const recebimentosApi: RecebimentosApi = vendasFake ? criarRecebimentosFake(vendasFake, emprestimosFake!) : criarRecebimentosHttp(URL_API, requisicao)
+const recebimentosFake = vendasFake ? criarRecebimentosFake(vendasFake, emprestimosFake!) : null
+export const recebimentosApi: RecebimentosApi = recebimentosFake ?? criarRecebimentosHttp(URL_API, requisicao)
 
 const acordosFake = vendasFake ? criarAcordosFake(vendasFake, emprestimosFake!) : null
 export const acordosApi: AcordosApi = acordosFake ?? criarAcordosHttp(URL_API, requisicao)
-export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!, acordosFake!) : criarAprovacoesHttp(URL_API, requisicao)
+export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!, acordosFake!, recebimentosFake!) : criarAprovacoesHttp(URL_API, requisicao)
 export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(vendasFake) : criarFechamentosHttp(URL_API, requisicao)
 export const repassesApi: RepassesApi = vendasFake ? criarRepassesFake({ vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarRepassesHttp(URL_API, requisicao)
 export const propostasApi: PropostasApi = vendasFake ? criarPropostasFake({ clientes: clientesApi, estoque: estoqueApi, vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarPropostasHttp(URL_API, requisicao)
