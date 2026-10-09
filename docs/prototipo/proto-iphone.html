@@ -447,18 +447,44 @@ function somaDiasUteis(iso, n) {
   while (k < n) { d.setUTCDate(d.getUTCDate() + 1); if (d.getUTCDay() !== 0) k++ }
   return d.toISOString().slice(0, 10)
 }
-// Parcelado: juros simples ao mês sobre o capital. Só juros: paga o juro todo mês e o capital na última.
-// Diária: capital + juros divididos em parcelas diárias (sem domingo).
-function planoEmprestimo({ capital, mod, taxa, n, data }) {
-  const c = Number(capital) || 0, t = (Number(taxa) || 0) / 100
-  if (mod === 'JUROS') return Array.from({ length: n }, (_, i) => ({ venc: somaMes(data, i + 1, Number(data.slice(8, 10))), valor: Math.round(c * t * 100) / 100 + (i === n - 1 ? c : 0) }))
-  if (mod === 'DIARIA') { const parc = Math.ceil(c * (1 + t) / n * 100) / 100; return Array.from({ length: n }, (_, i) => ({ venc: somaDiasUteis(data, i + 1), valor: parc })) }
-  const parc = Math.ceil(c * (1 + t * n) / n * 100) / 100
-  return Array.from({ length: n }, (_, i) => ({ venc: somaMes(data, i + 1, Number(data.slice(8, 10))), valor: parc }))
+// Frequência do pagamento. Diária pula domingo.
+const FREQ = {
+  MENSAL: { label: 'Mensal', por: 'ao mês', cada: 'todo mês', qtd: [3, 4, 6, 10, 12] },
+  QUINZENAL: { label: 'Quinzenal', por: 'por quinzena', cada: 'a cada 15 dias', qtd: [2, 4, 6, 8, 12] },
+  SEMANAL: { label: 'Semanal', por: 'por semana', cada: 'toda semana', qtd: [4, 6, 8, 12, 16] },
+  DIARIA: { label: 'Diária', por: 'no total', cada: 'todo dia menos domingo', qtd: [20, 24, 30] },
 }
-function criarEmp({ clienteId, data, capital, mod, taxa, n, parceiroId = 0, pagarAte = null }) {
-  const parcelas = planoEmprestimo({ capital, mod, taxa, n, data }).map((x, i) => ({ n: i + 1, venc: x.venc, valor: x.valor, pago: null, pagos: [], desconto: 0 }))
-  const e = { id: ++seq, tipo: 'EMP', clienteId, data, capital, mod, taxa, parcelas, parceiroId, status: 'ATIVA' }
+const pulaDomingo = (iso) => (new Date(iso + 'T12:00:00Z').getUTCDay() === 0 ? somaDias(iso, 1) : iso)
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
+// 1º vencimento padrão: um período depois da data do empréstimo
+function primeiroVenc(data, freq) {
+  if (freq === 'QUINZENAL') return somaDias(data, 15)
+  if (freq === 'SEMANAL') return somaDias(data, 7)
+  if (freq === 'DIARIA') return somaDiasUteis(data, 1)
+  return somaMes(data, 1, Number(data.slice(8, 10)))
+}
+function vencimentos(primeira, freq, n) {
+  if (freq === 'DIARIA') { const p0 = pulaDomingo(primeira); return Array.from({ length: n }, (_, i) => (i ? somaDiasUteis(p0, i) : p0)) }
+  const passo = freq === 'QUINZENAL' ? 15 : freq === 'SEMANAL' ? 7 : 0
+  return Array.from({ length: n }, (_, i) => (passo ? somaDias(primeira, passo * i) : somaMes(primeira, i, Number(primeira.slice(8, 10)))))
+}
+// Parcelado: juros simples por período (mês, quinzena ou semana) sobre o capital.
+// Só juros: paga o juro a cada período e o capital junto da última.
+// Diária: capital + juros no total, divididos em parcelas diárias (sem domingo).
+function planoEmprestimo({ capital, mod, taxa, n, data, freq, primeira }) {
+  const c = Number(capital) || 0, t = (Number(taxa) || 0) / 100
+  freq = mod === 'DIARIA' ? 'DIARIA' : freq || 'MENSAL'
+  const vs = vencimentos(primeira || primeiroVenc(data, freq), freq, n)
+  if (mod === 'JUROS') return vs.map((venc, i) => ({ venc, valor: Math.round(c * t * 100) / 100 + (i === n - 1 ? c : 0) }))
+  const parc = mod === 'DIARIA' ? Math.ceil(c * (1 + t) / n * 100) / 100 : Math.ceil(c * (1 + t * n) / n * 100) / 100
+  return vs.map((venc) => ({ venc, valor: parc }))
+}
+const freqEmp = (e) => (e.mod === 'DIARIA' ? 'DIARIA' : e.freq || 'MENSAL')
+const nomeModEmp = (e) => `${MOD[e.mod].label}${e.mod !== 'DIARIA' && freqEmp(e) !== 'MENSAL' ? ` ${FREQ[freqEmp(e)].label.toLowerCase()}` : ''}`
+function criarEmp({ clienteId, data, capital, mod, taxa, n, parceiroId = 0, pagarAte = null, freq = 'MENSAL', primeira = null }) {
+  if (mod === 'DIARIA') freq = 'DIARIA'
+  const parcelas = planoEmprestimo({ capital, mod, taxa, n, data, freq, primeira }).map((x, i) => ({ n: i + 1, venc: x.venc, valor: x.valor, pago: null, pagos: [], desconto: 0 }))
+  const e = { id: ++seq, tipo: 'EMP', clienteId, data, capital, mod, freq, taxa, parcelas, parceiroId, status: 'ATIVA' }
   if (pagarAte) for (const p of parcelas) if (p.venc <= pagarAte) pagarDireto(p, p.venc)
   return e
 }
@@ -613,7 +639,7 @@ function empCard(e, k) {
   return `<button class="card pad" style="text-align:left;display:flex;flex-direction:column;gap:10px" data-venda="${e.id}">
     <div class="row"><span class="pic" style="width:38px;height:38px;border-radius:10px;background:var(--gold-soft);color:var(--warn);display:grid;place-items:center;flex:none">${ic(MOD[e.mod].icon, 'i-sm')}</span>
     <div style="flex:1;min-width:0"><div class="between"><span class="val" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.nome}</span>${k.atrasadas.length ? `<span class="chip c-bad">${k.atrasadas.length} atrasada${k.atrasadas.length > 1 ? 's' : ''}</span>` : k.status === 'QUITADA' ? '<span class="chip c-ok">quitado</span>' : '<span class="chip c-pri">em dia</span>'}</div>
-    <div class="small">${MOD[e.mod].label} · ${fmt0(e.capital)} a ${e.taxa}%${e.mod === 'DIARIA' ? '' : ' ao mês'} · ${e.parcelas.length}x ${fmt0(e.parcelas[0].valor)}</div></div></div>
+    <div class="small">${nomeModEmp(e)} · ${fmt0(e.capital)} a ${e.taxa}%${e.mod === 'DIARIA' ? '' : ` ${FREQ[freqEmp(e)].por}`} · ${e.parcelas.length}x ${fmt0(e.parcelas[0].valor)}</div></div></div>
     <div><div class="between small"><span><b class="num" style="color:var(--strong)">${fmt0(k.recebido)}</b> de ${fmt0(k.total)}</span><span class="num">${pct}%</span></div>
     <div class="bar" style="margin-top:5px"><i style="width:${pct}%;background:${k.atrasadas.length ? 'var(--bad)' : 'var(--primary)'}"></i></div></div>
     <div class="between small"><span>liberado ${dmy(e.data)} · ${k.p.id ? k.p.nome : 'direto'}</span><span>seu lucro <b class="num" style="color:var(--ok)">${fmt0(k.seuLucro)}</b></span></div>
@@ -637,7 +663,7 @@ function folhaEmprestimo(id) {
   const e = opById(id), k = contasEmp(e), c = cliente(e.clienteId)
   const tl = e.parcelas.map((p) => `<i class="${p.pago ? 'p' : p.venc < HOJE ? 'a' : diasEntre(HOJE, p.venc) <= 7 ? 'h' : ''}" style="${!p.pago && pagoP(p) ? 'box-shadow:inset 0 -6px 0 var(--ok)' : ''}" title="${p.n}ª · ${dmy(p.venc)}">${p.n}</i>`).join('')
   const capPct = Math.round(k.capitalDeVolta / k.inv * 100), prox = e.parcelas.find((p) => !p.pago)
-  return `<div class="row" style="gap:12px"><span class="ini">${iniciais(c.nome)}</span><div style="flex:1;min-width:0"><h3>${c.nome}</h3><div class="small">${MOD[e.mod].label} · ${fmt(e.capital)} a ${e.taxa}% · liberado ${dmy(e.data)}</div></div></div>
+  return `<div class="row" style="gap:12px"><span class="ini">${iniciais(c.nome)}</span><div style="flex:1;min-width:0"><h3>${c.nome}</h3><div class="small">${nomeModEmp(e)} · ${fmt(e.capital)} a ${e.taxa}%${e.mod === 'DIARIA' ? ' no total' : ` ${FREQ[freqEmp(e)].por}`} · liberado ${dmy(e.data)}</div></div></div>
     <div class="dl" style="margin-top:16px">
       <div><div class="lbl">Já recebeu</div><div class="val num">${fmt(k.recebido)}</div><div class="small">de ${fmt(k.total)}</div></div>
       <div><div class="lbl">Falta</div><div class="val num">${fmt(k.falta)}</div><div class="small">${e.parcelas.filter((p) => !p.pago).length} parcelas</div></div>
@@ -651,27 +677,39 @@ function folhaEmprestimo(id) {
       ${prox ? `<button class="btn b-out" style="flex:1" data-reneg="${e.id}">${ic('calendar-days', 'i-sm')}Acordo ou vencimento</button>` : ''}<button class="btn b-sub" style="flex:1" data-cli="${e.clienteId}">Ver cliente</button>
     </div>`
 }
+function neNovo(clienteId) { return { clienteId, capital: 1000, mod: 'PARCELADO', freq: 'MENSAL', taxa: 10, n: 6, parceiroId: 0, data: HOJE, primeira: null } }
+const nePrimeira = (ne) => ne.primeira || primeiroVenc(ne.data, ne.freq)
 function folhaNovoEmprestimo() {
-  const ne = S.ne, cap = numBR(ne.capital)
-  const OP_N = { PARCELADO: [3, 4, 6, 10, 12], JUROS: [3, 6, 12], DIARIA: [20, 24, 30] }
+  const ne = S.ne, cap = numBR(ne.capital), F = FREQ[ne.freq]
+  const tipos = [['PARCELADO', 'Parcelado', 'capital + juros divididos nas parcelas'], ['JUROS', 'Só juros', 'paga o juro a cada parcela e o capital no fim']]
   return `<h3>Novo empréstimo</h3>
     <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
       <div class="field"><label>Cliente</label><div class="inp"><select id="neCliente" style="font-size:15px">${clientes.map((c) => `<option value="${c.id}" ${ne.clienteId === c.id ? 'selected' : ''}>${c.nome}</option>`).join('')}</select></div></div>
-      <div class="field"><label>Quanto vai emprestar</label><div class="inp"><span>R$</span><input id="neCapital" class="money" inputmode="numeric" value="${moneyBR(ne.capital)}"></div></div>
-      <div class="field"><label>Modalidade</label><div class="pills">${Object.entries(MOD).map(([k, m]) => `<button class="pill ${ne.mod === k ? 'on' : ''}" data-ne-mod="${k}">${m.label}</button>`).join('')}</div></div>
-      <div class="field"><label>Juros ${ne.mod === 'DIARIA' ? 'no total' : 'ao mês'}</label><div class="pills">${[5, 8, 10, 12, 15, 20].map((t) => `<button class="pill ${ne.taxa === t ? 'on' : ''}" data-ne-taxa="${t}">${t}%</button>`).join('')}</div></div>
-      <div class="field"><label>${ne.mod === 'DIARIA' ? 'Dias (sem domingo)' : 'Meses'}</label><div class="pills">${OP_N[ne.mod].map((n) => `<button class="pill ${ne.n === n ? 'on' : ''}" data-ne-n="${n}">${n}x</button>`).join('')}</div></div>
+      <div class="grid2">
+        <div class="field"><label>Quanto vai emprestar</label><div class="inp"><span>R$</span><input id="neCapital" class="money" inputmode="numeric" value="${moneyBR(ne.capital)}"></div></div>
+        <div class="field"><label>Data do empréstimo</label><div class="inp"><input type="date" id="neData" value="${ne.data}" style="font-size:14px"></div></div>
+      </div>
+      <div class="field"><label>Como o cliente paga</label><div class="pills">${tipos.map(([k, l]) => `<button class="pill ${(ne.mod === 'DIARIA' ? 'PARCELADO' : ne.mod) === k ? 'on' : ''}" data-ne-mod="${k}" ${ne.freq === 'DIARIA' && k === 'JUROS' ? 'disabled title="Na diária é sempre parcelado"' : ''}>${l}</button>`).join('')}</div>
+        <div class="small">${ne.freq === 'DIARIA' ? 'Na diária é sempre parcelado.' : tipos.find(([k]) => k === ne.mod)[2]}</div></div>
+      <div class="field"><label>De quanto em quanto tempo</label><div class="pills">${Object.entries(FREQ).map(([k, f]) => `<button class="pill ${ne.freq === k ? 'on' : ''}" data-ne-freq="${k}">${f.label}</button>`).join('')}</div></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="field"><label>Juros ${F.por}</label><div class="pills">${[5, 8, 10, 12, 15, 20].map((t) => `<button class="pill ${ne.taxa === t ? 'on' : ''}" data-ne-taxa="${t}">${t}%</button>`).join('')}</div></div>
+        <div class="field"><label>Quantas parcelas${ne.freq === 'DIARIA' ? ' (sem domingo)' : ''}</label><div class="pills">${F.qtd.map((n) => `<button class="pill ${ne.n === n ? 'on' : ''}" data-ne-n="${n}">${n}x</button>`).join('')}</div></div>
+      </div>
+      <div class="field"><label>1º vencimento</label><div class="inp" style="max-width:220px"><input type="date" id="nePrimeira" value="${nePrimeira(ne)}" min="${ne.data}" style="font-size:14px"></div>
+        <div class="small">${ne.primeira ? 'Data escolhida por você.' : `Sugestão: ${F.cada === 'todo mês' ? 'um mês' : F.cada === 'a cada 15 dias' ? '15 dias' : F.cada === 'toda semana' ? 'uma semana' : 'um dia'} depois do empréstimo. Pode trocar.`}</div></div>
       <div class="field"><label>Veio por indicação?</label><div class="pills">${parceiros.map((p) => `<button class="pill ${ne.parceiroId === p.id ? 'on' : ''}" data-ne-parc="${p.id}">${p.id ? `${p.nome.split(' ')[0]} ${Math.round(p.pct * 100)}%` : 'Não'}</button>`).join('')}</div></div>
       <div class="card pad" id="prevEmp" style="background:var(--elevated)">${prevEmp(cap)}</div>
       <button class="btn b-pri b-block" data-ne-salvar>Liberar empréstimo</button>
     </div>`
 }
 function prevEmp(cap) {
-  const ne = S.ne, plano = planoEmprestimo({ capital: cap, mod: ne.mod, taxa: ne.taxa, n: ne.n, data: HOJE })
+  const ne = S.ne, plano = planoEmprestimo({ capital: cap, mod: ne.mod, taxa: ne.taxa, n: ne.n, data: ne.data, freq: ne.freq, primeira: nePrimeira(ne) })
   const total = plano.reduce((s, x) => s + x.valor, 0), lucro = total - cap, pct = parceiro(ne.parceiroId).pct
   const resumo = ne.mod === 'JUROS' ? `${ne.n - 1}x ${fmt(plano[0].valor)} + última de ${fmt(plano.at(-1).valor)}` : `${ne.n}x ${fmt(plano[0]?.valor || 0)}`
+  const datas = plano.slice(0, 4).map((x) => dmy(x.venc)).join(', ') + (plano.length > 4 ? ` … última ${dmy(plano.at(-1).venc)}` : '')
   return `<div class="lbl">Cliente paga</div><div class="disp num" style="font-size:22px;color:var(--strong)">${resumo}</div>
-    <div class="small">1ª em ${plano[0] ? dmy(plano[0].venc) : '—'}${ne.mod === 'DIARIA' ? ', todo dia menos domingo' : ', todo mês'}</div>
+    <div class="small">${FREQ[ne.freq].cada}: ${datas}</div>
     <div class="linhas" style="margin-top:10px"><div><span>Total a receber</span><b class="num">${fmt(total)}</b></div><div><span>Você empresta</span><span class="num">− ${fmt(cap)}</span></div>
     ${pct ? `<div><span>Parte do parceiro (${Math.round(pct * 100)}%)</span><span class="num">− ${fmt(lucro * pct)}</span></div>` : ''}
     <div class="tot"><span>Seu lucro</span><span class="num" style="color:var(--ok)">${fmt(lucro * (1 - pct))}</span></div></div>`
@@ -1627,15 +1665,21 @@ function cliquesNovos(t, d) {
   if (d.caixa) { S.caixaAba = d.caixa; render(); return true }
   if ('caixaMais' in d) { S.caixaLim = (S.caixaLim || 25) + 25; render(); return true }
   if (d.cliVender) { S.nv = null; novaVenda(); S.nv.clienteId = Number(d.cliVender); S.tela = 'vender'; render(); return true }
-  if (d.cliEmp) { S.ne = { clienteId: Number(d.cliEmp), capital: 1000, mod: 'PARCELADO', taxa: 10, n: 6, parceiroId: 0 }; abrir('novoEmprestimo'); return true }
-  if (d.folha === 'novoEmprestimo' && !S.ne) S.ne = { clienteId: clientes[0].id, capital: 1000, mod: 'PARCELADO', taxa: 10, n: 6, parceiroId: 0 }
-  if (d.neMod) { S.ne.mod = d.neMod; S.ne.n = { PARCELADO: 6, JUROS: 6, DIARIA: 24 }[d.neMod]; abrir('novoEmprestimo'); return true }
+  if (d.cliEmp) { S.ne = neNovo(Number(d.cliEmp)); abrir('novoEmprestimo'); return true }
+  if (d.folha === 'novoEmprestimo' && !S.ne) S.ne = neNovo(clientes[0].id)
+  if (d.neMod) { S.ne.mod = d.neMod; abrir('novoEmprestimo'); return true }
+  if (d.neFreq) {
+    const ne = S.ne; ne.freq = d.neFreq; ne.primeira = null
+    if (ne.freq === 'DIARIA') { ne.mod = 'DIARIA'; ne.taxa = 20 } else if (ne.mod === 'DIARIA') { ne.mod = 'PARCELADO'; ne.taxa = 10 }
+    if (!FREQ[ne.freq].qtd.includes(ne.n)) ne.n = FREQ[ne.freq].qtd[ne.freq === 'DIARIA' ? 1 : 2]
+    abrir('novoEmprestimo'); return true
+  }
   if (d.neTaxa) { S.ne.taxa = Number(d.neTaxa); abrir('novoEmprestimo'); return true }
   if (d.neN) { S.ne.n = Number(d.neN); abrir('novoEmprestimo'); return true }
   if (d.neParc !== undefined) { S.ne.parceiroId = Number(d.neParc); abrir('novoEmprestimo'); return true }
   if ('neSalvar' in d) {
     const ne = S.ne, cap = numBR(ne.capital); if (cap <= 0) return true
-    const e = criarEmp({ clienteId: ne.clienteId, data: HOJE, capital: cap, mod: ne.mod, taxa: ne.taxa, n: ne.n, parceiroId: ne.parceiroId })
+    const e = criarEmp({ clienteId: ne.clienteId, data: ne.data, capital: cap, mod: ne.mod, taxa: ne.taxa, n: ne.n, parceiroId: ne.parceiroId, freq: ne.freq, primeira: nePrimeira(ne) })
     emprestimos.push(e); S.folha = null; S.ne = null; S.empFiltro = 'ATIVA'; render(); abrir('emprestimo', e.id); toast(`Empréstimo de ${fmt(cap)} liberado`); return true
   }
   if (d.repasse) { const pid = Number(d.repasse), r = repasseDevido(pid); repassesPagos.push({ parceiroId: pid, data: HOJE, valor: r.devido }); render(); toast(`Repasse de ${fmt(r.devido)} registrado`); return true }
@@ -1659,6 +1703,8 @@ function inputsNovos(t) {
   if (t.id === 'buscaClientes') { S.buscaCli = t.value; const pos = t.selectionStart; render(); const n = document.getElementById('buscaClientes'); n.focus(); n.setSelectionRange(pos, pos); return true }
   if (t.id === 'neCapital') { S.ne.capital = t.value; document.getElementById('prevEmp').innerHTML = prevEmp(Number(t.value.replace(/\./g, '').replace(',', '.')) || 0); return true }
   if (t.id === 'neCliente') { S.ne.clienteId = Number(t.value); return true }
+  if (t.id === 'neData') { if (t.value) { S.ne.data = t.value; if (S.ne.primeira && S.ne.primeira < t.value) S.ne.primeira = null; abrir('novoEmprestimo') } return true }
+  if (t.id === 'nePrimeira') { if (t.value) { S.ne.primeira = t.value; abrir('novoEmprestimo') } return true }
   return false
 }
 

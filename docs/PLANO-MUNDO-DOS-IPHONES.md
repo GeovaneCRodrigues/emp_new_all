@@ -137,6 +137,13 @@ Layout geral:
   - abas iPhones / Empréstimos, com **os mesmos 3 números no topo nas duas**: A receber, Capital na rua, Lucro por vir;
   - botão no topo "+ Venda" ou "+ Empréstimo", conforme a aba;
   - ficha da operação: recebido/falta, barra "seu capital de volta", linha do tempo das parcelas, últimos pagamentos com Recibo, renegociar/mudar vencimento, retomar aparelho.
+- **Novo empréstimo** (pedido do Geovane):
+  - cliente, quanto vai emprestar e **data do empréstimo** (padrão: hoje);
+  - **como paga:** Parcelado (capital + juros divididos) ou Só juros (juro a cada parcela, capital junto da última);
+  - **de quanto em quanto tempo:** Mensal, Quinzenal (15 dias), Semanal (7 dias) ou Diária (todo dia menos domingo). Diária é sempre parcelado;
+  - juros por período (ao mês, por quinzena, por semana; na diária é o % no total) e quantidade de parcelas;
+  - **1º vencimento:** sugere um período depois da data do empréstimo, e dá pra trocar. As outras parcelas seguem a frequência a partir dele;
+  - indicação, e o resumo mostra as primeiras datas, a última, o total e o lucro.
 - **Nova venda em 3 passos:** Aparelho, Cliente, Pagamento.
   - Pagamento tem preço, entrada, troca, parcelas de 1 a 10x, dia do vencimento e indicação.
   - Ao lado fica o resumo com juros, total, custo, parte do indicador, seu lucro e em qual parcela o capital volta.
@@ -237,6 +244,7 @@ Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a 
   - Resultado: a parcela fica com 700 e vence 15/10, `vencimento_original` = 01/09, e ela sai dos atrasados.
   - O recibo diz "ainda ficam 700,00, para 15/10".
 - **Pagamento a mais:** parcelas de 300 e cliente paga 750. Quita a atual e a próxima, e abate 150 da seguinte. É uma transação e um recibo só.
+- **Empréstimo:** 1.000 a 10% por período em 6x dá 6x de 266,67 (arredonda pra cima no centavo). Só juros, 1.000 a 10% em 6x: 5x de 100,00 e a última de 1.100,00. Diária, 1.000 a 20% no total em 24x: 24x de 50,00. Semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10…
 - **Vendedor:** em nenhuma tela ou resposta da API aparece custo (`valor_compra`, `valor_investido`) ou lucro.
 - **Indicador:** a API não devolve cliente de outro indicador, nem com o id na URL.
 
