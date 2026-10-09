@@ -1,7 +1,7 @@
 import { planoEmprestimo, faltaP } from '@/domain/calc'
 import { somaMes } from '@/domain/datas'
 import type { Bem, Cliente, Dados } from '@/domain/dados'
-import type { Emprestimo, Indicador, ModalidadeEmp, Parcela, RepasseIndicador, StatusContrato, Usuario, Venda } from '@/domain/types'
+import type { Emprestimo, Indicador, ModalidadeEmp, Parcela, Periodicidade, RepasseIndicador, StatusContrato, Usuario, Venda } from '@/domain/types'
 
 /** Dia fixo do protótipo, para os dados de exemplo baterem com as telas. */
 export const HOJE_DEMO = '2026-10-08'
@@ -72,20 +72,21 @@ pagarDireto(vendas[0].parcelas[2], '2026-10-02')
 pagarDireto(vendas[1].parcelas[1], '2026-10-07')
 pagarDireto(vendas[2].parcelas[0], '2026-09-10', 150) // Fernanda pagou só uma parte da 1ª
 
-function criarEmp(a: { clienteId: number; data: string; capital: number; mod: ModalidadeEmp; taxa: number; n: number; indicadorId?: number; pagarAte: string }): Emprestimo {
+function criarEmp(a: { clienteId: number; data: string; capital: number; mod: ModalidadeEmp; taxa: number; n: number; indicadorId?: number; pagarAte: string; freq?: Periodicidade }): Emprestimo {
+  const freq: Periodicidade = a.mod === 'DIARIA' ? 'DIARIA' : a.freq ?? 'MENSAL'
   const parcelas: Parcela[] = planoEmprestimo(a).map((x, i) => ({ n: i + 1, venc: x.venc, valor: x.valor, pago: null, pagos: [], desconto: 0 }))
   for (const p of parcelas) if (p.venc <= a.pagarAte) pagarDireto(p, p.venc)
   const indicadorId = a.indicadorId ?? 0
-  return { tipo: 'EMP', id: ++seq, clienteId: a.clienteId, data: a.data, capital: a.capital, mod: a.mod, taxa: a.taxa, parcelas, indicadorId, pct: pctDe(indicadorId), status: 'ATIVA' }
+  return { tipo: 'EMP', id: ++seq, clienteId: a.clienteId, data: a.data, capital: a.capital, mod: a.mod, taxa: a.taxa, freq, parcelas, indicadorId, pct: pctDe(indicadorId), status: 'ATIVA' }
 }
 
 const emprestimos: Emprestimo[] = [
-  criarEmp({ clienteId: 7, data: '2026-06-25', capital: 5000, mod: 'PARCELADO', taxa: 10, n: 6, pagarAte: '2026-09-30' }),
+  criarEmp({ clienteId: 7, data: '2026-06-25', capital: 5000, mod: 'PARCELADO', taxa: 60, n: 6, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 6, data: '2026-05-10', capital: 3000, mod: 'JUROS', taxa: 12, n: 6, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 8, data: '2026-09-24', capital: 1000, mod: 'DIARIA', taxa: 20, n: 24, pagarAte: '2026-10-06' }),
-  criarEmp({ clienteId: 5, data: '2026-05-15', capital: 2000, mod: 'PARCELADO', taxa: 8, n: 4, pagarAte: '2026-09-30' }),
+  criarEmp({ clienteId: 5, data: '2026-05-15', capital: 2000, mod: 'PARCELADO', taxa: 32, n: 4, pagarAte: '2026-09-30' }),
   criarEmp({ clienteId: 2, data: '2026-10-01', capital: 600, mod: 'DIARIA', taxa: 20, n: 20, indicadorId: 1, pagarAte: '2026-10-07' }),
-  criarEmp({ clienteId: 9, data: '2026-08-01', capital: 4000, mod: 'PARCELADO', taxa: 10, n: 10, indicadorId: 1, pagarAte: '2026-08-31' }),
+  criarEmp({ clienteId: 9, data: '2026-08-01', capital: 4000, mod: 'PARCELADO', taxa: 100, n: 10, indicadorId: 1, pagarAte: '2026-08-31' }),
 ]
 
 const usuarios: Usuario[] = [

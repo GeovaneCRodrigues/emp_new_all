@@ -1,18 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-import { entrar } from './helpers'
+import { confirmarEmprestimo, entrar, preencherEmprestimo } from './helpers'
 
 /** Entra nas Operações > Empréstimos e cria um só juros de 3.000 a 12% em 3x (360, 360 e 3.360). A ficha abre sozinha. */
 async function criarSoJuros(page: Page) {
   await entrar(page)
-  await page.goto('/operacoes')
-  await page.getByRole('button', { name: /Empréstimos/ }).click()
-  await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
-  await page.locator('[data-cliente]').first().click()
-  await page.locator('[data-mod="JUROS"]').click()
-  await page.locator('#eCapital').fill('300000')
-  await page.fill('#eTaxa', '12')
-  await page.fill('#eParcelas', '3')
-  await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+  await preencherEmprestimo(page, { capital: '300000', tipo: 'JUROS', n: 3, taxa: 12 })
+  await confirmarEmprestimo(page)
   await expect(page.getByTestId('dados-admin')).toContainText('3.000,00')
 }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { entrar } from './helpers'
+import { confirmarEmprestimo, entrar, preencherEmprestimo } from './helpers'
 
 const aparelho = (page: Page, id: number) => page.locator(`[data-aparelho="${id}"]`)
 const cliente = (page: Page, id: number) => page.locator(`[data-cliente="${id}"]`)
@@ -238,45 +238,92 @@ test.describe('empréstimos parcelados', () => {
     await expect(page.getByTestId('dados-admin')).toContainText('Capital emprestado')
   })
 
-  test('faz um empréstimo parcelado: a prévia bate com a conta e ele aparece na lista', async ({ page }) => {
-    await abrirAba(page)
-    await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
-    await page.locator('[data-cliente]').first().click()
-        await page.locator('#eCapital').fill('500000')
-    await page.fill('#eTaxa', '10')
-    await page.fill('#eParcelas', '6')
+  test('faz um empréstimo parcelado: 5.000 a 60% no total em 6x dá 6 × 1.333,34', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '500000', n: 6, taxa: 60 })
     await expect(page.getByTestId('previa-parcela')).toContainText('1.333,34')
     await expect(page.getByTestId('previa-total')).toContainText('8.000,04')
-    await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+    await confirmarEmprestimo(page)
     await expect(page.getByTestId('dados-admin')).toContainText('5.000,00')
+    await expect(page.getByTestId('dados-admin')).toContainText('60% no total')
   })
 
-  test('faz um empréstimo só juros: a prévia mostra o juro mensal e a última parcela com o capital', async ({ page }) => {
-    await abrirAba(page)
-    await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
-    await page.locator('[data-cliente]').first().click()
-    await page.locator('[data-mod="JUROS"]').click()
-    await page.locator('#eCapital').fill('300000')
-    await page.fill('#eTaxa', '12')
-    await page.fill('#eParcelas', '3')
+  test('exemplo do plano: 3.000 a 30% em 6x dá 650,00 por parcela e total de 3.900', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '300000', n: 6, taxa: 30 })
+    await expect(page.getByTestId('previa-parcela')).toContainText('650,00')
+    await expect(page.getByTestId('previa-total')).toContainText('3.900,00')
+  })
+
+  test('os campos se ajustam: digitar 6.000 de total vira 100%; digitar parcela de 700 em 6x vira 40%', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '300000', n: 6, taxa: 30 })
+    await page.locator('#eTotal').fill('600000')
+    await expect(page.locator('#eTaxa')).toHaveValue('100')
+    await expect(page.locator('#eParcela')).toHaveValue('1.000,00')
+    await page.locator('#eParcela').fill('70000')
+    await expect(page.locator('#eTaxa')).toHaveValue('40')
+    await expect(page.locator('#eTotal')).toHaveValue('4.200,00')
+    await page.fill('#eTaxa', '30')
+    await expect(page.locator('#eParcela')).toHaveValue('650,00')
+  })
+
+  test('faz um empréstimo só juros: o juro de cada parcela e a última com o capital', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '300000', tipo: 'JUROS', n: 3, taxa: 12 })
     await expect(page.getByTestId('previa-parcela')).toContainText('360,00')
     await expect(page.getByTestId('previa-ultima')).toContainText('3.360,00')
     await expect(page.getByTestId('previa-total')).toContainText('4.080,00')
-    await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+    await page.locator('#eParcela').fill('10000') // juro de 100 sobre 3.000 = 3,3333%
+    await expect(page.locator('#eTaxa')).toHaveValue('3.3333')
+    await page.fill('#eTaxa', '12')
+    await confirmarEmprestimo(page)
     await expect(page.getByTestId('dados-admin')).toContainText('3.000,00')
+    await expect(page.getByTestId('dados-admin')).toContainText('12% por mês')
   })
 
-  test('faz um empréstimo diário: 1.000 a 20% em 24 dias úteis dá 50,00 por dia', async ({ page }) => {
-    await abrirAba(page)
-    await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
-    await page.locator('[data-cliente]').first().click()
-    await page.locator('[data-mod="DIARIA"]').click()
-    await page.locator('#eCapital').fill('100000')
-    await page.fill('#eTaxa', '20')
-    await page.fill('#eParcelas', '24')
+  test('semanal com 1º vencimento em 15/10: a lista mostra 15/10, 22/10, 29/10… com o dia da semana', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '100000', freq: 'SEMANAL', n: 4, taxa: 30 })
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.fill('#ePrimeira', '2026-10-15')
+    const linhas = page.getByTestId('lista-parcelas').locator('.li')
+    await expect(linhas).toHaveCount(4)
+    await expect(linhas.nth(0)).toContainText('15/10')
+    await expect(linhas.nth(1)).toContainText('22/10')
+    await expect(linhas.nth(2)).toContainText('29/10')
+    await expect(linhas.nth(0)).toContainText('qui') // 15/10/2026 é quinta
+    await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+    await expect(page.getByText('Empréstimo parcelado semanal').first()).toBeVisible()
+  })
+
+  test('faz um empréstimo diário: 1.000 a 20% em 24 dias úteis dá 50,00 por dia, sem domingo', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '100000', freq: 'DIARIA', n: 24, taxa: 20 })
+    await expect(page.getByTestId('diaria-info')).toBeVisible()
+    await expect(page.locator('[data-mod="JUROS"]')).toHaveCount(0) // a diária é sempre parcelada
     await expect(page.getByTestId('previa-parcela')).toContainText('50,00')
     await expect(page.getByTestId('previa-total')).toContainText('1.200,00')
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    for (const t of await page.getByTestId('lista-parcelas').locator('.li').allInnerTexts()) expect(t.toLowerCase()).not.toContain('dom')
     await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
     await expect(page.getByTestId('dados-admin')).toContainText('1.000,00')
+  })
+
+  test('os botões travam com o motivo: sem cliente, sem valor e 1º vencimento antes do empréstimo', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.getByRole('button', { name: /Empréstimos/ }).click()
+    await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Continuar' })).toBeDisabled()
+    await expect(page.getByTestId('problema-passo')).toContainText('cliente')
+    await page.locator('[data-cliente]').first().click()
+    await expect(page.getByTestId('problema-passo')).toContainText('quanto')
+    await page.locator('#eCapital').fill('100000')
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await page.fill('#ePrimeira', '2026-01-01')
+    await expect(page.getByTestId('problema-passo')).toContainText('1º vencimento')
+    await expect(page.getByRole('button', { name: 'Fazer empréstimo' })).toBeDisabled()
   })
 })

@@ -1,5 +1,5 @@
 import type { Knex } from 'knex'
-import { PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '../../../shared/sql.js'
+import { nomeEmprestimo, PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '../../../shared/sql.js'
 import type { Alvo, Aprovacao, EscopoAprovacoes, OperacaoDoPedido, ParcelaDaOperacao, StatusAprovacao } from './types.js'
 
 export interface AprovacoesTx {
@@ -28,17 +28,16 @@ const T = {
   VENDA: { op: 'vendas', parcela: 'venda_parcelas', opFk: 'venda_id', pedidoOp: 'venda_id', pedidoParcela: 'venda_parcela_id', pago: PAGO_PARCELA_SQL },
   EMPRESTIMO: { op: 'emprestimos', parcela: 'emprestimo_parcelas', opFk: 'emprestimo_id', pedidoOp: 'emprestimo_id', pedidoParcela: 'emprestimo_parcela_id', pago: PAGO_PARCELA_EMPRESTIMO_SQL },
 } as const
-const NOME_MOD = { PARCELADO: 'parcelado', JUROS: 'só juros', DIARIA: 'diária' } as const
 
 type Linha = {
   id: number; tipo: 'DESCONTO'; status: StatusAprovacao; venda_id: number | null; emprestimo_id: number | null; numero: number; n_parcelas: string; valor: string; motivo: string | null
-  solicitado_por: number; solicitante: string; cliente_id: number; cliente_nome: string; modelo: string | null; modalidade: keyof typeof NOME_MOD | null; created_at: Date
+  solicitado_por: number; solicitante: string; cliente_id: number; cliente_nome: string; modelo: string | null; modalidade: string | null; periodicidade: string | null; created_at: Date
   respondente: string | null; respondido_em: Date | null; resposta: string | null
 }
 const paraAprovacao = (l: Linha): Aprovacao => ({
   id: l.id, tipo: l.tipo, status: l.status, alvo: l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO', operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcela: l.numero, nParcelas: Number(l.n_parcelas),
   valor: Number(l.valor), motivo: l.motivo, solicitante: { id: l.solicitado_por, nome: l.solicitante }, cliente: { id: l.cliente_id, nome: l.cliente_nome },
-  aparelho: l.venda_id !== null ? (l.modelo ?? '') : `Empréstimo ${NOME_MOD[l.modalidade!]}`,
+  aparelho: l.venda_id !== null ? (l.modelo ?? '') : nomeEmprestimo(l.modalidade!, l.periodicidade!),
   criadaEm: l.created_at.toISOString(), respondidoPor: l.respondente, respondidoEm: l.respondido_em ? l.respondido_em.toISOString() : null, resposta: l.resposta,
 })
 
@@ -53,7 +52,7 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
     return q
   }
   const colunas = (q: Knex.QueryBuilder) => q.select<Linha[]>('a.id', 'a.tipo', 'a.status', 'a.venda_id', 'a.emprestimo_id', db.raw('coalesce(vp.numero, ep.numero) as numero'), 'a.valor', 'a.motivo', 'a.solicitado_por', 's.nome as solicitante',
-    'c.id as cliente_id', 'c.nome as cliente_nome', 'b.modelo', 'e.modalidade', 'a.created_at', 'r.nome as respondente', 'a.respondido_em', 'a.resposta',
+    'c.id as cliente_id', 'c.nome as cliente_nome', 'b.modelo', 'e.modalidade', 'e.periodicidade', 'a.created_at', 'r.nome as respondente', 'a.respondido_em', 'a.resposta',
     db.raw('case when a.venda_id is not null then (select count(*) from venda_parcelas x where x.venda_id = a.venda_id) else (select count(*) from emprestimo_parcelas x where x.emprestimo_id = a.emprestimo_id) end as n_parcelas'))
 
   return {

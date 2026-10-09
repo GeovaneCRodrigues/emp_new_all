@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Sessao } from '@/domain/escopo'
 import { ErroApi } from './clientes'
 import { criarClientesFake } from './clientes.fake'
+import type { AprovacoesApi } from './aprovacoes'
 import type { EmprestimosApi } from './emprestimos'
 import { criarEmprestimosFake } from './emprestimos.fake'
 import { criarAprovacoesFake, criarFechamentosFake } from './equipe.fake'
@@ -22,14 +23,15 @@ const COBR2: Sessao = { perfil: 'COBRADOR', usuarioId: 77 }
 let emp: EmprestimosApi
 let rec: RecebimentosApi
 let fech: FechamentosApi
+let apr: AprovacoesApi
 beforeEach(() => {
   const clientes = criarClientesFake(); const indicadores = criarIndicadoresFake()
   const vendas = criarVendasFake({ estoque: criarEstoqueFake(), indicadores, clientes })
   const e = criarEmprestimosFake({ clientes, indicadores })
-  emp = e; rec = criarRecebimentosFake(vendas, e); fech = criarFechamentosFake(vendas); void criarAprovacoesFake
+  emp = e; rec = criarRecebimentosFake(vendas, e); fech = criarFechamentosFake(vendas); apr = criarAprovacoesFake(vendas, e)
 })
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: ErroApi) => e)
-const emprestimo = async (corpo: object = {}, cliente = 3) => (await emp.criar(ADMIN, { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...corpo } as never)).id
+const emprestimo = async (corpo: object = {}, cliente = 3) => (await emp.criar(ADMIN, { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo } as never)).id
 const juros = () => emprestimo({ modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3 })
 const receber = (s: Sessao, e: number, corpo: Partial<EntradaRecebimento> = {}) => rec.registrar(s, 'EMPRESTIMO', e, { forma: 'PIX', parcela: 1, valor: 1333.34, ...corpo })
 const valores = async (e: number) => (await emp.obter(ADMIN, e)).parcelas.map((p) => p.valor)
@@ -51,21 +53,23 @@ describe('parcelado', () => {
     expect(await emp.obter(ADMIN, e)).toMatchObject({ recebido: 1333.34, falta: 6666.7 })
   })
   it('quitar todas fecha o empréstimo; pagar de novo é 409', async () => {
-    const e = await emprestimo({ parcelas: 2 })
+    const e = await emprestimo({ parcelas: 2, taxa: 20 })
     expect((await receber(ADMIN, e, { parcela: 1, valor: 3000 })).quitada).toBe(false)
     expect((await receber(ADMIN, e, { parcela: 2, valor: 3000 })).quitada).toBe(true)
     expect((await emp.obter(ADMIN, e)).status).toBe('QUITADA')
     expect((await falha(receber(ADMIN, e, { parcela: 2, valor: 10 })))?.codigo).toBe('PARCELA_PAGA')
   })
-  it('pagou menos: o resto fica devendo; desconto direto só o admin; pedir desconto não existe em empréstimo', async () => {
+  it('pagou menos: o resto fica devendo; desconto direto só o admin; pedir desconto vale em empréstimo', async () => {
     const e = await emprestimo()
     expect((await receber(COBR, e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20' })).efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 833.34, vencimento: '2026-10-20' }])
     const e2 = await emprestimo()
     expect((await falha(receber(COBR, e2, { valor: 500, resto: 'DESCONTO' })))?.status).toBe(403)
     expect((await receber(ADMIN, e2, { valor: 1000, resto: 'DESCONTO' })).efeitos).toEqual([{ tipo: 'DESCONTO', numero: 1, valor: 333.34 }])
+    // pedir desconto vale em empréstimo: o pagamento é lançado e o pedido espera o administrador
     const e3 = await emprestimo()
-    expect((await falha(receber(COBR, e3, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'sem dinheiro' } })))?.status).toBe(400)
-    expect((await emp.obter(ADMIN, e3)).recebido).toBe(0)
+    const r3 = await receber(COBR, e3, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'sem dinheiro' } })
+    expect(r3.pedidoDescontoId).not.toBeNull()
+    expect((await emp.obter(ADMIN, e3)).recebido).toBe(500)
   })
   it('pagou a mais abate as próximas; passar da dívida é 400', async () => {
     const e = await emprestimo()
@@ -161,5 +165,78 @@ describe('desfazer, recibo, pagamentos e cobranças', () => {
     expect(f.totalDinheiro).toBe(1333.34)
     expect((await falha(receber(COBR, e, { parcela: 2 })))?.codigo).toBe('DIA_FECHADO')
     expect((await receber(ADMIN, e, { parcela: 2 })).recibo.valor).toBe(1333.34)
+  })
+})
+
+describe('desconto em empréstimo: o cobrador pede, o administrador responde', () => {
+  const pedir = (s: Sessao, e: number, corpo: object = {}) => apr.pedirDesconto(s, { alvo: 'EMPRESTIMO', operacaoId: e, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...corpo } as never)
+  const parcela = async (e: number, n: number) => (await emp.obter(ADMIN, e)).parcelas[n - 1]
+
+  it('só o cobrador da carteira pede; outra carteira e inexistente 404; alvo inventado 400', async () => {
+    const e = await emprestimo()
+    for (const s of [ADMIN, VEND]) expect((await falha(pedir(s, e)))?.status).toBe(403)
+    expect((await falha(pedir(COBR2, e)))?.status).toBe(404)
+    expect((await falha(pedir(COBR, 999999)))?.status).toBe(404)
+    expect((await falha(pedir(COBR, e, { alvo: 'CARRO' })))?.status).toBe(400)
+  })
+  it('nasce PENDENTE com o nome do empréstimo e não mexe na parcela', async () => {
+    const e = await emprestimo({ periodicidade: 'QUINZENAL' })
+    const r = await pedir(COBR, e, { valor: 150 })
+    expect(r).toMatchObject({ status: 'PENDENTE', alvo: 'EMPRESTIMO', operacaoId: e, parcela: 1, nParcelas: 6, valor: 150, aparelho: 'Empréstimo parcelado quinzenal' })
+    expect((await parcela(e, 1)).desconto).toBe(0)
+  })
+  it.each([['valor zero', { valor: 0 }], ['motivo curto', { motivo: 'ab' }], ['maior que a parcela', { valor: 1333.35 }]])('recusa %s (400)', async (_n, m) => {
+    expect((await falha(pedir(COBR, await emprestimo(), m)))?.status).toBe(400)
+  })
+  it('um pendente por parcela (409); parcela paga é 409', async () => {
+    const e = await emprestimo()
+    await pedir(COBR, e)
+    expect((await falha(pedir(COBR, e)))?.codigo).toBe('PEDIDO_JA_EXISTE')
+    await receber(ADMIN, e, { parcela: 3 })
+    expect((await falha(pedir(COBR, e, { parcela: 3 })))?.codigo).toBe('PARCELA_PAGA')
+  })
+  it('aprovar aplica o desconto; cobrir o resto quita a parcela; quitar a última fecha o empréstimo', async () => {
+    const e = await emprestimo({ parcelas: 2, taxa: 20 })
+    const a = await pedir(COBR, e, { valor: 100 })
+    expect((await falha(apr.aprovar(COBR, a.id)))?.status).toBe(403)
+    expect(await apr.aprovar(ADMIN, a.id)).toMatchObject({ status: 'APROVADO' })
+    expect(await parcela(e, 1)).toMatchObject({ desconto: 100, falta: 2900 })
+    for (const n of [1, 2]) {
+      const f = (await parcela(e, n)).falta
+      await apr.aprovar(ADMIN, (await pedir(COBR, e, { parcela: n, valor: f })).id)
+    }
+    expect((await emp.obter(ADMIN, e)).status).toBe('QUITADA')
+  })
+  it('responder de novo é 409; recusar guarda o motivo e não mexe na parcela', async () => {
+    const e = await emprestimo()
+    const a = await pedir(COBR, e)
+    expect(await apr.recusar(ADMIN, a.id, 'Margem apertada')).toMatchObject({ status: 'RECUSADO', resposta: 'Margem apertada' })
+    expect((await falha(apr.aprovar(ADMIN, a.id)))?.codigo).toBe('PEDIDO_JA_RESPONDIDO')
+    expect((await parcela(e, 1)).desconto).toBe(0)
+  })
+  it('a parcela mudou depois do pedido: aprovar é 409 (desatualizado) e o pedido segue pendente', async () => {
+    const e = await emprestimo()
+    const a = await pedir(COBR, e, { valor: 1000 })
+    await receber(ADMIN, e, { valor: 800, resto: 'FICA', novoVencimento: '2026-10-20' })
+    expect((await falha(apr.aprovar(ADMIN, a.id)))?.codigo).toBe('PEDIDO_DESATUALIZADO')
+    expect((await apr.recusar(ADMIN, a.id)).status).toBe('RECUSADO')
+  })
+  it('dentro do recebimento: o pagamento é lançado, o resto fica devendo e nasce o pedido; aprovar quita', async () => {
+    const e = await emprestimo()
+    const r = await receber(COBR, e, { valor: 1000, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'Cliente só tinha 1.000' } })
+    expect(r.efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 333.34, vencimento: '2026-10-20' }])
+    await apr.aprovar(ADMIN, r.pedidoDescontoId!)
+    expect(await parcela(e, 1)).toMatchObject({ pago: 1000, desconto: 333.34, falta: 0 })
+  })
+  it('dentro do recebimento, já existe pedido pendente: 409 e o pagamento NÃO é lançado', async () => {
+    const e = await emprestimo()
+    await pedir(COBR, e)
+    expect((await falha(receber(COBR, e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'outro pedido' } })))?.status).toBe(409)
+    expect((await emp.obter(ADMIN, e)).recebido).toBe(0)
+  })
+  it('listar: o administrador vê os de empréstimo e o cobrador só os dele', async () => {
+    const a = await emprestimo({}, 3); await pedir(COBR, a)
+    expect((await apr.listar(ADMIN, { limite: 100 })).itens.some((x) => x.alvo === 'EMPRESTIMO' && x.operacaoId === a)).toBe(true)
+    expect((await apr.listar(COBR2, { limite: 100 })).itens).toHaveLength(0)
   })
 })

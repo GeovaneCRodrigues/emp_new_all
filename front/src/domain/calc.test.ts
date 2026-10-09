@@ -96,20 +96,48 @@ describe('simularVenda', () => {
 })
 
 describe('empréstimo', () => {
-  it('parcelado: juros simples ao mês sobre o capital', () => {
-    const plano = planoEmprestimo({ capital: 5000, mod: 'PARCELADO', taxa: 10, n: 6, data: '2026-06-25' })
-    expect(plano.every((p) => p.valor === 1333.34)).toBe(true) // 5000 × 1,6 ÷ 6
+  it('parcelado: juro em % NO TOTAL — 3.000 a 30% em 6x são 6 × 650,00 (exemplo do plano)', () => {
+    const plano = planoEmprestimo({ capital: 3000, mod: 'PARCELADO', taxa: 30, n: 6, data: '2026-10-08' })
+    expect(plano.every((p) => p.valor === 650)).toBe(true)
+  })
+  it('parcelado: 5.000 a 60% em 6x são 6 × 1.333,34 (os 10% ao mês de antes × 6)', () => {
+    const plano = planoEmprestimo({ capital: 5000, mod: 'PARCELADO', taxa: 60, n: 6, data: '2026-06-25' })
+    expect(plano.every((p) => p.valor === 1333.34)).toBe(true)
+    expect(plano[0].venc).toBe('2026-07-25')
+  })
+  it('exemplos do plano: 6.000 de total = 100%; parcela de 700 em 6x = 4.200 = 40%', () => {
+    expect(planoEmprestimo({ capital: 3000, mod: 'PARCELADO', taxa: 100, n: 6, data: '2026-10-08' })[0].valor).toBe(1000)
+    expect(planoEmprestimo({ capital: 3000, mod: 'PARCELADO', taxa: 40, n: 6, data: '2026-10-08' })[0].valor).toBe(700)
   })
   it('só juros: capital na última parcela', () => {
     const plano = planoEmprestimo({ capital: 3000, mod: 'JUROS', taxa: 12, n: 3, data: '2026-05-10' })
     expect(plano.map((p) => p.valor)).toEqual([360, 360, 3360])
   })
-  it('diária: pula domingo', () => {
+  it('só juros, 1.000 a 10% em 6x semanal: 5x de 100,00 e a última de 1.100,00 (exemplo do plano)', () => {
+    const plano = planoEmprestimo({ capital: 1000, mod: 'JUROS', taxa: 10, n: 6, data: '2026-10-08', freq: 'SEMANAL' })
+    expect(plano.map((p) => p.valor)).toEqual([100, 100, 100, 100, 100, 1100])
+  })
+  it('semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10…', () => {
+    const plano = planoEmprestimo({ capital: 1000, mod: 'PARCELADO', taxa: 30, n: 3, data: '2026-10-08', freq: 'SEMANAL', primeira: '2026-10-15' })
+    expect(plano.map((p) => p.venc)).toEqual(['2026-10-15', '2026-10-22', '2026-10-29'])
+  })
+  it('quinzenal: de 15 em 15 dias; sem 1º vencimento, um período depois', () => {
+    expect(planoEmprestimo({ capital: 1000, mod: 'PARCELADO', taxa: 30, n: 3, data: '2026-10-08', freq: 'QUINZENAL' }).map((p) => p.venc)).toEqual(['2026-10-23', '2026-11-07', '2026-11-22'])
+  })
+  it('dia 31: sem 1º vencimento escolhido volta a 31; escolhido vale o dia dele', () => {
+    expect(planoEmprestimo({ capital: 1000, mod: 'PARCELADO', taxa: 30, n: 3, data: '2026-01-31' }).map((p) => p.venc)).toEqual(['2026-02-28', '2026-03-31', '2026-04-30'])
+    expect(planoEmprestimo({ capital: 1000, mod: 'PARCELADO', taxa: 30, n: 3, data: '2026-01-31', primeira: '2026-02-28' }).map((p) => p.venc)).toEqual(['2026-02-28', '2026-03-28', '2026-04-28'])
+  })
+  it('diária: pula domingo; taxa no total (1.000 a 20% em 24x = 50,00)', () => {
     const plano = planoEmprestimo({ capital: 1000, mod: 'DIARIA', taxa: 20, n: 3, data: '2026-10-03' }) // sábado
     expect(plano.map((p) => p.venc)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
+    expect(planoEmprestimo({ capital: 1000, mod: 'DIARIA', taxa: 20, n: 24, data: '2026-09-24' }).every((p) => p.valor === 50)).toBe(true)
+  })
+  it('diária: 1º vencimento num domingo vai para a segunda', () => {
+    expect(planoEmprestimo({ capital: 100, mod: 'DIARIA', taxa: 10, n: 2, data: '2026-10-01', primeira: '2026-10-04' }).map((p) => p.venc)).toEqual(['2026-10-05', '2026-10-06'])
   })
   it('contas do empréstimo usam o capital como investido', () => {
-    const e: Emprestimo = { tipo: 'EMP', id: 2, clienteId: 1, data: '2026-10-01', capital: 1000, mod: 'PARCELADO', taxa: 10, parcelas: [parcela(1, 550, 550), parcela(2, 550)], indicadorId: 0, pct: 0, status: 'ATIVA' }
+    const e: Emprestimo = { tipo: 'EMP', id: 2, clienteId: 1, data: '2026-10-01', capital: 1000, mod: 'PARCELADO', taxa: 10, freq: 'MENSAL', parcelas: [parcela(1, 550, 550), parcela(2, 550)], indicadorId: 0, pct: 0, status: 'ATIVA' }
     const k = contasEmp(e, HOJE)
     expect(k.lucroTotal).toBe(100)
     expect(k.capitalDeVolta).toBe(550)

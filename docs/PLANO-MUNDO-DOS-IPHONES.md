@@ -100,7 +100,7 @@ O Geovane quer começar um front novo do zero, em outro repositório, a partir d
 | **Admin** | Tudo | Tudo, inclusive aprovar pedidos e conferir o fechamento do dia | — |
 | **Vendedor** | Estoque com **preço de venda**, os clientes dele, as vendas dele, Simulador | Vender, mandar contrato, cadastrar cliente | Ver **custo e lucro** em qualquer tela; mexer em caixa ou repasse |
 | **Cobrador** | Só a **carteira dele** (clientes com `responsável = ele`) | Dar baixa no que recebeu, mandar recibo, chamar no WhatsApp, fechar o dia | Dar desconto, acordo ou retomada sem aprovação; ver lucro, caixa da loja ou estoque |
-| **Indicador** | Só os **clientes que ele indicou**, as parcelas deles e os repasses dele | Ver, chamar o cliente no WhatsApp, mandar indicação nova | **Dar baixa** ("só nós aqui damos baixa"); ver cliente de outro indicador |
+| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles, o estoque (preço de venda) e os repasses dele | **Cobrar** os clientes dele e **avisar que recebeu**, mandar indicação (cliente ou venda), simular | **Cadastrar venda** (quem cadastra é a loja). **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
 
 - O cobrador **pede** desconto, acordo ou retomada, e o pedido vai para a fila "Esperando sua aprovação" do admin (tela Equipe). A parcela só muda quando o admin aprova.
 - **Fechamento do dia do cobrador:** ele vê quanto recebeu em dinheiro e em Pix e toca em "Fechar o dia". Isso vai pro admin marcar como conferido.
@@ -115,12 +115,25 @@ Layout geral:
 - No celular fica uma barra embaixo com um botão central em destaque.
 - Botões, não links, na navegação do celular.
 - Campos de dinheiro usam máscara BRL que digita pelos centavos: digitar `400000` vira `4.000,00`.
+- **Campos de data** (pedido do Geovane): aparecem como `dd/mm/aaaa`, dá pra digitar só os números (`08112026` vira `08/11/2026`) ou tocar no ícone e escolher num **calendário** que abre embaixo do campo, com atalhos "Hoje" e "Daqui a 30 dias". Dias fora do permitido (antes da data do empréstimo, no futuro para "quando recebeu") ficam apagados.
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
+- Toda modal tem um botão **"x"** redondo no canto de cima, à direita, **saindo um pouco pra fora** da modal (no celular, sai por cima da borda). Ele fica fora da área que rola, então está sempre visível. Esc e clicar fora também fecham. Pedido do Geovane.
+- Trocar uma opção dentro da modal (pílulas, passos) **não reabre nem anima a modal de novo** e não volta a rolagem pro topo; só o conteúdo muda. Pedido do Geovane ("parece que dá reload").
+- **Sair do sistema** (pedido do Geovane, que não achou o botão):
+  - Computador: ícone de sair ao lado do nome, no rodapé do menu lateral (admin), ou o item "Sair do sistema" no fim do menu (indicador, cobrador e vendedor).
+  - Celular: no admin fica no fim do **Mais**. Nos outros perfis, a bolinha com as iniciais no canto da barra de cima abre **Minha conta** com nome, perfil, login e "Sair do sistema".
+  - Sair limpa a sessão e volta pra tela de **Entrar** (e-mail ou WhatsApp, senha, "Esqueci a senha").
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.
 - **Botão Novo** (central no celular, e o botão de destaque da lateral no computador): abre a escolha entre **Venda de iPhone**, **Empréstimo** e **Só simular**. Pedido do Geovane.
-- **Mais / lateral:** Operações, Simulador, Clientes, Cronograma, Caixa, Relatórios, Contratos, Indicadores e repasses, Equipe, Configurações.
+- **Lateral (computador), em grupos** (pedido do Geovane):
+  - **Dia a dia:** Início, Cobranças, Cronograma, Caixa, Simulador.
+  - **Cadastros:** Clientes, Estoque, Operações, Contratos.
+  - **Gestão:** Indicadores e repasses, Equipe, Relatórios.
+  - **Configurações** fica sozinho no rodapé da lateral, logo acima do usuário.
+- **Mais (celular):** os mesmos grupos, sem o que já está na barra de baixo, e Configurações por último.
+- Nas cobranças, parcela atrasada mostra a **data de vencimento** ("venceu 01/09") além dos dias de atraso.
 - **Início:** o que cobrar hoje, atrasados, vendas do mês, lucro no bolso.
 - **Cobranças:**
   - abas Tudo / iPhones / Empréstimos;
@@ -130,6 +143,16 @@ Layout geral:
   - abas iPhones / Empréstimos, com **os mesmos 3 números no topo nas duas**: A receber, Capital na rua, Lucro por vir;
   - botão no topo "+ Venda" ou "+ Empréstimo", conforme a aba;
   - ficha da operação: recebido/falta, barra "seu capital de volta", linha do tempo das parcelas, últimos pagamentos com Recibo, renegociar/mudar vencimento, retomar aparelho.
+- **Novo empréstimo em 3 passos** (pedido do Geovane):
+  1. **Cliente e valor:** cliente, quanto vai emprestar, data do empréstimo (padrão: hoje) e indicação.
+  2. **Como paga:**
+     - Parcelado (capital + juros divididos) ou Só juros (o juro a cada parcela, e o capital junto da última);
+     - de quanto em quanto tempo: Mensal, Quinzenal (15 dias), Semanal (7 dias) ou Diária (todo dia menos domingo, sempre parcelado);
+     - quantidade de parcelas, com atalhos e campo pra digitar;
+     - **juros:** no parcelado e na diária é **% no total**, padrão **30%**, atalhos 20/30/50/80/100% e campo livre (pode passar de 100%). No só juros é % por parcela;
+     - campos **"Total que ele paga"** e **"Valor da parcela"** (no só juros, "Juro de cada parcela"). Mexeu em um, os outros e o % se ajustam.
+  3. **Datas e confirmar:** 1º vencimento (sugere um período depois; no mensal, o mesmo dia do mês seguinte), lista de todas as parcelas com data, dia da semana e valor, e o resumo de total e lucro.
+- **Cronograma:** tem **busca por nome do cliente** (ignora acento). Com busca, o calendário mostra só os dias dele e embaixo vêm todas as parcelas dele no mês.
 - **Nova venda em 3 passos:** Aparelho, Cliente, Pagamento.
   - Pagamento tem preço, entrada, troca, parcelas de 1 a 10x, dia do vencimento e indicação.
   - Ao lado fica o resumo com juros, total, custo, parte do indicador, seu lucro e em qual parcela o capital volta.
@@ -163,10 +186,20 @@ Layout geral:
 - **Início:** vendas do mês, contratos esperando assinatura (com Reenviar), aparelhos disponíveis e clientes dele com atraso.
 
 ### Indicador
-- **Barra de baixo:** Início, Clientes, **Indicar** (central), Cobrança, Repasse. A lateral também tem Níveis.
-- **Início:** quanto tem pra receber, quanto já recebeu e quanto ainda vai ganhar, além do nível e quanto falta pro próximo.
-- **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, e o status de cada parcela.
-- **Cobrança:** só para olhar, com o aviso "Quem dá baixa é a loja".
+O indicador **cobra** os clientes dele, **vê as vendas dele** e continua com repasse e níveis. Pedido do Geovane (09/10). **Quem cadastra a venda é sempre a loja (admin)**: ele vê as vendas dele, mas não cria venda.
+- **Barra de baixo:** Início, Cobrança, **Novo** (central), Clientes, Repasse. Minhas vendas, Estoque, Simulador e Níveis ficam na lateral no computador, e no fim do Início no celular.
+- **Novo:** Recebi de um cliente, Indicar cliente ou venda (a loja cadastra a venda no nome dele), Só simular.
+- **Início:** atalhos Indicar / Recebi / Simular, "Pra cobrar hoje", quanto tem pra receber, quanto já recebeu e vai ganhar, e o nível.
+- **Sem tela de venda:** fechou com um cliente, ele manda como **indicação com o aparelho** e a loja cadastra a venda com ele como indicador (o % dele).
+- **Estoque:** só consulta, com preço de venda (sem custo). Cada aparelho tem **Indicar**, que abre a indicação já com o modelo preenchido.
+- **Simulador:** o botão final é **"Indicar assim"**, que abre a indicação com o aparelho e as parcelas na observação.
+- **Cobrança:** Lista (Atrasadas, Esta semana, Próximas, Pagas) e Calendário, só com os clientes dele. Cada parcela tem **Recebi** e WhatsApp.
+  - O **Recebi** abre o mesmo registro de recebimento, com opção de **anexar comprovante**, e o botão é **"Avisar a loja que recebi"**.
+  - Isso **não dá baixa**: a parcela fica "esperando a loja" e aparece pro admin em **Equipe › Esperando sua aprovação** como **Baixa**, com "Confirmar baixa" ou "Recusar". Confirmando, registra o pagamento (recebido por ele) e o recibo vai pro cliente. Recusando, volta a ficar em aberto.
+  - Desconto vira pedido de **Desconto** pro admin, igual ao cobrador.
+  - No admin, a cobrança mostra "Roberto avisou R$ X" na parcela.
+- **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, com Recebi nas parcelas abertas.
+- **Minhas vendas:** as vendas com ele como indicador, com status. Só leitura, com o botão Indicar cliente.
 - **Repasse:** valor por cliente e repasses recebidos.
 - **Indicar:** manda o nome e o telefone, e o pedido aparece pro admin como "Indicações esperando". O admin aceita e a pessoa vira cliente.
 - Ele vê **vendas e empréstimos** que indicou.
@@ -198,6 +231,7 @@ Lido nas migrations em `backend/src/database/migrations`:
    - `numero_recibo`.
 5. **Remarcação do restante:** quando o pagamento é parcial, atualiza `vencimento` e preenche `vencimento_original` (para empréstimos, criar o mesmo campo).
 6. **Pedidos de aprovação:** tabela `aprovacoes`.
+   - Novo tipo **`BAIXA`**: pagamento avisado pelo indicador (valor, data, forma, comprovante opcional). Só vira recebimento quando o admin confirma. Enquanto isso a parcela mostra "esperando a loja".
    - Campos: `tipo` (`DESCONTO | ACORDO | RETOMADA | FECHAMENTO`), `solicitado_por`, `operacao` (venda ou empréstimo), `parcela`, `valor`, `motivo`, `status` (`PENDENTE | APROVADO | RECUSADO`), `respondido_por`, datas.
    - A ação só é aplicada quando aprovada.
 7. **Fechamento do dia:** tabela `fechamentos_caixa`, com usuário, data, total em dinheiro, total em Pix, status e quem conferiu.
@@ -214,7 +248,7 @@ Lido nas migrations em `backend/src/database/migrations`:
 1. **Visual e navegação:** marca nova, tema, fonte, menu lateral e barra de baixo do admin; Início, Cobranças, Operações (abas) e Estoque, usando só o backend que já existe.
 2. **Venda e Simulador:** regra dos 10% por parcela (configurável), Simulador, Nova venda em 3 passos com o resumo de lucro.
 3. **Recebimento novo:** parcial com nova data, a mais abatendo as próximas, forma de pagamento, quem recebeu, transação, recibo (WhatsApp) e desfazer.
-4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (só leitura) e indicações.
+4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (vê as vendas dele, cobra e avisa recebimento; venda e baixa são feitas pela loja) e indicações.
 5. **Equipe:** perfis vendedor e cobrador, carteira, áreas de cada um, pedidos de aprovação, fechamento do dia, auditoria e escopo no backend.
 
 Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a tela ao Geovane com um link de prévia; ele prefere link a print. Não faça merge sem o OK dele.
@@ -228,6 +262,7 @@ Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a 
   - Resultado: a parcela fica com 700 e vence 15/10, `vencimento_original` = 01/09, e ela sai dos atrasados.
   - O recibo diz "ainda ficam 700,00, para 15/10".
 - **Pagamento a mais:** parcelas de 300 e cliente paga 750. Quita a atual e a próxima, e abate 150 da seguinte. É uma transação e um recibo só.
+- **Empréstimo:** 3.000 a 30% no total em 6x dá 3.900 (6x de 650,00). Digitando 6.000 de total, o % vira 100% (6x de 1.000,00). Digitando parcela de 700 em 6x, total 4.200 e 40%. Só juros, 1.000 a 10% em 6x: 5x de 100,00 e a última de 1.100,00. Parcela arredonda pra cima no centavo. Semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10…
 - **Vendedor:** em nenhuma tela ou resposta da API aparece custo (`valor_compra`, `valor_investido`) ou lucro.
 - **Indicador:** a API não devolve cliente de outro indicador, nem com o id na URL.
 

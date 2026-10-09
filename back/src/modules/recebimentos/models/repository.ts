@@ -1,5 +1,6 @@
 import type { Knex } from 'knex'
 import { addDia } from '../../../shared/datas.js'
+import { NOME_EMPRESTIMO_SQL, nomeEmprestimo } from '../../../shared/sql.js'
 import type { Alvo, AjustesTransacao, Aba, EscopoRecebimentos, EstadoParcela, FormaPagamento, LinhaCobranca, OperacaoTravada, PagamentoDaOperacao, ParcelaAberta, RecebimentoDaTransacao, ReciboRegistro, ResultadoCobrancas, ResumoRecibo, TransacaoRegistro } from './types.js'
 
 /** Operações que precisam acontecer juntas, na mesma transação do banco. */
@@ -56,8 +57,6 @@ const T = {
 /** Quanto já entrou na parcela `p`: recebimentos de transações que não foram desfeitas. */
 const pagoSql = (alvo: Alvo) => `coalesce((select sum(r.valor) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${T[alvo].fk} = p.id and t.desfeita_em is null), 0)`
 
-const NOME_MOD = { PARCELADO: 'parcelado', JUROS: 'só juros', DIARIA: 'diária' } as const
-
 export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
   const escopoSql = (q: Knex.QueryBuilder, e: EscopoRecebimentos) => { if (e.tipo === 'CARTEIRA') q.where('c.responsavel_id', e.usuarioId); return q }
 
@@ -72,13 +71,13 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
             escopoSql(q, escopo)
             if (alvo === 'VENDA') q.join('bens as b', 'b.id', 'o.bem_id')
             const cols = ['o.id', 'o.cliente_id', 'o.status', `o.${t.dataCol} as data`, 'c.nome as nome', 'c.fone as fone', trx.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n`)]
-            const l = await q.first<{ id: number; cliente_id: number; status: OperacaoTravada['status']; data: Date | string; nome: string; fone: string; n: string; modelo?: string; modalidade?: keyof typeof NOME_MOD; taxa?: string } | undefined>(
-              ...cols, ...(alvo === 'VENDA' ? ['b.modelo as modelo'] : ['o.modalidade as modalidade', 'o.taxa as taxa']),
+            const l = await q.first<{ id: number; cliente_id: number; status: OperacaoTravada['status']; data: Date | string; nome: string; fone: string; n: string; modelo?: string; modalidade?: OperacaoTravada['modalidade'] & string; periodicidade?: string; taxa?: string } | undefined>(
+              ...cols, ...(alvo === 'VENDA' ? ['b.modelo as modelo'] : ['o.modalidade as modalidade', 'o.periodicidade as periodicidade', 'o.taxa as taxa']),
             )
             if (!l) return null
             return {
               id: l.id, alvo, clienteId: l.cliente_id, clienteNome: l.nome, clienteFone: l.fone, status: l.status, data: dia(l.data)!, nParcelas: Number(l.n),
-              descricao: alvo === 'VENDA' ? l.modelo! : `Empréstimo ${NOME_MOD[l.modalidade!]}`, modalidade: alvo === 'EMPRESTIMO' ? l.modalidade! : null, taxa: alvo === 'EMPRESTIMO' ? Number(l.taxa) : null,
+              descricao: alvo === 'VENDA' ? l.modelo! : nomeEmprestimo(l.modalidade!, l.periodicidade!), modalidade: alvo === 'EMPRESTIMO' ? l.modalidade! : null, taxa: alvo === 'EMPRESTIMO' ? Number(l.taxa) : null,
             }
           },
           async parcelas(alvo, operacaoId) {
@@ -156,11 +155,11 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       // a operação: venda (pela entrada ou pelas parcelas) ou empréstimo (pelas parcelas)
       const v = await db('recebimentos as r').leftJoin('venda_parcelas as vp', 'vp.id', 'r.venda_parcela_id').leftJoin('emprestimo_parcelas as ep', 'ep.id', 'r.emprestimo_parcela_id')
         .leftJoin('vendas as v', 'v.id', db.raw('coalesce(r.venda_id, vp.venda_id)')).leftJoin('bens as b', 'b.id', 'v.bem_id').leftJoin('emprestimos as e', 'e.id', 'ep.emprestimo_id')
-        .where('r.transacao_id', id).first<{ venda_id: number | null; modelo: string | null; emprestimo_id: number | null; modalidade: keyof typeof NOME_MOD | null } | undefined>('v.id as venda_id', 'b.modelo', 'e.id as emprestimo_id', 'e.modalidade')
+        .where('r.transacao_id', id).first<{ venda_id: number | null; modelo: string | null; emprestimo_id: number | null; modalidade: string | null; periodicidade: string | null } | undefined>('v.id as venda_id', 'b.modelo', 'e.id as emprestimo_id', 'e.modalidade', 'e.periodicidade')
       const alvo: Alvo | null = v?.venda_id ? 'VENDA' : v?.emprestimo_id ? 'EMPRESTIMO' : null
       return {
         ...paraTransacao(l), tipo: l.eh_entrada ? ('ENTRADA' as const) : ('PARCELA' as const), alvo, operacaoId: v?.venda_id ?? v?.emprestimo_id ?? null,
-        clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, descricao: alvo === 'EMPRESTIMO' ? `Empréstimo ${NOME_MOD[v!.modalidade!]}` : (v?.modelo ?? ''), responsavelId: l.responsavel_id,
+        clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, descricao: alvo === 'EMPRESTIMO' ? nomeEmprestimo(v!.modalidade!, v!.periodicidade!) : (v?.modelo ?? ''), responsavelId: l.responsavel_id,
       }
     },
 
@@ -190,7 +189,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
         escopoSql(q, escopo)
         return q.select(
           db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone',
-          db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : "('Empréstimo ' || case o.modalidade when 'PARCELADO' then 'parcelado' when 'JUROS' then 'só juros' else 'diária' end) as descricao"),
+          db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : `${NOME_EMPRESTIMO_SQL.replace(/\be\./g, 'o.')} as descricao`),
           db.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n_parcelas`),
           db.raw(`${pagoSql(alvo)} as pago`),
           db.raw(`(p.valor - ${pagoSql(alvo)} - p.desconto) as falta`),

@@ -25,7 +25,7 @@ export const dmyA = (iso: Iso) => `${dmy(iso)}/${iso.slice(0, 4)}`
 export const iniciais = (nome: string) =>
   nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 
-export const arred2 = (v: number) => Math.round(v * 100) / 100
+export const arred2 = (v: number) => Math.round(v * 100) / 100 + 0 // "+ 0" troca -0 por 0
 
 /** Arredonda para cima no centavo, ignorando ruído de ponto flutuante (1200,0000000001 → 1200,00). */
 export const ceilCent = (v: number) => Math.ceil(Math.round(v * 1e6) / 1e4) / 100

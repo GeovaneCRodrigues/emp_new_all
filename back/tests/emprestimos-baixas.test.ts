@@ -36,7 +36,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
 
   /** Empréstimo criado em `hoje`. Parcelado padrão: 5.000 a 10% em 6x de 1.333,34. */
   async function emprestimo(corpo: object = {}, cliente = id.cA): Promise<number> {
-    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...corpo })
+    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
     expect(r.statusCode).toBe(201)
     return r.json().id
   }
@@ -105,7 +105,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect(await db!('auditoria').where({ acao: 'RECEBIMENTO_REGISTRADO', entidade: 'emprestimo', entidade_id: e })).toHaveLength(1)
     })
     it('quitar todas as parcelas fecha o empréstimo; pagar de novo é 409', async () => {
-      const e = await emprestimo({ parcelas: 2 }) // 5.000 × 1,2 ÷ 2 = 2 parcelas de 3.000
+      const e = await emprestimo({ parcelas: 2, taxa: 20 }) // 5.000 × 1,2 ÷ 2 = 2 parcelas de 3.000
       expect((await receber('admin', e, { parcela: 1, valor: 3000 })).json().quitada).toBe(false)
       expect(await status(e)).toBe('ATIVA')
       expect((await receber('admin', e, { parcela: 2, valor: 3000 })).json().quitada).toBe(true)
@@ -257,7 +257,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect((await ficha(e)).recebido).toBe(0)
     })
     it('desfazer devolve a data antiga da parcela remarcada e reabre o empréstimo quitado', async () => {
-      const e = await emprestimo({ parcelas: 1 })
+      const e = await emprestimo({ parcelas: 1, taxa: 10 })
       const r = await receber('admin', e, { valor: 5500, resto: 'FICA' })
       expect(r.json().quitada).toBe(true)
       expect(await status(e)).toBe('QUITADA')
@@ -430,7 +430,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect(await db!('auditoria').where({ acao: 'DESCONTO_CONCEDIDO', entidade: 'emprestimo', entidade_id: e })).toHaveLength(1)
     })
     it('desconto que cobre o resto quita a parcela; quitar a última parcela fecha o empréstimo', async () => {
-      const e = await emprestimo({ parcelas: 2 }) // 2 × 3.000
+      const e = await emprestimo({ parcelas: 2, taxa: 20 }) // 2 × 3.000
       for (const n of [1, 2]) {
         const pid = (await pedir('cobrador', e, { parcela: n, valor: 3000 })).json().id
         await aprovar('admin', pid)
@@ -519,6 +519,35 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect(f.falta).toBeGreaterThanOrEqual(0)
       expect(f.pago + f.desconto).toBeLessThanOrEqual(1333.34 + 0.001)
       expect([a.statusCode, b.statusCode].every((c) => [200, 201, 400, 409].includes(c))).toBe(true)
+    })
+  })
+
+  // ===================== frequência: nome e regras nas baixas =====================
+  describe('frequência do empréstimo nas baixas', () => {
+    it('o nome com a frequência vai no recibo, no texto do WhatsApp, nas cobranças e no pedido de desconto', async () => {
+      const e = await emprestimo({ periodicidade: 'QUINZENAL', parcelas: 3, taxa: 30, capital: 3000 })
+      await db!('emprestimo_parcelas').where({ emprestimo_id: e, numero: 1 }).update({ vencimento: '2026-10-01' })
+      const l = (await req('GET', '/api/cobrancas?aba=atrasadas&tipo=EMPRESTIMO&limite=100', 'admin')).json().itens.find((x: { operacaoId: number }) => x.operacaoId === e)
+      expect(l.aparelho).toBe('Empréstimo parcelado quinzenal')
+      const ped = await req('POST', '/api/aprovacoes', 'cobrador', { alvo: 'EMPRESTIMO', operacaoId: e, parcela: 2, valor: 50, motivo: 'Cliente pediu' })
+      expect(ped.json().aparelho).toBe('Empréstimo parcelado quinzenal')
+      const r = await receber('admin', e, { valor: 1300 })
+      expect(r.json().recibo.aparelho).toBe('Empréstimo parcelado quinzenal')
+      expect(r.json().recibo.mensagem).toContain('do empréstimo parcelado quinzenal.')
+    })
+    it('mensal fica só "parcelado", semanal só juros fica "só juros semanal", diária fica "diária"', async () => {
+      const m = await emprestimo()
+      expect((await receber('admin', m, {})).json().recibo.aparelho).toBe('Empréstimo parcelado')
+      const sj = await emprestimo({ modalidade: 'JUROS', periodicidade: 'SEMANAL', capital: 1000, taxa: 10, parcelas: 6 })
+      expect((await receber('admin', sj, { valor: 100 })).json().recibo.aparelho).toBe('Empréstimo só juros semanal')
+      const d = await emprestimo({ modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 24 })
+      expect((await receber('admin', d, { valor: 50 })).json().recibo.aparelho).toBe('Empréstimo diária')
+    })
+    it('só juros semanal amortiza o capital igual ao mensal (o juro é de cada semana)', async () => {
+      const e = await emprestimo({ modalidade: 'JUROS', periodicidade: 'SEMANAL', capital: 1000, taxa: 10, parcelas: 6 }) // 100 por semana, 1.100 na última
+      const r = await receber('admin', e, { valor: 600 }) // 100 de juro + 500 de excedente → capital 500
+      expect(r.json().efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }, { tipo: 'AMORTIZA', valor: 500, capitalRestante: 500 }])
+      expect(await valores(e)).toEqual([100, 50, 50, 50, 50, 550])
     })
   })
 

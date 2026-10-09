@@ -3,6 +3,8 @@ export type FormaPagamento = 'Pix' | 'Dinheiro' | 'Cartão'
 export type EstadoBem = 'DISPONIVEL' | 'ENCOMENDADO' | 'VENDIDO'
 export type StatusOp = 'ATIVA' | 'QUITADA' | 'RETOMADA'
 export type ModalidadeEmp = 'PARCELADO' | 'JUROS' | 'DIARIA'
+/** De quanto em quanto tempo o cliente paga. A diária cobra todo dia menos domingo. */
+export type Periodicidade = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
 export type StatusContrato = 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO'
 
 /** Data ISO `YYYY-MM-DD`. */
@@ -93,8 +95,9 @@ export interface Emprestimo extends OpBase {
   tipo: 'EMP'
   capital: number
   mod: ModalidadeEmp
-  /** % ao mês (ou do período, na diária) */
+  /** parcelado e diária: % de juros NO TOTAL (100% = paga o dobro). Só juros: % a cada parcela. */
   taxa: number
+  freq: Periodicidade
 }
 
 export type Operacao = Venda | Emprestimo

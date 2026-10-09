@@ -1,15 +1,16 @@
 import { criarSeed } from '@/data/seed'
 import { planoEmprestimo } from '@/domain/calc'
+import { addDia } from '@/domain/datas'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import { ErroApi, type ClientesApi } from './clientes'
-import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type StatusEmprestimo } from './emprestimos'
+import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type PeriodicidadeApi, type StatusEmprestimo } from './emprestimos'
 import type { IndicadoresFake } from './indicadores.fake'
 
 interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
 export interface RegistroEmprestimo {
   id: number; cliente: { id: number; nome: string }; indicador: { id: number; nome: string } | null; pct: number; dataEmprestimo: string
-  capital: number; modalidade: ModalidadeApi; taxa: number; status: StatusEmprestimo; observacoes: string | null
+  capital: number; modalidade: ModalidadeApi; taxa: number; periodicidade: PeriodicidadeApi; status: StatusEmprestimo; observacoes: string | null
   /** só juros: quanto do capital já foi pago adiantado (conta como dinheiro recebido) */
   amortizado: number; parcelas: Parcela[]
 }
@@ -19,6 +20,8 @@ export interface EmprestimosFake extends EmprestimosApi {
 }
 
 const TODAS: ModalidadeApi[] = ['PARCELADO', 'JUROS', 'DIARIA']
+const PERIODICIDADES: PeriodicidadeApi[] = ['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA']
+const dataValida = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + 'T12:00:00Z').toISOString().slice(0, 10) === v
 const erro = (m: string) => new ErroApi(400, m)
 const inteiro = (v: unknown, c: string, min: number, max: number) => { if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw erro(`${c} precisa ser um número inteiro entre ${min} e ${max}`); return v }
 
@@ -36,7 +39,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const ind = seed.indicadores.find((i) => i.id === e.indicadorId)
     return {
       id: e.id, cliente: { id: cli.id, nome: cli.nome }, indicador: ind ? { id: ind.id, nome: ind.nome } : null, pct: e.pct, dataEmprestimo: e.data,
-      capital: e.capital, modalidade: e.mod, taxa: e.taxa, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null, amortizado: 0,
+      capital: e.capital, modalidade: e.mod, taxa: e.taxa, periodicidade: e.freq, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null, amortizado: 0,
       parcelas: e.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, vencimentoOriginal: p.vencOriginal ?? null, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((x, g) => x + g.valor, 0), quitadaEm: p.pago })),
     }
   })
@@ -54,7 +57,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const lucroTotal = arred2(total - r.capital)
     const status: StatusEmprestimo = r.status === 'CANCELADA' ? 'CANCELADA' : falta <= 0.009 ? 'QUITADA' : 'ATIVA'
     const base: EmprestimoApi = {
-      id: r.id, cliente: r.cliente, modalidade: r.modalidade, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
+      id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
       valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
       parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm })),
     }
@@ -75,8 +78,29 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       if (typeof e.modalidade !== 'string' || !TODAS.includes(e.modalidade)) throw erro('modalidade deve ser PARCELADO, JUROS ou DIARIA')
       if (!MODALIDADES_LIBERADAS.includes(e.modalidade)) throw erro('Esta modalidade ainda não está disponível')
       if (typeof e.capital !== 'number' || !Number.isFinite(e.capital) || e.capital <= 0 || e.capital > 1e8) throw erro('capital precisa ser maior que zero')
-      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > 100) throw erro('taxa precisa ficar entre 0 e 100 (% ao mês)')
-      const n = inteiro(e.parcelas, 'parcelas', 1, 60)
+      const taxaMax = e.modalidade === 'JUROS' ? 100 : 999
+      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > taxaMax) {
+        throw erro(e.modalidade === 'JUROS' ? 'taxa precisa ficar entre 0 e 100 (% a cada parcela)' : 'taxa precisa ficar entre 0 e 999 (% de juros no total)')
+      }
+      const taxa = Math.round(e.taxa * 1e4) / 1e4
+      const n = inteiro(e.parcelas, 'parcelas', 1, 120)
+      const periodicidade = (e.periodicidade === undefined || e.periodicidade === null ? (e.modalidade === 'DIARIA' ? 'DIARIA' : 'MENSAL') : e.periodicidade) as PeriodicidadeApi
+      if (!PERIODICIDADES.includes(periodicidade)) throw erro('periodicidade deve ser MENSAL, QUINZENAL, SEMANAL ou DIARIA')
+      if ((e.modalidade === 'DIARIA') !== (periodicidade === 'DIARIA')) throw erro(e.modalidade === 'DIARIA' ? 'A diária cobra todo dia útil: não combina com outra frequência' : 'Para cobrar todo dia use a modalidade DIARIA')
+      let data = hoje
+      if (e.dataEmprestimo !== undefined && e.dataEmprestimo !== null) {
+        if (!dataValida(e.dataEmprestimo)) throw erro('dataEmprestimo precisa ser uma data válida (AAAA-MM-DD)')
+        if (e.dataEmprestimo > hoje) throw erro('A data do empréstimo não pode ser no futuro')
+        if (e.dataEmprestimo < '2020-01-01') throw erro('A data do empréstimo é antiga demais')
+        data = e.dataEmprestimo
+      }
+      let primeira: string | undefined
+      if (e.primeiroVencimento !== undefined && e.primeiroVencimento !== null) {
+        if (!dataValida(e.primeiroVencimento)) throw erro('primeiroVencimento precisa ser uma data válida (AAAA-MM-DD)')
+        if (e.primeiroVencimento < data) throw erro('O 1º vencimento não pode ser antes da data do empréstimo')
+        if (e.primeiroVencimento > addDia(data, 366)) throw erro('O 1º vencimento não pode passar de um ano depois do empréstimo')
+        primeira = e.primeiroVencimento
+      }
       const indicadorId = e.indicadorId === undefined || e.indicadorId === null ? null : inteiro(e.indicadorId, 'indicadorId', 1, 2 ** 31 - 1)
       let observacoes: string | null = null
       if (e.observacoes !== undefined && e.observacoes !== null && e.observacoes !== '') {
@@ -93,8 +117,8 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       const capital = arred2(e.capital)
       const reg: RegistroEmprestimo = {
         id: ++proximoId, cliente: { id: cliente.id, nome: cliente.nome }, indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null, pct: indicador?.pct ?? 0,
-        dataEmprestimo: hoje, capital, modalidade: e.modalidade, taxa: e.taxa, status: 'ATIVA', observacoes, amortizado: 0,
-        parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa: e.taxa, n, data: hoje }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
+        dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, status: 'ATIVA', observacoes, amortizado: 0,
+        parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)

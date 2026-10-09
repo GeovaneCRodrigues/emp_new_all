@@ -9,7 +9,7 @@ import type { EmprestimoCalculado, ResultadoLista, ResumoEmprestimos } from '../
 export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
   const e = c.emprestimo
   const base = {
-    id: e.id, cliente: e.cliente, modalidade: e.modalidade, dataEmprestimo: e.dataEmprestimo, observacoes: e.observacoes,
+    id: e.id, cliente: e.cliente, modalidade: e.modalidade, periodicidade: e.periodicidade, dataEmprestimo: e.dataEmprestimo, observacoes: e.observacoes,
     nParcelas: e.parcelas.length, valorParcela: e.parcelas[0]?.valor ?? 0,
     total: c.total, recebido: c.recebido, falta: c.falta, atrasadas: c.atrasadas, status: c.status,
     parcelas: e.parcelas.map((p) => ({

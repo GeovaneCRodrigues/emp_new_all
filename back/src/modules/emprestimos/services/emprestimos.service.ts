@@ -1,3 +1,4 @@
+import { addDia } from '../../../shared/datas.js'
 import { naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
@@ -5,8 +6,8 @@ import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import { contas } from '../../vendas/services/contas.js'
 import type { EmprestimosRepository } from '../models/repository.js'
-import type { Emprestimo, EscopoEmprestimos, ModalidadeEmprestimo } from '../models/types.js'
-import { planoEmprestimo, totalDoPlano } from './calculo.js'
+import type { Emprestimo, EscopoEmprestimos, ModalidadeEmprestimo, Periodicidade } from '../models/types.js'
+import { planoEmprestimo, primeiroVencimentoPadrao, totalDoPlano } from './calculo.js'
 
 export type Entrada = Record<string, unknown>
 export type EmprestimoCalculado = { emprestimo: Emprestimo } & ReturnType<typeof contas>
@@ -24,6 +25,9 @@ export type EmprestimosService = {
 /** Modalidades já liberadas. As outras entram uma de cada vez. */
 export const MODALIDADES_LIBERADAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS', 'DIARIA']
 const TODAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS', 'DIARIA']
+const PERIODICIDADES: Periodicidade[] = ['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA']
+const DATA = /^\d{4}-\d{2}-\d{2}$/
+const dataValida = (v: unknown): v is string => typeof v === 'string' && DATA.test(v) && new Date(v + 'T12:00:00Z').toISOString().slice(0, 10) === v
 const LIMITE_MAX = 100
 const DINHEIRO_MAX = 100_000_000
 
@@ -62,8 +66,31 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const modalidade = e.modalidade as ModalidadeEmprestimo
       if (!MODALIDADES_LIBERADAS.includes(modalidade)) throw requisicaoInvalida('Esta modalidade ainda não está disponível')
       if (typeof e.capital !== 'number' || !Number.isFinite(e.capital) || e.capital <= 0 || e.capital > DINHEIRO_MAX) throw requisicaoInvalida('capital precisa ser maior que zero')
-      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > 100) throw requisicaoInvalida('taxa precisa ficar entre 0 e 100 (% ao mês; na diária, % do período todo)')
-      const n = inteiro(e.parcelas, 'parcelas', 1, 60)
+      const taxaMax = modalidade === 'JUROS' ? 100 : 999
+      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > taxaMax) {
+        throw requisicaoInvalida(modalidade === 'JUROS' ? 'taxa precisa ficar entre 0 e 100 (% a cada parcela)' : 'taxa precisa ficar entre 0 e 999 (% de juros no total)')
+      }
+      const taxa = Math.round(e.taxa * 1e4) / 1e4
+      const n = inteiro(e.parcelas, 'parcelas', 1, 120)
+      // diária é a modalidade DIARIA com frequência diária; as outras frequências são só do parcelado e do só juros
+      const periodicidade = (e.periodicidade === undefined || e.periodicidade === null ? (modalidade === 'DIARIA' ? 'DIARIA' : 'MENSAL') : e.periodicidade) as Periodicidade
+      if (!PERIODICIDADES.includes(periodicidade)) throw requisicaoInvalida('periodicidade deve ser MENSAL, QUINZENAL, SEMANAL ou DIARIA')
+      if ((modalidade === 'DIARIA') !== (periodicidade === 'DIARIA')) throw requisicaoInvalida(modalidade === 'DIARIA' ? 'A diária cobra todo dia útil: não combina com outra frequência' : 'Para cobrar todo dia use a modalidade DIARIA')
+      const dia = hoje()
+      let data = dia
+      if (e.dataEmprestimo !== undefined && e.dataEmprestimo !== null) {
+        if (!dataValida(e.dataEmprestimo)) throw requisicaoInvalida('dataEmprestimo precisa ser uma data válida (AAAA-MM-DD)')
+        if (e.dataEmprestimo > dia) throw requisicaoInvalida('A data do empréstimo não pode ser no futuro')
+        if (e.dataEmprestimo < '2020-01-01') throw requisicaoInvalida('A data do empréstimo é antiga demais')
+        data = e.dataEmprestimo
+      }
+      let primeira = primeiroVencimentoPadrao(data, periodicidade)
+      if (e.primeiroVencimento !== undefined && e.primeiroVencimento !== null) {
+        if (!dataValida(e.primeiroVencimento)) throw requisicaoInvalida('primeiroVencimento precisa ser uma data válida (AAAA-MM-DD)')
+        if (e.primeiroVencimento < data) throw requisicaoInvalida('O 1º vencimento não pode ser antes da data do empréstimo')
+        if (e.primeiroVencimento > addDia(data, 366)) throw requisicaoInvalida('O 1º vencimento não pode passar de um ano depois do empréstimo')
+        primeira = e.primeiroVencimento
+      }
       const indicadorId = e.indicadorId === undefined || e.indicadorId === null ? null : inteiro(e.indicadorId, 'indicadorId', 1, 2 ** 31 - 1)
       let observacoes: string | null = null
       if (e.observacoes !== undefined && e.observacoes !== null && e.observacoes !== '') {
@@ -71,7 +98,6 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         observacoes = e.observacoes.trim()
       }
       const capital = arred2(e.capital)
-      const data = hoje()
 
       const id = await d.emprestimos.emTransacao(async (tx) => {
         const cliente = await tx.clienteExiste(clienteId)
@@ -84,9 +110,9 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         const id = await tx.criar({
           clienteId: cliente.id, indicadorId: indicador?.id ?? null,
           // o % do indicador fica congelado neste empréstimo
-          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa: e.taxa as number, observacoes,
+          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, observacoes,
         })
-        await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa: e.taxa as number, n, data }).map((p, i) => ({ numero: i + 1, ...p })))
+        await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa, n, data, periodicidade, primeira }).map((p, i) => ({ numero: i + 1, ...p })))
         return id
       })
 
@@ -94,7 +120,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const calc = calcular(emp)
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'EMPRESTIMO_CRIADO', entidade: 'emprestimo', entidadeId: id,
-        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, parcelas: emp.parcelas.length, total: calc.total },
+        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, periodicidade, dataEmprestimo: data, primeiroVencimento: emp.parcelas[0]?.vencimento ?? null, parcelas: emp.parcelas.length, total: calc.total },
       })
       await d.sincronizarNiveis?.().catch((err) => d.log?.('Falha ao sincronizar os níveis dos indicadores', err))
       return calc

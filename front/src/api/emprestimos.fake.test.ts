@@ -17,19 +17,19 @@ const IND: Sessao = { perfil: 'INDICADOR', indicadorId: 1 }
 let api: EmprestimosApi
 beforeEach(() => { api = criarEmprestimosFake({ clientes: criarClientesFake(), indicadores: criarIndicadoresFake() }) })
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: ErroApi) => e)
-const emprestar = (s: Sessao, e: object = {}) => api.criar(s, { clienteId: 3, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...e } as never)
+const emprestar = (s: Sessao, e: object = {}) => api.criar(s, { clienteId: 3, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...e } as never)
 
 describe('criar', () => {
   it('só o administrador empresta', async () => {
     for (const s of [VEND, COBR, IND]) expect((await falha(emprestar(s)))?.status).toBe(403)
   })
-  it('refaz as parcelas: 5.000 a 10% em 6x são 6 de 1.333,34, vencendo mês a mês no dia de hoje', async () => {
+  it('refaz as parcelas: 5.000 a 60% no total em 6x são 6 de 1.333,34, vencendo mês a mês no dia de hoje', async () => {
     const e = await emprestar(ADMIN)
-    expect(e).toMatchObject({ modalidade: 'PARCELADO', dataEmprestimo: '2026-10-08', capital: 5000, taxa: 10, nParcelas: 6, valorParcela: 1333.34, total: 8000.04, recebido: 0, falta: 8000.04, status: 'ATIVA', lucroTotal: 3000.04, capitalDeVolta: 0 })
+    expect(e).toMatchObject({ modalidade: 'PARCELADO', dataEmprestimo: '2026-10-08', capital: 5000, taxa: 60, periodicidade: 'MENSAL', nParcelas: 6, valorParcela: 1333.34, total: 8000.04, recebido: 0, falta: 8000.04, status: 'ATIVA', lucroTotal: 3000.04, capitalDeVolta: 0 })
     expect(e.parcelas.map((p) => p.vencimento)).toEqual(['2026-11-08', '2026-12-08', '2027-01-08', '2027-02-08', '2027-03-08', '2027-04-08'])
   })
   it('ignora totais e data mandados pela tela', async () => {
-    expect(await emprestar(ADMIN, { total: 1, dataEmprestimo: '2020-01-01' })).toMatchObject({ total: 8000.04, dataEmprestimo: '2026-10-08' })
+    expect(await emprestar(ADMIN, { total: 1, valorParcela: 1 })).toMatchObject({ total: 8000.04, dataEmprestimo: '2026-10-08' })
   })
   it('congela o % do indicador na criação', async () => {
     const e = await emprestar(ADMIN, { indicadorId: 1 })
@@ -39,8 +39,8 @@ describe('criar', () => {
   })
   it.each([
     ['cliente como texto', { clienteId: '1' }], ['modalidade inventada', { modalidade: 'SEMANAL' }], ['capital zero', { capital: 0 }], ['capital negativo', { capital: -10 }],
-    ['capital como texto', { capital: '5000' }], ['taxa zero', { taxa: 0 }], ['taxa acima de 100', { taxa: 101 }], ['zero parcelas', { parcelas: 0 }],
-    ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 61 }], ['observações enormes', { observacoes: 'x'.repeat(501) }],
+    ['capital como texto', { capital: '5000' }], ['taxa zero', { taxa: 0 }], ['taxa acima de 999', { taxa: 1000 }], ['só juros com taxa acima de 100', { modalidade: 'JUROS', taxa: 101 }], ['zero parcelas', { parcelas: 0 }],
+    ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 121 }], ['observações enormes', { observacoes: 'x'.repeat(501) }],
   ])('recusa %s (400)', async (_n, m) => { expect((await falha(emprestar(ADMIN, m)))?.status).toBe(400) })
   it('só juros: 360, 360 e 3.360 (capital na última parcela)', async () => {
     const e = await emprestar(ADMIN, { modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3 })
@@ -52,6 +52,22 @@ describe('criar', () => {
     expect(e).toMatchObject({ modalidade: 'DIARIA', nParcelas: 24, valorParcela: 50, total: 1200, lucroTotal: 200 })
     expect(e.parcelas.every((p) => new Date(p.vencimento + 'T12:00:00Z').getUTCDay() !== 0)).toBe(true)
   })
+  it('frequência semanal com 1º vencimento escolhido: 15/10, 22/10, 29/10…', async () => {
+    const e = await emprestar(ADMIN, { periodicidade: 'SEMANAL', primeiroVencimento: '2026-10-15', parcelas: 4, capital: 1000, taxa: 30 })
+    expect(e).toMatchObject({ periodicidade: 'SEMANAL', valorParcela: 325, total: 1300 })
+    expect(e.parcelas.map((p) => p.vencimento)).toEqual(['2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05'])
+  })
+  it('sem 1º vencimento: um período depois (quinzenal → +15 dias); data do empréstimo no passado parte dela', async () => {
+    expect((await emprestar(ADMIN, { periodicidade: 'QUINZENAL', parcelas: 2 })).parcelas.map((p) => p.vencimento)).toEqual(['2026-10-23', '2026-11-07'])
+    const e = await emprestar(ADMIN, { dataEmprestimo: '2026-08-10', parcelas: 3 })
+    expect(e.parcelas.map((p) => p.vencimento)).toEqual(['2026-09-10', '2026-10-10', '2026-11-10'])
+    expect(e.atrasadas).toBe(1)
+  })
+  it.each([
+    ['frequência inventada', { periodicidade: 'ANUAL' }], ['diária com frequência mensal', { modalidade: 'DIARIA', periodicidade: 'MENSAL', taxa: 20 }], ['parcelado com frequência diária', { periodicidade: 'DIARIA' }],
+    ['data do empréstimo no futuro', { dataEmprestimo: '2026-10-09' }], ['data inválida', { dataEmprestimo: '2026-02-31' }], ['1º vencimento antes do empréstimo', { primeiroVencimento: '2026-10-07' }],
+    ['1º vencimento daqui a mais de um ano', { primeiroVencimento: '2027-10-10' }],
+  ])('recusa %s (400)', async (_n, m) => { expect((await falha(emprestar(ADMIN, m)))?.status).toBe(400) })
   it('cliente inexistente é 404', async () => { expect((await falha(emprestar(ADMIN, { clienteId: 999999 })))?.status).toBe(404) })
 })
 

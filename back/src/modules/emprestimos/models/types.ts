@@ -1,4 +1,5 @@
 export type ModalidadeEmprestimo = 'PARCELADO' | 'JUROS' | 'DIARIA'
+export type Periodicidade = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
 export type StatusEmprestimo = 'ATIVA' | 'QUITADA' | 'CANCELADA'
 
 export type ParcelaEmprestimo = {
@@ -23,8 +24,9 @@ export type Emprestimo = {
   dataEmprestimo: string
   capital: number
   modalidade: ModalidadeEmprestimo
-  /** % ao mês (parcelado e só juros) ou do período todo (diária) */
+  /** parcelado e diária: % de juros NO TOTAL (100% = o cliente paga o dobro). Só juros: % a cada parcela. */
   taxa: number
+  periodicidade: Periodicidade
   status: StatusEmprestimo
   observacoes: string | null
   /** só juros: quanto do capital já foi pago adiantado (excedente dos recebimentos). Conta como dinheiro recebido. */
@@ -43,5 +45,6 @@ export type NovoEmprestimo = {
   capital: number
   modalidade: ModalidadeEmprestimo
   taxa: number
+  periodicidade: Periodicidade
   observacoes: string | null
 }

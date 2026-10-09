@@ -1,6 +1,6 @@
 import { arred2, ceilCent } from './format'
-import { somaDiasUteis, somaMes } from './datas'
-import type { Bem, ConfigJuros, Emprestimo, Iso, ModalidadeEmp, Operacao, Parcela, StatusOp, Venda } from './types'
+import { addDia, pulaDomingo, somaDiasUteis, somaMes } from './datas'
+import type { Bem, ConfigJuros, Emprestimo, Iso, ModalidadeEmp, Operacao, Parcela, Periodicidade, StatusOp, Venda } from './types'
 
 export const JUROS_PADRAO: ConfigJuros = { pct: 10, maxParcelas: 10 }
 
@@ -90,23 +90,42 @@ export function contasEmp(e: Emprestimo, hoje: Iso): Contas {
 export const contasOp = (o: Operacao, bens: Map<number, Bem>, hoje: Iso): Contas =>
   o.tipo === 'EMP' ? contasEmp(o, hoje) : contasVenda(o, bens.get(o.bemId)!, hoje)
 
+/** 1º vencimento padrão: um período depois da data do empréstimo (no mensal, o mesmo dia do mês seguinte). */
+export function primeiroVenc(data: Iso, freq: Periodicidade): Iso {
+  if (freq === 'QUINZENAL') return addDia(data, 15)
+  if (freq === 'SEMANAL') return addDia(data, 7)
+  if (freq === 'DIARIA') return somaDiasUteis(data, 1)
+  return somaMes(data, 1, Number(data.slice(8, 10)))
+}
+
 /**
- * Plano de parcelas de um empréstimo.
- * Parcelado: juros simples ao mês sobre o capital. Só juros: paga o juro todo mês e o capital na última.
- * Diária: capital + juros divididos em parcelas diárias (sem domingo).
+ * Datas das parcelas. Mensal: o mesmo dia do mês do 1º vencimento (limitado ao fim do mês); quinzenal: de 15 em 15
+ * dias; semanal: de 7 em 7; diária: todo dia menos domingo (se o 1º cair no domingo, vai para a segunda).
  */
-export function planoEmprestimo(a: { capital: number; mod: ModalidadeEmp; taxa: number; n: number; data: Iso }) {
+export function vencimentosEmp(primeira: Iso, freq: Periodicidade, n: number, diaMensal = Number(primeira.slice(8, 10))): Iso[] {
+  if (freq === 'DIARIA') {
+    const p0 = pulaDomingo(primeira)
+    return Array.from({ length: n }, (_, i) => (i ? somaDiasUteis(p0, i) : p0))
+  }
+  const passo = freq === 'QUINZENAL' ? 15 : freq === 'SEMANAL' ? 7 : 0
+  return Array.from({ length: n }, (_, i) => (passo ? addDia(primeira, passo * i) : somaMes(primeira, i, diaMensal)))
+}
+
+/**
+ * Plano de parcelas de um empréstimo (mesma regra do backend).
+ *  - Parcelado e diária: o juro é % NO TOTAL (100% = o cliente paga o dobro), dividido nas parcelas.
+ *    parcela = ceil(capital × (1 + taxa%) ÷ n). Ex.: 3.000 a 30% em 6x → 6 × 650,00.
+ *  - Só juros: a cada parcela paga só o juro (capital × taxa%) e o capital vem junto na última.
+ * Sem `primeira`, o 1º vencimento é um período depois de `data` e o dia do mês é o da própria data.
+ */
+export function planoEmprestimo(a: { capital: number; mod: ModalidadeEmp; taxa: number; n: number; data: Iso; freq?: Periodicidade; primeira?: Iso }) {
   const c = a.capital || 0
   const t = (a.taxa || 0) / 100
-  const dia = Number(a.data.slice(8, 10))
-  if (a.mod === 'JUROS')
-    return Array.from({ length: a.n }, (_, i) => ({ venc: somaMes(a.data, i + 1, dia), valor: arred2(c * t) + (i === a.n - 1 ? c : 0) }))
-  if (a.mod === 'DIARIA') {
-    const parc = ceilCent((c * (1 + t)) / a.n)
-    return Array.from({ length: a.n }, (_, i) => ({ venc: somaDiasUteis(a.data, i + 1), valor: parc }))
-  }
-  const parc = ceilCent((c * (1 + t * a.n)) / a.n)
-  return Array.from({ length: a.n }, (_, i) => ({ venc: somaMes(a.data, i + 1, dia), valor: parc }))
+  const freq: Periodicidade = a.mod === 'DIARIA' ? 'DIARIA' : a.freq ?? 'MENSAL'
+  const venc = a.primeira ? vencimentosEmp(a.primeira, freq, a.n) : vencimentosEmp(primeiroVenc(a.data, freq), freq, a.n, Number(a.data.slice(8, 10)))
+  if (a.mod === 'JUROS') return venc.map((v, i) => ({ venc: v, valor: arred2(c * t) + (i === a.n - 1 ? c : 0) }))
+  const parc = ceilCent((c * (1 + t)) / a.n)
+  return venc.map((v) => ({ venc: v, valor: parc }))
 }
 
 /** Simulação da venda (aba Pagamento): juros, total, parte do indicador, lucro e em qual parcela o capital volta. */
