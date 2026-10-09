@@ -35,6 +35,7 @@ const IMEI_DUPLICADO = new HttpError(409, 'Já existe um aparelho com esse IMEI'
 export function escopoDe(s: Sessao): EscopoVendas {
   if (s.perfil === 'ADMIN') return { tipo: 'TODOS' }
   if (s.perfil === 'VENDEDOR') return { tipo: 'VENDEDOR', usuarioId: s.usuarioId }
+  if (s.perfil === 'INDICADOR') return { tipo: 'INDICADOR', indicadorId: s.indicadorId ?? -1 }
   return { tipo: 'CARTEIRA', usuarioId: s.usuarioId }
 }
 
@@ -66,7 +67,7 @@ export function createVendasService(d: Dependencias): VendasService {
   })
 
   function exigirVer(s: Sessao) {
-    if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'COBRADOR') throw semPermissao('Você não tem acesso às vendas')
+    if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'COBRADOR' && s.perfil !== 'INDICADOR') throw semPermissao('Você não tem acesso às vendas')
   }
 
   /** Lê e valida o corpo do pedido. Nada que vem da tela (totais, parcelas) é confiado: o servidor refaz as contas. */

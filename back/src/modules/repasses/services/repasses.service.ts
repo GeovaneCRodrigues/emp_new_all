@@ -93,7 +93,10 @@ export function createRepassesService(d: Dependencias): RepassesService {
         // 404 (não 403) para não revelar que o outro indicador existe
         if (s.indicadorId !== id) throw naoEncontrado('Indicador não encontrado')
       } else if (s.perfil !== 'ADMIN') throw semPermissao('Você não tem acesso aos repasses')
-      return detalheDe(id)
+      const d2 = await detalheDe(id)
+      // o capital (custo do aparelho / valor emprestado) é da loja: o indicador só vê o que é dele
+      if (s.perfil === 'INDICADOR') return { ...d2, operacoes: d2.operacoes.map(({ investido: _investido, ...o }) => o) as DetalheDoIndicador['operacoes'] }
+      return d2
     },
 
     async pagar(s, id, e) {

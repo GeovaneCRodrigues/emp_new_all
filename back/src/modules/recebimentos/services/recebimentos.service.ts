@@ -66,6 +66,12 @@ function escopoDe(s: Sessao): EscopoRecebimentos {
   throw semPermissao('Só o administrador e o cobrador mexem com recebimentos')
 }
 
+/** Quem pode VER a lista de cobranças: além de quem recebe, o indicador vê as parcelas das operações dele (só leitura). */
+function escopoLeitura(s: Sessao): EscopoRecebimentos {
+  if (s.perfil === 'INDICADOR') return { tipo: 'INDICADOR', indicadorId: s.indicadorId ?? -1 }
+  return escopoDe(s)
+}
+
 /** O texto que vai para o WhatsApp do cliente. */
 export function mensagemRecibo(r: Omit<Recibo, 'mensagem'>): string {
   const empresa = r.empresa.nome.replace(/\s+LTDA\.?$/i, '')
@@ -269,7 +275,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
     },
 
     async cobrancas(s, q) {
-      const escopo = escopoDe(s)
+      const escopo = escopoLeitura(s)
       const aba = (q.aba ?? 'atrasadas') as Aba
       if (!ABAS.includes(aba)) throw requisicaoInvalida('aba inválida')
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 20) || 20, 1), LIMITE_MAX)

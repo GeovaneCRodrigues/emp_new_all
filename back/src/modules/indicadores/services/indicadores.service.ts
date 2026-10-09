@@ -110,7 +110,10 @@ export function createIndicadoresService(repo: IndicadoresRepository, auditoria:
     },
 
     async obter(s, id) {
-      exigirAdmin(s)
+      // o indicador vê só o próprio cadastro e nível; o de outro é 404 (igual a um que não existe)
+      if (s.perfil === 'INDICADOR') {
+        if (s.indicadorId !== id) throw naoEncontrado('Indicador não encontrado')
+      } else exigirAdmin(s)
       return visao(id)
     },
 
@@ -173,7 +176,8 @@ export function createIndicadoresService(repo: IndicadoresRepository, auditoria:
     },
 
     async niveis(s) {
-      exigirAdmin(s)
+      // a tabela de níveis é a mesma para todos: o indicador só lê
+      if (s.perfil !== 'INDICADOR') exigirAdmin(s)
       return { niveis: await repo.niveis(), auto: await repo.niveisAuto() }
     },
 

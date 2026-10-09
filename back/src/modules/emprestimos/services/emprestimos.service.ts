@@ -34,6 +34,7 @@ const DINHEIRO_MAX = 100_000_000
 export function escopoDe(s: Sessao): EscopoEmprestimos {
   if (s.perfil === 'ADMIN') return { tipo: 'TODOS' }
   if (s.perfil === 'COBRADOR') return { tipo: 'CARTEIRA', usuarioId: s.usuarioId }
+  if (s.perfil === 'INDICADOR') return { tipo: 'INDICADOR', indicadorId: s.indicadorId ?? -1 }
   throw semPermissao('Você não tem acesso aos empréstimos')
 }
 

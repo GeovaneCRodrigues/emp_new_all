@@ -7,8 +7,8 @@ export type ConfigService = { juros(s: Sessao): Promise<Juros> }
 export function createConfigService(repo: ConfigRepository): ConfigService {
   return {
     async juros(s) {
-      // quem simula ou vende precisa saber os juros; o resto do sistema não
-      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw semPermissao('Você não tem acesso a esta configuração')
+      // quem simula ou vende precisa saber os juros (o indicador simula para o cliente dele); o resto do sistema não
+      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw semPermissao('Você não tem acesso a esta configuração')
       return repo.juros()
     },
   }

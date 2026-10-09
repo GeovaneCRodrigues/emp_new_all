@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
+import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import MoneyInput from '@/components/MoneyInput.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
-import { estoqueApi } from '@/api/recursos'
+import { estoqueApi, vendasApi } from '@/api/recursos'
+import type { JurosApi } from '@/api/vendas'
 import type { AparelhoApi } from '@/api/estoque'
 import { investidoApi } from '@/api/estoque'
 import { planoParc } from '@/domain/calc'
@@ -15,9 +17,14 @@ const route = useRoute()
 const router = useRouter()
 const { d, pode, sessao } = useApp()
 
-const juros = computed(() => d.value?.juros ?? { pct: 10, maxParcelas: 10 })
+/** A taxa vem do servidor (a configuração da loja); enquanto não chega, vale a da demonstração ou o padrão. */
+const jurosServidor = ref<JurosApi | null>(null)
+const juros = computed(() => jurosServidor.value ?? d.value?.juros ?? { pct: 10, maxParcelas: 10 })
+const ehIndicador = computed(() => sessao.value.perfil === 'INDICADOR')
+const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
 const disponiveis = ref<AparelhoApi[]>([])
 onMounted(async () => {
+  vendasApi.juros(sessao.value).then((j) => { jurosServidor.value = j }).catch(() => undefined)
   disponiveis.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => ({ itens: [] as AparelhoApi[] }))).itens
   // /simulador?bem=ID: o aparelho pode não estar na primeira página
   const id = Number(route.query.bem)
@@ -64,6 +71,11 @@ function venderAssim() {
   const q = new URLSearchParams({ preco: String(s.preco), entrada: String(entrada.value), n: String(s.n) })
   if (s.bemId) q.set('bem', String(s.bemId))
   router.push('/vender?' + q.toString())
+}
+/** O indicador manda a simulação para a loja: a proposta abre com o aparelho e as parcelas na observação. */
+function indicarAssim() {
+  const obs = `Simulação: ${fmt(s.preco)}${entrada.value ? ` · entrada ${fmt(entrada.value)}` : ''} · ${sel.value.n}x ${fmt(sel.value.parc)}`
+  fluxo.value?.abrir({ inicial: { tipo: 'VENDA', ...(s.bemId ? { aparelhoId: s.bemId } : {}), parcelas: sel.value.n, obs } })
 }
 async function copiar() {
   try { await navigator.clipboard.writeText(mensagem.value); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { /* sem permissão: o texto já está na tela */ }
@@ -117,7 +129,8 @@ async function copiar() {
         <div class="small" style="text-align: center">Escolhido: <b style="color: var(--strong)">{{ entrada ? `${fmt(entrada)} + ` : '' }}{{ sel.n }}x {{ fmt(sel.parc) }}</b></div>
         <div class="row" style="gap: 8px">
           <button class="btn b-out" style="flex: 1" @click="waAberto = true"><Icon name="message-circle" small />Mandar pro cliente</button>
-          <button class="btn b-pri" style="flex: 1" @click="venderAssim"><Icon name="plus" small />Vender assim</button>
+          <button v-if="ehIndicador" class="btn b-pri" style="flex: 1" data-indicar-assim @click="indicarAssim"><Icon name="user-plus" small />Indicar assim</button>
+          <button v-else class="btn b-pri" style="flex: 1" @click="venderAssim"><Icon name="plus" small />Vender assim</button>
         </div>
       </div>
     </div>
@@ -131,4 +144,5 @@ async function copiar() {
       <button class="btn b-ok b-block" @click="copiar"><Icon name="copy" small />{{ copiado ? 'Copiado!' : 'Copiar mensagem' }}</button>
     </div>
   </Sheet>
+  <IndicarFluxo v-if="ehIndicador" ref="fluxo" />
 </template>

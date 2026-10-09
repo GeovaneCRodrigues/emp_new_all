@@ -46,6 +46,9 @@ export interface VendaApi {
   capitalDeVolta?: number
   percentualIndicador?: number
   parteIndicador?: number
+  /** só o indicador: a parte dele no lucro (prevista) e a que já foi liberada */
+  suaParte?: number
+  jaLiberado?: number
 }
 
 export interface ListaVendas { itens: VendaApi[]; total: number; pagina: number; limite: number }

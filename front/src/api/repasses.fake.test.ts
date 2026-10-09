@@ -58,7 +58,7 @@ describe('o que está liberado', () => {
   it('o resumo bate com o cálculo puro sobre as operações do detalhe', async () => {
     const r = await comSaldo()
     const d = await api.detalhe(ADMIN, r.indicador.id)
-    const de = calcularRepasse(d.operacoes.map(({ parte: _p, liberado: _l, pagoNela: _n, aPagar: _a, vaiLiberar: _v, capitalVoltou: _c, ...o }) => o), d.resumo.pago)
+    const de = calcularRepasse(d.operacoes.map(({ investido, parte: _p, liberado: _l, pagoNela: _n, aPagar: _a, vaiLiberar: _v, capitalVoltou: _c, ...o }) => ({ ...o, investido: investido ?? 0 })), d.resumo.pago)
     expect(d.resumo).toEqual({ liberado: de.liberado, pago: de.pago, aPagar: de.aPagar, vaiLiberar: de.vaiLiberar, pagoAMais: de.pagoAMais })
     expect(d.nOperacoes).toBe(d.operacoes.length)
   })

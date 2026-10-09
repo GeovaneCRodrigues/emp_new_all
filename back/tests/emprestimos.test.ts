@@ -256,16 +256,14 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
   })
 
   describe('ler e escopo', () => {
-    it('o admin vê todos e o cobrador só os da carteira dele; vendedor e indicador, 403', async () => {
+    it('o admin vê todos e o cobrador só os da carteira dele; o vendedor, 403 (o indicador lê só os dele: indicador-leitura.test.ts)', async () => {
       await emprestar('admin', { clienteId: id.cB })
       const adm = (await req('GET', '/api/emprestimos?limite=100', 'admin')).json()
       expect(new Set(adm.itens.map((x: { cliente: { nome: string } }) => x.cliente.nome))).toEqual(new Set(['Ana Souza', 'Bruno Lima']))
       const dele = (await req('GET', '/api/emprestimos?limite=100', 'cobrador')).json()
       expect(dele.itens.every((x: { cliente: { nome: string } }) => x.cliente.nome === 'Ana Souza')).toBe(true)
-      for (const papel of ['vendedor', 'indicador']) {
-        expect((await req('GET', '/api/emprestimos', papel)).statusCode).toBe(403)
-        expect((await req('GET', '/api/emprestimos/resumo', papel)).statusCode).toBe(403)
-      }
+      expect((await req('GET', '/api/emprestimos', 'vendedor')).statusCode).toBe(403)
+      expect((await req('GET', '/api/emprestimos/resumo', 'vendedor')).statusCode).toBe(403)
     })
     it('o cobrador não recebe capital, taxa, lucro nem indicador (os campos nem existem)', async () => {
       const lista = (await req('GET', '/api/emprestimos', 'cobrador')).json()

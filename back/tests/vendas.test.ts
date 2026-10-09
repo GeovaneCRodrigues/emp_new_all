@@ -83,9 +83,10 @@ describe.skipIf(!db)('vendas (Postgres de verdade)', () => {
       for (const papel of ['cobrador', 'indicador']) expect((await vender(papel, await corpoBase())).statusCode).toBe(403)
       expect((await req('POST', '/api/vendas', undefined, await corpoBase())).statusCode).toBe(401)
     })
-    it('o indicador não vê vendas (a área dele vem depois); o cobrador vê só a carteira', async () => {
-      expect((await req('GET', '/api/vendas', 'indicador')).statusCode).toBe(403)
-      expect((await req('GET', '/api/vendas/resumo', 'indicador')).statusCode).toBe(403)
+    it('o indicador lê as vendas dele (o isolamento está em indicador-leitura.test.ts), mas não vende nem retoma', async () => {
+      expect((await req('GET', '/api/vendas', 'indicador')).statusCode).toBe(200)
+      expect((await req('GET', '/api/vendas/resumo', 'indicador')).statusCode).toBe(200)
+      expect((await req('POST', '/api/vendas/1/retomar', 'indicador', {})).statusCode).toBe(403)
     })
   })
 
@@ -373,10 +374,12 @@ describe.skipIf(!db)('vendas (Postgres de verdade)', () => {
       expect(aud).toMatchObject({ usuario_id: id.vendedorA })
       expect(aud.depois).toMatchObject({ preco: 7500, entrada: 1500, parcelas: 10, total: 13500 })
     })
-    it('a taxa de juros só é lida por quem vende (admin e vendedor)', async () => {
+    it('a taxa de juros é lida por quem vende ou simula (admin, vendedor e indicador); o cobrador não', async () => {
       expect((await req('GET', '/api/config/juros', 'vendedorA')).json()).toEqual({ pct: 10, maxParcelas: 10 })
       expect((await req('GET', '/api/config/juros', 'admin')).statusCode).toBe(200)
-      for (const papel of ['cobrador', 'indicador']) expect((await req('GET', '/api/config/juros', papel)).statusCode).toBe(403)
+      expect((await req('GET', '/api/config/juros', 'indicador')).json()).toEqual({ pct: 10, maxParcelas: 10 })
+      expect((await req('GET', '/api/config/juros', 'cobrador')).statusCode).toBe(403)
+      expect((await req('GET', '/api/config/juros')).statusCode).toBe(401)
     })
     it('o vendedor vê as opções de indicador sem o %', async () => {
       const r = await req('GET', '/api/indicadores/opcoes', 'vendedorA')

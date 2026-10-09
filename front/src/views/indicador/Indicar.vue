@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { ErroApi, type ClienteApi, type SalvoCliente } from '@/api/clientes'
+import { computed, onMounted, ref } from 'vue'
+import { ErroApi } from '@/api/clientes'
 import type { PropostaApi, StatusProposta } from '@/api/propostas'
-import { clientesApi, propostasApi } from '@/api/recursos'
-import ClienteForm from '@/components/ClienteForm.vue'
+import { propostasApi } from '@/api/recursos'
 import Icon from '@/components/Icon.vue'
-import PropostaForm from '@/components/PropostaForm.vue'
-import Sheet from '@/components/Sheet.vue'
+import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { mascaraFone } from '@/domain/documentos'
 import { dmyA, fmt, iniciais } from '@/domain/format'
 
 /** O indicador manda o cliente e o que ele quer; acompanha o que a loja respondeu. */
@@ -29,32 +26,9 @@ async function carregar() {
 }
 onMounted(carregar)
 
-// ---- escolher o cliente (ou cadastrar um novo) ----
-const escolhendo = ref(false)
-const busca = ref('')
-const meus = ref<ClienteApi[]>([])
-const cadastrando = ref(false)
-const clienteDaProposta = ref<ClienteApi | null>(null)
-const propostaAberta = computed(() => clienteDaProposta.value !== null)
+const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
+const abrirEscolha = () => fluxo.value?.abrir()
 
-async function buscar() {
-  const r = await clientesApi.listar(sessao.value, { busca: busca.value.trim() || undefined, limite: 20 }).catch(() => null)
-  if (r) meus.value = r.itens
-}
-let espera: ReturnType<typeof setTimeout> | undefined
-watch(busca, () => { clearTimeout(espera); espera = setTimeout(buscar, 300) })
-function abrirEscolha() { escolhendo.value = true; busca.value = ''; buscar() }
-function escolher(c: ClienteApi) { escolhendo.value = false; clienteDaProposta.value = c }
-function aoCadastrar(r: SalvoCliente) {
-  cadastrando.value = false; escolhendo.value = false
-  mostrar(`${r.cliente.nome} cadastrado. Agora diga o que ele quer.`)
-  clienteDaProposta.value = r.cliente
-}
-function aoEnviar(p: PropostaApi) {
-  clienteDaProposta.value = null
-  mostrar(`Proposta de ${p.cliente.nome} enviada para a loja.`)
-  carregar()
-}
 async function cancelar(p: PropostaApi) {
   if (ocupado.value) return
   ocupado.value = p.id
@@ -96,20 +70,5 @@ const pendentes = computed(() => propostas.value.filter((p) => p.status === 'PEN
     <div v-if="!propostas.length && !carregando" class="empty">Nenhuma proposta ainda. Toque em “Indicar cliente”.</div>
   </div>
 
-  <!-- escolher o cliente -->
-  <Sheet :aberto="escolhendo" @fechar="escolhendo = false">
-    <h3>Indicar para quem?</h3>
-    <div class="field" style="margin-top: 12px"><div class="inp"><input v-model="busca" placeholder="Buscar pelo nome" aria-label="Buscar cliente" autocomplete="off" /></div></div>
-    <div class="list card" style="margin-top: 10px" data-testid="escolher-cliente">
-      <button v-for="c in meus" :key="c.id" class="li" :data-cliente="c.id" @click="escolher(c)">
-        <span class="ini">{{ iniciais(c.nome) }}</span>
-        <div class="mid"><div class="t">{{ c.nome }}</div><div class="s">{{ mascaraFone(c.fone) }}</div></div>
-      </button>
-      <div v-if="!meus.length" class="empty">Nenhum cliente seu com esse nome.</div>
-    </div>
-    <button class="btn b-out b-block" style="margin-top: 12px" data-testid="cadastrar-novo" @click="cadastrando = true"><Icon name="plus" small />Cadastrar um cliente novo</button>
-  </Sheet>
-
-  <ClienteForm :aberto="cadastrando" :cliente="null" @fechar="cadastrando = false" @salvo="aoCadastrar" />
-  <PropostaForm :aberto="propostaAberta" :cliente="clienteDaProposta" @fechar="clienteDaProposta = null" @enviada="aoEnviar" />
+  <IndicarFluxo ref="fluxo" @enviada="carregar" />
 </template>

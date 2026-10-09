@@ -51,9 +51,10 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
   INDICADOR: {
     nomePerfil: 'Indicador',
     inicio: 'inicio',
-    abas: [i('inicio', 'Início', 'house'), i('clientes', 'Clientes', 'users'), i('indicar', 'Indicar', 'share-2', true), i('cobranca', 'Cobrança', 'hand-coins'), i('repasse', 'Repasse', 'wallet')],
-    lateral: [i('inicio', 'Início', 'house'), i('clientes', 'Clientes', 'users'), i('indicar', 'Indicar', 'share-2'), i('cobranca', 'Cobrança', 'hand-coins'), i('repasse', 'Repasse', 'wallet'), i('niveis', 'Níveis', 'award')],
-    mais: [],
+    abas: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('indicar', 'Indicar', 'share-2', true), i('clientes', 'Clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
+    lateral: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('clientes', 'Meus clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
+    // no computador ficam na lateral; no celular, no fim do Início
+    mais: [i('vendas', 'Minhas vendas', 'badge-dollar-sign'), i('estoque', 'Estoque', 'smartphone'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],
   },
 }
 
@@ -63,6 +64,9 @@ export const TITULOS: Record<string, string> = {
   indicadores: 'Indicadores', equipe: 'Equipe', config: 'Configurações', hoje: 'Hoje', carteira: 'Carteira', recebi: 'Recebi',
   pedidos: 'Pedidos', vendas: 'Vendas', indicar: 'Indicar', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis',
 }
+
+/** Títulos que mudam para o indicador ("Meus clientes", "Minhas vendas"). */
+export const TITULOS_INDICADOR: Record<string, string> = { clientes: 'Meus clientes', vendas: 'Minhas vendas' }
 
 /** O menu do administrador em grupos (lateral no computador e "Mais" no celular). Configurações fica sozinho no rodapé. */
 export interface GrupoMenu { titulo: string; ids: string[] }

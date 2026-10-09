@@ -26,7 +26,8 @@ describe('permissões', () => {
       const s: Sessao = { perfil, usuarioId: 2 }
       expect((await falha(api.listar(s)))?.status).toBe(403)
       expect((await falha(api.criar(s, { nome: 'X Y', pct: 0.5 })))?.status).toBe(403)
-      expect((await falha(api.niveis(s)))?.status).toBe(403)
+      // a tabela de níveis o indicador só lê (as edições seguem fechadas: indicador-leitura.fake.test.ts)
+      expect((await falha(api.niveis(s)))?.status).toBe(perfil === 'INDICADOR' ? undefined : 403)
     }
   })
 })

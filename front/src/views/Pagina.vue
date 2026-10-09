@@ -19,6 +19,12 @@ import CobradorHoje from './cobrador/Hoje.vue'
 import CobradorPedidos from './cobrador/Pedidos.vue'
 import CobradorRecebi from './cobrador/Recebi.vue'
 import Indicar from './indicador/Indicar.vue'
+import IndicadorInicio from './indicador/Inicio.vue'
+import IndicadorClientes from './indicador/Clientes.vue'
+import IndicadorCobranca from './indicador/Cobranca.vue'
+import IndicadorNiveis from './indicador/Niveis.vue'
+import IndicadorRepasse from './indicador/Repasse.vue'
+import IndicadorVendas from './indicador/MinhasVendas.vue'
 import EmBreve from './EmBreve.vue'
 
 const route = useRoute()
@@ -29,7 +35,7 @@ const TELAS: Record<string, Record<string, unknown>> = {
   ADMIN: { inicio: Inicio, cobrancas: Cobrancas, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe },
   COBRADOR: { hoje: CobradorHoje, carteira: CobradorCarteira, recebi: CobradorRecebi, caixa: CobradorCaixa, pedidos: CobradorPedidos },
   // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil
-  INDICADOR: { indicar: Indicar, clientes: Clientes },
+  INDICADOR: { inicio: IndicadorInicio, indicar: Indicar, clientes: IndicadorClientes, cobranca: IndicadorCobranca, repasse: IndicadorRepasse, niveis: IndicadorNiveis, vendas: IndicadorVendas, estoque: Estoque, simulador: Simulador },
   VENDEDOR: { inicio: InicioVendedor, simulador: Simulador, clientes: Clientes, estoque: Estoque, vender: Vender, vendas: Operacoes },
 }
 

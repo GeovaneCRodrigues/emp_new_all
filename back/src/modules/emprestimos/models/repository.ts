@@ -33,6 +33,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
       .leftJoin('indicadores as i', 'i.id', 'e.indicador_id')
       .select<Linha[]>('e.*', 'c.nome as cliente_nome', 'i.nome as indicador_nome')
     if (escopo.tipo === 'CARTEIRA') q.where('c.responsavel_id', escopo.usuarioId)
+    else if (escopo.tipo === 'INDICADOR') q.where('e.indicador_id', escopo.indicadorId)
     return q
   }
 

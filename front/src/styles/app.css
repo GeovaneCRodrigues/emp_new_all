@@ -347,3 +347,18 @@ input,select{font:inherit;color:var(--strong)}
 @media(max-width:600px){.rep-op{flex-direction:column;align-items:stretch;gap:6px}.rep-op-l{max-width:none}.rep-op-r{text-align:left}}
 
 .inp textarea{width:100%;border:0;outline:0;background:transparent;font:inherit;color:inherit;resize:vertical;padding:8px 0;min-height:44px}
+
+/* só no celular: o computador já tem isso na lateral */
+.so-celular{display:block}
+@container (min-width:880px){.so-celular{display:none}}
+.kpi3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-top:14px}
+.kpi3>div{padding:12px 14px;border-left:1px solid var(--border)}
+.kpi3>div:first-child{border-left:0}
+@container (max-width:559px){.kpi3{grid-template-columns:1fr}.kpi3>div{border-left:0;border-top:1px solid var(--border)}.kpi3>div:first-child{border-top:0}}
+.atalhos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.atalhos button{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:14px;border:1px solid var(--border);border-radius:14px;background:var(--surface);font-weight:600;color:var(--strong);text-align:left}
+.atalhos .ic{width:36px;height:36px;border-radius:11px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center}
+.nivel-card{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--gold,#e9c46a);background:var(--gold-soft,#fdf1d6);text-align:left}
+.nivel-passo{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
+.nivel-passo.atual{background:var(--gold-soft,#fdf1d6);border-color:var(--gold,#e9c46a)}
+.nivel-passo .bola{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;flex:none;border:2px solid var(--border)}

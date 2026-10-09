@@ -20,8 +20,11 @@ export interface ResumoDoIndicadorApi {
   nOperacoes: number
 }
 
+/** Para o indicador o capital (`investido`) nem existe: é custo da loja. */
+export type OperacaoRepasseApi = Omit<OperacaoComRepasse, 'investido'> & { investido?: number }
+
 export interface DetalheRepasseApi extends ResumoDoIndicadorApi {
-  operacoes: OperacaoComRepasse[]
+  operacoes: OperacaoRepasseApi[]
   repasses: RepasseApi[]
 }
 

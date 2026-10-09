@@ -36,6 +36,9 @@ watch(() => props.aberto, async (aberto) => {
   tipo.value = i.tipo ?? 'VENDA'; interesse.value = i.interesse ?? ''; aparelhoId.value = i.aparelhoId ? String(i.aparelhoId) : ''
   valor.value = 0; parcelas.value = i.parcelas ? String(i.parcelas) : ''; obs.value = i.obs ?? ''; erro.value = ''
   if (!aparelhos.value.length) aparelhos.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => null))?.itens ?? []
+  // veio de um aparelho (Estoque, Simulador): a lista só chegou agora, então o texto é preenchido aqui
+  const a = aparelhos.value.find((x) => String(x.id) === aparelhoId.value)
+  if (a && !interesse.value.trim()) interesse.value = `${a.modelo} ${a.gb} GB ${a.cor}`
 }, { immediate: true })
 
 // escolher do estoque preenche o texto (que ainda dá para ajustar)

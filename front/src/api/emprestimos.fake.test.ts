@@ -72,12 +72,12 @@ describe('criar', () => {
 })
 
 describe('ler e escopo', () => {
-  it('o admin vê todos e o cobrador só os da carteira; vendedor e indicador, 403', async () => {
+  it('o admin vê todos e o cobrador só os da carteira; o vendedor, 403 (o indicador lê só os dele: indicador-leitura.fake.test.ts)', async () => {
     await emprestar(ADMIN, { clienteId: 3 }); await emprestar(ADMIN, { clienteId: 5 }) // Mariana é do vendedor
     const nomes = (await api.listar(COBR, { limite: 100 })).itens.map((e) => e.cliente.id)
     expect(nomes.every((c) => [3, 4, 6, 8].includes(c))).toBe(true)
     expect((await api.listar(COBR2, { limite: 100 })).itens).toHaveLength(0)
-    for (const s of [VEND, IND]) { expect((await falha(api.listar(s, {})))?.status).toBe(403); expect((await falha(api.resumo(s)))?.status).toBe(403) }
+    expect((await falha(api.listar(VEND, {})))?.status).toBe(403); expect((await falha(api.resumo(VEND)))?.status).toBe(403)
   })
   it('o cobrador não recebe capital, taxa, lucro nem indicador (os campos nem existem)', async () => {
     const e = (await api.listar(COBR, {})).itens[0]

@@ -3,7 +3,7 @@ import type { EstadoParcela, ParcelaAberta } from '../services/calculo.js'
 export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 
 /** Quem pode ver/mexer: admin em tudo; cobrador só nos clientes da carteira dele. */
-export type EscopoRecebimentos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: number }
+export type EscopoRecebimentos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: number } | { tipo: 'INDICADOR'; indicadorId: number }
 
 /** O que o dinheiro paga: uma venda de iPhone ou um empréstimo. */
 export type Alvo = 'VENDA' | 'EMPRESTIMO'

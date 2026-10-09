@@ -118,9 +118,9 @@ describe('validações (400) e 404', () => {
 })
 
 describe('permissões e vendedor', () => {
-  it('cobrador e indicador não vendem (403); o indicador não vê vendas', async () => {
+  it('cobrador e indicador não vendem (403); o indicador lê só as dele (indicador-leitura.fake.test.ts)', async () => {
     for (const s of [COBR, IND]) expect((await falha(api.criar(s, await base())))?.status).toBe(403)
-    expect((await falha(api.listar(IND, {})))?.status).toBe(403)
+    expect(await falha(api.listar(IND, {}))).toBeNull()
   })
   it('vende só para cliente da carteira dele (404 nos outros), em nome dele', async () => {
     expect((await falha(api.criar(VEND, await base({ clienteId: 3 }))))?.status).toBe(404) // Fernanda é do cobrador
@@ -164,8 +164,9 @@ describe('lista, ficha e resumo', () => {
     expect(Object.keys(await api.resumo(ADMIN)).sort()).toEqual(['aReceber', 'capitalNaRua', 'lucroPorVir'])
     expect(Object.keys(await api.resumo(VEND))).toEqual(['aReceber'])
   })
-  it('a taxa de juros só é lida por quem vende', async () => {
+  it('a taxa de juros é lida por quem vende ou simula (admin, vendedor e indicador); o cobrador não', async () => {
     expect(await api.juros(VEND)).toEqual({ pct: 10, maxParcelas: 10 })
-    for (const s of [COBR, IND]) expect((await falha(api.juros(s)))?.status).toBe(403)
+    expect(await api.juros(IND)).toEqual({ pct: 10, maxParcelas: 10 })
+    expect((await falha(api.juros(COBR)))?.status).toBe(403)
   })
 })

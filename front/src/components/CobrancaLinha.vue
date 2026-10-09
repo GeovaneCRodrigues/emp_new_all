@@ -5,7 +5,8 @@ import { useApp } from '@/composables/useApp'
 import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
 import Icon from './Icon.vue'
 
-const props = defineProps<{ c: CobrancaApi; recebida?: boolean }>()
+/** `semReceber`: o indicador só acompanha (e cobra pelo WhatsApp); o botão Recebi é de quem dá a baixa. */
+const props = defineProps<{ c: CobrancaApi; recebida?: boolean; semReceber?: boolean }>()
 defineEmits<{ abrir: [c: CobrancaApi]; receber: [c: CobrancaApi]; recibo: [id: number] }>()
 const { hoje } = useApp()
 
@@ -47,7 +48,7 @@ const linkWhatsApp = computed(() => {
       <template v-if="recebida && c.ultimaTransacaoId"><button class="btn b-out b-sm" @click="$emit('recibo', c.ultimaTransacaoId)">Recibo</button></template>
       <template v-else-if="aberta">
         <a class="wa" :href="linkWhatsApp" target="_blank" rel="noopener" aria-label="Cobrar no WhatsApp"><Icon name="message-circle" small /></a>
-        <button class="btn b-ok b-sm" @click="$emit('receber', c)">Recebi</button>
+        <button v-if="!semReceber" class="btn b-ok b-sm" @click="$emit('receber', c)">Recebi</button>
       </template>
     </div>
   </div>
