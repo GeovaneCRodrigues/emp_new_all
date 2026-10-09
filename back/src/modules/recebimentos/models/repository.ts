@@ -23,8 +23,8 @@ export interface RecebimentosTx {
   travarCaixa(usuarioId: number): Promise<void>
   /** O dia dessa pessoa já foi fechado? */
   diaFechado(usuarioId: number, data: string): Promise<boolean>
-  pedidoPendente(parcelaId: number): Promise<boolean>
-  criarPedidoDesconto(d: { vendaId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
+  pedidoPendente(alvo: Alvo, parcelaId: number): Promise<boolean>
+  criarPedidoDesconto(alvo: Alvo, d: { operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
 }
 
 export interface RecebimentosRepository {
@@ -129,9 +129,9 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
           },
           async travarCaixa(usuarioId) { await trx.raw('select pg_advisory_xact_lock(?, ?)', [7001, usuarioId]) },
           async diaFechado(usuarioId, data) { return !!(await trx('fechamentos_caixa').where({ usuario_id: usuarioId, data }).first('id')) },
-          async pedidoPendente(parcelaId) { return !!(await trx('aprovacoes').where({ venda_parcela_id: parcelaId, status: 'PENDENTE', tipo: 'DESCONTO' }).first('id')) },
-          async criarPedidoDesconto(d) {
-            const [{ id }] = await trx('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: d.solicitadoPor, venda_id: d.vendaId, venda_parcela_id: d.parcelaId, valor: d.valor, motivo: d.motivo }).returning('id')
+          async pedidoPendente(alvo, parcelaId) { return !!(await trx('aprovacoes').where({ [T[alvo].fk]: parcelaId, status: 'PENDENTE', tipo: 'DESCONTO' }).first('id')) },
+          async criarPedidoDesconto(alvo, d) {
+            const [{ id }] = await trx('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: d.solicitadoPor, [T[alvo].opFk]: d.operacaoId, [T[alvo].fk]: d.parcelaId, valor: d.valor, motivo: d.motivo }).returning('id')
             return id
           },
           async marcarDesfeita(id, usuarioId) {

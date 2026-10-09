@@ -4,7 +4,7 @@ import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { AprovacoesRepository } from '../models/repository.js'
-import type { Aprovacao, EscopoAprovacoes, StatusAprovacao } from '../models/types.js'
+import type { Alvo, Aprovacao, EscopoAprovacoes, StatusAprovacao } from '../models/types.js'
 
 export type Entrada = Record<string, unknown>
 export type ListaAprovacoes = { itens: Aprovacao[]; total: number; pendentes: number; pagina: number; limite: number }
@@ -40,7 +40,9 @@ export function createAprovacoesService(dep: {
   return {
     async pedirDesconto(s, e) {
       if (s.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede desconto (o administrador dá o desconto direto ao receber)')
-      if (typeof e.vendaId !== 'number' || !Number.isInteger(e.vendaId) || e.vendaId < 1) throw requisicaoInvalida('Informe a venda')
+      const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as Alvo
+      if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('alvo deve ser VENDA ou EMPRESTIMO')
+      if (typeof e.operacaoId !== 'number' || !Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw requisicaoInvalida(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
       if (typeof e.parcela !== 'number' || !Number.isInteger(e.parcela) || e.parcela < 1) throw requisicaoInvalida('Informe a parcela')
       if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0) throw requisicaoInvalida('Informe o valor do desconto')
       const motivo = typeof e.motivo === 'string' ? e.motivo.trim() : ''
@@ -49,19 +51,19 @@ export function createAprovacoesService(dep: {
 
       const id = await dep.repo
         .emTransacao(async (tx) => {
-          const venda = await tx.travarVenda(e.vendaId as number, { usuarioId: s.usuarioId })
-          if (!venda) throw naoEncontrado('Venda não encontrada')
-          if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, 'Esta venda foi retomada ou cancelada', 'VENDA_ENCERRADA')
-          const p = await tx.parcela(venda.id, e.parcela as number)
+          const venda = await tx.travarOperacao(alvo, e.operacaoId as number, { usuarioId: s.usuarioId })
+          if (!venda) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
+          if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+          const p = await tx.parcela(alvo, venda.id, e.parcela as number)
           if (!p) throw naoEncontrado('Parcela não encontrada')
           const f = falta(p)
           if (f <= 0.009) throw new HttpError(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
           if (valor > f + 0.009) throw requisicaoInvalida(`O desconto não pode passar do que falta na parcela (${f.toFixed(2).replace('.', ',')})`)
-          return tx.criar({ vendaId: venda.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo })
+          return tx.criar({ alvo, operacaoId: venda.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo })
         })
         .catch((err) => { if ((err as { code?: string }).code === '23505') throw PENDENTE_DUPLICADO; throw err })
 
-      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_PEDIDO', entidade: 'aprovacao', entidadeId: id, depois: { vendaId: e.vendaId, parcela: e.parcela, valor, motivo } })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_PEDIDO', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, motivo } })
       return (await dep.repo.buscar(id, { tipo: 'TODOS' }))!
     },
 
@@ -80,14 +82,14 @@ export function createAprovacoesService(dep: {
       const aplicado = await dep.repo.emTransacao(async (tx) => {
         const pedido = await tx.travarPedido(id)
         if (!pedido) throw naoEncontrado('Pedido não encontrado')
-        const venda = await tx.travarVenda(pedido.vendaId)
-        if (!venda) throw naoEncontrado('Venda não encontrada')
+        const venda = await tx.travarOperacao(pedido.alvo, pedido.operacaoId)
+        if (!venda) throw naoEncontrado(pedido.alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
         // relê o pedido depois de travar a venda: outro admin pode ter respondido enquanto esperávamos
         const atual = await tx.travarPedido(id)
         if (!atual || atual.status !== 'PENDENTE') throw new HttpError(409, 'Este pedido já foi respondido', 'PEDIDO_JA_RESPONDIDO')
-        if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, 'Esta venda foi retomada ou cancelada', 'VENDA_ENCERRADA')
+        if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, pedido.alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
 
-        const parcelas = await tx.parcelas(venda.id)
+        const parcelas = await tx.parcelas(pedido.alvo, venda.id)
         await dep.depoisDeLerParcelas?.()
         const p = parcelas.find((x) => x.id === atual.parcelaId)!
         const f = falta(p)
@@ -96,13 +98,13 @@ export function createAprovacoesService(dep: {
 
         const novoDesconto = arred2(p.desconto + atual.valor)
         const quita = arred2(f - atual.valor) <= 0.009
-        await tx.aplicarDesconto(p.id, novoDesconto, quita ? dia : null)
+        await tx.aplicarDesconto(pedido.alvo, p.id, novoDesconto, quita ? dia : null)
         const depois = parcelas.map((x) => (x.id === p.id ? { ...x, desconto: novoDesconto } : x))
-        await tx.definirStatusVenda(venda.id, depois.every((x) => falta(x) <= 0.009) ? 'QUITADA' : 'ATIVA')
+        await tx.definirStatus(pedido.alvo, venda.id, depois.every((x) => falta(x) <= 0.009) ? 'QUITADA' : 'ATIVA')
         await tx.responder(id, 'APROVADO', s.usuarioId, null)
-        return { vendaId: venda.id, parcela: p.numero, valor: atual.valor }
+        return { alvo: pedido.alvo, operacaoId: venda.id, parcela: p.numero, valor: atual.valor }
       })
-      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_CONCEDIDO', entidade: 'venda', entidadeId: aplicado.vendaId, depois: { aprovacaoId: id, parcela: aplicado.parcela, valor: aplicado.valor } })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_CONCEDIDO', entidade: aplicado.alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: aplicado.operacaoId, depois: { aprovacaoId: id, parcela: aplicado.parcela, valor: aplicado.valor } })
       await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'APROVACAO_APROVADA', entidade: 'aprovacao', entidadeId: id, depois: aplicado })
       return (await dep.repo.buscar(id, { tipo: 'TODOS' }))!
     },

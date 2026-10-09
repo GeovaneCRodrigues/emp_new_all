@@ -143,7 +143,6 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         if (!venda) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
         if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada: não recebe pagamentos' : 'Este empréstimo foi cancelado: não recebe pagamentos', 'VENDA_ENCERRADA')
         if (data < venda.data) throw requisicaoInvalida(alvo === 'VENDA' ? 'A data do recebimento não pode ser antes da venda' : 'A data do recebimento não pode ser antes do empréstimo')
-        if (pedir && alvo === 'EMPRESTIMO') throw requisicaoInvalida('Pedir desconto em empréstimo ainda não está disponível')
 
         const parcelas = await tx.parcelas(alvo, operacaoId)
         await dep.depoisDeLerParcelas?.()
@@ -182,8 +181,8 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         if (pedir) {
           const resta = r.itens[0].faltaDepois
           if (resta <= 0.009) throw requisicaoInvalida('Não sobrou nada na parcela para pedir desconto')
-          if (await tx.pedidoPendente(r.itens[0].parcelaId)) throw new HttpError(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
-          pedidoId = await tx.criarPedidoDesconto({ vendaId: operacaoId, parcelaId: r.itens[0].parcelaId, solicitadoPor: s.usuarioId, valor: resta, motivo: pedir.motivo })
+          if (await tx.pedidoPendente(alvo, r.itens[0].parcelaId)) throw new HttpError(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+          pedidoId = await tx.criarPedidoDesconto(alvo, { operacaoId, parcelaId: r.itens[0].parcelaId, solicitadoPor: s.usuarioId, valor: resta, motivo: pedir.motivo })
         }
         const t = await tx.criarTransacao({
           clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: s.usuarioId, resumo,
@@ -207,7 +206,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (desc) await dep.auditoria.registrar({ ...base, acao: 'DESCONTO_CONCEDIDO', depois: { transacaoId: feito.transacaoId, ...desc } })
       if (feito.primeiro.depois.vencimento !== feito.primeiro.antes.vencimento) await dep.auditoria.registrar({ ...base, acao: 'VENCIMENTO_ALTERADO', antes: { parcela: numero, vencimento: feito.primeiro.antes.vencimento }, depois: { parcela: numero, vencimento: feito.primeiro.depois.vencimento } })
 
-      if (feito.pedidoId) await dep.auditoria.registrar({ ...base, entidade: 'aprovacao', entidadeId: feito.pedidoId, acao: 'DESCONTO_PEDIDO', depois: { vendaId: operacaoId, parcela: numero, motivo: feito.motivoPedido } })
+      if (feito.pedidoId) await dep.auditoria.registrar({ ...base, entidade: 'aprovacao', entidadeId: feito.pedidoId, acao: 'DESCONTO_PEDIDO', depois: { alvo, operacaoId, parcela: numero, motivo: feito.motivoPedido } })
 
       return { recibo: await reciboDe(s, feito.transacaoId), efeitos: feito.efeitos, quitada: feito.quitada, pedidoDescontoId: feito.pedidoId }
     },
