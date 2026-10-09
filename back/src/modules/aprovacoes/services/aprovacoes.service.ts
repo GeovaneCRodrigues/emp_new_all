@@ -2,6 +2,7 @@ import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../.
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
+import { validarProposta } from '../../acordos/models/acordo.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { AprovacoesRepository } from '../models/repository.js'
 import type { Alvo, Aprovacao, EscopoAprovacoes, StatusAprovacao, TipoAprovacao } from '../models/types.js'
@@ -10,7 +11,7 @@ export type Entrada = Record<string, unknown>
 export type ListaAprovacoes = { itens: Aprovacao[]; total: number; pendentes: number; pagina: number; limite: number }
 
 export type AprovacoesService = {
-  /** O cobrador pede desconto (padrão) ou retomada do aparelho. */
+  /** O cobrador pede desconto (padrão), retomada do aparelho ou acordo. */
   pedir(s: Sessao, e: Entrada): Promise<Aprovacao>
   listar(s: Sessao, q: { status?: string; pagina?: number; limite?: number }): Promise<ListaAprovacoes>
   aprovar(s: Sessao, id: number): Promise<Aprovacao>
@@ -101,6 +102,29 @@ export function createAprovacoesService(dep: {
     return reler(id)
   }
 
+  async function pedirAcordo(s: Sessao, e: Entrada): Promise<Aprovacao> {
+    if (s.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede o acordo (o administrador faz o acordo direto na ficha)')
+    const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as Alvo
+    if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('alvo deve ser VENDA ou EMPRESTIMO')
+    if (typeof e.operacaoId !== 'number' || !Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw requisicaoInvalida(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
+    const motivo = lerMotivo(e)
+    const proposta = validarProposta({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, hoje())
+
+    const id = await dep.repo
+      .emTransacao(async (tx) => {
+        const op = await tx.travarOperacao(alvo, e.operacaoId as number, { usuarioId: s.usuarioId })
+        if (!op) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
+        if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+        const saldo = arred2((await tx.parcelas(alvo, op.id)).reduce((x, p) => x + Math.max(0, falta(p)), 0))
+        if (op.status !== 'ATIVA' || saldo <= 0.009) throw new HttpError(409, 'Não há nada em aberto para renegociar', 'SEM_SALDO')
+        return tx.criarAcordo({ alvo, operacaoId: op.id, solicitadoPor: s.usuarioId, valorTotal: proposta.valorTotal, motivo, parcelas: proposta.n, primeiraParcela: proposta.primeira, saldoNoPedido: saldo })
+      })
+      .catch((err) => duplicado(err, 'Já existe um pedido de acordo esperando para esta operação'))
+
+    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'ACORDO_PEDIDO', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, valorTotal: proposta.valorTotal, parcelas: proposta.n, primeiraParcela: proposta.primeira, motivo } })
+    return reler(id)
+  }
+
   // ===================== aprovar =====================
 
   async function aprovar(s: Sessao, id: number): Promise<Aprovacao> {
@@ -114,6 +138,15 @@ export function createAprovacoesService(dep: {
       // relê o pedido depois de travar a operação: outro admin pode ter respondido enquanto esperávamos
       const atual = await tx.travarPedido(id)
       if (!atual || atual.status !== 'PENDENTE') throw new HttpError(409, 'Este pedido já foi respondido', 'PEDIDO_JA_RESPONDIDO')
+
+      if (atual.tipo === 'ACORDO') {
+        if (!atual.dados) throw new HttpError(409, 'Pedido de acordo sem proposta', 'PEDIDO_DESATUALIZADO')
+        // a 1ª parcela proposta pode já ter passado enquanto o pedido esperava
+        if (atual.dados.primeiraParcela < dia) throw new HttpError(409, 'A data da 1ª parcela proposta já passou. Recuse o pedido e peça de novo.', 'PEDIDO_DESATUALIZADO')
+        const r = await tx.fazerAcordo({ alvo: pedido.alvo, operacaoId: op.id, usuarioId: s.usuarioId, valorTotal: atual.valor, n: atual.dados.parcelas, primeira: atual.dados.primeiraParcela, motivo: atual.motivo, dia, aprovacaoId: id, saldoEsperado: atual.dados.saldoNoPedido })
+        await tx.responder(id, 'APROVADO', s.usuarioId, null)
+        return { tipo: 'ACORDO' as const, alvo: pedido.alvo, operacaoId: op.id, acordoId: r.acordoId, valorTotal: r.valorTotal, parcelas: r.nParcelas, saldoAntes: r.saldoAntes }
+      }
 
       if (atual.tipo === 'RETOMADA') {
         // a venda pode ter sido retomada/cancelada por outro caminho, ou o cliente pode ter pago o atraso
@@ -144,7 +177,8 @@ export function createAprovacoesService(dep: {
     })
 
     const entidade = aplicado.alvo === 'VENDA' ? 'venda' : 'emprestimo'
-    if (aplicado.tipo === 'RETOMADA') await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'VENDA_RETOMADA', entidade, entidadeId: aplicado.operacaoId, depois: { aprovacaoId: id, emAberto: aplicado.emAberto, parcelasAtrasadas: aplicado.atrasadas, aparelhoId: aplicado.bemId } })
+    if (aplicado.tipo === 'ACORDO') await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'ACORDO_FEITO', entidade, entidadeId: aplicado.operacaoId, depois: { aprovacaoId: id, acordoId: aplicado.acordoId, valorTotal: aplicado.valorTotal, parcelas: aplicado.parcelas, saldoAntes: aplicado.saldoAntes } })
+    else if (aplicado.tipo === 'RETOMADA') await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'VENDA_RETOMADA', entidade, entidadeId: aplicado.operacaoId, depois: { aprovacaoId: id, emAberto: aplicado.emAberto, parcelasAtrasadas: aplicado.atrasadas, aparelhoId: aplicado.bemId } })
     else await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'DESCONTO_CONCEDIDO', entidade, entidadeId: aplicado.operacaoId, depois: { aprovacaoId: id, parcela: aplicado.parcela, valor: aplicado.valor } })
     await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'APROVACAO_APROVADA', entidade: 'aprovacao', entidadeId: id, depois: aplicado })
     return reler(id)
@@ -170,7 +204,8 @@ export function createAprovacoesService(dep: {
       const tipo = (e.tipo === undefined ? 'DESCONTO' : e.tipo) as TipoAprovacao
       if (tipo === 'DESCONTO') return pedirDesconto(s, e)
       if (tipo === 'RETOMADA') return pedirRetomada(s, e)
-      throw requisicaoInvalida('tipo deve ser DESCONTO ou RETOMADA')
+      if (tipo === 'ACORDO') return pedirAcordo(s, e)
+      throw requisicaoInvalida('tipo deve ser DESCONTO, RETOMADA ou ACORDO')
     },
 
     async listar(s, q) {

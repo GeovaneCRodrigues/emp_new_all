@@ -31,7 +31,7 @@ type LinhaVenda = {
   indicador_id: number | null; indicador_nome: string | null; percentual_indicador: string; data_venda: Date | string; preco_acordado: string
   entrada: string; troca_valor: string; juros_pct: string; valor_investido: string; status: Venda['status']; contrato_status: Venda['contrato']; retomada_em: Date | null; retomada_motivo: string | null
 }
-type LinhaParcela = { id: number; venda_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string }
+type LinhaParcela = { id: number; venda_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string; acordo_id: number | null; encerrada_acordo_id: number | null }
 
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const diaOuNull = (d: Date | string | null) => (d === null ? null : dia(d))
@@ -62,7 +62,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
     const porVenda = new Map<number, ParcelaVenda[]>()
     for (const p of ps) {
       const lista = porVenda.get(p.venda_id) ?? []
-      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago) })
+      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago), acordo: p.encerrada_acordo_id ? 'ENCERRADA' : p.acordo_id ? 'NOVA' : null })
       porVenda.set(p.venda_id, lista)
     }
     return linhas.map((l) => ({

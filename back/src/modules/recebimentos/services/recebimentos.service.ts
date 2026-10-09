@@ -152,7 +152,8 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         let amortizacao = 0
         let capitalRestante = 0
         try {
-          if (alvo === 'EMPRESTIMO' && venda.modalidade === 'JUROS') {
+          // só juros segue a regra própria (excedente abate o capital) enquanto não houve acordo; depois do acordo são parcelas comuns
+          if (alvo === 'EMPRESTIMO' && venda.modalidade === 'JUROS' && !venda.temAcordo) {
             // só juros: o que passa do juro da parcela abate o capital e o juro seguinte é recalculado
             const j = calcularRecebimentoJuros(parcelas, pedidoCalc, { capitalAberto: await tx.capitalAberto(operacaoId), taxa: venda.taxa! })
             r = j; ajustes = j.ajustes; amortizacao = j.amortizacao; capitalRestante = j.capitalRestante
@@ -251,6 +252,8 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         if (!(await tx.ehUltimaDaOperacao(op.alvo, op.id, transacaoId))) throw new HttpError(409, op.alvo === 'VENDA' ? 'Só o último recebimento da venda pode ser desfeito' : 'Só o último recebimento do empréstimo pode ser desfeito', 'NAO_E_O_ULTIMO')
 
         const recs = await tx.recebimentosDaTransacao(op.alvo, transacaoId)
+        // depois de um acordo, a parcela paga antes dele foi encerrada: desfazer o pagamento faria a dívida reaparecer em dobro
+        if (recs.some((r) => r.encerradaPorAcordo)) throw new HttpError(409, 'Este pagamento é de antes de um acordo e não pode mais ser desfeito', 'ACORDO_FEITO')
         for (const r of recs) {
           if (!r.antes) throw new HttpError(409, 'Este recebimento não tem como ser desfeito', 'SEM_RETRATO')
           await tx.atualizarParcela(op.alvo, r.parcelaId, r.antes) // volta vencimento, desconto e quitação como estavam

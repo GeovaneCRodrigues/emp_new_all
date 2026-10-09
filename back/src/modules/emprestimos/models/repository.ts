@@ -21,7 +21,7 @@ type Linha = {
   id: number; cliente_id: number; cliente_nome: string; indicador_id: number | null; indicador_nome: string | null; percentual_indicador: string
   data_emprestimo: Date | string; capital: string; modalidade: Emprestimo['modalidade']; taxa: string; periodicidade: Emprestimo['periodicidade']; status: Emprestimo['status']; observacoes: string | null
 }
-type LinhaParcela = { id: number; emprestimo_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string }
+type LinhaParcela = { id: number; emprestimo_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string; acordo_id: number | null; encerrada_acordo_id: number | null }
 
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const diaOuNull = (d: Date | string | null) => (d === null ? null : dia(d))
@@ -50,7 +50,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
     const porEmp = new Map<number, ParcelaEmprestimo[]>()
     for (const p of ps) {
       const lista = porEmp.get(p.emprestimo_id) ?? []
-      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago) })
+      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago), acordo: p.encerrada_acordo_id ? 'ENCERRADA' : p.acordo_id ? 'NOVA' : null })
       porEmp.set(p.emprestimo_id, lista)
     }
     return linhas.map((l) => ({

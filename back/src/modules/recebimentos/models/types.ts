@@ -23,6 +23,8 @@ export type OperacaoTravada = {
   /** só empréstimo */
   modalidade: 'PARCELADO' | 'JUROS' | 'DIARIA' | null
   taxa: number | null
+  /** empréstimo com acordo de pé: as parcelas deixam de seguir a regra própria do só juros */
+  temAcordo: boolean
 }
 
 /** O que o recibo mostra, tirado na hora do recebimento. */
@@ -60,7 +62,7 @@ export type ReciboRegistro = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA'; 
 
 export type PagamentoDaOperacao = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA' }
 
-export type RecebimentoDaTransacao = { id: number; parcelaId: number; numero: number; operacaoId: number; valor: number; antes: EstadoParcela | null }
+export type RecebimentoDaTransacao = { id: number; parcelaId: number; numero: number; operacaoId: number; valor: number; antes: EstadoParcela | null; /** a parcela foi encerrada por um acordo depois deste pagamento */ encerradaPorAcordo: boolean }
 
 export type LinhaCobranca = {
   tipo: Alvo
