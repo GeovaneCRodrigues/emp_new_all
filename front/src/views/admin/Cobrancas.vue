@@ -91,7 +91,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
   </div>
   <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
 
-  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" @retomada="aposMudar" />
   <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

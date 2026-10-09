@@ -136,9 +136,9 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (motivoPedido) {
         const resta = res.itens[0].faltaDepois
         if (resta <= 0.009) throw new ErroApi(400, 'Não sobrou nada na parcela para pedir desconto')
-        if (vendas._interno.pedidos.some((x) => x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+        if (vendas._interno.pedidos.some((x) => x.tipo === 'DESCONTO' && x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
         pedidoId = vendas._interno.proximoPedido()
-        vendas._interno.pedidos.push({ id: pedidoId, alvo, operacaoId: o.id, parcela: e.parcela, valor: resta, motivo: motivoPedido, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null })
+        vendas._interno.pedidos.push({ id: pedidoId, tipo: 'DESCONTO', alvo, operacaoId: o.id, parcela: e.parcela, valor: resta, motivo: motivoPedido, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null })
       }
       for (const it of res.itens) {
         const p = o.parcelas.find((x) => x.numero === it.numero)!

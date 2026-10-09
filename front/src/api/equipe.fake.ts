@@ -47,7 +47,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
   const visao = (p: Pedido): AprovacaoApi => {
     const o = opDe(p.alvo, p.operacaoId)!
     return {
-      id: p.id, tipo: 'DESCONTO', status: p.status, alvo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, nParcelas: o.parcelas.length, valor: p.valor, motivo: p.motivo,
+      id: p.id, tipo: p.tipo, status: p.status, alvo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, nParcelas: o.parcelas.length, valor: p.valor, motivo: p.motivo,
       solicitante: { id: p.solicitanteId, nome: p.solicitanteNome }, cliente: { id: o.cliente.id, nome: o.cliente.nome }, aparelho: o.descricao,
       criadaEm: p.criadaEm, respondidoPor: p.respondidoPor, respondidoEm: p.respondidoEm, resposta: p.resposta,
     }
@@ -75,8 +75,24 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (f <= 0.009) throw new ErroApi(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
       const valor = arred2(e.valor)
       if (valor > f + 0.009) throw erro('O desconto não pode passar do que falta na parcela')
-      if (pedidos.some((x) => x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
-      const novo: Pedido = { id: vendas._interno.proximoPedido(), alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
+      if (pedidos.some((x) => x.tipo === 'DESCONTO' && x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'DESCONTO', alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
+      pedidos.push(novo)
+      return visao(novo)
+    },
+
+    async pedirRetomada(s, e) {
+      if (s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o cobrador pede a retomada (o administrador retoma direto na venda)', 'SEM_PERMISSAO')
+      if (!Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw erro('Informe a venda')
+      const motivo = (e.motivo ?? '').trim()
+      if (motivo.length < 3 || motivo.length > 500) throw erro('Explique o motivo do pedido (de 3 a 500 letras)')
+      const o = opDe('VENDA', e.operacaoId, s)
+      if (!o) throw new ErroApi(404, 'Venda não encontrada', 'NAO_ENCONTRADO')
+      if (o.status !== 'ATIVA') throw new ErroApi(409, 'Só dá para pedir a retomada de uma venda em andamento', 'VENDA_NAO_RETOMAVEL')
+      const abertas = o.parcelas.filter((p) => falta(p) > 0.009)
+      if (!abertas.some((p) => p.vencimento < hoje)) throw new ErroApi(409, 'Só dá para pedir a retomada quando o cliente tem parcela atrasada', 'SEM_ATRASO')
+      if (pedidos.some((x) => x.tipo === 'RETOMADA' && x.operacaoId === o.id && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de retomada esperando para esta venda', 'PEDIDO_JA_EXISTE')
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'RETOMADA', alvo: 'VENDA', operacaoId: o.id, parcela: null, valor: arred2(abertas.reduce((x, p) => x + falta(p), 0)), motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
       pedidos.push(novo)
       return visao(novo)
     },
@@ -98,6 +114,12 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (p.status !== 'PENDENTE') throw new ErroApi(409, 'Este pedido já foi respondido', 'PEDIDO_JA_RESPONDIDO')
       const o = opDe(p.alvo, p.operacaoId)!
       if (encerrada(o.status)) throw new ErroApi(409, p.alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      if (p.tipo === 'RETOMADA') {
+        try { vendas._interno.retomarRegistro(o.id, s.usuarioId ?? 1, p.motivo, p.id) }
+        catch (err) { if (err instanceof ErroApi && err.codigo === 'SEM_ATRASO') throw new ErroApi(409, 'O cliente já não tem parcela atrasada: recuse o pedido', 'PEDIDO_DESATUALIZADO'); throw err }
+        p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
+        return visao(p)
+      }
       const parc = o.parcelas.find((x) => x.numero === p.parcela)!
       const f = falta(parc)
       if (p.valor > f + 0.009) throw new ErroApi(409, f <= 0.009 ? 'A parcela já foi paga: o pedido não faz mais sentido' : `A parcela mudou: agora faltam só ${f.toFixed(2).replace('.', ',')}. Recuse o pedido e peça de novo.`, 'PEDIDO_DESATUALIZADO')

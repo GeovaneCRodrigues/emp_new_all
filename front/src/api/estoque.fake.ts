@@ -15,6 +15,8 @@ export interface EstoqueFake extends EstoqueApi {
   _interno: {
     travar(id: number): { id: number; modelo: string; gb: number; cor: string; estado: EstadoAparelho; custo: number; extras: number; preco: number; paraClienteId: number | null } | null
     marcarVendido(id: number): void
+    /** Retomada: o aparelho volta ao estoque disponível, sem encomenda, com a data de hoje. */
+    devolver(id: number, dia: string, nota: string): void
     receberTroca(d: { modelo: string; gb: number; cor: string; bateria: number; imei: string | null; custo: number; preco: number }): void
   }
 }
@@ -118,6 +120,7 @@ export function criarEstoqueFake(): EstoqueFake {
     _interno: {
       travar: (id) => registros.find((r) => r.id === id) ?? null,
       marcarVendido(id) { const r = registros.find((x) => x.id === id); if (r) { r.estado = 'VENDIDO'; r.paraClienteId = null } },
+      devolver(id, dia, nota) { const r = registros.find((x) => x.id === id); if (r) { r.estado = 'DISPONIVEL'; r.paraClienteId = null; r.dataCompra = dia; r.observacoes = r.observacoes ? `${r.observacoes}\n${nota}` : nota } },
       receberTroca(d) {
         registros.push({ id: ++proximoId, modelo: d.modelo, gb: d.gb, cor: d.cor, bateria: d.bateria, condicao: 'Seminovo', imei: d.imei, preco: d.preco, estado: 'DISPONIVEL', origem: 'TROCA', dataCompra: seed.hoje, custo: d.custo, extras: 0, observacoes: null, paraClienteId: null })
       },

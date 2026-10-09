@@ -62,4 +62,27 @@ test.describe('equipe', () => {
     await page.getByRole('button', { name: 'Criar acesso' }).click()
     await expect(page.getByRole('alert')).toContainText('e-mail')
   })
+
+  test('o pedido de retomada aparece com o que vai acontecer e aprovar retoma o aparelho', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/equipe')
+    const ret = pedidos(page).filter({ has: page.locator('[data-tipo="RETOMADA"]') })
+    await expect(ret).toHaveCount(1)
+    await expect(ret).toContainText('Diego Ramos pede para retomar')
+    await expect(ret).toContainText('volta pro estoque')
+    await ret.getByRole('button', { name: 'Aprovar' }).click()
+    await expect(page.getByText('Aparelho retomado. Voltou pro estoque.')).toBeVisible()
+    await expect(ret).toHaveCount(0)
+  })
+
+  test('recusar a retomada pede o motivo e deixa tudo como estava', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/equipe')
+    const ret = pedidos(page).filter({ has: page.locator('[data-tipo="RETOMADA"]') })
+    await ret.getByRole('button', { name: 'Recusar' }).click()
+    await expect(page.getByRole('heading', { name: 'Recusar a retomada?' })).toBeVisible()
+    await page.locator('#mRecusa').fill('Vamos esperar até dia 25')
+    await page.getByRole('button', { name: 'Recusar', exact: true }).last().click()
+    await expect(ret).toHaveCount(0)
+  })
 })

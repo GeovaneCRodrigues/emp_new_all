@@ -34,6 +34,8 @@ export interface VendaApi {
   atrasadas: number
   status: StatusVenda
   contrato: 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO'
+  /** quando e por quê o aparelho foi retomado (só em venda RETOMADA) */
+  retomada: { em: string; motivo: string | null } | null
   parcelas: ParcelaVendaApi[]
   custoNoDia?: number
   lucroTotal?: number
@@ -79,4 +81,6 @@ export interface VendasApi {
   obter(s: Sessao, id: number): Promise<VendaApi>
   resumo(s: Sessao): Promise<ResumoVendasApi>
   juros(s: Sessao): Promise<JurosApi>
+  /** Retoma o aparelho de uma venda com parcela atrasada (só o administrador; o cobrador pede em /aprovacoes). */
+  retomar(s: Sessao, id: number, e?: { motivo?: string }): Promise<VendaApi>
 }

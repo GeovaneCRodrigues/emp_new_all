@@ -327,3 +327,47 @@ test.describe('empréstimos parcelados', () => {
     await expect(page.getByRole('button', { name: 'Fazer empréstimo' })).toBeDisabled()
   })
 })
+
+test.describe('retomada do aparelho', () => {
+  const abrirCarlos = async (page: Page) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.locator('.seg').getByRole('button', { name: 'Com atraso' }).click()
+    await page.locator('.card', { hasText: 'Carlos Henrique' }).first().click()
+  }
+
+  test('o administrador retoma pela ficha: pede confirmação, avisa e a venda passa para Retomadas', async ({ page }) => {
+    await abrirCarlos(page)
+    await page.locator('[data-retomar]').click()
+    await expect(page.getByRole('heading', { name: 'Retomar o aparelho?' })).toBeVisible()
+    await page.locator('#mRetomada').fill('Cliente sumiu')
+    await page.getByRole('button', { name: 'Retomar aparelho', exact: true }).last().click()
+    await expect(page.getByText('Aparelho retomado. Voltou pro estoque.')).toBeVisible()
+    await expect(page.getByTestId('retomada-aviso')).toContainText('Cliente sumiu')
+    await expect(page.locator('[data-retomar]')).toHaveCount(0) // já retomada: o botão some
+    await page.keyboard.press('Escape')
+    await page.locator('.seg').getByRole('button', { name: 'Retomadas' }).click()
+    await expect(page.locator('.card', { hasText: 'Carlos Henrique' }).first()).toBeVisible()
+  })
+
+  test('só aparece "Retomar aparelho" quando há parcela atrasada', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.locator('.seg').getByRole('button', { name: 'Quitadas' }).click()
+    const quitada = page.locator('.fones button.card').first()
+    await expect(quitada).toBeVisible()
+    await quitada.click()
+    await expect(page.getByRole('heading', { level: 3 }).first()).toBeVisible()
+    await expect(page.locator('[data-retomar]')).toHaveCount(0)
+  })
+
+  test('o vendedor nunca vê o botão de retomar', async ({ page }) => {
+    await entrar(page, 'vendedor')
+    await page.goto('/vendas')
+    const card = page.locator('.fones button.card').first()
+    await expect(card).toBeVisible()
+    await card.click()
+    await expect(page.getByRole('heading', { level: 3 }).first()).toBeVisible()
+    await expect(page.locator('[data-retomar]')).toHaveCount(0)
+  })
+})

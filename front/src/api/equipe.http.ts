@@ -30,7 +30,8 @@ const qs = (q: Record<string, string | number | undefined>) => {
 export function criarAprovacoesHttp(baseUrl: string, requisicao: Requisicao): AprovacoesApi {
   const chamar = criarChamar(baseUrl, requisicao)
   return {
-    pedirDesconto: (_s, e) => chamar('/aprovacoes', { method: 'POST', body: JSON.stringify(e) }),
+    pedirDesconto: (_s, e) => chamar('/aprovacoes', { method: 'POST', body: JSON.stringify({ tipo: 'DESCONTO', ...e }) }),
+    pedirRetomada: (_s, e) => chamar('/aprovacoes', { method: 'POST', body: JSON.stringify({ tipo: 'RETOMADA', alvo: 'VENDA', ...e }) }),
     listar: (_s, q) => chamar('/aprovacoes' + qs(q)),
     aprovar: (_s, id) => chamar(`/aprovacoes/${id}/aprovar`, { method: 'POST' }),
     recusar: (_s, id, motivo) => chamar(`/aprovacoes/${id}/recusar`, { method: 'POST', body: JSON.stringify({ motivo }) }),

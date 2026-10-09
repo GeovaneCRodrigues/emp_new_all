@@ -1,17 +1,20 @@
 import type { Sessao } from '@/domain/escopo'
 import type { AlvoApi } from './recebimentos'
 
+export type TipoAprovacao = 'DESCONTO' | 'RETOMADA'
 export type StatusAprovacao = 'PENDENTE' | 'APROVADO' | 'RECUSADO'
 
 export interface AprovacaoApi {
   id: number
-  tipo: 'DESCONTO'
+  tipo: TipoAprovacao
   status: StatusAprovacao
   alvo: AlvoApi
   /** id da venda ou do empréstimo */
   operacaoId: number
-  parcela: number
+  /** a parcela do desconto (a retomada é da venda toda: sem parcela) */
+  parcela: number | null
   nParcelas: number
+  /** desconto: o valor pedido. Retomada: o que estava em aberto na venda quando pediu. */
   valor: number
   motivo: string | null
   solicitante: { id: number; nome: string }
@@ -28,6 +31,8 @@ export interface ListaAprovacoes { itens: AprovacaoApi[]; total: number; pendent
 export interface AprovacoesApi {
   /** O cobrador pede (o administrador dá desconto direto ao receber). */
   pedirDesconto(s: Sessao, e: { alvo: AlvoApi; operacaoId: number; parcela: number; valor: number; motivo: string }): Promise<AprovacaoApi>
+  /** O cobrador pede a retomada do aparelho de uma venda com parcela atrasada. */
+  pedirRetomada(s: Sessao, e: { operacaoId: number; motivo: string }): Promise<AprovacaoApi>
   listar(s: Sessao, q: { status?: StatusAprovacao; pagina?: number; limite?: number }): Promise<ListaAprovacoes>
   aprovar(s: Sessao, id: number): Promise<AprovacaoApi>
   recusar(s: Sessao, id: number, motivo?: string): Promise<AprovacaoApi>

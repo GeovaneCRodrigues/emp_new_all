@@ -1,15 +1,40 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { recebimentosApi } from '@/api/recursos'
+import { ErroApi } from '@/api/clientes'
+import { recebimentosApi, vendasApi } from '@/api/recursos'
 import type { PagamentoApi } from '@/api/recebimentos'
 import type { VendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
+import { useToast } from '@/composables/useToast'
 import { dmy, dmyA, fmt, fmt0 } from '@/domain/format'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ venda: VendaApi | null }>()
-const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number] }>()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; retomada: [] }>()
 const { hoje, sessao } = useApp()
+
+const { mostrar } = useToast()
+// retomar o aparelho: só o administrador, venda em andamento com parcela atrasada
+const podeRetomar = computed(() => sessao.value.perfil === 'ADMIN' && props.venda?.status === 'ATIVA' && (props.venda?.atrasadas ?? 0) > 0)
+const retomando = ref(false)
+const motivoRetomada = ref('')
+const erroRetomada = ref('')
+const enviandoRetomada = ref(false)
+function abrirRetomada() { motivoRetomada.value = ''; erroRetomada.value = ''; retomando.value = true }
+async function confirmarRetomada() {
+  if (!props.venda || enviandoRetomada.value) return
+  enviandoRetomada.value = true; erroRetomada.value = ''
+  try {
+    await vendasApi.retomar(sessao.value, props.venda.id, motivoRetomada.value.trim() ? { motivo: motivoRetomada.value.trim() } : {})
+    retomando.value = false
+    mostrar('Aparelho retomado. Voltou pro estoque.')
+    emit('retomada')
+  } catch (e) {
+    erroRetomada.value = e instanceof ErroApi ? e.message : 'Não consegui retomar. Tente de novo.'
+  } finally {
+    enviandoRetomada.value = false
+  }
+}
 
 const podeReceber = computed(() => sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR')
 const pagamentos = ref<PagamentoApi[]>([])
@@ -37,6 +62,9 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
         <div class="bar" style="margin-top: 6px"><i :style="{ width: pct + '%', background: venda.atrasadas ? 'var(--bad)' : 'var(--primary)' }"></i></div>
         <div class="small" style="margin-top: 6px">Falta <b class="num" style="color: var(--strong)">{{ fmt(venda.falta) }}</b><template v-if="venda.atrasadas"> · <b style="color: var(--bad)">{{ venda.atrasadas }} atrasada{{ venda.atrasadas > 1 ? 's' : '' }}</b></template></div>
       </div>
+
+      <div v-if="venda.status === 'RETOMADA'" class="aviso" role="status" data-testid="retomada-aviso" style="margin-top: 10px">Aparelho retomado em {{ dmyA(venda.retomada?.em.slice(0, 10) ?? venda.dataVenda) }}<template v-if="venda.retomada?.motivo"> · {{ venda.retomada.motivo }}</template>. O que o cliente já pagou continua no histórico.</div>
+      <button v-if="podeRetomar" class="btn b-out b-block" style="margin-top: 10px; color: var(--bad)" data-retomar @click="abrirRetomada">Retomar aparelho</button>
 
       <div class="dl card pad" style="margin-top: 10px">
         <div><div class="lbl">Preço combinado</div><div class="val num">{{ fmt(venda.precoAcordado) }}</div></div>
@@ -77,6 +105,19 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
           </div>
         </div>
       </template>
+    </template>
+  </Sheet>
+
+  <Sheet :aberto="retomando" @fechar="retomando = false">
+    <template v-if="venda">
+      <h3>Retomar o aparelho?</h3>
+      <div class="small">{{ venda.aparelho.modelo }} · {{ venda.cliente.nome }} · {{ venda.atrasadas }} parcela{{ venda.atrasadas > 1 ? 's' : '' }} atrasada{{ venda.atrasadas > 1 ? 's' : '' }}</div>
+      <p class="small" style="margin: 10px 0">A venda sai das cobranças e do "a receber", e o aparelho volta pro estoque como disponível. O que o cliente já pagou continua no histórico. Não dá para desfazer.</p>
+      <form style="display: flex; flex-direction: column; gap: 14px" @submit.prevent="confirmarRetomada">
+        <div class="field"><label for="mRetomada">Motivo (opcional)</label><div class="inp"><input id="mRetomada" v-model="motivoRetomada" maxlength="500" placeholder="Ex.: cliente sumiu" /></div></div>
+        <div v-if="erroRetomada" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroRetomada }}</div>
+        <button class="btn b-bad b-block" type="submit" :disabled="enviandoRetomada">{{ enviandoRetomada ? 'Retomando…' : 'Retomar aparelho' }}</button>
+      </form>
     </template>
   </Sheet>
 </template>
