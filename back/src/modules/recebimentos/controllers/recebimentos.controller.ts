@@ -23,7 +23,7 @@ export function createRecebimentosController(service: RecebimentosService) {
     async desfazer(req: FastifyRequest, reply: FastifyReply) { await service.desfazer(sessaoOuErro(req), idDaRota(req)); return reply.code(204).send() },
     async cobrancas(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
-      return cobrancasView(await service.cobrancas(sessaoOuErro(req), { aba: typeof q.aba === 'string' ? q.aba : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))
+      return cobrancasView(await service.cobrancas(sessaoOuErro(req), { aba: typeof q.aba === 'string' ? q.aba : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))
     },
   }
 }

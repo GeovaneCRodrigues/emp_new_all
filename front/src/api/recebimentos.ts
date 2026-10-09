@@ -92,5 +92,5 @@ export interface RecebimentosApi {
   recibo(s: Sessao, id: number): Promise<ReciboApi>
   pagamentos(s: Sessao, alvo: AlvoApi, operacaoId: number): Promise<PagamentoApi[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
-  cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
+  cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
 }

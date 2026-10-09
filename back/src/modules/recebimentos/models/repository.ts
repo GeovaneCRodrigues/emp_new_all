@@ -36,7 +36,7 @@ export interface RecebimentosRepository {
   /** Operação dentro do escopo (fora dele é como se não existisse). */
   operacaoNoEscopo(alvo: Alvo, id: number, escopo: EscopoRecebimentos): Promise<{ id: number } | null>
   pagamentosDaOperacao(alvo: Alvo, id: number): Promise<PagamentoDaOperacao[]>
-  cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
+  cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; busca?: string; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
   empresa(): Promise<{ nome: string; cnpj: string | null }>
 }
 
@@ -201,6 +201,8 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
       const h = f.hoje, mais7 = addDia(h, 7), mais8 = addDia(h, 8), mais45 = addDia(h, 45), menos30 = addDia(h, -30)
       const filtroAba = (q: Knex.QueryBuilder) => {
+        // busca pelo nome do cliente, sem acento e sem maiúscula (a busca já chega normalizada)
+        if (f.busca) q.whereRaw("translate(lower(u.cliente_nome), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') like ? escape '\\'", [`%${f.busca.replace(/[\\%_]/g, '\\$&')}%`])
         if (f.aba === 'atrasadas') q.whereRaw('u.falta > 0.009 and u.vencimento < ?', [h])
         else if (f.aba === 'hoje') q.whereRaw('u.falta > 0.009 and u.vencimento between ? and ?', [h, mais7])
         else if (f.aba === 'proximas') q.whereRaw('u.falta > 0.009 and u.vencimento between ? and ?', [mais8, mais45])

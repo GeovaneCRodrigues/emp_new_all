@@ -220,8 +220,11 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       const aba = q.aba ?? 'atrasadas'
       if (!ABAS.includes(aba)) throw new ErroApi(400, 'aba inválida')
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')
+      if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
       const limite = Math.min(Math.max(q.limite ?? 20, 1), 100)
       const pagina = Math.max(q.pagina ?? 1, 1)
+      const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      const busca = q.busca ? semAcento(q.busca).trim() : ''
       const ops: Op[] = [
         ...(q.tipo === 'EMPRESTIMO' ? [] : vendas._interno.noEscopo(s).filter((r) => r.status !== 'RETOMADA' && r.status !== 'CANCELADA').map(comoOp)),
         ...(q.tipo === 'VENDA' || !emprestimos ? [] : emprestimos._interno.noEscopo(s).filter((r) => r.status !== 'CANCELADA').map(comoOpEmp)),
@@ -239,13 +242,14 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         }),
       )
       const aberta = (c: CobrancaApi) => c.falta > 0.009
+      const daBusca = (c: CobrancaApi) => !busca || semAcento(c.cliente.nome).includes(busca)
       const daAba: Record<AbaCobranca, (c: CobrancaApi) => boolean> = {
         atrasadas: (c) => aberta(c) && c.vencimento < hoje,
         hoje: (c) => aberta(c) && c.vencimento >= hoje && c.vencimento <= addDia(hoje, 7),
         proximas: (c) => aberta(c) && c.vencimento >= addDia(hoje, 8) && c.vencimento <= addDia(hoje, 45),
         recebidas: (c) => c.ultimoRecebimentoEm !== null && c.ultimoRecebimentoEm >= addDia(hoje, -30),
       }
-      const filtradas = todas.filter(daAba[aba]).sort((a, b) => (aba === 'recebidas' ? (b.ultimoRecebimentoEm ?? '').localeCompare(a.ultimoRecebimentoEm ?? '') : a.vencimento.localeCompare(b.vencimento)))
+      const filtradas = todas.filter((c) => daAba[aba](c) && daBusca(c)).sort((a, b) => (aba === 'recebidas' ? (b.ultimoRecebimentoEm ?? '').localeCompare(a.ultimoRecebimentoEm ?? '') : a.vencimento.localeCompare(b.vencimento)))
       return {
         itens: filtradas.slice((pagina - 1) * limite, pagina * limite), total: filtradas.length,
         valorTotal: arred2(filtradas.reduce((x, c) => x + (aba === 'recebidas' ? c.pago : c.falta), 0)), pagina, limite,

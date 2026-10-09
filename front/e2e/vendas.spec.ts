@@ -105,7 +105,7 @@ test.describe('nova venda', () => {
     await entrar(page)
     await page.goto('/vender')
     await aparelho(page, 6).click()
-    await page.getByRole('button', { name: 'Novo', exact: true }).click()
+    await page.locator('.content').getByRole('button', { name: 'Novo', exact: true }).click()
     await page.fill('#cNome', 'Cliente Novo da Venda')
     await page.fill('#cFone', '11966667777')
     await page.getByRole('button', { name: 'Cadastrar cliente' }).click()

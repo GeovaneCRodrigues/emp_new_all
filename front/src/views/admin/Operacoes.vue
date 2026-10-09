@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ErroApi } from '@/api/clientes'
 import type { EmprestimoApi, ResumoEmprestimosApi } from '@/api/emprestimos'
 import { emprestimosApi, vendasApi } from '@/api/recursos'
@@ -18,6 +18,7 @@ import { useApp } from '@/composables/useApp'
 import { fmt0 } from '@/domain/format'
 
 const route = useRoute()
+const router = useRouter()
 const { sessao } = useApp()
 
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
@@ -63,8 +64,17 @@ async function carregarResumo() {
   try { resumo.value = await vendasApi.resumo(sessao.value) } catch { /* os números ficam em branco */ }
 }
 watch(filtro, () => carregar())
+/** /operacoes?novo=emprestimo (vindo do botão "Novo"): abre a aba de empréstimos já com o formulário. */
+function abrirNovoEmprestimo() {
+  if (route.query.novo !== 'emprestimo' || !ehAdmin.value) return
+  aba.value = 'emp'
+  formEmp.value = true
+  router.replace({ path: route.path, query: {} })
+}
+watch(() => route.query.novo, abrirNovoEmprestimo)
 onMounted(async () => {
   carregar(); carregarResumo()
+  abrirNovoEmprestimo()
   // /operacoes?venda=ID abre a ficha (é para onde a "venda feita" manda)
   const id = Number(route.query.venda)
   if (id) ficha.value = await vendasApi.obter(sessao.value, id).catch(() => null)
