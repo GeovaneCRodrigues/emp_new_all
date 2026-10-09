@@ -71,7 +71,7 @@ const propostas = createPropostasService({ repo: createPropostasRepository(db.kn
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
 const aud = createAuditoriaRepository(db.knex)
-const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db.knex), auditoria: aud })
+const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db.knex), auditoria: aud, baixas: { confirmar: (s, id, e) => recebimentos.confirmarBaixa(s, id, e) } })
 const fechamentos = createFechamentosService({ repo: createFechamentosRepository(db.knex), auditoria: aud })
 const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
 

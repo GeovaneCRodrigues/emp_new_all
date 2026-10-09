@@ -78,6 +78,8 @@ export type LinhaCobranca = {
   descricao: string
   ultimaTransacaoId: number | null
   ultimoRecebimentoEm: string | null
+  /** o indicador avisou que recebeu esta parcela e a loja ainda não respondeu */
+  baixaPendente: { id: number; valor: number; por: string } | null
 }
 
 export type Aba = 'atrasadas' | 'hoje' | 'proximas' | 'recebidas'

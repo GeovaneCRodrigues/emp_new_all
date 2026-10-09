@@ -90,9 +90,10 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
 
   // ======================== aprovações ========================
   describe('pedir desconto', () => {
-    it('só o cobrador pede: admin (dá direto), vendedor e indicador não (403); sem login, 401', async () => {
+    it('só cobrador e indicador pedem: admin (dá direto) e vendedor não (403); o indicador só de operação dele (404 nas outras); sem login, 401', async () => {
       const v = await venda()
-      for (const papel of ['admin', 'vendedor', 'indicador']) expect((await pedir(papel, v)).statusCode).toBe(403)
+      for (const papel of ['admin', 'vendedor']) expect((await pedir(papel, v)).statusCode).toBe(403)
+      expect((await pedir('indicador', v)).statusCode).toBe(404) // a venda não tem este indicador
       expect((await req('POST', '/api/aprovacoes', undefined, { alvo: 'VENDA', operacaoId: v, parcela: 1, valor: 100, motivo: 'abc' })).statusCode).toBe(401)
     })
     it('o cobrador pede, o pedido nasce PENDENTE com tudo o que o admin precisa ver, e audita', async () => {
@@ -130,14 +131,15 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
   })
 
   describe('listar', () => {
-    it('o admin vê todos e o cobrador só os dele; vendedor e indicador, 403', async () => {
+    it('o admin vê todos e o cobrador só os dele; o vendedor, 403; o indicador vê só os dele (nenhum aqui)', async () => {
       const a = await venda(id.cA), b = await venda(id.cB)
       await pedir('cobrador', a); await pedir('cobrador2', b)
       const adm = (await req('GET', '/api/aprovacoes?limite=100', 'admin')).json()
       expect(new Set(adm.itens.map((x: { solicitante: { nome: string } }) => x.solicitante.nome))).toEqual(new Set(['cobrador Silva', 'cobrador2 Silva']))
       const dele = (await req('GET', '/api/aprovacoes?limite=100', 'cobrador')).json()
       expect(dele.itens.every((x: { solicitante: { nome: string } }) => x.solicitante.nome === 'cobrador Silva')).toBe(true)
-      for (const papel of ['vendedor', 'indicador']) expect((await req('GET', '/api/aprovacoes', papel)).statusCode).toBe(403)
+      expect((await req('GET', '/api/aprovacoes', 'vendedor')).statusCode).toBe(403)
+      expect((await req('GET', '/api/aprovacoes?limite=100', 'indicador')).json().total).toBe(0)
     })
     it('filtra por status, conta os pendentes, e recusa status inventado', async () => {
       const r = (await req('GET', '/api/aprovacoes?status=PENDENTE&limite=100', 'admin')).json()

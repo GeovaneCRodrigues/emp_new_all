@@ -25,11 +25,17 @@ export interface RecebimentosTx {
   /** O dia dessa pessoa já foi fechado? */
   diaFechado(usuarioId: number, data: string): Promise<boolean>
   pedidoPendente(alvo: Alvo, parcelaId: number): Promise<boolean>
+  /** Responde (APROVADO) um aviso de baixa esperando, travando o pedido; false se ele já foi respondido (ou não é uma baixa). */
+  responderBaixa(id: number, usuarioId: number): Promise<boolean>
+  /** A parcela foi quitada por outro caminho: o aviso de baixa que ainda esperava a loja perde o sentido e é recusado. */
+  recusarBaixasPendentes(alvo: Alvo, parcelaId: number, usuarioId: number, resposta: string): Promise<void>
   criarPedidoDesconto(alvo: Alvo, d: { operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
 }
 
 export interface RecebimentosRepository {
   emTransacao<T>(fn: (tx: RecebimentosTx) => Promise<T>): Promise<T>
+  /** O aviso de baixa do indicador, para a loja confirmar. */
+  baixaDoPedido(id: number): Promise<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; alvo: Alvo; operacaoId: number; parcela: number; valor: number; solicitanteId: number; forma: FormaPagamento; data: string; comprovante: string | null } | null>
   /** A venda/empréstimo que a transação paga (pelas parcelas), antes de abrir a transação de desfazer. */
   operacaoDaTransacao(transacaoId: number): Promise<{ alvo: Alvo; id: number } | null>
   buscarRecibo(id: number): Promise<ReciboRegistro | null>
@@ -139,6 +145,16 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
             const [{ id }] = await trx('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: d.solicitadoPor, [T[alvo].opFk]: d.operacaoId, [T[alvo].fk]: d.parcelaId, valor: d.valor, motivo: d.motivo }).returning('id')
             return id
           },
+          async responderBaixa(id, usuarioId) {
+            const l = await trx('aprovacoes').where({ id, tipo: 'BAIXA' }).forUpdate().first<{ status: string } | undefined>('status')
+            if (!l || l.status !== 'PENDENTE') return false
+            await trx('aprovacoes').where({ id }).update({ status: 'APROVADO', respondido_por: usuarioId, respondido_em: trx.fn.now(), updated_at: trx.fn.now() })
+            return true
+          },
+          async recusarBaixasPendentes(alvo, parcelaId, usuarioId, resposta) {
+            await trx('aprovacoes').where({ tipo: 'BAIXA', status: 'PENDENTE', [T[alvo].fk]: parcelaId })
+              .update({ status: 'RECUSADO', respondido_por: usuarioId, respondido_em: trx.fn.now(), resposta, updated_at: trx.fn.now() })
+          },
           async marcarDesfeita(id, usuarioId) {
             await trx('transacoes_recebimento').where({ id }).update({ desfeita_em: trx.fn.now(), desfeita_por: usuarioId, updated_at: trx.fn.now() })
           },
@@ -147,6 +163,13 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       })
     },
 
+    async baixaDoPedido(id) {
+      const l = await db('aprovacoes as a').leftJoin('venda_parcelas as vp', 'vp.id', 'a.venda_parcela_id').leftJoin('emprestimo_parcelas as ep', 'ep.id', 'a.emprestimo_parcela_id')
+        .where('a.id', id).where('a.tipo', 'BAIXA')
+        .first<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; venda_id: number | null; emprestimo_id: number | null; numero: number; valor: string; solicitado_por: number; dados: { forma: FormaPagamento; data: string; comprovante: string | null } } | undefined>('a.id', 'a.status', 'a.venda_id', 'a.emprestimo_id', db.raw('coalesce(vp.numero, ep.numero) as numero'), 'a.valor', 'a.solicitado_por', 'a.dados')
+      if (!l) return null
+      return { id: l.id, status: l.status, alvo: l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO', operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcela: l.numero, valor: Number(l.valor), solicitanteId: l.solicitado_por, forma: l.dados.forma, data: l.dados.data, comprovante: l.dados.comprovante ?? null }
+    },
     async operacaoDaTransacao(transacaoId) {
       const r = await db('recebimentos as r').leftJoin('venda_parcelas as vp', 'vp.id', 'r.venda_parcela_id').leftJoin('emprestimo_parcelas as ep', 'ep.id', 'r.emprestimo_parcela_id')
         .where('r.transacao_id', transacaoId).whereNot('r.tipo', 'ENTRADA').first<{ venda_id: number | null; emprestimo_id: number | null } | undefined>('vp.venda_id', 'ep.emprestimo_id')
@@ -201,6 +224,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
           db.raw(`(p.valor - ${pagoSql(alvo)} - p.desconto) as falta`),
           db.raw(`(select max(t.id) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima`),
           db.raw(`(select max(t.data_recebimento) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima_data`),
+          db.raw(`(select json_build_object('id', a.id, 'valor', a.valor, 'por', u.nome) from aprovacoes a join users u on u.id = a.solicitado_por where a.${t.fk} = p.id and a.tipo = 'BAIXA' and a.status = 'PENDENTE' limit 1) as baixa`),
         )
       }
       const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
@@ -217,7 +241,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const fonte = () => db.from(db.raw('(' + tipos.map((a) => `(${linhas(a).toQuery()})`).join(' union all ') + ') as u'))
       const [soma] = await filtroAba(fonte()).select<{ n: string; total: string }[]>(db.raw('count(*) as n'), db.raw(f.aba === 'recebidas' ? 'coalesce(sum(u.pago), 0) as total' : 'coalesce(sum(u.falta), 0) as total'))
       const ordem = f.aba === 'recebidas' ? 'u.ultima_data desc, u.operacao_id desc, u.numero desc' : 'u.vencimento asc, u.tipo asc, u.operacao_id asc, u.numero asc'
-      const ls = await filtroAba(fonte()).select<{ tipo: Alvo; operacao_id: number; numero: number; n_parcelas: string; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; pago: string; falta: string; cliente_id: number; cliente_nome: string; cliente_fone: string; descricao: string; ultima: number | null; ultima_data: Date | string | null }[]>('u.*')
+      const ls = await filtroAba(fonte()).select<{ tipo: Alvo; operacao_id: number; numero: number; n_parcelas: string; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; pago: string; falta: string; cliente_id: number; cliente_nome: string; cliente_fone: string; descricao: string; baixa: { id: number; valor: number; por: string } | null; ultima: number | null; ultima_data: Date | string | null }[]>('u.*')
         .orderByRaw(ordem).limit(f.limite).offset(f.offset)
       const [c] = await fonte().select<{ atrasadas: string; hoje: string; proximas: string }[]>(
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento < ?) as atrasadas', [h]),
@@ -227,6 +251,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const itens: LinhaCobranca[] = ls.map((l) => ({
         tipo: l.tipo, operacaoId: l.operacao_id, numero: l.numero, nParcelas: Number(l.n_parcelas), vencimento: dia(l.vencimento)!, vencimentoOriginal: dia(l.vencimento_original), valor: Number(l.valor),
         pago: Number(l.pago), falta: Number(l.falta), cliente: { id: l.cliente_id, nome: l.cliente_nome, fone: l.cliente_fone }, descricao: l.descricao, ultimaTransacaoId: l.ultima, ultimoRecebimentoEm: dia(l.ultima_data),
+        baixaPendente: l.baixa ? { id: l.baixa.id, valor: Number(l.baixa.valor), por: l.baixa.por } : null,
       }))
       return { itens, total: Number(soma.n), valorTotal: Number(soma.total), contagens: { atrasadas: Number(c.atrasadas), hoje: Number(c.hoje), proximas: Number(c.proximas) } }
     },

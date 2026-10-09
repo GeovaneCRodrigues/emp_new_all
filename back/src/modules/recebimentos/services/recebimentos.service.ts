@@ -39,6 +39,8 @@ export type ListaCobrancas = { itens: (LinhaCobranca & { atrasoDias: number })[]
 
 export type RecebimentosService = {
   registrar(s: Sessao, alvo: Alvo, operacaoId: number, e: Entrada): Promise<Registrado>
+  /** A loja confirma o aviso de baixa do indicador (vira recebimento, recebido por ele). `e`: o que fazer se veio menos que a parcela. */
+  confirmarBaixa(s: Sessao, id: number, e: Entrada): Promise<Registrado>
   recibo(s: Sessao, transacaoId: number): Promise<Recibo>
   pagamentos(s: Sessao, alvo: Alvo, operacaoId: number): Promise<PagamentoView[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
@@ -112,9 +114,10 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
     return montarRecibo(r)
   }
 
-  return {
-    async registrar(s, alvo, operacaoId, e) {
-      const escopo = escopoDe(s)
+  /** Quem está lançando: o perfil define as regras (cobrador só lança o de hoje); `usuarioId` é quem recebeu; `baixaId`/`confirmadoPor`: o aviso do indicador que a loja confirma. */
+  type Contexto = { escopo: EscopoRecebimentos; perfil: Sessao['perfil']; usuarioId: number; sessaoRecibo: Sessao; baixaId?: number; confirmadoPor?: number }
+  async function registrarCore(ctx: Contexto, alvo: Alvo, operacaoId: number, e: Entrada) {
+      const escopo = ctx.escopo
       const numero = e.parcela
       if (typeof numero !== 'number' || !Number.isInteger(numero) || numero < 1) throw requisicaoInvalida('Informe qual parcela está sendo paga')
       if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0 || e.valor > DINHEIRO_MAX) throw requisicaoInvalida('Informe quanto foi recebido')
@@ -127,12 +130,12 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (e.resto !== undefined && e.resto !== 'FICA' && e.resto !== 'DESCONTO') throw requisicaoInvalida('resto deve ser FICA ou DESCONTO')
       if (e.novoVencimento !== undefined && e.novoVencimento !== null && !dataValida(e.novoVencimento)) throw requisicaoInvalida('novoVencimento precisa ser uma data válida (AAAA-MM-DD)')
       // cobrador: só lança o que recebeu hoje, e desconto só com a aprovação do administrador
-      if (s.perfil === 'COBRADOR' && data !== dia) throw semPermissao('O cobrador só lança o que recebeu hoje')
-      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador: use "pedir desconto"')
+      if (ctx.perfil === 'COBRADOR' && data !== dia) throw semPermissao('O cobrador só lança o que recebeu hoje')
+      if (ctx.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador: use "pedir desconto"')
       // o cobrador pode pedir desconto do que faltou: o pagamento é lançado e a parcela fica aberta até o admin responder
       let pedir: { motivo: string } | null = null
       if (e.pedirDesconto !== undefined && e.pedirDesconto !== null) {
-        if (s.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede desconto (o administrador dá o desconto direto)')
+        if (ctx.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede desconto (o administrador dá o desconto direto)')
         const motivo = typeof (e.pedirDesconto as { motivo?: unknown })?.motivo === 'string' ? (e.pedirDesconto as { motivo: string }).motivo.trim() : ''
         if (motivo.length < 3 || motivo.length > 500) throw requisicaoInvalida('Explique o motivo do pedido de desconto (de 3 a 500 letras)')
         if (e.resto !== 'FICA') throw requisicaoInvalida('Para pedir desconto, o resto precisa ficar devendo até o administrador responder')
@@ -140,10 +143,12 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       }
 
       const feito = await dep.repo.emTransacao(async (tx) => {
+        // confirmar o aviso de baixa do indicador e lançar o recebimento são uma coisa só: ou os dois, ou nenhum
+        if (ctx.baixaId !== undefined && !(await tx.responderBaixa(ctx.baixaId, ctx.confirmadoPor!))) throw new HttpError(409, 'Este aviso já foi respondido', 'PEDIDO_JA_RESPONDIDO')
         // o caixa do cobrador é serializado: receber e fechar o dia nunca se atropelam
-        if (s.perfil === 'COBRADOR') {
-          await tx.travarCaixa(s.usuarioId)
-          if (await tx.diaFechado(s.usuarioId, data)) throw new HttpError(409, 'O seu dia já foi fechado. Peça ao administrador para reabrir.', 'DIA_FECHADO')
+        if (ctx.perfil === 'COBRADOR') {
+          await tx.travarCaixa(ctx.usuarioId)
+          if (await tx.diaFechado(ctx.usuarioId, data)) throw new HttpError(409, 'O seu dia já foi fechado. Peça ao administrador para reabrir.', 'DIA_FECHADO')
         }
         const venda = await tx.travarOperacao(alvo, operacaoId, escopo)
         if (!venda) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
@@ -189,10 +194,10 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
           const resta = r.itens[0].faltaDepois
           if (resta <= 0.009) throw requisicaoInvalida('Não sobrou nada na parcela para pedir desconto')
           if (await tx.pedidoPendente(alvo, r.itens[0].parcelaId)) throw new HttpError(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
-          pedidoId = await tx.criarPedidoDesconto(alvo, { operacaoId, parcelaId: r.itens[0].parcelaId, solicitadoPor: s.usuarioId, valor: resta, motivo: pedir.motivo })
+          pedidoId = await tx.criarPedidoDesconto(alvo, { operacaoId, parcelaId: r.itens[0].parcelaId, solicitadoPor: ctx.usuarioId, valor: resta, motivo: pedir.motivo })
         }
         const t = await tx.criarTransacao({
-          clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: s.usuarioId, resumo,
+          clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: ctx.usuarioId, resumo,
           ajustes: ajustes.length || amortizacao > 0 ? { amortizacao, parcelas: ajustes.map((a) => ({ parcelaId: a.parcelaId, numero: a.numero, antes: a.antes })) } : null,
         })
         for (const it of r.itens) {
@@ -201,13 +206,15 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
           if (mudou) await tx.atualizarParcela(alvo, it.parcelaId, it.depois)
         }
         for (const aj of ajustes) await tx.atualizarParcela(alvo, aj.parcelaId, aj.depois) // só juros: o juro seguinte, recalculado
+        // parcela quitada por aqui: o aviso de baixa do indicador que ainda esperava não faz mais sentido
+        for (const it of r.itens) if (it.faltaDepois <= 0.009) await tx.recusarBaixasPendentes(alvo, it.parcelaId, ctx.confirmadoPor ?? ctx.usuarioId, 'A loja já lançou este pagamento')
         const quitada = abertas.length === 0
         await tx.definirStatus(alvo, operacaoId, quitada ? 'QUITADA' : 'ATIVA')
         return { transacaoId: t.id, efeitos: r.efeitos, quitada, primeiro: r.itens[0], pedidoId, motivoPedido: pedir?.motivo ?? null }
       })
 
       // trilha de auditoria: baixa, desconto e mudança de vencimento
-      const base = { usuarioId: s.usuarioId, entidade: alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: operacaoId }
+      const base = { usuarioId: ctx.confirmadoPor ?? ctx.usuarioId, entidade: alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: operacaoId }
       await dep.auditoria.registrar({ ...base, acao: 'RECEBIMENTO_REGISTRADO', depois: { transacaoId: feito.transacaoId, parcela: numero, valor: e.valor, forma, data, efeitos: feito.efeitos } })
       const desc = feito.efeitos.find((x) => x.tipo === 'DESCONTO')
       if (desc) await dep.auditoria.registrar({ ...base, acao: 'DESCONTO_CONCEDIDO', depois: { transacaoId: feito.transacaoId, ...desc } })
@@ -215,7 +222,27 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
 
       if (feito.pedidoId) await dep.auditoria.registrar({ ...base, entidade: 'aprovacao', entidadeId: feito.pedidoId, acao: 'DESCONTO_PEDIDO', depois: { alvo, operacaoId, parcela: numero, motivo: feito.motivoPedido } })
 
-      return { recibo: await reciboDe(s, feito.transacaoId), efeitos: feito.efeitos, quitada: feito.quitada, pedidoDescontoId: feito.pedidoId }
+      return { recibo: await reciboDe(ctx.sessaoRecibo, feito.transacaoId), efeitos: feito.efeitos, quitada: feito.quitada, pedidoDescontoId: feito.pedidoId }
+  }
+
+
+  return {
+    async registrar(s, alvo, operacaoId, e) {
+      return registrarCore({ escopo: escopoDe(s), perfil: s.perfil, usuarioId: s.usuarioId, sessaoRecibo: s }, alvo, operacaoId, e)
+    },
+
+    /** A loja confirma o aviso de baixa do indicador: vira recebimento (recebido por ele) e o recibo sai. Só o administrador. */
+    async confirmarBaixa(s, id, e) {
+      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador confirma a baixa')
+      const b = await dep.repo.baixaDoPedido(id)
+      if (!b) throw naoEncontrado('Aviso não encontrado')
+      if (b.status !== 'PENDENTE') throw new HttpError(409, 'Este aviso já foi respondido', 'PEDIDO_JA_RESPONDIDO')
+      const r = await registrarCore(
+        { escopo: { tipo: 'TODOS' }, perfil: 'ADMIN', usuarioId: b.solicitanteId, sessaoRecibo: s, baixaId: id, confirmadoPor: s.usuarioId },
+        b.alvo, b.operacaoId, { parcela: b.parcela, valor: b.valor, forma: b.forma, data: b.data, ...(e.resto !== undefined ? { resto: e.resto } : {}), ...(e.novoVencimento !== undefined ? { novoVencimento: e.novoVencimento } : {}) },
+      )
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_CONFIRMADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo: b.alvo, operacaoId: b.operacaoId, parcela: b.parcela, valor: b.valor } })
+      return r
     },
 
     recibo: reciboDe,
