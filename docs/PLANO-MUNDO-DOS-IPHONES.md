@@ -115,6 +115,7 @@ Layout geral:
 - No celular fica uma barra embaixo com um botão central em destaque.
 - Botões, não links, na navegação do celular.
 - Campos de dinheiro usam máscara BRL que digita pelos centavos: digitar `400000` vira `4.000,00`.
+- **Campos de data** (pedido do Geovane): aparecem como `dd/mm/aaaa`, dá pra digitar só os números (`08112026` vira `08/11/2026`) ou tocar no ícone e escolher num **calendário** que abre embaixo do campo, com atalhos "Hoje" e "Daqui a 30 dias". Dias fora do permitido (antes da data do empréstimo, no futuro para "quando recebeu") ficam apagados.
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
 - Toda modal tem um botão **"x"** redondo no canto de cima, à direita, **saindo um pouco pra fora** da modal (no celular, sai por cima da borda). Ele fica fora da área que rola, então está sempre visível. Esc e clicar fora também fecham. Pedido do Geovane.
 
@@ -142,7 +143,7 @@ Layout geral:
   - **como paga:** Parcelado (capital + juros divididos) ou Só juros (juro a cada parcela, capital junto da última);
   - **de quanto em quanto tempo:** Mensal, Quinzenal (15 dias), Semanal (7 dias) ou Diária (todo dia menos domingo). Diária é sempre parcelado;
   - juros por período (ao mês, por quinzena, por semana; na diária é o % no total) e quantidade de parcelas;
-  - **1º vencimento:** sugere um período depois da data do empréstimo, e dá pra trocar. As outras parcelas seguem a frequência a partir dele;
+  - **1º vencimento:** sugere um período depois da data do empréstimo (no mensal, o mesmo dia do mês seguinte, que é o caso mais comum), e dá pra trocar. As outras parcelas seguem a frequência a partir dele;
   - indicação, e o resumo mostra as primeiras datas, a última, o total e o lucro.
 - **Nova venda em 3 passos:** Aparelho, Cliente, Pagamento.
   - Pagamento tem preço, entrada, troca, parcelas de 1 a 10x, dia do vencimento e indicação.

@@ -273,6 +273,24 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 .inp:focus-within{border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in oklab,var(--primary) 18%,transparent)}
 .inp span{color:var(--soft);font-weight:500}
 .inp input,.inp select{border:0;outline:0;background:none;flex:1;min-width:0;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;width:100%}
+/* campo de data: digita dd/mm/aaaa ou escolhe no calendário */
+.inp.dp{position:relative}
+.inp .dcal{border:0;background:none;color:var(--primary);display:grid;place-items:center;width:32px;height:32px;margin-right:-6px;border-radius:8px;cursor:pointer}
+@media (hover:hover){.inp .dcal:hover{background:var(--muted)}}
+.dpop{position:absolute;z-index:30;top:calc(100% + 6px);left:-1px;width:280px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(6,10,20,.18);padding:10px;font-weight:500}
+.dpop .dhead{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px}
+.dpop .dhead b{color:var(--strong);font-size:14px;text-transform:capitalize}
+.dpop .dhead button,.dpop .dgrid button,.dpop .dfoot button{border:0;background:none;cursor:pointer;color:var(--strong);font:inherit}
+.dpop .dhead button{width:30px;height:30px;border-radius:8px;display:grid;place-items:center}
+.dpop .dgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.dpop .dgrid span{font-size:10px;color:var(--dim);text-transform:uppercase;padding:4px 0}
+.dpop .dgrid button{height:34px;border-radius:9px;font-size:13px;font-variant-numeric:tabular-nums}
+.dpop .dgrid button.hoje{box-shadow:inset 0 0 0 1px var(--primary);color:var(--primary)}
+.dpop .dgrid button.on{background:var(--primary);color:#fff;font-weight:700}
+.dpop .dgrid button:disabled{color:var(--border);cursor:default}
+.dpop .dfoot{display:flex;justify-content:space-between;margin-top:6px;border-top:1px solid var(--border);padding-top:6px}
+.dpop .dfoot button{color:var(--primary);font-weight:600;font-size:13px;padding:6px 8px;border-radius:8px}
+@media (hover:hover){.dpop .dhead button:hover,.dpop .dgrid button:not(:disabled):not(.on):hover,.dpop .dfoot button:hover{background:var(--muted)}}
 .pills{display:flex;gap:6px;flex-wrap:wrap}
 .pill{height:36px;min-width:46px;padding:0 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:13px;color:var(--strong)}
 .pill.on{background:var(--primary);border-color:var(--primary);color:#fff}
@@ -2577,6 +2595,66 @@ function atualizarSim() {
   el.innerHTML = simCard(simular(S.nv), S.nv); }
 
 // ---------- ações ----------
+// ----- campo de data com calendário -----
+// Troca todo <input type="date"> por: texto dd/mm/aaaa + botão que abre um calendário.
+// O input original vira hidden (mesmo id e valor ISO) e recebe um evento 'input', então quem já ouvia continua igual.
+const isoBR = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '')
+function brIso(t) { const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (!m) return null; const iso = `${m[3]}-${m[2]}-${m[1]}`, d = new Date(iso + 'T12:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === iso ? iso : null }
+function melhorarDatas() {
+  document.querySelectorAll('input[type="date"]').forEach((h) => {
+    const box = h.closest('.inp'); if (!box) return
+    h.type = 'hidden'; box.classList.add('dp')
+    const txt = document.createElement('input')
+    Object.assign(txt, { className: 'dtxt', value: isoBR(h.value), placeholder: 'dd/mm/aaaa', inputMode: 'numeric' }); txt.setAttribute('aria-label', 'Data (dd/mm/aaaa)')
+    txt.style.fontSize = h.style.fontSize || '15px'
+    const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'dcal'; bt.dataset.dpAbrir = ''; bt.setAttribute('aria-label', 'Abrir calendário'); bt.innerHTML = ic('calendar-days', 'i-sm')
+    box.insertBefore(txt, h); box.insertBefore(bt, h.nextSibling)
+  })
+}
+function dpEscolher(h, iso) {
+  if (h.min && iso < h.min) iso = h.min
+  if (h.max && iso > h.max) iso = h.max
+  h.value = iso; const txt = h.parentElement.querySelector('.dtxt'); if (txt) txt.value = isoBR(iso)
+  dpFechar(); h.dispatchEvent(new Event('input', { bubbles: true }))
+}
+function dpFechar() { document.querySelectorAll('.dpop').forEach((x) => x.remove()) }
+function dpDesenhar(box, ym) {
+  const h = box.querySelector('input[type="hidden"]'), sel = h.value
+  let pop = box.querySelector('.dpop'); if (!pop) { pop = document.createElement('div'); pop.className = 'dpop'; box.appendChild(pop) }
+  pop.dataset.ym = ym
+  const [y, m] = ym.split('-').map(Number), primeiro = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), dias = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  const cel = Array.from({ length: primeiro }, () => '<span></span>')
+  for (let d = 1; d <= dias; d++) {
+    const iso = `${ym}-${String(d).padStart(2, '0')}`, fora = (h.min && iso < h.min) || (h.max && iso > h.max)
+    cel.push(`<button type="button" class="${iso === sel ? 'on' : ''} ${iso === HOJE ? 'hoje' : ''}" data-dp-dia="${iso}" ${fora ? 'disabled' : ''}>${d}</button>`)
+  }
+  const pode = (iso) => !((h.min && iso < h.min) || (h.max && iso > h.max))
+  const mais30 = somaDias(HOJE, 30)
+  pop.innerHTML = `<div class="dhead"><button type="button" data-dp-mes="-1" aria-label="Mês anterior">${ic('chevron-left', 'i-sm')}</button><b>${mesLabel(ym)}</b><button type="button" data-dp-mes="1" aria-label="Próximo mês">${ic('chevron-right', 'i-sm')}</button></div>
+    <div class="dgrid">${['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((x) => `<span>${x}</span>`).join('')}${cel.join('')}</div>
+    <div class="dfoot">${pode(HOJE) ? `<button type="button" data-dp-dia="${HOJE}">Hoje</button>` : '<span></span>'}${pode(mais30) ? `<button type="button" data-dp-dia="${mais30}">Daqui a 30 dias</button>` : ''}</div>`
+  pop.style.left = '-1px'; const r = pop.getBoundingClientRect(), lim = document.documentElement.clientWidth - 12
+  if (r.right > lim) pop.style.left = `${-1 - (r.right - lim)}px`
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-dp-abrir],[data-dp-dia],[data-dp-mes]')
+  if (!b) { if (!e.target.closest('.dpop')) dpFechar(); return }
+  e.stopPropagation(); e.preventDefault()
+  const box = b.closest('.inp'), h = box.querySelector('input[type="hidden"]')
+  if ('dpAbrir' in b.dataset) { const aberto = box.querySelector('.dpop'); dpFechar(); if (!aberto) { dpDesenhar(box, (h.value || HOJE).slice(0, 7)); box.querySelector('.dpop').scrollIntoView({ block: 'nearest', behavior: 'smooth' }) } return }
+  if (b.dataset.dpMes) { dpDesenhar(box, somaYm(box.querySelector('.dpop').dataset.ym, Number(b.dataset.dpMes))); return }
+  if (b.dataset.dpDia) dpEscolher(h, b.dataset.dpDia)
+}, true)
+document.addEventListener('input', (e) => {
+  const t = e.target; if (!t.classList?.contains('dtxt')) return
+  e.stopPropagation()
+  const dg = t.value.replace(/\D/g, '').slice(0, 8)
+  t.value = dg.length > 4 ? `${dg.slice(0, 2)}/${dg.slice(2, 4)}/${dg.slice(4)}` : dg.length > 2 ? `${dg.slice(0, 2)}/${dg.slice(2)}` : dg
+  const iso = brIso(t.value); if (iso) dpEscolher(t.parentElement.querySelector('input[type="hidden"]'), iso)
+}, true)
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.querySelector('.dpop')) { e.stopImmediatePropagation(); dpFechar() } }, true)
+new MutationObserver(melhorarDatas).observe(document.body, { childList: true, subtree: true })
+melhorarDatas()
 document.addEventListener('click', (e) => {
   const t = e.target.closest('button, [data-ov], [data-ir]')
   if (!t) return
