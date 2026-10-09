@@ -6,6 +6,7 @@ import type { EmprestimosRepository } from '../../emprestimos/models/repository.
 import type { IndicadoresRepository } from '../../indicadores/models/repository.js'
 import type { VendasRepository } from '../../vendas/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
+import { jurosRecebidosSoJuros } from '../../emprestimos/services/calculo.js'
 import { contas } from '../../vendas/services/contas.js'
 import type { FormaRepasse, RepasseRegistro, RepassesRepository } from '../models/repository.js'
 import { calcularRepasse, type OperacaoRepasse, type ResumoRepasse } from './calculo.js'
@@ -63,6 +64,7 @@ export function createRepassesService(d: Dependencias): RepassesService {
       pôr(e.indicador.id, {
         tipo: 'EMPRESTIMO', id: e.id, data: e.dataEmprestimo, clienteNome: e.cliente.nome, descricao: `Empréstimo ${e.modalidade === 'JUROS' ? 'só juros' : e.modalidade === 'DIARIA' ? 'diário' : 'parcelado'}`,
         status: c.status as OperacaoRepasse['status'], pct: e.pct, investido: e.capital, total: c.total, descontos: c.descontos, recebido: c.recebido,
+        jurosRecebidos: jurosRecebidosSoJuros(e),
       })
     }
     return mapa
