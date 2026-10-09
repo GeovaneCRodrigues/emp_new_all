@@ -36,7 +36,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
 
   /** Empréstimo criado em `hoje`. Parcelado padrão: 5.000 a 10% em 6x de 1.333,34. */
   async function emprestimo(corpo: object = {}, cliente = id.cA): Promise<number> {
-    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...corpo })
+    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
     expect(r.statusCode).toBe(201)
     return r.json().id
   }
@@ -105,7 +105,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect(await db!('auditoria').where({ acao: 'RECEBIMENTO_REGISTRADO', entidade: 'emprestimo', entidade_id: e })).toHaveLength(1)
     })
     it('quitar todas as parcelas fecha o empréstimo; pagar de novo é 409', async () => {
-      const e = await emprestimo({ parcelas: 2 }) // 5.000 × 1,2 ÷ 2 = 2 parcelas de 3.000
+      const e = await emprestimo({ parcelas: 2, taxa: 20 }) // 5.000 × 1,2 ÷ 2 = 2 parcelas de 3.000
       expect((await receber('admin', e, { parcela: 1, valor: 3000 })).json().quitada).toBe(false)
       expect(await status(e)).toBe('ATIVA')
       expect((await receber('admin', e, { parcela: 2, valor: 3000 })).json().quitada).toBe(true)
@@ -126,13 +126,6 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       const r = await receber('admin', e, { valor: 1000, resto: 'DESCONTO' })
       expect(r.json().efeitos).toEqual([{ tipo: 'DESCONTO', numero: 1, valor: 333.34 }])
       expect((await ficha(e)).parcelas[0]).toMatchObject({ pago: 1000, desconto: 333.34, falta: 0 })
-    })
-    it('pedir desconto em empréstimo ainda não existe (400) e o pagamento NÃO é lançado', async () => {
-      const e = await emprestimo()
-      const antes = await db!('transacoes_recebimento').count<{ count: string }[]>({ count: '*' })
-      const r = await receber('cobrador', e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'cliente sem dinheiro' } })
-      expect(r.statusCode).toBe(400)
-      expect(await db!('transacoes_recebimento').count<{ count: string }[]>({ count: '*' })).toEqual(antes)
     })
     it('pagou a mais: o excedente abate as próximas parcelas, na ordem', async () => {
       const e = await emprestimo()
@@ -264,7 +257,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect((await ficha(e)).recebido).toBe(0)
     })
     it('desfazer devolve a data antiga da parcela remarcada e reabre o empréstimo quitado', async () => {
-      const e = await emprestimo({ parcelas: 1 })
+      const e = await emprestimo({ parcelas: 1, taxa: 10 })
       const r = await receber('admin', e, { valor: 5500, resto: 'FICA' })
       expect(r.json().quitada).toBe(true)
       expect(await status(e)).toBe('QUITADA')
@@ -356,6 +349,205 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect((await req('POST', `/api/recebimentos/${rec}/desfazer`, 'cobrador')).json().codigo).toBe('DIA_FECHADO')
       expect((await req('POST', `/api/recebimentos/${rec}/desfazer`, 'admin')).json().codigo).toBe('DIA_FECHADO')
       expect((await receber('admin', e, { parcela: 2 })).statusCode).toBe(201)
+    })
+  })
+
+  // ===================== desconto em empréstimo: o cobrador pede, o administrador responde =====================
+  describe('desconto em empréstimo', () => {
+    const pedir = (papel: string, e: number, corpo: object = {}) => req('POST', '/api/aprovacoes', papel, { alvo: 'EMPRESTIMO', operacaoId: e, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...corpo })
+    const aprovar = (papel: string, pid: number) => req('POST', `/api/aprovacoes/${pid}/aprovar`, papel)
+    const recusar = (papel: string, pid: number, corpo: object = {}) => req('POST', `/api/aprovacoes/${pid}/recusar`, papel, corpo)
+    const parcela = async (e: number, n: number) => db!('emprestimo_parcelas').where({ emprestimo_id: e, numero: n }).first()
+
+    it('só o cobrador da carteira pede: admin/vendedor 403, outra carteira e inexistente 404, sem login 401', async () => {
+      const e = await emprestimo()
+      for (const papel of ['admin', 'vendedor']) expect((await pedir(papel, e)).statusCode).toBe(403)
+      expect((await pedir('', e)).statusCode).toBe(401)
+      expect((await pedir('cobrador2', e)).statusCode).toBe(404)
+      expect((await pedir('cobrador', 999999)).statusCode).toBe(404)
+      expect((await pedir('cobrador', e, { parcela: 9 })).statusCode).toBe(404)
+    })
+    it('nasce PENDENTE com tudo o que o administrador precisa ver, audita, e não mexe na parcela', async () => {
+      const e = await emprestimo()
+      const r = await pedir('cobrador', e, { valor: 150 })
+      expect(r.statusCode).toBe(201)
+      expect(r.json()).toMatchObject({ tipo: 'DESCONTO', status: 'PENDENTE', alvo: 'EMPRESTIMO', operacaoId: e, parcela: 1, nParcelas: 6, valor: 150, aparelho: 'Empréstimo parcelado', cliente: { nome: 'Ana Souza' }, solicitante: { nome: 'cobrador Silva' }, respondidoPor: null })
+      expect(await db!('auditoria').where({ acao: 'DESCONTO_PEDIDO', entidade_id: r.json().id })).toHaveLength(1)
+      expect(Number((await parcela(e, 1)).desconto)).toBe(0)
+    })
+    it.each([
+      ['sem empréstimo', { operacaoId: undefined }], ['alvo inventado', { alvo: 'CARRO' }], ['sem parcela', { parcela: undefined }], ['valor zero', { valor: 0 }], ['valor negativo', { valor: -5 }],
+      ['valor como texto', { valor: '100' }], ['motivo vazio', { motivo: '' }], ['motivo curto', { motivo: 'ab' }], ['motivo enorme', { motivo: 'x'.repeat(501) }], ['desconto maior que a parcela', { valor: 1333.35 }],
+    ])('recusa %s (400)', async (_n, m) => {
+      const e = await emprestimo()
+      const corpo = { alvo: 'EMPRESTIMO', operacaoId: e, parcela: 1, valor: 100, motivo: 'Cliente pediu', ...m } as Record<string, unknown>
+      for (const k of Object.keys(corpo)) if (corpo[k] === undefined) delete corpo[k]
+      expect((await req('POST', '/api/aprovacoes', 'cobrador', corpo)).statusCode).toBe(400)
+    })
+    it('um pendente por parcela (409); outra parcela pode; parcela paga é 409; empréstimo cancelado é 409', async () => {
+      const e = await emprestimo()
+      expect((await pedir('cobrador', e)).statusCode).toBe(201)
+      expect((await pedir('cobrador', e)).json().codigo).toBe('PEDIDO_JA_EXISTE')
+      expect((await pedir('cobrador', e, { parcela: 2 })).statusCode).toBe(201)
+      await receber('admin', e, { parcela: 3 })
+      expect((await pedir('cobrador', e, { parcela: 3 })).json().codigo).toBe('PARCELA_PAGA')
+      await db!('emprestimos').where({ id: e }).update({ status: 'CANCELADA' })
+      expect((await pedir('cobrador', e, { parcela: 4 })).json().codigo).toBe('VENDA_ENCERRADA')
+    })
+    it('venda e empréstimo com o mesmo número de parcela NÃO se confundem (cada um tem o seu pendente)', async () => {
+      const e = await emprestimo()
+      const a = await pedir('cobrador', e)
+      const [b] = await db!('aprovacoes').where({ id: a.json().id }).select('venda_id', 'emprestimo_id', 'venda_parcela_id', 'emprestimo_parcela_id')
+      expect(b).toMatchObject({ venda_id: null, venda_parcela_id: null })
+      expect(b.emprestimo_id).toBe(e)
+    })
+    it('o banco não aceita pedido sem alvo nem com os dois (restrição aprovacoes_alvo_ck)', async () => {
+      const e = await emprestimo()
+      const p = await db!('emprestimo_parcelas').where({ emprestimo_id: e, numero: 1 }).first()
+      await expect(db!('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: id.cobrador, valor: 1, motivo: 'abc' })).rejects.toThrow()
+      await expect(db!('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: id.cobrador, emprestimo_id: e, emprestimo_parcela_id: p.id, venda_id: 999999, valor: 1, motivo: 'abc' })).rejects.toThrow()
+    })
+    it('listar: o administrador vê os de empréstimo, o cobrador só os dele; filtra por status', async () => {
+      const a = await emprestimo({}, id.cA); const b = await emprestimo({}, id.cB)
+      const pa = (await pedir('cobrador', a)).json().id
+      await req('POST', '/api/aprovacoes', 'cobrador2', { alvo: 'EMPRESTIMO', operacaoId: b, parcela: 1, valor: 100, motivo: 'abc de novo' })
+      const adm = (await req('GET', '/api/aprovacoes?status=PENDENTE&limite=100', 'admin')).json()
+      expect(adm.itens.filter((x: { alvo: string }) => x.alvo === 'EMPRESTIMO').length).toBeGreaterThanOrEqual(2)
+      const dele = (await req('GET', '/api/aprovacoes?limite=100', 'cobrador')).json().itens
+      expect(dele.every((x: { solicitante: { nome: string } }) => x.solicitante.nome === 'cobrador Silva')).toBe(true)
+      expect(dele.some((x: { id: number }) => x.id === pa)).toBe(true)
+    })
+
+    it('APROVAR aplica o desconto na parcela do empréstimo e audita no empréstimo', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e, { valor: 100 })).json().id
+      expect((await aprovar('cobrador', pid)).statusCode).toBe(403)
+      const r = await aprovar('admin', pid)
+      expect(r.statusCode).toBe(200)
+      expect(r.json()).toMatchObject({ status: 'APROVADO', respondidoPor: 'admin Silva' })
+      expect(Number((await parcela(e, 1)).desconto)).toBe(100)
+      expect((await ficha(e)).parcelas[0]).toMatchObject({ desconto: 100, falta: 1233.34 })
+      expect(await db!('auditoria').where({ acao: 'DESCONTO_CONCEDIDO', entidade: 'emprestimo', entidade_id: e })).toHaveLength(1)
+    })
+    it('desconto que cobre o resto quita a parcela; quitar a última parcela fecha o empréstimo', async () => {
+      const e = await emprestimo({ parcelas: 2, taxa: 20 }) // 2 × 3.000
+      for (const n of [1, 2]) {
+        const pid = (await pedir('cobrador', e, { parcela: n, valor: 3000 })).json().id
+        await aprovar('admin', pid)
+        expect((await parcela(e, n)).quitada_em).not.toBeNull()
+      }
+      expect(await status(e)).toBe('QUITADA')
+      expect(await ficha(e)).toMatchObject({ falta: 0, status: 'QUITADA' })
+    })
+    it('responder de novo é 409; recusar guarda o motivo e não mexe na parcela; depois pode pedir de novo', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e)).json().id
+      const r = await recusar('admin', pid, { motivo: 'Margem apertada' })
+      expect(r.json()).toMatchObject({ status: 'RECUSADO', resposta: 'Margem apertada' })
+      expect(Number((await parcela(e, 1)).desconto)).toBe(0)
+      expect((await aprovar('admin', pid)).json().codigo).toBe('PEDIDO_JA_RESPONDIDO')
+      expect((await pedir('cobrador', e)).statusCode).toBe(201)
+    })
+    it('a parcela mudou depois do pedido: aprovar é 409 (desatualizado) e o pedido segue pendente', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e, { valor: 1000 })).json().id
+      await receber('admin', e, { valor: 800, resto: 'FICA', novoVencimento: '2026-10-20' }) // agora faltam 533,34 < 1.000
+      const r = await aprovar('admin', pid)
+      expect(r.statusCode).toBe(409)
+      expect(r.json().codigo).toBe('PEDIDO_DESATUALIZADO')
+      expect(Number((await parcela(e, 1)).desconto)).toBe(0)
+      expect((await recusar('admin', pid, { motivo: 'Mudou' })).statusCode).toBe(200)
+    })
+    it('empréstimo cancelado depois do pedido: aprovar é 409 e nada muda', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e)).json().id
+      await db!('emprestimos').where({ id: e }).update({ status: 'CANCELADA' })
+      expect((await aprovar('admin', pid)).json().codigo).toBe('VENDA_ENCERRADA')
+      expect(Number((await parcela(e, 1)).desconto)).toBe(0)
+    })
+
+    it('PEDIR DENTRO DO RECEBIMENTO: o pagamento é lançado, o resto fica devendo e nasce o pedido; aprovar quita', async () => {
+      const e = await emprestimo()
+      const r = await receber('cobrador', e, { valor: 1000, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'Cliente só tinha 1.000' } })
+      expect(r.statusCode).toBe(201)
+      const { pedidoDescontoId, efeitos } = r.json()
+      expect(efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 333.34, vencimento: '2026-10-20' }])
+      const ped = (await req('GET', '/api/aprovacoes?status=PENDENTE&limite=100', 'admin')).json().itens.find((x: { id: number }) => x.id === pedidoDescontoId)
+      expect(ped).toMatchObject({ alvo: 'EMPRESTIMO', operacaoId: e, valor: 333.34, motivo: 'Cliente só tinha 1.000', solicitante: { nome: 'cobrador Silva' } })
+      await aprovar('admin', pedidoDescontoId)
+      expect((await ficha(e)).parcelas[0]).toMatchObject({ pago: 1000, desconto: 333.34, falta: 0 })
+    })
+    it('dentro do recebimento: só o cobrador pede; precisa deixar o resto devendo; pagou tudo não tem o que pedir', async () => {
+      const e = await emprestimo()
+      expect((await receber('admin', e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'abc' } })).statusCode).toBe(403)
+      expect((await receber('cobrador', e, { valor: 500, pedirDesconto: { motivo: 'abc' } })).statusCode).toBe(400)
+      expect((await receber('cobrador', e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'a' } })).statusCode).toBe(400)
+      expect((await receber('cobrador', e, { valor: 1333.34, resto: 'FICA', pedirDesconto: { motivo: 'sem sentido' } })).statusCode).toBe(400)
+    })
+    it('dentro do recebimento, já existe pedido pendente na parcela: 409 e o pagamento NÃO é lançado (tudo ou nada)', async () => {
+      const e = await emprestimo()
+      await pedir('cobrador', e)
+      const antes = await db!('transacoes_recebimento').count<{ count: string }[]>({ count: '*' })
+      const r = await receber('cobrador', e, { valor: 500, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'outro pedido' } })
+      expect(r.statusCode).toBe(409)
+      expect(await db!('transacoes_recebimento').count<{ count: string }[]>({ count: '*' })).toEqual(antes)
+    })
+    it('só juros: desconto aprovado no juro de um mês não atrapalha a amortização das outras parcelas', async () => {
+      const e = await juros()
+      const r = await receber('cobrador', e, { valor: 200, resto: 'FICA', novoVencimento: '2026-10-20', pedirDesconto: { motivo: 'Cliente sem o juro todo' } })
+      await aprovar('admin', r.json().pedidoDescontoId) // 160 de desconto: a 1ª quita
+      expect((await ficha(e)).parcelas[0]).toMatchObject({ pago: 200, desconto: 160, falta: 0 })
+      const am = await receber('admin', e, { parcela: 2, valor: 1360 }) // 360 de juro + 1.000 de excedente
+      expect(am.json().efeitos).toEqual([{ tipo: 'QUITA', numero: 2 }, { tipo: 'AMORTIZA', valor: 1000, capitalRestante: 2000 }])
+      expect(await valores(e)).toEqual([360, 360, 2240]) // 2.000 + 12% de 2.000
+    })
+
+    it('CORRIDA: dois administradores aprovam o mesmo pedido de empréstimo ao mesmo tempo → um 200, outro 409; o desconto entra uma vez', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e, { valor: 200 })).json().id
+      segura = true
+      const [a, b] = await Promise.all([aprovar('admin', pid), aprovar('admin', pid)])
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409])
+      expect(Number((await parcela(e, 1)).desconto)).toBe(200)
+    })
+    it('CORRIDA: aprovar o desconto e receber a mesma parcela ao mesmo tempo nunca deixa saldo negativo', async () => {
+      const e = await emprestimo()
+      const pid = (await pedir('cobrador', e, { valor: 600 })).json().id
+      segura = true
+      const [a, b] = await Promise.all([aprovar('admin', pid), receber('admin', e, { valor: 1000, resto: 'FICA', novoVencimento: '2026-10-20' })])
+      const f = (await ficha(e)).parcelas[0]
+      expect(f.falta).toBeGreaterThanOrEqual(0)
+      expect(f.pago + f.desconto).toBeLessThanOrEqual(1333.34 + 0.001)
+      expect([a.statusCode, b.statusCode].every((c) => [200, 201, 400, 409].includes(c))).toBe(true)
+    })
+  })
+
+  // ===================== frequência: nome e regras nas baixas =====================
+  describe('frequência do empréstimo nas baixas', () => {
+    it('o nome com a frequência vai no recibo, no texto do WhatsApp, nas cobranças e no pedido de desconto', async () => {
+      const e = await emprestimo({ periodicidade: 'QUINZENAL', parcelas: 3, taxa: 30, capital: 3000 })
+      await db!('emprestimo_parcelas').where({ emprestimo_id: e, numero: 1 }).update({ vencimento: '2026-10-01' })
+      const l = (await req('GET', '/api/cobrancas?aba=atrasadas&tipo=EMPRESTIMO&limite=100', 'admin')).json().itens.find((x: { operacaoId: number }) => x.operacaoId === e)
+      expect(l.aparelho).toBe('Empréstimo parcelado quinzenal')
+      const ped = await req('POST', '/api/aprovacoes', 'cobrador', { alvo: 'EMPRESTIMO', operacaoId: e, parcela: 2, valor: 50, motivo: 'Cliente pediu' })
+      expect(ped.json().aparelho).toBe('Empréstimo parcelado quinzenal')
+      const r = await receber('admin', e, { valor: 1300 })
+      expect(r.json().recibo.aparelho).toBe('Empréstimo parcelado quinzenal')
+      expect(r.json().recibo.mensagem).toContain('do empréstimo parcelado quinzenal.')
+    })
+    it('mensal fica só "parcelado", semanal só juros fica "só juros semanal", diária fica "diária"', async () => {
+      const m = await emprestimo()
+      expect((await receber('admin', m, {})).json().recibo.aparelho).toBe('Empréstimo parcelado')
+      const sj = await emprestimo({ modalidade: 'JUROS', periodicidade: 'SEMANAL', capital: 1000, taxa: 10, parcelas: 6 })
+      expect((await receber('admin', sj, { valor: 100 })).json().recibo.aparelho).toBe('Empréstimo só juros semanal')
+      const d = await emprestimo({ modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 24 })
+      expect((await receber('admin', d, { valor: 50 })).json().recibo.aparelho).toBe('Empréstimo diária')
+    })
+    it('só juros semanal amortiza o capital igual ao mensal (o juro é de cada semana)', async () => {
+      const e = await emprestimo({ modalidade: 'JUROS', periodicidade: 'SEMANAL', capital: 1000, taxa: 10, parcelas: 6 }) // 100 por semana, 1.100 na última
+      const r = await receber('admin', e, { valor: 600 }) // 100 de juro + 500 de excedente → capital 500
+      expect(r.json().efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }, { tipo: 'AMORTIZA', valor: 500, capitalRestante: 500 }])
+      expect(await valores(e)).toEqual([100, 50, 50, 50, 50, 550])
     })
   })
 

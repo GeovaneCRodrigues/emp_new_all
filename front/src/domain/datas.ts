@@ -26,3 +26,6 @@ export function somaDiasUteis(iso: Iso, n: number): Iso {
   }
   return d.toISOString().slice(0, 10)
 }
+
+/** Se cair num domingo, vai para a segunda. */
+export const pulaDomingo = (iso: Iso): Iso => (new Date(iso + 'T12:00:00Z').getUTCDay() === 0 ? addDia(iso, 1) : iso)

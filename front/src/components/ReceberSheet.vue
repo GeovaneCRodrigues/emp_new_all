@@ -6,6 +6,7 @@ import type { AlvoApi, RegistradoApi } from '@/api/recebimentos'
 import type { FormaPagamentoApi, ParcelaVendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
 import { addDia } from '@/domain/datas'
+import { nomeEmprestimo } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
 import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, falta, vencPadraoResto, type RestoPagamento } from '@/domain/recebimento'
 import MoneyInput from './MoneyInput.vue'
@@ -49,7 +50,7 @@ watch(() => props.alvo, async (a) => {
     } else {
       const e = await emprestimosApi.obter(sessao.value, a.operacaoId)
       venda.value = {
-        tipo: 'EMPRESTIMO', cliente: e.cliente, descricao: `Empréstimo ${{ PARCELADO: 'parcelado', JUROS: 'só juros', DIARIA: 'diária' }[e.modalidade]}`, nParcelas: e.nParcelas, data: e.dataEmprestimo, parcelas: e.parcelas,
+        tipo: 'EMPRESTIMO', cliente: e.cliente, descricao: nomeEmprestimo(e.modalidade, e.periodicidade), nParcelas: e.nParcelas, data: e.dataEmprestimo, parcelas: e.parcelas,
         juros: e.modalidade === 'JUROS' && e.capitalAberto !== undefined && e.taxa !== undefined ? { capitalAberto: e.capitalAberto, taxa: e.taxa } : null, ehJuros: e.modalidade === 'JUROS',
       }
     }
@@ -156,7 +157,6 @@ async function confirmar() {
             <span class="radio"></span>
             <span><span class="val" style="display: block">Dar desconto de {{ fmt(faltaAlvo - f.valor) }}</span><span class="small">A {{ parcela.numero }}ª fica quitada. O desconto sai do seu lucro</span></span>
           </button>
-          <div v-else-if="venda.tipo === 'EMPRESTIMO'" class="small" style="padding: 2px 4px 4px 34px">Desconto em empréstimo: peça ao administrador.</div>
           <template v-else>
             <button type="button" class="opt" :class="{ on: f.pedir }" data-resto="PEDIR" @click="f.pedir = !f.pedir; f.resto = 'FICA'">
               <span class="radio"></span>

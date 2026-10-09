@@ -60,7 +60,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     await k('vendas').insert(venda(id.c1, ind1.id))
     await k('bens').insert({ modelo: 'iPhone 14', gb: 128, cor: 'Azul', preco_venda: 4600, data_compra: '2026-09-01' })
     await k('emprestimos').insert({ cliente_id: id.c3, indicador_id: ind1.id, data_emprestimo: '2026-10-01', capital: 1000, modalidade: 'PARCELADO', taxa: 10 })
-    await k('emprestimos').insert({ cliente_id: id.c2, indicador_id: ind2.id, data_emprestimo: '2026-10-01', capital: 500, modalidade: 'DIARIA', taxa: 20 })
+    await k('emprestimos').insert({ cliente_id: id.c2, indicador_id: ind2.id, data_emprestimo: '2026-10-01', capital: 500, modalidade: 'DIARIA', periodicidade: 'DIARIA', taxa: 20 })
 
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)

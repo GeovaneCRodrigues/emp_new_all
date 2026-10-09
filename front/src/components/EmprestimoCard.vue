@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EmprestimoApi } from '@/api/emprestimos'
+import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, fmt0 } from '@/domain/format'
 import Icon from './Icon.vue'
 
 const props = defineProps<{ e: EmprestimoApi }>()
 defineEmits<{ abrir: [e: EmprestimoApi] }>()
 
-const MOD = { PARCELADO: 'Parcelado', JUROS: 'Só juros', DIARIA: 'Diária' } as const
 const pct = computed(() => (props.e.total > 0 ? Math.round((props.e.recebido / props.e.total) * 100) : 100))
 const chip = computed(() => {
   const e = props.e
@@ -15,11 +15,12 @@ const chip = computed(() => {
   if (e.status === 'QUITADA') return { cls: 'c-ok', txt: 'quitado' }
   return { cls: 'c-pri', txt: 'em dia' }
 })
-// quem não é admin não recebe capital nem taxa
+// "parcelado quinzenal · 6x 650" (quem não é admin não recebe capital nem taxa)
 const resumo = computed(() => {
   const e = props.e
-  const base = e.modalidade === 'DIARIA' ? `${MOD[e.modalidade]} · ${e.nParcelas} dias úteis de ${fmt0(e.valorParcela)}` : e.modalidade === 'JUROS' ? `${MOD[e.modalidade]} · ${e.nParcelas}x, juro ${fmt0(e.valorParcela)}/mês` : `${MOD[e.modalidade]} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
-  return e.capital !== undefined ? `${base} · capital ${fmt0(e.capital)} a ${e.taxa}%${e.modalidade === 'DIARIA' ? '' : ' ao mês'}` : base
+  const nome = nomeEmprestimo(e.modalidade, e.periodicidade).replace('Empréstimo ', '')
+  const base = e.modalidade === 'DIARIA' ? `${nome} · ${e.nParcelas} dias úteis de ${fmt0(e.valorParcela)}` : e.modalidade === 'JUROS' ? `${nome} · ${e.nParcelas}x, juro ${fmt0(e.valorParcela)}` : `${nome} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
+  return e.capital !== undefined && e.taxa !== undefined ? `${base} · capital ${fmt0(e.capital)} a ${taxaTexto(e.modalidade, e.periodicidade, e.taxa)}` : base
 })
 </script>
 

@@ -17,57 +17,99 @@ import { bancoDeTeste, limparBanco } from './helpers/db.js'
 const db: Knex | null = await bancoDeTeste()
 const SENHA = 'senha-forte-123'
 
-describe('plano do empréstimo parcelado (puro)', () => {
-  it('juros simples ao mês sobre o capital: 5.000 a 10% em 6x são 6 parcelas de 1.333,34', () => {
-    const p = planoEmprestimo({ capital: 5000, modalidade: 'PARCELADO', taxa: 10, n: 6, data: '2026-06-25' })
+const plano = (o: Partial<Parameters<typeof planoEmprestimo>[0]> & { capital: number; taxa: number; n: number; data: string }) => planoEmprestimo({ modalidade: 'PARCELADO', periodicidade: 'MENSAL', ...o })
+
+describe('plano do empréstimo parcelado (puro): juro em % NO TOTAL', () => {
+  it('3.000 a 30% no total em 6x são 6 parcelas de 650,00 (total 3.900) — exemplo do plano', () => {
+    const p = plano({ capital: 3000, taxa: 30, n: 6, data: '2026-10-08' })
     expect(p).toHaveLength(6)
-    expect(p.every((x) => x.valor === 1333.34)).toBe(true)
+    expect(p.every((x) => x.valor === 650)).toBe(true)
+  })
+  it('exemplos de cálculo do plano: 6.000 de total = 100% (6 × 1.000); parcela de 700 em 6x = 4.200 = 40%', () => {
+    expect(plano({ capital: 3000, taxa: 100, n: 6, data: '2026-10-08' })[0].valor).toBe(1000)
+    expect(plano({ capital: 3000, taxa: 40, n: 6, data: '2026-10-08' })[0].valor).toBe(700)
+  })
+  it('pode passar de 100%: o cliente paga mais que o dobro', () => {
+    expect(plano({ capital: 1000, taxa: 150, n: 5, data: '2026-10-08' })[0].valor).toBe(500) // 1000 × 2,5 ÷ 5
+  })
+  it('vencimentos mensais: 1º um mês depois, no mesmo dia', () => {
+    const p = plano({ capital: 5000, taxa: 60, n: 6, data: '2026-06-25' })
+    expect(p.every((x) => x.valor === 1333.34)).toBe(true) // 5000 × 1,6 ÷ 6
     expect(p.map((x) => x.vencimento)).toEqual(['2026-07-25', '2026-08-25', '2026-09-25', '2026-10-25', '2026-11-25', '2026-12-25'])
   })
   it('arredonda a parcela para cima no centavo', () => {
-    expect(planoEmprestimo({ capital: 1000, modalidade: 'PARCELADO', taxa: 7, n: 3, data: '2026-01-10' })[0].valor).toBe(403.34) // 1000 × 1,21 ÷ 3 = 403,333…
+    expect(plano({ capital: 1000, taxa: 21, n: 3, data: '2026-01-10' })[0].valor).toBe(403.34) // 1000 × 1,21 ÷ 3 = 403,333…
   })
-  it('dia 31 cai no último dia dos meses curtos e volta a 31 depois', () => {
-    const p = planoEmprestimo({ capital: 1000, modalidade: 'PARCELADO', taxa: 10, n: 3, data: '2026-01-31' })
-    expect(p.map((x) => x.vencimento)).toEqual(['2026-02-28', '2026-03-31', '2026-04-30'])
+  it('dia 31 cai no último dia dos meses curtos e volta a 31 depois (sem 1º vencimento escolhido)', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 3, data: '2026-01-31' }).map((x) => x.vencimento)).toEqual(['2026-02-28', '2026-03-31', '2026-04-30'])
   })
-  it('1 parcela só: capital + juros de um mês', () => {
-    expect(planoEmprestimo({ capital: 2000, modalidade: 'PARCELADO', taxa: 8, n: 1, data: '2026-05-15' })).toEqual([{ vencimento: '2026-06-15', valor: 2160 }])
+  it('com 1º vencimento escolhido, vale o dia dele (28/02 → todo dia 28)', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 3, data: '2026-01-31', primeira: '2026-02-28' }).map((x) => x.vencimento)).toEqual(['2026-02-28', '2026-03-28', '2026-04-28'])
+  })
+  it('1 parcela só: capital + juros do total', () => {
+    expect(plano({ capital: 2000, taxa: 8, n: 1, data: '2026-05-15' })).toEqual([{ vencimento: '2026-06-15', valor: 2160 }])
+  })
+})
+
+describe('frequência e 1º vencimento (puro)', () => {
+  it('semanal com 1º vencimento em 15/10: 15/10, 22/10, 29/10… (exemplo do plano)', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 4, data: '2026-10-08', periodicidade: 'SEMANAL', primeira: '2026-10-15' }).map((x) => x.vencimento)).toEqual(['2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05'])
+  })
+  it('quinzenal: de 15 em 15 dias', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 3, data: '2026-10-08', periodicidade: 'QUINZENAL', primeira: '2026-10-23' }).map((x) => x.vencimento)).toEqual(['2026-10-23', '2026-11-07', '2026-11-22'])
+  })
+  it('sem 1º vencimento, o padrão é um período depois da data do empréstimo', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 1, data: '2026-10-08', periodicidade: 'SEMANAL' })[0].vencimento).toBe('2026-10-15')
+    expect(plano({ capital: 1000, taxa: 30, n: 1, data: '2026-10-08', periodicidade: 'QUINZENAL' })[0].vencimento).toBe('2026-10-23')
+    expect(plano({ capital: 1000, taxa: 30, n: 1, data: '2026-10-08' })[0].vencimento).toBe('2026-11-08')
+  })
+  it('mensal usa o dia do 1º vencimento escolhido, não o dia do empréstimo', () => {
+    expect(plano({ capital: 1000, taxa: 30, n: 3, data: '2026-10-08', primeira: '2026-11-31'.replace('31', '30') }).map((x) => x.vencimento)).toEqual(['2026-11-30', '2026-12-30', '2027-01-30'])
+    expect(plano({ capital: 1000, taxa: 30, n: 3, data: '2026-10-08', primeira: '2026-11-20' }).map((x) => x.vencimento)).toEqual(['2026-11-20', '2026-12-20', '2027-01-20'])
+  })
+  it('só juros semanal: o juro é de cada semana e o capital vem na última', () => {
+    const p = planoEmprestimo({ capital: 1000, modalidade: 'JUROS', periodicidade: 'SEMANAL', taxa: 10, n: 6, data: '2026-10-08' })
+    expect(p.map((x) => x.valor)).toEqual([100, 100, 100, 100, 100, 1100]) // exemplo do plano: 5x de 100 e a última de 1.100
+    expect(p[0].vencimento).toBe('2026-10-15')
   })
 })
 
 describe('plano do empréstimo só juros (puro)', () => {
   it('3.000 a 12% em 3x: 360, 360 e 3.360 (capital na última)', () => {
-    const p = planoEmprestimo({ capital: 3000, modalidade: 'JUROS', taxa: 12, n: 3, data: '2026-05-10' })
+    const p = planoEmprestimo({ capital: 3000, modalidade: 'JUROS', periodicidade: 'MENSAL', taxa: 12, n: 3, data: '2026-05-10' })
     expect(p.map((x) => x.valor)).toEqual([360, 360, 3360])
     expect(p.map((x) => x.vencimento)).toEqual(['2026-06-10', '2026-07-10', '2026-08-10'])
   })
   it('1 parcela só: juro mais capital de uma vez', () => {
-    expect(planoEmprestimo({ capital: 1000, modalidade: 'JUROS', taxa: 5, n: 1, data: '2026-01-31' })).toEqual([{ vencimento: '2026-02-28', valor: 1050 }])
+    expect(planoEmprestimo({ capital: 1000, modalidade: 'JUROS', periodicidade: 'MENSAL', taxa: 5, n: 1, data: '2026-01-31' })).toEqual([{ vencimento: '2026-02-28', valor: 1050 }])
   })
   it('arredonda o juro ao centavo (sem acumular erro)', () => {
-    const p = planoEmprestimo({ capital: 1234.56, modalidade: 'JUROS', taxa: 7.5, n: 2, data: '2026-01-10' })
+    const p = planoEmprestimo({ capital: 1234.56, modalidade: 'JUROS', periodicidade: 'MENSAL', taxa: 7.5, n: 2, data: '2026-01-10' })
     expect(p.map((x) => x.valor)).toEqual([92.59, 1327.15])
   })
 })
 
 describe('plano do empréstimo diário (puro)', () => {
+  const diaria = (o: { capital: number; taxa: number; n: number; data: string; primeira?: string }) => planoEmprestimo({ modalidade: 'DIARIA', periodicidade: 'DIARIA', ...o })
   it('pula domingo: sábado 03/10 → segunda 05, terça 06, quarta 07', () => {
-    const p = planoEmprestimo({ capital: 1000, modalidade: 'DIARIA', taxa: 20, n: 3, data: '2026-10-03' })
+    const p = diaria({ capital: 1000, taxa: 20, n: 3, data: '2026-10-03' })
     expect(p.map((x) => x.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
     expect(p.every((x) => x.valor === 400)).toBe(true) // 1000 × 1,2 ÷ 3
   })
-  it('a taxa é do período todo, não por dia: 1.000 a 20% em 24x → 50,00 por dia útil', () => {
-    const p = planoEmprestimo({ capital: 1000, modalidade: 'DIARIA', taxa: 20, n: 24, data: '2026-09-24' })
+  it('a taxa é do total: 1.000 a 20% em 24x → 50,00 por dia útil, nunca num domingo', () => {
+    const p = diaria({ capital: 1000, taxa: 20, n: 24, data: '2026-09-24' })
     expect(p.every((x) => x.valor === 50)).toBe(true)
     expect(p.some((x) => new Date(x.vencimento + 'T12:00:00Z').getUTCDay() === 0)).toBe(false)
     expect(p).toHaveLength(24)
   })
   it('arredonda a parcela para cima no centavo', () => {
-    expect(planoEmprestimo({ capital: 600, modalidade: 'DIARIA', taxa: 20, n: 7, data: '2026-10-01' })[0].valor).toBe(102.86) // 720 ÷ 7 = 102,857…
+    expect(diaria({ capital: 600, taxa: 20, n: 7, data: '2026-10-01' })[0].valor).toBe(102.86) // 720 ÷ 7 = 102,857…
   })
-  it('um domingo de partida: a primeira parcela é a segunda seguinte', () => {
-    expect(planoEmprestimo({ capital: 100, modalidade: 'DIARIA', taxa: 10, n: 1, data: '2026-10-04' })[0].vencimento).toBe('2026-10-05')
+  it('data de partida num domingo: a primeira parcela é a segunda seguinte', () => {
+    expect(diaria({ capital: 100, taxa: 10, n: 1, data: '2026-10-04' })[0].vencimento).toBe('2026-10-05')
+  })
+  it('1º vencimento escolhido num domingo vai para a segunda e a contagem segue por dia útil', () => {
+    expect(diaria({ capital: 100, taxa: 10, n: 3, data: '2026-10-01', primeira: '2026-10-04' }).map((x) => x.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
   })
 })
 
@@ -78,7 +120,7 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
   const id: Record<string, number> = {}
   const req = (metodo: 'GET' | 'POST', url: string, papel?: string, payload?: object) =>
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
-  const emprestar = (papel: string, corpo: object = {}) => req('POST', '/api/emprestimos', papel, { clienteId: id.cA, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...corpo })
+  const emprestar = (papel: string, corpo: object = {}) => req('POST', '/api/emprestimos', papel, { clienteId: id.cA, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
 
   beforeAll(async () => {
     const k = db!
@@ -116,15 +158,51 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
       const r = await emprestar('admin')
       expect(r.statusCode).toBe(201)
       const e = r.json()
-      expect(e).toMatchObject({ cliente: { nome: 'Ana Souza' }, modalidade: 'PARCELADO', dataEmprestimo: hoje, capital: 5000, taxa: 10, nParcelas: 6, valorParcela: 1333.34, total: 8000.04, recebido: 0, falta: 8000.04, atrasadas: 0, status: 'ATIVA' })
+      expect(e).toMatchObject({ cliente: { nome: 'Ana Souza' }, modalidade: 'PARCELADO', dataEmprestimo: hoje, capital: 5000, taxa: 60, periodicidade: 'MENSAL', nParcelas: 6, valorParcela: 1333.34, total: 8000.04, recebido: 0, falta: 8000.04, atrasadas: 0, status: 'ATIVA' })
       expect(e.lucroTotal).toBe(3000.04)
       expect(e.capitalDeVolta).toBe(0)
       expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-11-08', '2026-12-08', '2027-01-08', '2027-02-08', '2027-03-08', '2027-04-08'])
       const a = await db!('auditoria').where({ acao: 'EMPRESTIMO_CRIADO', entidade_id: e.id }).first()
       expect(a).toMatchObject({ usuario_id: id.admin })
     })
+    it('cria com frequência semanal e 1º vencimento escolhido (exemplo do plano: 15/10, 22/10, 29/10…)', async () => {
+      const r = await emprestar('admin', { periodicidade: 'SEMANAL', primeiroVencimento: '2026-10-15', parcelas: 4, capital: 1000, taxa: 30 })
+      expect(r.statusCode).toBe(201)
+      const e = r.json()
+      expect(e).toMatchObject({ periodicidade: 'SEMANAL', nParcelas: 4, valorParcela: 325, total: 1300 })
+      expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05'])
+    })
+    it('sem 1º vencimento: um período depois da data do empréstimo (quinzenal → +15 dias)', async () => {
+      const e = (await emprestar('admin', { periodicidade: 'QUINZENAL', parcelas: 2 })).json()
+      expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-23', '2026-11-07'])
+    })
+    it('data do empréstimo no passado: as parcelas partem dela; o atraso já aparece', async () => {
+      const e = (await emprestar('admin', { dataEmprestimo: '2026-08-10', parcelas: 3 })).json()
+      expect(e).toMatchObject({ dataEmprestimo: '2026-08-10' })
+      expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-09-10', '2026-10-10', '2026-11-10'])
+      expect(e.atrasadas).toBe(1) // a de 10/09 já venceu em relação a 08/10
+    })
+    it('diária: modalidade DIARIA com frequência diária; 1º vencimento num domingo vai para a segunda', async () => {
+      const e = (await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-04' })).json()
+      expect(e).toMatchObject({ modalidade: 'DIARIA', periodicidade: 'DIARIA', valorParcela: 400 })
+      expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
+    })
+    it.each([
+      ['frequência inventada', { periodicidade: 'ANUAL' }], ['diária com frequência mensal', { modalidade: 'DIARIA', periodicidade: 'MENSAL', taxa: 20 }],
+      ['parcelado com frequência diária', { periodicidade: 'DIARIA' }], ['só juros com frequência diária', { modalidade: 'JUROS', periodicidade: 'DIARIA', taxa: 12 }],
+      ['data do empréstimo no futuro', { dataEmprestimo: '2026-10-09' }], ['data do empréstimo inválida', { dataEmprestimo: '2026-02-31' }], ['data do empréstimo antiga demais', { dataEmprestimo: '2019-12-31' }],
+      ['1º vencimento antes do empréstimo', { primeiroVencimento: '2026-10-07' }], ['1º vencimento inválido', { primeiroVencimento: 'amanhã' }], ['1º vencimento daqui a mais de um ano', { primeiroVencimento: '2027-10-10' }],
+      
+    ])('recusa %s (400)', async (_n, m) => {
+      expect((await emprestar('admin', m)).statusCode).toBe(400)
+    })
+    it('aceita 1º vencimento no mesmo dia do empréstimo e juros acima de 100% no total', async () => {
+      const r = await emprestar('admin', { primeiroVencimento: '2026-10-08', taxa: 150, capital: 1000, parcelas: 5 })
+      expect(r.statusCode).toBe(201)
+      expect(r.json()).toMatchObject({ valorParcela: 500, total: 2500 })
+    })
     it('ignora totais e parcelas mandados pela tela', async () => {
-      const r = await emprestar('admin', { total: 1, valorParcela: 1, lucro: 99999, dataEmprestimo: '2020-01-01', parcelasCalculadas: [] })
+      const r = await emprestar('admin', { total: 1, valorParcela: 1, lucro: 99999, parcelasCalculadas: [] })
       expect(r.json()).toMatchObject({ total: 8000.04, dataEmprestimo: hoje })
     })
     it('congela o % do indicador; mudar o indicador depois não muda o empréstimo', async () => {
@@ -138,11 +216,11 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
     it.each([
       ['sem cliente', { clienteId: undefined }], ['cliente como texto', { clienteId: '1' }], ['modalidade inventada', { modalidade: 'SEMANAL' }],
       ['capital zero', { capital: 0 }], ['capital negativo', { capital: -10 }], ['capital como texto', { capital: '5000' }], ['capital gigante', { capital: 1e12 }],
-      ['taxa zero', { taxa: 0 }], ['taxa acima de 100', { taxa: 101 }], ['taxa como texto', { taxa: '10' }],
-      ['zero parcelas', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 61 }], ['sem parcelas', { parcelas: undefined }],
+      ['taxa zero', { taxa: 0 }], ['taxa acima de 999', { taxa: 1000 }], ['só juros com taxa acima de 100', { modalidade: 'JUROS', taxa: 101 }], ['taxa como texto', { taxa: '10' }],
+      ['zero parcelas', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 121 }], ['sem parcelas', { parcelas: undefined }],
       ['observações enormes', { observacoes: 'x'.repeat(501) }], 
     ])('recusa %s (400)', async (_n, m) => {
-      const corpo = { clienteId: id.cA, modalidade: 'PARCELADO', capital: 5000, taxa: 10, parcelas: 6, ...m } as Record<string, unknown>
+      const corpo = { clienteId: id.cA, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...m } as Record<string, unknown>
       for (const k of Object.keys(corpo)) if (corpo[k] === undefined) delete corpo[k]
       expect((await req('POST', '/api/emprestimos', 'admin', corpo)).statusCode).toBe(400)
     })

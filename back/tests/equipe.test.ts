@@ -49,7 +49,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
     return r.json().id
   }
   const receber = (papel: string, vendaId: number, corpo: object) => req('POST', `/api/vendas/${vendaId}/recebimentos`, papel, { forma: 'PIX', parcela: 1, valor: 840, ...corpo })
-  const pedir = (papel: string, vendaId: number, corpo: object = {}) => req('POST', '/api/aprovacoes', papel, { vendaId, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...corpo })
+  const pedir = (papel: string, vendaId: number, corpo: object = {}) => req('POST', '/api/aprovacoes', papel, { alvo: 'VENDA', operacaoId: vendaId, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...corpo })
   const parcela = async (vendaId: number, n: number) => db!('venda_parcelas').where({ venda_id: vendaId, numero: n }).first()
   const statusVenda = async (vendaId: number) => (await db!('vendas').where({ id: vendaId }).first()).status as string
 
@@ -93,13 +93,13 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
     it('só o cobrador pede: admin (dá direto), vendedor e indicador não (403); sem login, 401', async () => {
       const v = await venda()
       for (const papel of ['admin', 'vendedor', 'indicador']) expect((await pedir(papel, v)).statusCode).toBe(403)
-      expect((await req('POST', '/api/aprovacoes', undefined, { vendaId: v, parcela: 1, valor: 100, motivo: 'abc' })).statusCode).toBe(401)
+      expect((await req('POST', '/api/aprovacoes', undefined, { alvo: 'VENDA', operacaoId: v, parcela: 1, valor: 100, motivo: 'abc' })).statusCode).toBe(401)
     })
     it('o cobrador pede, o pedido nasce PENDENTE com tudo o que o admin precisa ver, e audita', async () => {
       const v = await venda()
       const r = await pedir('cobrador', v, { valor: 150 })
       expect(r.statusCode).toBe(201)
-      expect(r.json()).toMatchObject({ tipo: 'DESCONTO', status: 'PENDENTE', vendaId: v, parcela: 1, nParcelas: 4, valor: 150, motivo: 'Cliente pediu pra arredondar', cliente: { nome: 'Ana Souza' }, aparelho: 'iPhone 13', solicitante: { nome: 'cobrador Silva' }, respondidoPor: null })
+      expect(r.json()).toMatchObject({ tipo: 'DESCONTO', status: 'PENDENTE', alvo: 'VENDA', operacaoId: v, parcela: 1, nParcelas: 4, valor: 150, motivo: 'Cliente pediu pra arredondar', cliente: { nome: 'Ana Souza' }, aparelho: 'iPhone 13', solicitante: { nome: 'cobrador Silva' }, respondidoPor: null })
       const a = await db!('auditoria').where({ acao: 'DESCONTO_PEDIDO', entidade_id: r.json().id }).first()
       expect(a).toMatchObject({ usuario_id: id.cobrador })
     })
@@ -109,11 +109,11 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
       expect(Number((await parcela(v, 1)).desconto)).toBe(0)
     })
     it.each([
-      ['sem venda', { vendaId: undefined }], ['sem parcela', { parcela: undefined }], ['valor zero', { valor: 0 }], ['valor negativo', { valor: -5 }], ['valor como texto', { valor: '100' }],
+      ['sem venda', { operacaoId: undefined }], ['alvo inventado', { alvo: 'CARRO' }], ['sem parcela', { parcela: undefined }], ['valor zero', { valor: 0 }], ['valor negativo', { valor: -5 }], ['valor como texto', { valor: '100' }],
       ['motivo vazio', { motivo: '' }], ['motivo curto', { motivo: 'ab' }], ['motivo enorme', { motivo: 'x'.repeat(501) }], ['desconto maior que a parcela', { valor: 840.01 }],
     ])('recusa %s (400)', async (_n, mudanca) => {
       const v = await venda()
-      const corpo = { vendaId: v, parcela: 1, valor: 100, motivo: 'Cliente pediu', ...mudanca } as Record<string, unknown>
+      const corpo = { alvo: 'VENDA', operacaoId: v, parcela: 1, valor: 100, motivo: 'Cliente pediu', ...mudanca } as Record<string, unknown>
       for (const k of Object.keys(corpo)) if (corpo[k] === undefined) delete corpo[k]
       expect((await req('POST', '/api/aprovacoes', 'cobrador', corpo)).statusCode).toBe(400)
     })
@@ -240,7 +240,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
       expect(efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 300, vencimento: '2026-10-15' }])
       expect(recibo.valor).toBe(540)
       const ped = (await req('GET', '/api/aprovacoes?status=PENDENTE&limite=100', 'admin')).json().itens.find((x: { id: number }) => x.id === pedidoDescontoId)
-      expect(ped).toMatchObject({ valor: 300, motivo: 'Cliente só tinha 540', vendaId: v, parcela: 1, solicitante: { nome: 'cobrador Silva' } })
+      expect(ped).toMatchObject({ valor: 300, motivo: 'Cliente só tinha 540', alvo: 'VENDA', operacaoId: v, parcela: 1, solicitante: { nome: 'cobrador Silva' } })
       // o admin aprova: o resto (300) vira desconto e a parcela quita
       await req('POST', `/api/aprovacoes/${pedidoDescontoId}/aprovar`, 'admin')
       const f = (await req('GET', `/api/vendas/${v}`, 'admin')).json().parcelas[0]

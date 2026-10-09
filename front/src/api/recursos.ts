@@ -43,6 +43,6 @@ const emprestimosFake = modoDemo ? criarEmprestimosFake({ clientes: clientesFake
 export const emprestimosApi: EmprestimosApi = emprestimosFake ?? criarEmprestimosHttp(URL_API, requisicao)
 export const recebimentosApi: RecebimentosApi = vendasFake ? criarRecebimentosFake(vendasFake, emprestimosFake!) : criarRecebimentosHttp(URL_API, requisicao)
 
-export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake) : criarAprovacoesHttp(URL_API, requisicao)
+export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!) : criarAprovacoesHttp(URL_API, requisicao)
 export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(vendasFake) : criarFechamentosHttp(URL_API, requisicao)
 export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : criarEquipeHttp(URL_API, requisicao)

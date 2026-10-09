@@ -4,6 +4,7 @@ import type { EmprestimoApi } from '@/api/emprestimos'
 import type { PagamentoApi } from '@/api/recebimentos'
 import { recebimentosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
+import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
 import Sheet from './Sheet.vue'
 
@@ -19,7 +20,6 @@ async function carregarPagamentos() {
 watch(() => props.emprestimo, carregarPagamentos, { immediate: true })
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 
-const MOD = { PARCELADO: 'Parcelado', JUROS: 'Só juros', DIARIA: 'Diária' } as const
 const pct = computed(() => (props.emprestimo && props.emprestimo.total > 0 ? Math.round((props.emprestimo.recebido / props.emprestimo.total) * 100) : 100))
 const capPct = computed(() => (props.emprestimo?.capital ? Math.round(((props.emprestimo.capitalDeVolta ?? 0) / props.emprestimo.capital) * 100) : 0))
 const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
@@ -29,7 +29,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
   <Sheet :aberto="emprestimo !== null" @fechar="emit('fechar')">
     <template v-if="emprestimo">
       <h3>{{ emprestimo.cliente.nome }}</h3>
-      <div class="small">{{ MOD[emprestimo.modalidade] }} · emprestado em {{ dmyA(emprestimo.dataEmprestimo) }}</div>
+      <div class="small">{{ nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) }} · emprestado em {{ dmyA(emprestimo.dataEmprestimo) }}</div>
 
       <div class="card pad" style="margin-top: 12px">
         <div class="between small"><span><b class="num" style="color: var(--strong)">{{ fmt(emprestimo.recebido) }}</b> recebido de {{ fmt(emprestimo.total) }}</span><span class="num">{{ pct }}%</span></div>
@@ -39,7 +39,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
 
       <div v-if="emprestimo.capital !== undefined" class="dl card pad" style="margin-top: 10px" data-testid="dados-admin">
         <div><div class="lbl">Capital emprestado</div><div class="val num">{{ fmt(emprestimo.capital) }}</div></div>
-        <div><div class="lbl">Taxa</div><div class="val num">{{ emprestimo.taxa }}%{{ emprestimo.modalidade === 'DIARIA' ? ' no período' : ' ao mês' }}</div></div>
+        <div><div class="lbl">Taxa</div><div class="val num">{{ taxaTexto(emprestimo.modalidade, emprestimo.periodicidade, emprestimo.taxa ?? 0) }}</div></div>
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div><div v-if="emprestimo.modalidade === 'JUROS'" class="small">só o juro; o capital vem na última</div><div v-if="emprestimo.modalidade === 'DIARIA'" class="small">uma por dia útil, sem domingo</div></div>
         <div><div class="lbl">Indicador</div><div class="val">{{ emprestimo.indicador?.nome ?? '—' }}</div></div>
         <div><div class="lbl">Lucro total</div><div class="val num" style="color: var(--ok)">{{ fmt(emprestimo.lucroTotal ?? 0) }}</div></div>

@@ -2,6 +2,7 @@ import { criarSeed } from '@/data/seed'
 import { addDia } from '@/domain/datas'
 import { soDigitos } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
+import { nomeEmprestimo } from '@/domain/emprestimo'
 import { arred2 } from '@/domain/format'
 import { calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
 import { ErroApi } from './clientes'
@@ -14,7 +15,6 @@ const FORMAS: FormaPagamentoApi[] = ['PIX', 'DINHEIRO', 'CARTAO']
 const NOME_FORMA: Record<FormaPagamentoApi, string> = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' }
 const ABAS: AbaCobranca[] = ['atrasadas', 'hoje', 'proximas', 'recebidas']
 const HTTP: Record<ErroRecebimento['codigo'], number> = { PARCELA_INEXISTENTE: 404, PARCELA_PAGA: 409, VALOR_INVALIDO: 400, EXCEDE_DIVIDA: 400, RESTO_OBRIGATORIO: 400, VENCIMENTO_INVALIDO: 400 }
-const NOME_MOD = { PARCELADO: 'parcelado', JUROS: 'só juros', DIARIA: 'diária' } as const
 
 const dmy = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const dmyA = (iso: string) => `${dmy(iso)}/${iso.slice(0, 4)}`
@@ -57,7 +57,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
 
   const permitido = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o administrador e o cobrador mexem com recebimentos', 'SEM_PERMISSAO') }
   const comoOp = (r: Registro): Op => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, data: r.dataVenda, status: r.status, descricao: r.aparelho.modelo, parcelas: r.parcelas, emp: null })
-  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, data: r.dataEmprestimo, status: r.status, descricao: `Empréstimo ${NOME_MOD[r.modalidade]}`, parcelas: r.parcelas, emp: r })
+  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, data: r.dataEmprestimo, status: r.status, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), parcelas: r.parcelas, emp: r })
   const doEscopo = (s: Sessao, alvo: AlvoApi, id: number): Op => {
     if (alvo === 'VENDA') {
       const r = vendas._interno.noEscopo(s).find((x) => x.id === id)
@@ -119,7 +119,6 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (s.perfil === 'COBRADOR' && vendas._interno.fechamentos.some((f) => f.usuarioId === s.usuarioId && f.data === data)) throw new ErroApi(409, 'O seu dia já foi fechado. Peça ao administrador para reabrir.', 'DIA_FECHADO')
       if (o.status === 'RETOMADA' || o.status === 'CANCELADA') throw new ErroApi(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada: não recebe pagamentos' : 'Este empréstimo foi cancelado: não recebe pagamentos', 'VENDA_ENCERRADA')
       if (data < o.data) throw new ErroApi(400, alvo === 'VENDA' ? 'A data do recebimento não pode ser antes da venda' : 'A data do recebimento não pode ser antes do empréstimo')
-      if (motivoPedido && alvo === 'EMPRESTIMO') throw new ErroApi(400, 'Pedir desconto em empréstimo ainda não está disponível')
 
       const pedidoCalc = { numero: e.parcela, valor: e.valor, data, hoje, resto: e.resto, novoVenc: e.novoVencimento }
       let res
@@ -137,9 +136,9 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (motivoPedido) {
         const resta = res.itens[0].faltaDepois
         if (resta <= 0.009) throw new ErroApi(400, 'Não sobrou nada na parcela para pedir desconto')
-        if (vendas._interno.pedidos.some((x) => x.vendaId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+        if (vendas._interno.pedidos.some((x) => x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
         pedidoId = vendas._interno.proximoPedido()
-        vendas._interno.pedidos.push({ id: pedidoId, vendaId: o.id, parcela: e.parcela, valor: resta, motivo: motivoPedido, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null })
+        vendas._interno.pedidos.push({ id: pedidoId, alvo, operacaoId: o.id, parcela: e.parcela, valor: resta, motivo: motivoPedido, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null })
       }
       for (const it of res.itens) {
         const p = o.parcelas.find((x) => x.numero === it.numero)!

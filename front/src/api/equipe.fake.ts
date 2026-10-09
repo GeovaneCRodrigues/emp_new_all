@@ -3,10 +3,13 @@ import { normalizarFone } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import { falta } from '@/domain/recebimento'
+import { nomeEmprestimo } from '@/domain/emprestimo'
 import type { AprovacaoApi, AprovacoesApi, StatusAprovacao } from './aprovacoes'
 import { ErroApi } from './clientes'
 import type { EquipeApi, PessoaApi } from './equipe'
 import type { CaixaApi, FechamentoApi, FechamentosApi } from './fechamentos'
+import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
+import type { AlvoApi } from './recebimentos'
 import type { FechamentoReg, Pedido, Registro, VendasFake } from './vendas.fake'
 
 const primeiro = (n: string) => n.trim().split(/\s+/)[0]
@@ -16,40 +19,64 @@ const erro = (m: string) => new ErroApi(400, m)
 
 // ===================== aprovações =====================
 
+/** A venda ou o empréstimo de um pedido, visto de um jeito só. */
+interface OpPedido {
+  alvo: AlvoApi
+  id: number
+  cliente: { id: number; nome: string }
+  descricao: string
+  status: string
+  parcelas: Registro['parcelas']
+  definirStatus(status: 'ATIVA' | 'QUITADA'): void
+}
+
 /** Pedidos de desconto de demonstração: mesmas regras do backend (só o cobrador pede, só o admin responde, um pendente por parcela). */
-export function criarAprovacoesFake(vendas: VendasFake): AprovacoesApi {
+export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake): AprovacoesApi {
   const { pedidos, hoje } = vendas._interno
+  const comoOp = (r: Registro): OpPedido => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, descricao: r.aparelho.modelo, status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
+  const comoOpEmp = (r: RegistroEmprestimo): OpPedido => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
+  /** `s`: só as da carteira dele; sem `s`: todas. */
+  const opDe = (alvo: AlvoApi, id: number, s?: Sessao): OpPedido | undefined => {
+    if (alvo === 'VENDA') {
+      const r = (s ? vendas._interno.noEscopo(s) : vendas._interno.registros).find((x) => x.id === id)
+      return r ? comoOp(r) : undefined
+    }
+    const r = (s ? emprestimos?._interno.noEscopo(s) : emprestimos?._interno.registros)?.find((x) => x.id === id)
+    return r ? comoOpEmp(r) : undefined
+  }
   const visao = (p: Pedido): AprovacaoApi => {
-    const r = vendas._interno.registros.find((x) => x.id === p.vendaId)!
+    const o = opDe(p.alvo, p.operacaoId)!
     return {
-      id: p.id, tipo: 'DESCONTO', status: p.status, vendaId: p.vendaId, parcela: p.parcela, nParcelas: r.parcelas.length, valor: p.valor, motivo: p.motivo,
-      solicitante: { id: p.solicitanteId, nome: p.solicitanteNome }, cliente: { id: r.cliente.id, nome: r.cliente.nome }, aparelho: r.aparelho.modelo,
+      id: p.id, tipo: 'DESCONTO', status: p.status, alvo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, nParcelas: o.parcelas.length, valor: p.valor, motivo: p.motivo,
+      solicitante: { id: p.solicitanteId, nome: p.solicitanteNome }, cliente: { id: o.cliente.id, nome: o.cliente.nome }, aparelho: o.descricao,
       criadaEm: p.criadaEm, respondidoPor: p.respondidoPor, respondidoEm: p.respondidoEm, resposta: p.resposta,
     }
   }
   const permitido = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o administrador e o cobrador usam os pedidos de aprovação', 'SEM_PERMISSAO') }
   const achar = (id: number) => pedidos.find((x) => x.id === id) ?? (() => { throw new ErroApi(404, 'Pedido não encontrado', 'NAO_ENCONTRADO') })()
-  const registroDe = (p: Pedido): Registro => vendas._interno.registros.find((x) => x.id === p.vendaId)!
+  const encerrada = (st: string) => st === 'RETOMADA' || st === 'CANCELADA'
 
   return {
     async pedirDesconto(s, e) {
       if (s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o cobrador pede desconto (o administrador dá o desconto direto ao receber)', 'SEM_PERMISSAO')
-      if (!Number.isInteger(e.vendaId) || e.vendaId < 1) throw erro('Informe a venda')
+      const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as AlvoApi
+      if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw erro('alvo deve ser VENDA ou EMPRESTIMO')
+      if (!Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw erro(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
       if (!Number.isInteger(e.parcela) || e.parcela < 1) throw erro('Informe a parcela')
       if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0) throw erro('Informe o valor do desconto')
       const motivo = (e.motivo ?? '').trim()
       if (motivo.length < 3 || motivo.length > 500) throw erro('Explique o motivo do pedido (de 3 a 500 letras)')
-      const r = vendas._interno.noEscopo(s).find((x) => x.id === e.vendaId)
-      if (!r) throw new ErroApi(404, 'Venda não encontrada', 'NAO_ENCONTRADO')
-      if (r.status === 'RETOMADA' || r.status === 'CANCELADA') throw new ErroApi(409, 'Esta venda foi retomada ou cancelada', 'VENDA_ENCERRADA')
-      const p = r.parcelas.find((x) => x.numero === e.parcela)
+      const o = opDe(alvo, e.operacaoId, s)
+      if (!o) throw new ErroApi(404, alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado', 'NAO_ENCONTRADO')
+      if (encerrada(o.status)) throw new ErroApi(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      const p = o.parcelas.find((x) => x.numero === e.parcela)
       if (!p) throw new ErroApi(404, 'Parcela não encontrada', 'NAO_ENCONTRADO')
       const f = falta(p)
       if (f <= 0.009) throw new ErroApi(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
       const valor = arred2(e.valor)
       if (valor > f + 0.009) throw erro('O desconto não pode passar do que falta na parcela')
-      if (pedidos.some((x) => x.vendaId === r.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
-      const novo: Pedido = { id: vendas._interno.proximoPedido(), vendaId: r.id, parcela: e.parcela, valor, motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
+      if (pedidos.some((x) => x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
       pedidos.push(novo)
       return visao(novo)
     },
@@ -69,14 +96,14 @@ export function criarAprovacoesFake(vendas: VendasFake): AprovacoesApi {
       adminOu(s)
       const p = achar(id)
       if (p.status !== 'PENDENTE') throw new ErroApi(409, 'Este pedido já foi respondido', 'PEDIDO_JA_RESPONDIDO')
-      const r = registroDe(p)
-      if (r.status === 'RETOMADA' || r.status === 'CANCELADA') throw new ErroApi(409, 'Esta venda foi retomada ou cancelada', 'VENDA_ENCERRADA')
-      const parc = r.parcelas.find((x) => x.numero === p.parcela)!
+      const o = opDe(p.alvo, p.operacaoId)!
+      if (encerrada(o.status)) throw new ErroApi(409, p.alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      const parc = o.parcelas.find((x) => x.numero === p.parcela)!
       const f = falta(parc)
       if (p.valor > f + 0.009) throw new ErroApi(409, f <= 0.009 ? 'A parcela já foi paga: o pedido não faz mais sentido' : `A parcela mudou: agora faltam só ${f.toFixed(2).replace('.', ',')}. Recuse o pedido e peça de novo.`, 'PEDIDO_DESATUALIZADO')
       parc.desconto = arred2(parc.desconto + p.valor)
       if (arred2(f - p.valor) <= 0.009) parc.quitadaEm = hoje
-      r.status = r.parcelas.every((x) => falta(x) <= 0.009) ? 'QUITADA' : 'ATIVA'
+      o.definirStatus(o.parcelas.every((x) => falta(x) <= 0.009) ? 'QUITADA' : 'ATIVA')
       p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
       return visao(p)
     },

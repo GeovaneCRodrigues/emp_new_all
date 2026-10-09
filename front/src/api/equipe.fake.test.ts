@@ -42,7 +42,7 @@ async function venda(clienteId = 3): Promise<number> {
   return (await vendas.criar(ADMIN, { aparelhoId: a.id, clienteId, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })).id
 }
 const receber = (s: Sessao, vendaId: number, e: Partial<EntradaRecebimento>) => recebimentos.registrar(s, 'VENDA', vendaId, { parcela: 1, valor: 840, forma: 'PIX', ...e })
-const pedir = (s: Sessao, vendaId: number, e: Partial<{ parcela: number; valor: number; motivo: string }> = {}) => aprovacoes.pedirDesconto(s, { vendaId, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...e })
+const pedir = (s: Sessao, vendaId: number, e: Partial<{ parcela: number; valor: number; motivo: string }> = {}) => aprovacoes.pedirDesconto(s, { alvo: 'VENDA', operacaoId: vendaId, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...e })
 const parcela = async (vendaId: number, n: number) => (await vendas.obter(ADMIN, vendaId)).parcelas[n - 1]
 
 describe('pedir desconto', () => {
@@ -53,7 +53,7 @@ describe('pedir desconto', () => {
   it('nasce PENDENTE com tudo o que o admin precisa ver; a parcela não muda enquanto espera', async () => {
     const v = await venda()
     const r = await pedir(COBR, v, { valor: 150 })
-    expect(r).toMatchObject({ tipo: 'DESCONTO', status: 'PENDENTE', vendaId: v, parcela: 1, nParcelas: 4, valor: 150, motivo: 'Cliente pediu pra arredondar', cliente: { nome: 'Fernanda Almeida' }, aparelho: 'iPhone 13', solicitante: { nome: 'Diego Ramos' }, respondidoPor: null })
+    expect(r).toMatchObject({ tipo: 'DESCONTO', status: 'PENDENTE', alvo: 'VENDA', operacaoId: v, parcela: 1, nParcelas: 4, valor: 150, motivo: 'Cliente pediu pra arredondar', cliente: { nome: 'Fernanda Almeida' }, aparelho: 'iPhone 13', solicitante: { nome: 'Diego Ramos' }, respondidoPor: null })
     expect((await parcela(v, 1)).desconto).toBe(0)
   })
   it.each([['valor zero', { valor: 0 }], ['valor negativo', { valor: -5 }], ['motivo vazio', { motivo: '' }], ['motivo curto', { motivo: 'ab' }], ['motivo enorme', { motivo: 'x'.repeat(501) }], ['desconto maior que a parcela', { valor: 840.01 }]])('recusa %s (400)', async (_n, m) => {
@@ -125,7 +125,7 @@ describe('pedir desconto ao receber', () => {
     expect(r.efeitos).toEqual([{ tipo: 'FICA', numero: 1, resta: 300, vencimento: '2026-10-15' }])
     expect(r.pedidoDescontoId).not.toBeNull()
     const ped = (await aprovacoes.listar(ADMIN, { status: 'PENDENTE', limite: 100 })).itens.find((x) => x.id === r.pedidoDescontoId)!
-    expect(ped).toMatchObject({ valor: 300, motivo: 'Cliente só tinha 540', vendaId: v })
+    expect(ped).toMatchObject({ valor: 300, motivo: 'Cliente só tinha 540', alvo: 'VENDA', operacaoId: v })
     await aprovacoes.aprovar(ADMIN, ped.id)
     expect(await parcela(v, 1)).toMatchObject({ pago: 540, desconto: 300, falta: 0 })
   })

@@ -2,6 +2,7 @@ import type { Sessao } from '@/domain/escopo'
 import type { ParcelaVendaApi } from './vendas'
 
 export type ModalidadeApi = 'PARCELADO' | 'JUROS' | 'DIARIA'
+export type PeriodicidadeApi = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
 export type StatusEmprestimo = 'ATIVA' | 'QUITADA' | 'CANCELADA'
 
 /** Empréstimo como a API devolve. Capital, taxa e lucro só existem para o admin. */
@@ -9,6 +10,7 @@ export interface EmprestimoApi {
   id: number
   cliente: { id: number; nome: string }
   modalidade: ModalidadeApi
+  periodicidade: PeriodicidadeApi
   dataEmprestimo: string
   observacoes: string | null
   nParcelas: number
@@ -40,9 +42,15 @@ export interface EntradaEmprestimo {
   clienteId: number
   modalidade: ModalidadeApi
   capital: number
-  /** % ao mês (parcelado e só juros) ou do período todo (diária) */
+  /** parcelado e diária: % de juros NO TOTAL (100% = paga o dobro). Só juros: % a cada parcela. */
   taxa: number
   parcelas: number
+  /** padrão: mensal (a diária é sempre diária) */
+  periodicidade?: PeriodicidadeApi
+  /** padrão: hoje */
+  dataEmprestimo?: string
+  /** padrão: um período depois da data do empréstimo */
+  primeiroVencimento?: string
   indicadorId?: number | null
   observacoes?: string
 }

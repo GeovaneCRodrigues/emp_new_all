@@ -48,7 +48,10 @@ export interface Transacao {
 /** Pedido de desconto do cobrador, esperando o administrador. */
 export interface Pedido {
   id: number
-  vendaId: number
+  /** o que o pedido mexe: uma venda ou um empréstimo */
+  alvo: 'VENDA' | 'EMPRESTIMO'
+  /** id da venda ou do empréstimo */
+  operacaoId: number
   parcela: number
   valor: number
   motivo: string
@@ -141,8 +144,8 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   // dois pedidos de desconto esperando o administrador e um fechamento de ontem para conferir
   const vendaDe = (clienteId: number) => registros.find((r) => r.cliente.id === clienteId)!
   pedidos.push(
-    { id: ++seqPedido, vendaId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
-    { id: ++seqPedido, vendaId: vendaDe(4).id, parcela: 3, valor: 100, motivo: 'Está sem trabalho e prometeu pagar o resto dia 15', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+    { id: ++seqPedido, alvo: 'VENDA', operacaoId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+    { id: ++seqPedido, alvo: 'VENDA', operacaoId: vendaDe(4).id, parcela: 3, valor: 100, motivo: 'Está sem trabalho e prometeu pagar o resto dia 15', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
   )
   fechamentos.push({ id: ++seqFechamento, usuarioId: 3, usuarioNome: 'Diego Ramos', data: '2026-10-07', dinheiro: 350, pix: 500, cartao: 0, status: 'PENDENTE', conferidoPor: null, conferidoEm: null })
 
