@@ -45,6 +45,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
       .select<LinhaVenda[]>('v.*', 'b.modelo', 'b.gb', 'b.cor', 'c.nome as cliente_nome', 'i.nome as indicador_nome')
     if (escopo.tipo === 'VENDEDOR') q.where((w) => w.where('v.vendedor_id', escopo.usuarioId).orWhere('c.responsavel_id', escopo.usuarioId))
     else if (escopo.tipo === 'CARTEIRA') q.where('c.responsavel_id', escopo.usuarioId)
+    else if (escopo.tipo === 'INDICADOR') q.where('v.indicador_id', escopo.indicadorId)
     return q
   }
 
@@ -101,7 +102,8 @@ export function createVendasRepository(db: Knex): VendasRepository {
           },
           async clienteNoEscopo(id, escopo) {
             const q = trx('clientes').where({ id })
-            if (escopo.tipo !== 'TODOS') q.where({ responsavel_id: escopo.usuarioId })
+            if (escopo.tipo === 'INDICADOR') q.whereRaw('false') // o indicador não vende
+            else if (escopo.tipo !== 'TODOS') q.where({ responsavel_id: escopo.usuarioId })
             return (await q.first<{ id: number; nome: string } | undefined>('id', 'nome')) ?? null
           },
           async indicadorAtivo(id) {

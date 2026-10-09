@@ -37,7 +37,7 @@ export type Emprestimo = {
 }
 
 /** Quais empréstimos um pedido pode enxergar. */
-export type EscopoEmprestimos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: number }
+export type EscopoEmprestimos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: number } | { tipo: 'INDICADOR'; indicadorId: number }
 
 export type NovoEmprestimo = {
   clienteId: number

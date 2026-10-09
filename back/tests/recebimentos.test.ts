@@ -98,7 +98,8 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
         expect((await receber(papel, v, { parcela: 1, valor: 840 })).statusCode).toBe(403)
         expect((await req('GET', `/api/vendas/${v}/pagamentos`, papel)).statusCode).toBe(403)
         expect((await req('GET', '/api/recibos/1', papel)).statusCode).toBe(403)
-        expect((await req('GET', '/api/cobrancas', papel)).statusCode).toBe(403)
+        // a lista de cobranças: o vendedor não vê; o indicador vê só a das operações dele (indicador-leitura.test.ts)
+        expect((await req('GET', '/api/cobrancas', papel)).statusCode).toBe(papel === 'indicador' ? 200 : 403)
         expect((await req('POST', '/api/recebimentos/1/desfazer', papel)).statusCode).toBe(403)
       }
       expect((await req('POST', `/api/vendas/${v}/recebimentos`, undefined, { parcela: 1, valor: 840, forma: 'PIX' })).statusCode).toBe(401)

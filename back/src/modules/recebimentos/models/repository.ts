@@ -58,7 +58,12 @@ const T = {
 const pagoSql = (alvo: Alvo) => `coalesce((select sum(r.valor) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${T[alvo].fk} = p.id and t.desfeita_em is null), 0)`
 
 export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
-  const escopoSql = (q: Knex.QueryBuilder, e: EscopoRecebimentos) => { if (e.tipo === 'CARTEIRA') q.where('c.responsavel_id', e.usuarioId); return q }
+  // o indicador só LÊ (a lista de cobranças das operações dele); os registros de dinheiro continuam só do admin e do cobrador
+  const escopoSql = (q: Knex.QueryBuilder, e: EscopoRecebimentos) => {
+    if (e.tipo === 'CARTEIRA') q.where('c.responsavel_id', e.usuarioId)
+    else if (e.tipo === 'INDICADOR') q.where('o.indicador_id', e.indicadorId)
+    return q
+  }
 
   return {
     async emTransacao(fn) {

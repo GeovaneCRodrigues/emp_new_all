@@ -83,9 +83,10 @@ describe.skipIf(!db)('vendas (Postgres de verdade)', () => {
       for (const papel of ['cobrador', 'indicador']) expect((await vender(papel, await corpoBase())).statusCode).toBe(403)
       expect((await req('POST', '/api/vendas', undefined, await corpoBase())).statusCode).toBe(401)
     })
-    it('o indicador não vê vendas (a área dele vem depois); o cobrador vê só a carteira', async () => {
-      expect((await req('GET', '/api/vendas', 'indicador')).statusCode).toBe(403)
-      expect((await req('GET', '/api/vendas/resumo', 'indicador')).statusCode).toBe(403)
+    it('o indicador lê as vendas dele (o isolamento está em indicador-leitura.test.ts), mas não vende nem retoma', async () => {
+      expect((await req('GET', '/api/vendas', 'indicador')).statusCode).toBe(200)
+      expect((await req('GET', '/api/vendas/resumo', 'indicador')).statusCode).toBe(200)
+      expect((await req('POST', '/api/vendas/1/retomar', 'indicador', {})).statusCode).toBe(403)
     })
   })
 

@@ -1,4 +1,5 @@
 import type { Perfil } from '../../../shared/perfis.js'
+import { partesDoIndicador } from '../../repasses/services/calculo.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { EmprestimoCalculado, ResultadoLista, ResumoEmprestimos } from '../services/emprestimos.service.js'
 
@@ -16,6 +17,12 @@ export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
       numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago,
       falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.acordo,
     })),
+  }
+  // o indicador acompanha o empréstimo dele: a parte dele (prevista e já liberada), nunca capital, taxa nem lucro da loja
+  if (perfil === 'INDICADOR') {
+    const descontos = arred2(e.parcelas.reduce((x, p) => x + p.desconto, 0))
+    const { parte, liberado } = partesDoIndicador({ total: c.total, descontos, recebido: c.recebido, investido: e.capital, pct: e.pct })
+    return { ...base, percentualIndicador: e.pct, suaParte: parte, jaLiberado: liberado }
   }
   if (perfil !== 'ADMIN') return base
   return {

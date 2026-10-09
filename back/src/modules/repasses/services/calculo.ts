@@ -35,6 +35,14 @@ export type OperacaoComRepasse = OperacaoRepasse & {
   capitalVoltou: boolean
 }
 
+/** A parte do indicador numa operação: a prevista (se tudo for pago) e a já liberada (o que passou do capital). */
+export function partesDoIndicador(o: { total: number; descontos: number; recebido: number; investido: number; pct: number }) {
+  return {
+    parte: arred2(Math.max(0, o.total - o.descontos - o.investido) * o.pct),
+    liberado: arred2(Math.max(0, o.recebido - o.investido) * o.pct),
+  }
+}
+
 export type ResumoRepasse = {
   liberado: number
   pago: number
@@ -56,9 +64,7 @@ export function calcularRepasse(operacoes: OperacaoRepasse[], pago: number): Res
   const validas = operacoes.filter((o) => o.status !== 'CANCELADA').sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id || a.tipo.localeCompare(b.tipo))
   let restante = arred2(pago)
   const linhas: OperacaoComRepasse[] = validas.map((o) => {
-    const lucroPrevisto = Math.max(0, o.total - o.descontos - o.investido)
-    const parte = arred2(lucroPrevisto * o.pct)
-    const liberado = arred2(Math.max(0, o.recebido - o.investido) * o.pct)
+    const { parte, liberado } = partesDoIndicador(o)
     const pagoNela = arred2(Math.min(liberado, restante))
     restante = arred2(restante - pagoNela)
     const aberta = o.status === 'ATIVA'

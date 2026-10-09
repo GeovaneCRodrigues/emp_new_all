@@ -44,6 +44,7 @@ export type EscopoVendas =
   | { tipo: 'TODOS' }
   | { tipo: 'VENDEDOR'; usuarioId: number } // as que ele fez ou as dos clientes da carteira dele
   | { tipo: 'CARTEIRA'; usuarioId: number } // as dos clientes da carteira (cobrador)
+  | { tipo: 'INDICADOR'; indicadorId: number } // só leitura: as que ele indicou
 
 export type AparelhoTravado = {
   id: number
