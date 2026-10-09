@@ -1,23 +1,35 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
-import { recebimentosApi, vendasApi } from '@/api/recursos'
-import type { RegistradoApi } from '@/api/recebimentos'
-import type { FormaPagamentoApi, VendaApi } from '@/api/vendas'
+import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import type { AlvoApi, RegistradoApi } from '@/api/recebimentos'
+import type { FormaPagamentoApi, ParcelaVendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
 import { addDia } from '@/domain/datas'
 import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
-import { calcularRecebimento, descreverEfeitos, ErroRecebimento, falta, vencPadraoResto, type RestoPagamento } from '@/domain/recebimento'
+import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, falta, vencPadraoResto, type RestoPagamento } from '@/domain/recebimento'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
 
-const props = defineProps<{ alvo: { vendaId: number; parcela: number } | null }>()
+const props = defineProps<{ alvo: { tipo: AlvoApi; operacaoId: number; parcela: number } | null }>()
 const emit = defineEmits<{ fechar: []; registrado: [r: RegistradoApi] }>()
 
 const { sessao, hoje } = useApp()
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
 
-const venda = ref<VendaApi | null>(null)
+/** A venda ou o empréstimo que vai receber, visto de um jeito só. */
+interface Operacao {
+  tipo: AlvoApi
+  cliente: { id: number; nome: string }
+  descricao: string
+  nParcelas: number
+  data: string
+  parcelas: ParcelaVendaApi[]
+  /** só juros (só o admin recebe capital e taxa) */
+  juros: { capitalAberto: number; taxa: number } | null
+  ehJuros: boolean
+}
+const venda = ref<Operacao | null>(null)
 const carregando = ref(false)
 const erro = ref('')
 const enviando = ref(false)
@@ -31,7 +43,16 @@ watch(() => props.alvo, async (a) => {
   if (!a) return
   carregando.value = true
   try {
-    venda.value = await vendasApi.obter(sessao.value, a.vendaId)
+    if (a.tipo === 'VENDA') {
+      const v = await vendasApi.obter(sessao.value, a.operacaoId)
+      venda.value = { tipo: 'VENDA', cliente: v.cliente, descricao: v.aparelho.modelo, nParcelas: v.nParcelas, data: v.dataVenda, parcelas: v.parcelas, juros: null, ehJuros: false }
+    } else {
+      const e = await emprestimosApi.obter(sessao.value, a.operacaoId)
+      venda.value = {
+        tipo: 'EMPRESTIMO', cliente: e.cliente, descricao: `Empréstimo ${{ PARCELADO: 'parcelado', JUROS: 'só juros', DIARIA: 'diária' }[e.modalidade]}`, nParcelas: e.nParcelas, data: e.dataEmprestimo, parcelas: e.parcelas,
+        juros: e.modalidade === 'JUROS' && e.capitalAberto !== undefined && e.taxa !== undefined ? { capitalAberto: e.capitalAberto, taxa: e.taxa } : null, ehJuros: e.modalidade === 'JUROS',
+      }
+    }
     const p = venda.value.parcelas.find((x) => x.numero === a.parcela)
     f.data = hoje.value
     f.valor = p ? falta({ valor: p.valor, pago: p.pago, desconto: p.desconto }) : 0
@@ -51,10 +72,15 @@ const motivoOk = computed(() => !pedindo.value || (f.motivo.trim().length >= 3 &
 const previa = computed(() => {
   if (!venda.value || !(f.valor > 0)) return { texto: '', erro: '' }
   try {
-    const r = calcularRecebimento(
-      venda.value.parcelas.map((p) => ({ id: p.numero, numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, quitadaEm: p.quitadaEm })),
-      { numero: props.alvo!.parcela, valor: f.valor, data: f.data || hoje.value, hoje: hoje.value, resto: parcial.value ? f.resto : undefined, novoVenc: parcial.value && f.resto === 'FICA' ? f.novoVenc : undefined },
-    )
+    const ps = venda.value.parcelas.map((p) => ({ id: p.numero, numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, quitadaEm: p.quitadaEm }))
+    const pedido = { numero: props.alvo!.parcela, valor: f.valor, data: f.data || hoje.value, hoje: hoje.value, resto: parcial.value ? f.resto : undefined, novoVenc: parcial.value && f.resto === 'FICA' ? f.novoVenc : undefined }
+    // só juros: o que passa do juro abate o capital e o juro seguinte é recalculado (só o admin vê capital e taxa para a prévia)
+    if (venda.value.juros) {
+      const r = calcularRecebimentoJuros(ps, pedido, venda.value.juros)
+      return { texto: descreverEfeitos(r.efeitos, fmt, dmy), erro: '' }
+    }
+    if (venda.value.ehJuros && f.valor > faltaAlvo.value + 0.009) return { texto: 'O que passar do juro abate o capital do cliente e o juro das próximas parcelas é recalculado.', erro: '' }
+    const r = calcularRecebimento(ps, pedido)
     return { texto: descreverEfeitos(r.efeitos, fmt, dmy), erro: '' }
   } catch (e) {
     return { texto: '', erro: e instanceof ErroRecebimento ? e.message : '' }
@@ -73,7 +99,7 @@ async function confirmar() {
   enviando.value = true
   erro.value = ''
   try {
-    const r = await recebimentosApi.registrar(sessao.value, props.alvo.vendaId, {
+    const r = await recebimentosApi.registrar(sessao.value, props.alvo.tipo, props.alvo.operacaoId, {
       parcela: props.alvo.parcela, valor: f.valor, forma: f.forma, data: f.data || hoje.value,
       ...(parcial.value ? { resto: f.resto, ...(f.resto === 'FICA' ? { novoVencimento: f.novoVenc } : {}) } : {}),
       ...(pedindo.value ? { pedirDesconto: { motivo: f.motivo.trim() } } : {}),
@@ -95,7 +121,7 @@ async function confirmar() {
     <template v-else>
       <div class="card pad" style="margin-top: 12px; display: flex; gap: 12px; align-items: center; background: var(--elevated)">
         <span class="ini">{{ iniciais(venda.cliente.nome) }}</span>
-        <div style="flex: 1; min-width: 0"><div class="val">{{ venda.cliente.nome }}</div><div class="small">{{ venda.aparelho.modelo }} · parcela {{ parcela.numero }}/{{ venda.nParcelas }} · venc. {{ dmy(parcela.vencimento) }}<template v-if="parcela.vencimentoOriginal"> (era {{ dmy(parcela.vencimentoOriginal) }})</template></div></div>
+        <div style="flex: 1; min-width: 0"><div class="val">{{ venda.cliente.nome }}</div><div class="small">{{ venda.descricao }} · parcela {{ parcela.numero }}/{{ venda.nParcelas }} · venc. {{ dmy(parcela.vencimento) }}<template v-if="parcela.vencimentoOriginal"> (era {{ dmy(parcela.vencimentoOriginal) }})</template></div></div>
         <div style="text-align: right"><div class="val num">{{ fmt(faltaAlvo) }}</div><div v-if="parcela.pago > 0" class="small">já pagou {{ fmt(parcela.pago) }}</div></div>
       </div>
 
@@ -104,7 +130,7 @@ async function confirmar() {
           <label>Quando recebeu?</label>
           <div class="pills">
             <button v-for="o in opcoesData" :key="o.valor" type="button" class="pill" :class="{ on: f.data === o.valor }" @click="f.data = o.valor">{{ o.rotulo }}</button>
-            <div class="inp" style="height: 36px; flex: 1; min-width: 150px"><input id="rData" v-model="f.data" type="date" :min="venda.dataVenda" :max="hoje" style="font-size: 14px" aria-label="Data do recebimento" /></div>
+            <div class="inp" style="height: 36px; flex: 1; min-width: 150px"><input id="rData" v-model="f.data" type="date" :min="venda.data" :max="hoje" style="font-size: 14px" aria-label="Data do recebimento" /></div>
           </div>
         </div>
         <div class="field">
@@ -130,6 +156,7 @@ async function confirmar() {
             <span class="radio"></span>
             <span><span class="val" style="display: block">Dar desconto de {{ fmt(faltaAlvo - f.valor) }}</span><span class="small">A {{ parcela.numero }}ª fica quitada. O desconto sai do seu lucro</span></span>
           </button>
+          <div v-else-if="venda.tipo === 'EMPRESTIMO'" class="small" style="padding: 2px 4px 4px 34px">Desconto em empréstimo: peça ao administrador.</div>
           <template v-else>
             <button type="button" class="opt" :class="{ on: f.pedir }" data-resto="PEDIR" @click="f.pedir = !f.pedir; f.resto = 'FICA'">
               <span class="radio"></span>

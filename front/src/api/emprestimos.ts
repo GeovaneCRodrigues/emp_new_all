@@ -23,6 +23,8 @@ export interface EmprestimoApi {
   indicador?: { id: number; nome: string } | null
   capital?: number
   taxa?: number
+  /** só juros: o capital que ainda não foi amortizado */
+  capitalAberto?: number
   lucroTotal?: number
   seuLucro?: number
   lucroRealizado?: number

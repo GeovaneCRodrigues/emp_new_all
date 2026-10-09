@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import { recebimentosApi } from '@/api/recursos'
-import type { ReciboApi, RegistradoApi } from '@/api/recebimentos'
+import type { AlvoApi, ReciboApi, RegistradoApi } from '@/api/recebimentos'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
 import { useToast } from '@/composables/useToast'
@@ -19,10 +19,10 @@ const { sessao } = useApp()
 const { mostrar } = useToast()
 const { atualizar } = useAtrasadas()
 
-const alvo = ref<{ vendaId: number; parcela: number } | null>(null)
+const alvo = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number } | null>(null)
 const recibo = ref<ReciboApi | null>(null)
 
-function iniciar(vendaId: number, parcela: number) { alvo.value = { vendaId, parcela } }
+function iniciar(tipo: AlvoApi, operacaoId: number, parcela: number) { alvo.value = { tipo, operacaoId, parcela } }
 async function abrirRecibo(id: number) {
   try { recibo.value = await recebimentosApi.recibo(sessao.value, id) }
   catch (e) { mostrar(e instanceof ErroApi ? e.message : 'Não consegui abrir o recibo.') }

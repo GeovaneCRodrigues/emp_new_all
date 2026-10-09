@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { EmprestimoApi } from '@/api/emprestimos'
+import type { PagamentoApi } from '@/api/recebimentos'
+import { recebimentosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { dmy, dmyA, fmt } from '@/domain/format'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ emprestimo: EmprestimoApi | null }>()
-defineEmits<{ fechar: [] }>()
-const { hoje } = useApp()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number] }>()
+const { hoje, sessao } = useApp()
+
+const pagamentos = ref<PagamentoApi[]>([])
+async function carregarPagamentos() {
+  if (!props.emprestimo) { pagamentos.value = []; return }
+  pagamentos.value = await recebimentosApi.pagamentos(sessao.value, 'EMPRESTIMO', props.emprestimo.id).catch(() => [])
+}
+watch(() => props.emprestimo, carregarPagamentos, { immediate: true })
+const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 
 const MOD = { PARCELADO: 'Parcelado', JUROS: 'Só juros', DIARIA: 'Diária' } as const
 const pct = computed(() => (props.emprestimo && props.emprestimo.total > 0 ? Math.round((props.emprestimo.recebido / props.emprestimo.total) * 100) : 100))
@@ -16,7 +26,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
 </script>
 
 <template>
-  <Sheet :aberto="emprestimo !== null" @fechar="$emit('fechar')">
+  <Sheet :aberto="emprestimo !== null" @fechar="emit('fechar')">
     <template v-if="emprestimo">
       <h3>{{ emprestimo.cliente.nome }}</h3>
       <div class="small">{{ MOD[emprestimo.modalidade] }} · emprestado em {{ dmyA(emprestimo.dataEmprestimo) }}</div>
@@ -46,10 +56,22 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
       <div class="timeline" style="margin-bottom: 8px"><i v-for="p in emprestimo.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}: ${dmy(p.vencimento)}`"></i></div>
       <div class="list">
         <div v-for="p in emprestimo.parcelas" :key="p.numero" class="li" style="cursor: default" :data-parcela="p.numero">
-          <div class="mid"><div class="t">{{ p.numero }}ª · {{ dmy(p.vencimento) }}<template v-if="p.vencimentoOriginal"> (era {{ dmy(p.vencimentoOriginal) }})</template></div><div class="s">{{ p.pago > 0 ? `pagou ${fmt(p.pago)}` : 'nada pago' }}<template v-if="p.desconto"> · desconto {{ fmt(p.desconto) }}</template></div></div>
+          <div class="mid"><div class="t">{{ p.numero }}ª · {{ dmy(p.vencimento) }}<template v-if="p.vencimentoOriginal"> (era {{ dmy(p.vencimentoOriginal) }})</template></div><div class="s">{{ fmt(p.valor) }} · {{ p.pago > 0 ? `pagou ${fmt(p.pago)}` : 'nada pago' }}<template v-if="p.desconto"> · desconto {{ fmt(p.desconto) }}</template></div></div>
           <span class="chip" :class="situacao(p) === 'paga' ? 'c-ok' : situacao(p) === 'atrasada' ? 'c-bad' : 'c-neu'">{{ situacao(p) === 'paga' ? 'paga' : fmt(p.falta) }}</span>
+          <button v-if="situacao(p) !== 'paga'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
         </div>
       </div>
+
+      <template v-if="pagamentos.length">
+        <div class="lbl" style="margin: 14px 0 6px">Pagamentos</div>
+        <div class="card list" data-testid="pagamentos">
+          <div v-for="g in pagamentos" :key="g.transacaoId" class="li" :class="{ 'esmaecido': g.desfeita }" :data-pagamento="g.transacaoId">
+            <span class="mid"><span class="t">{{ g.referencia }} · {{ fmt(g.valor) }}<template v-if="g.desfeita"> (desfeito)</template></span><span class="s">{{ dmy(g.data) }} · {{ NOME_FORMA[g.forma] }} · {{ g.recebidoPor }} · recibo {{ g.numero }}</span></span>
+            <button class="btn b-out b-sm" @click="emit('recibo', g.transacaoId)">Recibo</button>
+            <button v-if="g.podeDesfazer" class="btn b-ghost b-sm" @click="emit('desfazer', g.transacaoId)">Desfazer</button>
+          </div>
+        </div>
+      </template>
     </template>
   </Sheet>
 </template>

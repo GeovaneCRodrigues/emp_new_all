@@ -15,7 +15,8 @@ export interface ParcelaAberta {
   quitadaEm: string | null
 }
 
-export interface EstadoParcela { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null }
+/** `valor` só aparece quando o recebimento muda o valor da parcela (só juros com amortização). */
+export interface EstadoParcela { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number }
 
 export interface PedidoRecebimento {
   /** parcela escolhida */
@@ -34,6 +35,8 @@ export type EfeitoRecebimento =
   | { tipo: 'ABATE'; numero: number; valor: number }
   | { tipo: 'FICA'; numero: number; resta: number; vencimento: string }
   | { tipo: 'DESCONTO'; numero: number; valor: number }
+  /** só juros: o que passou do juro da parcela abateu o capital */
+  | { tipo: 'AMORTIZA'; valor: number; capitalRestante: number }
 
 export interface ItemRecebimento { parcelaId: number; numero: number; valorPago: number; antes: EstadoParcela; depois: EstadoParcela; faltaDepois: number }
 export interface ResultadoRecebimento { itens: ItemRecebimento[]; efeitos: EfeitoRecebimento[]; valorTotal: number }
@@ -111,8 +114,50 @@ export function descreverEfeitos(efeitos: EfeitoRecebimento[], fmt: (v: number) 
     if (e.tipo === 'QUITA') return `quita a ${e.numero}ª`
     if (e.tipo === 'ABATE') return `abate ${fmt(e.valor)} da ${e.numero}ª`
     if (e.tipo === 'DESCONTO') return `dá ${fmt(e.valor)} de desconto na ${e.numero}ª`
+    if (e.tipo === 'AMORTIZA') return `abate ${fmt(e.valor)} do capital (sobram ${fmt(e.capitalRestante)})`
     return `a ${e.numero}ª fica com ${fmt(e.resta)}, para ${dmy(e.vencimento)}`
   })
   const texto = partes.join(', ')
   return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+export interface AjusteParcela { parcelaId: number; numero: number; antes: EstadoParcela; depois: EstadoParcela }
+export interface ResultadoJuros extends ResultadoRecebimento { amortizacao: number; capitalRestante: number; ajustes: AjusteParcela[] }
+
+/**
+ * Recebimento de um empréstimo SÓ JUROS (mesma regra do backend):
+ *  - o valor paga primeiro o que falta da parcela escolhida (o juro do mês);
+ *  - o que passar disso (o excedente) é descontado do CAPITAL;
+ *  - o juro das parcelas seguintes é recalculado, na mesma taxa, sobre o capital que sobrou;
+ *  - se o excedente zera o capital, o empréstimo quita e as parcelas seguintes ficam zeradas.
+ * `capitalAberto` é o capital ainda não amortizado; `taxa` é % ao mês.
+ */
+export function calcularRecebimentoJuros(parcelas: ParcelaAberta[], p: PedidoRecebimento, o: { capitalAberto: number; taxa: number }): ResultadoJuros {
+  if (!Number.isFinite(p.valor) || p.valor <= 0) throw new ErroRecebimento('VALOR_INVALIDO', 'Informe quanto foi recebido')
+  const ordenadas = parcelas.slice().sort((a, b) => a.numero - b.numero)
+  const alvo = ordenadas.find((x) => x.numero === p.numero)
+  if (!alvo) throw new ErroRecebimento('PARCELA_INEXISTENTE', 'Parcela não encontrada')
+  if (falta(alvo) <= 0.009) throw new ErroRecebimento('PARCELA_PAGA', 'Esta parcela já está paga')
+
+  const valor = arred2(p.valor)
+  const devidoAlvo = falta(alvo)
+  const excedente = arred2(Math.max(0, valor - devidoAlvo))
+  if (excedente <= 0.009) return { ...calcularRecebimento(parcelas, p), amortizacao: 0, capitalRestante: arred2(o.capitalAberto), ajustes: [] }
+
+  const ultima = ordenadas[ordenadas.length - 1]
+  if (alvo.numero === ultima.numero) throw new ErroRecebimento('EXCEDE_DIVIDA', `O valor passa do que falta pagar (faltam ${devidoAlvo.toFixed(2).replace('.', ',')})`)
+  const capital = arred2(o.capitalAberto)
+  if (excedente > capital + 0.009) throw new ErroRecebimento('EXCEDE_DIVIDA', `O valor passa do que falta pagar (faltam ${arred2(devidoAlvo + capital).toFixed(2).replace('.', ',')})`)
+
+  const base = calcularRecebimento(parcelas, { ...p, valor: devidoAlvo })
+  const capitalRestante = arred2(capital - excedente)
+  const juro = arred2(capitalRestante * (o.taxa / 100))
+  const ajustes: AjusteParcela[] = []
+  for (const q of ordenadas.filter((x) => x.numero > alvo.numero && falta(x) > 0.009 && x.pago === 0 && x.desconto === 0)) {
+    const novo = arred2(juro + (q.numero === ultima.numero ? capitalRestante : 0))
+    if (novo === q.valor) continue
+    const antes: EstadoParcela = { vencimento: q.vencimento, vencimentoOriginal: q.vencimentoOriginal, desconto: q.desconto, quitadaEm: q.quitadaEm, valor: q.valor }
+    ajustes.push({ parcelaId: q.id, numero: q.numero, antes, depois: { ...antes, valor: novo, quitadaEm: novo <= 0.009 ? p.data : null } })
+  }
+  return { ...base, valorTotal: valor, efeitos: [...base.efeitos, { tipo: 'AMORTIZA', valor: excedente, capitalRestante }], amortizacao: excedente, capitalRestante, ajustes }
 }

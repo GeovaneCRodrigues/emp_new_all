@@ -37,7 +37,7 @@ describe('Content-Type só quando há corpo', () => {
   })
   it('registrar um recebimento (com corpo) manda JSON', async () => {
     const c = espiarFetch()
-    await criarRecebimentosHttp('http://api', (u, i) => fetch(u, i)).registrar(S, 1, { parcela: 1, valor: 10, forma: 'PIX' }).catch(() => undefined)
+    await criarRecebimentosHttp('http://api', (u, i) => fetch(u, i)).registrar(S, 'VENDA', 1, { parcela: 1, valor: 10, forma: 'PIX' }).catch(() => undefined)
     expect(cabecalho(c[0].init, 'content-type')).toBe('application/json')
     expect(JSON.parse(c[0].init.body as string)).toMatchObject({ parcela: 1, valor: 10, forma: 'PIX' })
   })

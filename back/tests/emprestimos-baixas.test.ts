@@ -185,6 +185,8 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       expect(recibo.mensagem).toContain('R$ 2.360,00')
       expect(await valores(e)).toEqual([360, 283.2, 2643.2])
       const f = await ficha(e)
+      expect(f.capitalAberto).toBe(2360)
+      expect((await req('GET', `/api/emprestimos/${e}`, 'cobrador')).json()).not.toHaveProperty('capitalAberto')
       // a amortização (640) conta como dinheiro recebido e como parte do total: 640 + 360 + 283,20 + 2.643,20
       expect(f).toMatchObject({ total: 3926.4, recebido: 1000, falta: 2926.4, status: 'ATIVA', lucroTotal: 926.4, capitalDeVolta: 1000 })
     })

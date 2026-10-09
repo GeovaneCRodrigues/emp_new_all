@@ -15,7 +15,7 @@ const podeReceber = computed(() => sessao.value.perfil === 'ADMIN' || sessao.val
 const pagamentos = ref<PagamentoApi[]>([])
 async function carregarPagamentos() {
   if (!props.venda || !podeReceber.value) { pagamentos.value = []; return }
-  pagamentos.value = await recebimentosApi.pagamentos(sessao.value, props.venda.id).catch(() => [])
+  pagamentos.value = await recebimentosApi.pagamentos(sessao.value, 'VENDA', props.venda.id).catch(() => [])
 }
 watch(() => props.venda, carregarPagamentos, { immediate: true })
 

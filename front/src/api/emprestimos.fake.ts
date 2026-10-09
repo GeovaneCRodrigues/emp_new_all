@@ -9,7 +9,9 @@ import type { IndicadoresFake } from './indicadores.fake'
 interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
 export interface RegistroEmprestimo {
   id: number; cliente: { id: number; nome: string }; indicador: { id: number; nome: string } | null; pct: number; dataEmprestimo: string
-  capital: number; modalidade: ModalidadeApi; taxa: number; status: StatusEmprestimo; observacoes: string | null; parcelas: Parcela[]
+  capital: number; modalidade: ModalidadeApi; taxa: number; status: StatusEmprestimo; observacoes: string | null
+  /** só juros: quanto do capital já foi pago adiantado (conta como dinheiro recebido) */
+  amortizado: number; parcelas: Parcela[]
 }
 
 export interface EmprestimosFake extends EmprestimosApi {
@@ -34,7 +36,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const ind = seed.indicadores.find((i) => i.id === e.indicadorId)
     return {
       id: e.id, cliente: { id: cli.id, nome: cli.nome }, indicador: ind ? { id: ind.id, nome: ind.nome } : null, pct: e.pct, dataEmprestimo: e.data,
-      capital: e.capital, modalidade: e.mod, taxa: e.taxa, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null,
+      capital: e.capital, modalidade: e.mod, taxa: e.taxa, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null, amortizado: 0,
       parcelas: e.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, vencimentoOriginal: p.vencOriginal ?? null, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((x, g) => x + g.valor, 0), quitadaEm: p.pago })),
     }
   })
@@ -44,8 +46,8 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
   const acesso = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Você não tem acesso aos empréstimos', 'SEM_PERMISSAO') }
 
   function calcular(r: RegistroEmprestimo, perfil: Sessao['perfil']): EmprestimoApi {
-    const total = arred2(r.parcelas.reduce((x, p) => x + p.valor, 0))
-    const recebido = arred2(r.parcelas.reduce((x, p) => x + p.pago, 0))
+    const total = arred2(r.amortizado + r.parcelas.reduce((x, p) => x + p.valor, 0))
+    const recebido = arred2(r.amortizado + r.parcelas.reduce((x, p) => x + p.pago, 0))
     const descontos = arred2(r.parcelas.reduce((x, p) => x + p.desconto, 0))
     const falta = arred2(total - recebido - descontos)
     const abertas = r.parcelas.filter((p) => arred2(p.valor - p.pago - p.desconto) > 0.009)
@@ -58,7 +60,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     }
     if (perfil !== 'ADMIN') return base
     return {
-      ...base, indicador: r.indicador, capital: r.capital, taxa: r.taxa, lucroTotal, capitalDeVolta: arred2(Math.min(r.capital, recebido)),
+      ...base, indicador: r.indicador, capital: r.capital, taxa: r.taxa, capitalAberto: arred2(r.capital - r.amortizado), lucroTotal, capitalDeVolta: arred2(Math.min(r.capital, recebido)),
       lucroRealizado: arred2(Math.max(0, recebido - r.capital) * (1 - r.pct)), seuLucro: arred2(lucroTotal > 0 ? lucroTotal * (1 - r.pct) : lucroTotal),
       percentualIndicador: r.pct, parteIndicador: arred2(lucroTotal > 0 ? lucroTotal * r.pct : 0),
     }
@@ -91,7 +93,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       const capital = arred2(e.capital)
       const reg: RegistroEmprestimo = {
         id: ++proximoId, cliente: { id: cliente.id, nome: cliente.nome }, indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null, pct: indicador?.pct ?? 0,
-        dataEmprestimo: hoje, capital, modalidade: e.modalidade, taxa: e.taxa, status: 'ATIVA', observacoes,
+        dataEmprestimo: hoje, capital, modalidade: e.modalidade, taxa: e.taxa, status: 'ATIVA', observacoes, amortizado: 0,
         parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa: e.taxa, n, data: hoje }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)

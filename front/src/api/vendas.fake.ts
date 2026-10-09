@@ -25,8 +25,12 @@ interface Dependencias { estoque: EstoqueFake; indicadores: IndicadoresFake; cli
 export interface Transacao {
   id: number
   numero: number
-  vendaId: number
+  /** o que foi pago: uma venda ou um empréstimo */
+  alvo: 'VENDA' | 'EMPRESTIMO'
+  /** id da venda ou do empréstimo */
+  operacaoId: number
   clienteId: number
+  clienteNome: string
   tipo: 'ENTRADA' | 'PARCELA'
   valor: number
   forma: FormaPagamentoApi
@@ -34,7 +38,9 @@ export interface Transacao {
   recebidoPorId: number | null
   recebidoPorNome: string
   desfeita: boolean
-  resumo: { referencia: string; faltaDepois: number; proxima: { numero: number; valor: number; vencimento: string } | null; restantes: number; ficaDevendo: { numero: number; valor: number; vencimento: string } | null }
+  resumo: { referencia: string; faltaDepois: number; proxima: { numero: number; valor: number; vencimento: string } | null; restantes: number; ficaDevendo: { numero: number; valor: number; vencimento: string } | null; amortizacao?: { valor: number; capitalRestante: number } }
+  /** só juros: o que mudou fora da parcela paga (para o "desfazer") */
+  ajustes?: { amortizacao: number; parcelas: { numero: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number } }[] }
   /** parcelas tocadas, com o estado de antes (para o "desfazer") */
   itens: { numero: number; valorPago: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null } }[]
 }
@@ -123,10 +129,10 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     const ant = { vencimento: '', vencimentoOriginal: null, desconto: 0, quitadaEm: null }
     const falta = arred2(r.parcelas.reduce((x, p) => x + p.valor - p.pago - p.desconto, 0))
     const abertas = r.parcelas.filter((p) => arred2(p.valor - p.pago - p.desconto) > 0.009)
-    if (r.entrada > 0) transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'ENTRADA', valor: r.entrada, forma: 'PIX', data: r.dataVenda, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false, itens: [], resumo: { referencia: 'entrada', faltaDepois: arred2(r.parcelas.reduce((x, p) => x + p.valor, 0)), proxima: r.parcelas[0] ? { numero: 1, valor: r.parcelas[0].valor, vencimento: r.parcelas[0].vencimento } : null, restantes: r.parcelas.length, ficaDevendo: null } })
+    if (r.entrada > 0) transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, alvo: 'VENDA', operacaoId: r.id, clienteId: r.cliente.id, clienteNome: r.cliente.nome, tipo: 'ENTRADA', valor: r.entrada, forma: 'PIX', data: r.dataVenda, recebidoPorId: 1, recebidoPorNome: 'Geovane', desfeita: false, itens: [], resumo: { referencia: 'entrada', faltaDepois: arred2(r.parcelas.reduce((x, p) => x + p.valor, 0)), proxima: r.parcelas[0] ? { numero: 1, valor: r.parcelas[0].valor, vencimento: r.parcelas[0].vencimento } : null, restantes: r.parcelas.length, ficaDevendo: null } })
     const sv = seed.vendas.find((x) => x.id === r.id)!
     for (const p of sv.parcelas) for (const g of p.pagos) {
-      transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: r.id, clienteId: r.cliente.id, tipo: 'PARCELA', valor: g.valor, forma: g.forma === 'Dinheiro' ? 'DINHEIRO' : g.forma === 'Cartão' ? 'CARTAO' : 'PIX', data: g.data, recebidoPorId: quemRecebeu(r.cliente.id).id, recebidoPorNome: quemRecebeu(r.cliente.id).nome, desfeita: false,
+      transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, alvo: 'VENDA', operacaoId: r.id, clienteId: r.cliente.id, clienteNome: r.cliente.nome, tipo: 'PARCELA', valor: g.valor, forma: g.forma === 'Dinheiro' ? 'DINHEIRO' : g.forma === 'Cartão' ? 'CARTAO' : 'PIX', data: g.data, recebidoPorId: quemRecebeu(r.cliente.id).id, recebidoPorNome: quemRecebeu(r.cliente.id).nome, desfeita: false,
         itens: [{ numero: p.n, valorPago: g.valor, antes: { ...ant, vencimento: p.venc } }],
         resumo: { referencia: `parcela ${p.n}/${r.parcelas.length}`, faltaDepois: falta, proxima: abertas[0] ? { numero: abertas[0].numero, valor: arred2(abertas[0].valor - abertas[0].pago - abertas[0].desconto), vencimento: abertas[0].vencimento } : null, restantes: abertas.length, ficaDevendo: null } })
     }
@@ -229,7 +235,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
       }
       registros.push(reg)
       if (entrada > 0) {
-        transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, vendaId: reg.id, clienteId: cliente.id, tipo: 'ENTRADA', valor: entrada, forma: e.formaEntrada ?? 'PIX', data: hoje, recebidoPorId: s.usuarioId ?? null, recebidoPorNome: s.perfil === 'ADMIN' ? 'Geovane' : 'Vendedor', desfeita: false, itens: [],
+        transacoes.push({ id: ++seqTransacao, numero: ++seqRecibo, alvo: 'VENDA', operacaoId: reg.id, clienteId: cliente.id, clienteNome: cliente.nome, tipo: 'ENTRADA', valor: entrada, forma: e.formaEntrada ?? 'PIX', data: hoje, recebidoPorId: s.usuarioId ?? null, recebidoPorNome: s.perfil === 'ADMIN' ? 'Geovane' : 'Vendedor', desfeita: false, itens: [],
           resumo: { referencia: 'entrada', faltaDepois: arred2(parc * n), proxima: n > 0 ? { numero: 1, valor: parc, vencimento: reg.parcelas[0].vencimento } : null, restantes: n, ficaDevendo: null } })
       }
       dep.estoque._interno.marcarVendido(ap.id)

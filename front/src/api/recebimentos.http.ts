@@ -1,6 +1,8 @@
 import { ErroApi } from './clientes'
 import type { RecebimentosApi } from './recebimentos'
 
+const CAMINHO = { VENDA: 'vendas', EMPRESTIMO: 'emprestimos' } as const
+
 type Requisicao = (url: string, init?: RequestInit) => Promise<Response>
 
 export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): RecebimentosApi {
@@ -23,9 +25,9 @@ export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): 
     return s ? `?${s}` : ''
   }
   return {
-    registrar: (_s, vendaId, e) => chamar(`/vendas/${vendaId}/recebimentos`, { method: 'POST', body: JSON.stringify(e) }),
+    registrar: (_s, alvo, id, e) => chamar(`/${CAMINHO[alvo]}/${id}/recebimentos`, { method: 'POST', body: JSON.stringify(e) }),
     recibo: (_s, id) => chamar(`/recibos/${id}`),
-    pagamentos: (_s, vendaId) => chamar(`/vendas/${vendaId}/pagamentos`),
+    pagamentos: (_s, alvo, id) => chamar(`/${CAMINHO[alvo]}/${id}/pagamentos`),
     desfazer: (_s, id) => chamar(`/recebimentos/${id}/desfazer`, { method: 'POST' }),
     cobrancas: (_s, q) => chamar('/cobrancas' + qs(q)),
   }

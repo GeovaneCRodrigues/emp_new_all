@@ -36,8 +36,9 @@ const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
 
 /** Depois de um recebimento: recarrega a lista, o resumo e a ficha aberta. */
 async function aposMudar() {
-  await Promise.all([carregar(), carregarResumo()])
+  await Promise.all([carregar(), carregarResumo(), carregarEmp(), carregarResumoEmp()])
   if (ficha.value) ficha.value = await vendasApi.obter(sessao.value, ficha.value.id).catch(() => null)
+  if (fichaEmp.value) fichaEmp.value = await emprestimosApi.obter(sessao.value, fichaEmp.value.id).catch(() => null)
 }
 
 let pedido = 0
@@ -147,8 +148,8 @@ const abas = computed(() => [
     <button v-if="emps.length < totalEmp" class="btn b-out" :disabled="carregandoEmp" @click="carregarEmp(true)">{{ carregandoEmp ? 'Carregando…' : 'Carregar mais' }}</button>
   </template>
 
-  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar(ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
-  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" />
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
   <EmprestimoForm :aberto="formEmp" @fechar="formEmp = false" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

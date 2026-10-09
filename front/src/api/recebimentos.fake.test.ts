@@ -30,7 +30,7 @@ async function venda(clienteId = 3): Promise<number> {
   const a = await estoque.criar(ADMIN, { modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco: 3000, custo: 2000 })
   return (await vendas.criar(ADMIN, { aparelhoId: a.id, clienteId, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })).id
 }
-const receber = (s: Sessao, vendaId: number, e: Partial<EntradaRecebimento>) => api.registrar(s, vendaId, { parcela: 1, valor: 840, forma: 'PIX', ...e })
+const receber = (s: Sessao, vendaId: number, e: Partial<EntradaRecebimento>) => api.registrar(s, 'VENDA', vendaId, { parcela: 1, valor: 840, forma: 'PIX', ...e })
 const parcelas = async (vendaId: number) => (await vendas.obter(ADMIN, vendaId)).parcelas
 
 describe('permissões', () => {
@@ -38,7 +38,7 @@ describe('permissões', () => {
     const v = await venda()
     for (const s of [VEND, IND]) {
       expect((await falha(receber(s, v, {})))?.status).toBe(403)
-      expect((await falha(api.pagamentos(s, v)))?.status).toBe(403)
+      expect((await falha(api.pagamentos(s, 'VENDA', v)))?.status).toBe(403)
       expect((await falha(api.cobrancas(s, {})))?.status).toBe(403)
       expect((await falha(api.desfazer(s, 1)))?.status).toBe(403)
     }
@@ -46,7 +46,7 @@ describe('permissões', () => {
   it('cobrador só mexe na venda de cliente da carteira dele (404 nas outras)', async () => {
     const deOutro = await venda(1) // Juliana: carteira do vendedor
     expect((await falha(receber(COBR, deOutro, {})))?.status).toBe(404)
-    expect((await falha(api.pagamentos(COBR, deOutro)))?.status).toBe(404)
+    expect((await falha(api.pagamentos(COBR, 'VENDA', deOutro)))?.status).toBe(404)
     expect((await receber(COBR, await venda(3), {})).recibo.valor).toBe(840)
   })
 })
@@ -56,7 +56,7 @@ describe('pagou o valor certo', () => {
     const v = await venda()
     const r = await receber(ADMIN, v, {})
     expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
-    expect(r.vendaQuitada).toBe(false)
+    expect(r.quitada).toBe(false)
     expect(r.recibo).toMatchObject({ valor: 840, forma: 'PIX', data: '2026-10-08', referencia: 'parcela 1/4', faltaDepois: 2520, restantes: 3, proxima: { numero: 2, valor: 840, vencimento: '2026-12-10' }, desfeita: false, recebidoPor: 'Geovane' })
     expect(r.recibo.numero).toMatch(/^\d{6}$/)
     expect(r.recibo.mensagem).toContain('Recebemos R$ 840,00 em 08/10/2026 (Pix), referente à parcela 1/4 do seu iPhone 13.')
@@ -66,7 +66,7 @@ describe('pagou o valor certo', () => {
   it('quitar tudo fecha a venda; pagar de novo é 409', async () => {
     const v = await venda()
     const r = await receber(ADMIN, v, { valor: 3360 })
-    expect(r.vendaQuitada).toBe(true)
+    expect(r.quitada).toBe(true)
     expect(r.recibo.mensagem).toContain('Tudo quitado!')
     expect((await vendas.obter(ADMIN, v)).status).toBe('QUITADA')
     expect(await falha(receber(ADMIN, v, { parcela: 4, valor: 10 }))).toMatchObject({ status: 409, codigo: 'PARCELA_PAGA' })
@@ -107,7 +107,7 @@ describe('pagou a mais', () => {
     const r = await receber(ADMIN, v, { valor: 2000 })
     expect(r.efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }, { tipo: 'QUITA', numero: 2 }, { tipo: 'ABATE', numero: 3, valor: 320 }])
     expect(r.recibo).toMatchObject({ referencia: 'parcelas 1 a 3 de 4', valor: 2000, faltaDepois: 1360, restantes: 2, proxima: { numero: 3, valor: 520 } })
-    expect((await api.pagamentos(ADMIN, v)).filter((p) => p.tipo === 'PARCELA')).toHaveLength(1)
+    expect((await api.pagamentos(ADMIN, 'VENDA', v)).filter((p) => p.tipo === 'PARCELA')).toHaveLength(1)
   })
   it('valor acima do que falta é recusado (não vira crédito)', async () => {
     const v = await venda()
@@ -131,10 +131,10 @@ describe('validações', () => {
   it('o cobrador só lança o que recebeu hoje; o admin pode lançar uma data passada (depois da venda)', async () => {
     const dele = (await api.cobrancas(COBR, { aba: 'atrasadas', limite: 100 })).itens[0] // venda antiga dos dados de exemplo
     const passada = { parcela: dele.parcela, valor: 10, resto: 'FICA' as const, novoVencimento: '2026-10-20', data: '2026-09-20' }
-    expect((await falha(api.registrar(COBR, dele.vendaId, { ...passada, forma: 'PIX' })))?.status).toBe(403)
-    const r = await api.registrar(ADMIN, dele.vendaId, { ...passada, forma: 'PIX' })
+    expect((await falha(api.registrar(COBR, 'VENDA', dele.operacaoId, { ...passada, forma: 'PIX' })))?.status).toBe(403)
+    const r = await api.registrar(ADMIN, 'VENDA', dele.operacaoId, { ...passada, forma: 'PIX' })
     expect(r.recibo.data).toBe('2026-09-20')
-    expect((await falha(api.registrar(COBR, dele.vendaId, { ...passada, data: '2026-10-08', forma: 'PIX', parcela: dele.parcela })))).toBeNull() // hoje: ok
+    expect((await falha(api.registrar(COBR, 'VENDA', dele.operacaoId, { ...passada, data: '2026-10-08', forma: 'PIX', parcela: dele.parcela })))).toBeNull() // hoje: ok
   })
   it('venda retomada não recebe pagamento (409)', async () => {
     const v = await venda()
@@ -163,7 +163,7 @@ describe('desfazer', () => {
     await api.desfazer(ADMIN, b)
     expect((await falha(api.desfazer(ADMIN, b)))?.codigo).toBe('JA_DESFEITO')
     expect((await falha(api.desfazer(ADMIN, 999999)))?.status).toBe(404)
-    const entrada = (await api.pagamentos(ADMIN, v)).find((p) => p.tipo === 'ENTRADA')!
+    const entrada = (await api.pagamentos(ADMIN, 'VENDA', v)).find((p) => p.tipo === 'ENTRADA')!
     expect((await falha(api.desfazer(ADMIN, entrada.transacaoId)))?.codigo).toBe('ENTRADA_NAO_DESFAZ')
   })
   it('volta tudo como estava: vencimento remarcado, desconto e venda quitada', async () => {
@@ -201,15 +201,15 @@ describe('recibos e pagamentos', () => {
     const v = await venda(3)
     await receber(ADMIN, v, { parcela: 1 })
     const u = (await receber(COBR, v, { parcela: 2 })).recibo.id
-    const lista = await api.pagamentos(ADMIN, v)
+    const lista = await api.pagamentos(ADMIN, 'VENDA', v)
     expect(lista.map((p) => p.tipo)).toEqual(['PARCELA', 'PARCELA', 'ENTRADA'])
     expect(lista.map((p) => p.referencia)).toEqual(['parcela 2/4', 'parcela 1/4', 'entrada'])
     expect(lista.filter((p) => p.podeDesfazer).map((p) => p.transacaoId)).toEqual([u])
-    expect((await api.pagamentos(COBR, v)).filter((p) => p.podeDesfazer)).toHaveLength(1)
+    expect((await api.pagamentos(COBR, 'VENDA', v)).filter((p) => p.podeDesfazer)).toHaveLength(1)
   })
   it('o recibo da entrada mostra o que ficou combinado para pagar', async () => {
     const v = await venda()
-    const entrada = (await api.pagamentos(ADMIN, v)).find((p) => p.tipo === 'ENTRADA')!
+    const entrada = (await api.pagamentos(ADMIN, 'VENDA', v)).find((p) => p.tipo === 'ENTRADA')!
     const r = await api.recibo(ADMIN, entrada.transacaoId)
     expect(r).toMatchObject({ valor: 600, referencia: 'entrada', faltaDepois: 3360, restantes: 4, proxima: { numero: 1, valor: 840, vencimento: '2026-11-10' } })
     expect(r.mensagem).toContain('referente à entrada do seu iPhone 13.')
@@ -242,9 +242,9 @@ describe('cobranças', () => {
     const antes = (await api.cobrancas(ADMIN, { aba: 'atrasadas', limite: 100 })).total
     // a venda nova não tem atraso; usamos uma parcela de exemplo atrasada de uma venda da carteira do cobrador
     const atrasada = (await api.cobrancas(COBR, { aba: 'atrasadas', limite: 100 })).itens[0]
-    const r = await receber(COBR, atrasada.vendaId, { parcela: atrasada.parcela, valor: 10, resto: 'FICA', novoVencimento: '2026-10-20' })
+    const r = await receber(COBR, atrasada.operacaoId, { parcela: atrasada.parcela, valor: 10, resto: 'FICA', novoVencimento: '2026-10-20' })
     expect((await api.cobrancas(ADMIN, { aba: 'atrasadas', limite: 100 })).total).toBe(antes - 1)
-    const rec = (await api.cobrancas(ADMIN, { aba: 'recebidas', limite: 100 })).itens.find((c) => c.vendaId === atrasada.vendaId && c.parcela === atrasada.parcela)!
+    const rec = (await api.cobrancas(ADMIN, { aba: 'recebidas', limite: 100 })).itens.find((c) => c.operacaoId === atrasada.operacaoId && c.parcela === atrasada.parcela)!
     expect(rec).toMatchObject({ ultimaTransacaoId: r.recibo.id, ultimoRecebimentoEm: '2026-10-08' })
     expect(v).toBeGreaterThan(0)
   })

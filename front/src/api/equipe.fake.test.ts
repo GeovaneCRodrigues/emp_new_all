@@ -41,7 +41,7 @@ async function venda(clienteId = 3): Promise<number> {
   const a = await estoque.criar(ADMIN, { modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco: 3000, custo: 2000 })
   return (await vendas.criar(ADMIN, { aparelhoId: a.id, clienteId, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })).id
 }
-const receber = (s: Sessao, vendaId: number, e: Partial<EntradaRecebimento>) => recebimentos.registrar(s, vendaId, { parcela: 1, valor: 840, forma: 'PIX', ...e })
+const receber = (s: Sessao, vendaId: number, e: Partial<EntradaRecebimento>) => recebimentos.registrar(s, 'VENDA', vendaId, { parcela: 1, valor: 840, forma: 'PIX', ...e })
 const pedir = (s: Sessao, vendaId: number, e: Partial<{ parcela: number; valor: number; motivo: string }> = {}) => aprovacoes.pedirDesconto(s, { vendaId, parcela: 1, valor: 100, motivo: 'Cliente pediu pra arredondar', ...e })
 const parcela = async (vendaId: number, n: number) => (await vendas.obter(ADMIN, vendaId)).parcelas[n - 1]
 

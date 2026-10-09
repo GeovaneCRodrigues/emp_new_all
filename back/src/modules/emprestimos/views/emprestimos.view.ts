@@ -21,6 +21,8 @@ export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
   return {
     ...base,
     indicador: e.indicador, capital: e.capital, taxa: e.taxa,
+    // só juros: o capital que ainda não foi amortizado (a prévia do recebimento precisa dele)
+    capitalAberto: arred2(e.capital - e.amortizado),
     lucroTotal: c.lucroTotal, seuLucro: c.seuLucro, lucroRealizado: c.lucroRealizado, capitalDeVolta: c.capitalDeVolta,
     percentualIndicador: e.pct, parteIndicador: arred2(c.lucroTotal > 0 ? c.lucroTotal * e.pct : 0),
   }

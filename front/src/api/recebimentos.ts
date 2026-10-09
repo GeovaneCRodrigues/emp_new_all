@@ -2,12 +2,18 @@ import type { Sessao } from '@/domain/escopo'
 import type { EfeitoRecebimento, RestoPagamento } from '@/domain/recebimento'
 import type { FormaPagamentoApi } from './vendas'
 
+/** O que o dinheiro paga: uma venda de iPhone ou um empréstimo. */
+export type AlvoApi = 'VENDA' | 'EMPRESTIMO'
+
 export interface ReciboApi {
   id: number
   /** número de 6 dígitos */
   numero: string
   empresa: { nome: string; cnpj: string | null }
   cliente: { id: number; nome: string; fone: string }
+  /** a venda ou o empréstimo que foi pago */
+  operacao: AlvoApi
+  /** "iPhone 15 Pro" ou "Empréstimo só juros" */
   aparelho: string
   valor: number
   forma: FormaPagamentoApi
@@ -19,11 +25,13 @@ export interface ReciboApi {
   proxima: { numero: number; valor: number; vencimento: string } | null
   restantes: number
   ficaDevendo: { numero: number; valor: number; vencimento: string } | null
+  /** só juros: o que passou do juro abateu o capital */
+  amortizacao: { valor: number; capitalRestante: number } | null
   /** texto pronto para o WhatsApp do cliente */
   mensagem: string
 }
 
-export interface RegistradoApi { recibo: ReciboApi; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean; pedidoDescontoId: number | null }
+export interface RegistradoApi { recibo: ReciboApi; efeitos: EfeitoRecebimento[]; quitada: boolean; pedidoDescontoId: number | null }
 
 export interface PagamentoApi {
   transacaoId: number
@@ -39,7 +47,8 @@ export interface PagamentoApi {
 }
 
 export interface CobrancaApi {
-  vendaId: number
+  tipo: AlvoApi
+  operacaoId: number
   parcela: number
   nParcelas: number
   vencimento: string
@@ -79,9 +88,9 @@ export interface EntradaRecebimento {
 }
 
 export interface RecebimentosApi {
-  registrar(s: Sessao, vendaId: number, e: EntradaRecebimento): Promise<RegistradoApi>
+  registrar(s: Sessao, alvo: AlvoApi, operacaoId: number, e: EntradaRecebimento): Promise<RegistradoApi>
   recibo(s: Sessao, id: number): Promise<ReciboApi>
-  pagamentos(s: Sessao, vendaId: number): Promise<PagamentoApi[]>
+  pagamentos(s: Sessao, alvo: AlvoApi, operacaoId: number): Promise<PagamentoApi[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
-  cobrancas(s: Sessao, q: { aba?: AbaCobranca; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
+  cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
 }

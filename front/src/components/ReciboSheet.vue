@@ -42,6 +42,7 @@ async function copiar() {
           <div><div class="lbl">Recebido por</div><div class="val">{{ recibo.recebidoPor }}</div></div>
           <div><div class="lbl">Ainda falta</div><div class="val num">{{ fmt(recibo.faltaDepois) }}</div></div>
         </div>
+        <div v-if="recibo.amortizacao" class="small" data-testid="amortizacao">O que passou do juro ({{ fmt(recibo.amortizacao.valor) }}) abateu o capital. Capital em aberto: {{ fmt(recibo.amortizacao.capitalRestante) }}.</div>
         <div v-if="recibo.ficaDevendo" class="small">Na {{ recibo.ficaDevendo.numero }}ª ainda ficam {{ fmt(recibo.ficaDevendo.valor) }}, para {{ dmyA(recibo.ficaDevendo.vencimento) }}.</div>
         <div v-if="recibo.proxima" class="small">Próxima parcela: {{ recibo.proxima.numero }}ª de {{ fmt(recibo.proxima.valor) }}, vence {{ dmyA(recibo.proxima.vencimento) }}.</div>
         <div v-else class="small" style="color: var(--ok); font-weight: 600">Tudo quitado.</div>
