@@ -1,6 +1,7 @@
 import { criarSeed } from '@/data/seed'
 import { imeiValido, soDigitos } from '@/domain/documentos'
 import { arred2, ceilCent } from '@/domain/format'
+import { partesDoIndicador } from '@/domain/repasseIndicador'
 import { somaMes } from '@/domain/datas'
 import type { Sessao } from '@/domain/escopo'
 import { ErroApi, type ClientesApi } from './clientes'
@@ -156,7 +157,8 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   fechamentos.push({ id: ++seqFechamento, usuarioId: 3, usuarioNome: 'Diego Ramos', data: '2026-10-07', dinheiro: 350, pix: 500, cartao: 0, status: 'PENDENTE', conferidoPor: null, conferidoEm: null })
 
   const clientesDe = (r: Registro, s: Sessao) => (s.perfil === 'VENDEDOR' ? r.vendedorId === s.usuarioId || seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId : seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId)
-  const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : registros.filter((r) => clientesDe(r, s)))
+  // o indicador só enxerga (e só lê) as vendas que ele indicou
+  const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : s.perfil === 'INDICADOR' ? registros.filter((r) => r.indicador?.id === s.indicadorId) : registros.filter((r) => clientesDe(r, s)))
 
   function calcular(r: Registro, perfil: Sessao['perfil']): VendaApi {
     const totalParc = r.parcelas.reduce((x, p) => x + p.valor, 0)
@@ -173,6 +175,11 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
       atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status, contrato: r.contrato, retomada: r.retomada,
       parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
+    // o indicador vê a parte dele (prevista e já liberada), nunca custo nem lucro da loja; o motivo da retomada é anotação interna
+    if (perfil === 'INDICADOR') {
+      const { parte, liberado } = partesDoIndicador({ total, descontos, recebido, investido: r.investido, pct: r.pct })
+      return { ...base, retomada: r.retomada ? { em: r.retomada.em, motivo: null } : null, percentualIndicador: r.pct, suaParte: parte, jaLiberado: liberado }
+    }
     if (perfil !== 'ADMIN') return base
     return {
       ...base, custoNoDia: r.investido, lucroTotal, capitalDeVolta: arred2(Math.min(r.investido, recebido)),
@@ -181,7 +188,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     }
   }
 
-  const ver = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Você não tem acesso às vendas', 'SEM_PERMISSAO') }
+  const ver = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'COBRADOR' && s.perfil !== 'INDICADOR') throw new ErroApi(403, 'Você não tem acesso às vendas', 'SEM_PERMISSAO') }
   const erro = (m: string) => new ErroApi(400, m)
   const inteiro = (v: unknown, c: string, min: number, max: number) => { if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw erro(`${c} precisa ser um número inteiro entre ${min} e ${max}`); return v }
   const dinheiro = (v: unknown, c: string, positivo = false) => { if (typeof v !== 'number' || !Number.isFinite(v) || v > 1e8 || (positivo ? v <= 0 : v < 0)) throw erro(positivo ? `${c} precisa ser maior que zero` : `${c} não pode ser negativo`); return arred2(v) }
@@ -209,7 +216,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   return {
     _interno: { hoje, registros, transacoes, pedidos, fechamentos, proximoPedido: () => ++seqPedido, proximoFechamento: () => ++seqFechamento, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, retomarRegistro, noEscopo, calcular },
     async juros(s) {
-      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso a esta configuração', 'SEM_PERMISSAO')
+      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw new ErroApi(403, 'Você não tem acesso a esta configuração', 'SEM_PERMISSAO')
       return { ...JUROS }
     },
 

@@ -3,6 +3,7 @@ import { planoEmprestimo } from '@/domain/calc'
 import { addDia } from '@/domain/datas'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
+import { partesDoIndicador } from '@/domain/repasseIndicador'
 import { ErroApi, type ClientesApi } from './clientes'
 import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type PeriodicidadeApi, type StatusEmprestimo } from './emprestimos'
 import type { IndicadoresFake } from './indicadores.fake'
@@ -45,8 +46,9 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
   })
 
   const responsavel = (clienteId: number) => seed.clientes.find((c) => c.id === clienteId)?.responsavelId
-  const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : registros.filter((r) => responsavel(r.cliente.id) === s.usuarioId))
-  const acesso = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Você não tem acesso aos empréstimos', 'SEM_PERMISSAO') }
+  // o indicador só enxerga (e só lê) os empréstimos que ele indicou
+  const noEscopo = (s: Sessao) => (s.perfil === 'ADMIN' ? registros : s.perfil === 'INDICADOR' ? registros.filter((r) => r.indicador?.id === s.indicadorId) : registros.filter((r) => responsavel(r.cliente.id) === s.usuarioId))
+  const acesso = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR' && s.perfil !== 'INDICADOR') throw new ErroApi(403, 'Você não tem acesso aos empréstimos', 'SEM_PERMISSAO') }
 
   function calcular(r: RegistroEmprestimo, perfil: Sessao['perfil']): EmprestimoApi {
     const total = arred2(r.amortizado + r.parcelas.reduce((x, p) => x + p.valor, 0))
@@ -60,6 +62,11 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
       valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
       parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
+    }
+    // o indicador vê a parte dele (prevista e já liberada), nunca capital, taxa nem lucro da loja
+    if (perfil === 'INDICADOR') {
+      const { parte, liberado } = partesDoIndicador({ total, descontos, recebido, investido: r.capital, pct: r.pct })
+      return { ...base, percentualIndicador: r.pct, suaParte: parte, jaLiberado: liberado }
     }
     if (perfil !== 'ADMIN') return base
     return {

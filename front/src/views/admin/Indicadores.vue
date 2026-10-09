@@ -8,12 +8,13 @@ import Abas from '@/components/Abas.vue'
 import Icon from '@/components/Icon.vue'
 import IndicadorForm from '@/components/IndicadorForm.vue'
 import PagarRepasseForm from '@/components/PagarRepasseForm.vue'
+import RepasseOps from '@/components/RepasseOps.vue'
 import SeloNivel from '@/components/SeloNivel.vue'
 import Sheet from '@/components/Sheet.vue'
 import { modoDemo } from '@/composables/useAuth'
 import { useApp } from '@/composables/useApp'
 import { mascaraFone } from '@/domain/documentos'
-import { dmyA, fmt, fmt0, iniciais } from '@/domain/format'
+import { dmyA, fmt, iniciais } from '@/domain/format'
 import { validarNiveis } from '@/domain/repasse'
 
 const { sessao } = useApp()
@@ -79,7 +80,7 @@ const totais = computed(() => ({
 const pagosFiltrados = computed(() => pagos.value.filter((p) => filtroPagos.value === 'todos' || String(p.indicadorId) === filtroPagos.value))
 const totalPagosFiltrados = computed(() => Math.round(pagosFiltrados.value.reduce((x, p) => x + p.valor, 0) * 100) / 100)
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', TRANSFERENCIA: 'Transferência' } as const
-const porcentoCapital = (recebido: number, investido: number) => (investido > 0 ? Math.min(100, Math.round((recebido / investido) * 100)) : 100)
+
 
 // ---- ficha e cadastro ----
 const ficha = ref<IndicadorApi | null>(null)
@@ -200,19 +201,7 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
         <div><div class="lbl">Vai liberar</div><div class="val num">{{ fmt(item.resumo.vaiLiberar) }}</div></div>
       </div>
       <div v-if="item.resumo.pagoAMais > 0" class="aviso" role="status" style="margin: 10px 14px 0">Foi pago {{ fmt(item.resumo.pagoAMais) }} além do liberado (um recebimento foi desfeito depois do repasse). Não há nada a pagar até voltar a liberar.</div>
-      <div class="rep-ops">
-        <div v-for="o in detalhe.operacoes" :key="o.tipo + o.id" class="rep-op" :data-operacao="o.tipo + o.id">
-          <div class="rep-op-l">
-            <div class="t"><b>{{ o.clienteNome }}</b> <span class="small">· {{ o.descricao }} · {{ pct(o.pct) }}</span></div>
-            <div class="bar" style="margin-top: 6px"><i :style="{ width: porcentoCapital(o.recebido, o.investido) + '%' }"></i></div>
-            <div class="small" style="margin-top: 4px">{{ o.capitalVoltou ? 'capital já voltou' : `capital ${fmt0(o.recebido)} de ${fmt0(o.investido)}` }}</div>
-          </div>
-          <div class="rep-op-r">
-            <div><b class="num">{{ fmt(o.liberado) }}</b> <span class="small num">de {{ fmt(o.parte) }}</span></div>
-            <div class="small">{{ o.aPagar > 0 ? `falta ${fmt(o.aPagar)}` : o.liberado > 0 ? 'tudo pago' : 'ainda não liberou' }}</div>
-          </div>
-        </div>
-      </div>
+      <RepasseOps :operacoes="detalhe.operacoes" />
     </div>
     <div v-if="!repasses.length && !carregandoRep && !erroRep" class="card empty">Nenhum indicador trouxe operação ainda.</div>
   </template>

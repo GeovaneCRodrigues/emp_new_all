@@ -216,7 +216,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
     },
 
     async cobrancas(s, q) {
-      permitido(s)
+      // além de quem recebe, o indicador LÊ as parcelas das operações dele (registrar, recibo e desfazer continuam fechados)
+      if (s.perfil !== 'INDICADOR') permitido(s)
       const aba = q.aba ?? 'atrasadas'
       if (!ABAS.includes(aba)) throw new ErroApi(400, 'aba inválida')
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')

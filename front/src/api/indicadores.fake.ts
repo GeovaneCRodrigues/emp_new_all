@@ -74,7 +74,11 @@ export function criarIndicadoresFake(): IndicadoresFake {
     },
     async opcoes(s) { opcoesPermitidas(s); return registros.filter((r) => r.ativo).map((r) => ({ id: r.id, nome: r.nome })) },
     async listar(s) { admin(s); return registros.map(visao).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')) },
-    async obter(s, id) { admin(s); return visao(achar(id)) },
+    async obter(s, id) {
+      // o indicador vê só o próprio cadastro e nível; o de outro é 404 (igual a um que não existe)
+      if (s.perfil === 'INDICADOR') { if (s.indicadorId !== id) throw new ErroApi(404, 'Indicador não encontrado', 'NAO_ENCONTRADO') } else admin(s)
+      return visao(achar(id))
+    },
 
     async criar(s, e) {
       admin(s)
@@ -115,7 +119,7 @@ export function criarIndicadoresFake(): IndicadoresFake {
       return { email: e, senhaTemporaria: btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, '').slice(0, 13) }
     },
 
-    async niveis(s) { admin(s); return { niveis: niveis.map((n) => ({ ...n })), auto } },
+    async niveis(s) { if (s.perfil !== 'INDICADOR') admin(s); return { niveis: niveis.map((n) => ({ ...n })), auto } },
 
     async salvarNiveis(s, t): Promise<TabelaNiveis> {
       admin(s)

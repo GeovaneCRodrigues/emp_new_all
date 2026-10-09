@@ -33,6 +33,9 @@ export interface EmprestimoApi {
   capitalDeVolta?: number
   percentualIndicador?: number
   parteIndicador?: number
+  /** só o indicador: a parte dele no lucro (prevista) e a que já foi liberada */
+  suaParte?: number
+  jaLiberado?: number
 }
 
 export interface ResumoEmprestimosApi { aReceber: number; capitalNaRua?: number; lucroPorVir?: number }

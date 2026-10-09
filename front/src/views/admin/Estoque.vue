@@ -7,6 +7,7 @@ import { investidoApi } from '@/api/estoque'
 import { estoqueApi } from '@/api/recursos'
 import AparelhoForm from '@/components/AparelhoForm.vue'
 import Icon from '@/components/Icon.vue'
+import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import Seg from '@/components/Seg.vue'
 import Sheet from '@/components/Sheet.vue'
 import { CORES } from '@/data/cores'
@@ -18,6 +19,9 @@ const router = useRouter()
 const { sessao, hoje } = useApp()
 
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
+/** o indicador só consulta o que está disponível (com o preço de venda) e indica o aparelho para um cliente dele */
+const ehIndicador = computed(() => sessao.value.perfil === 'INDICADOR')
+const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
 const filtro = ref<EstadoAparelho>('DISPONIVEL')
 const busca = ref('')
 const itens = ref<AparelhoApi[]>([])
@@ -49,6 +53,7 @@ async function carregar(mais = false) {
   }
 }
 async function carregarResumo() {
+  if (ehIndicador.value) return // o resumo do estoque não é para o indicador
   try { resumo.value = await estoqueApi.resumo(sessao.value) } catch { /* os números ficam em branco */ }
 }
 
@@ -61,7 +66,8 @@ onMounted(() => { carregar(); carregarResumo() })
 const filtros = computed(() => {
   const r = resumo.value
   const base = [{ id: 'DISPONIVEL', label: `Disponível${r ? ` · ${r.disponiveis}` : ''}` }, { id: 'ENCOMENDADO', label: `Encomendado${r ? ` · ${r.encomendados}` : ''}` }]
-  // o vendedor só vê o que está à venda
+  // o vendedor só vê o que está à venda; o indicador, só o que está disponível
+  if (ehIndicador.value) return [{ id: 'DISPONIVEL', label: `Disponível · ${total.value}` }]
   return ehAdmin.value ? [...base, { id: 'VENDIDO', label: 'Vendidos' }] : base
 })
 const dias = (a: AparelhoApi) => diasEntre(a.dataCompra, hoje.value)
@@ -71,11 +77,18 @@ const lucro = (a: AparelhoApi) => a.preco - investidoApi(a)
 function novo() { editando.value = null; formAberto.value = true }
 function editar(a: AparelhoApi) { editando.value = a; ficha.value = null; formAberto.value = true }
 async function aoSalvar() { formAberto.value = false; await Promise.all([carregar(), carregarResumo()]) }
+/** O indicador indica este aparelho para um cliente dele: a proposta já abre com o modelo preenchido. */
+function indicar(a: AparelhoApi) { ficha.value = null; fluxo.value?.abrir({ inicial: { tipo: 'VENDA', aparelhoId: a.id } }) }
 const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulador?bem=' + a.id) }
 </script>
 
 <template>
-  <div class="resumo3">
+  <div v-if="ehIndicador" class="resumo3" data-testid="resumo-estoque">
+    <div><div class="lbl">Aparelhos</div><div class="val num">{{ total }}</div></div>
+    <div><div class="lbl">Menor preço</div><div class="val num">{{ itens.length ? fmt0(Math.min(...itens.map((a) => a.preco))) : '—' }}</div></div>
+    <div><div class="lbl">Maior preço</div><div class="val num">{{ itens.length ? fmt0(Math.max(...itens.map((a) => a.preco))) : '—' }}</div></div>
+  </div>
+  <div v-else class="resumo3">
     <div><div class="lbl">Disponível</div><div class="val num">{{ resumo?.disponiveis ?? '—' }} aparelhos</div></div>
     <template v-if="ehAdmin">
       <div><div class="lbl">Capital parado</div><div class="val num">{{ resumo ? fmt0(resumo.capitalParado ?? 0) : '—' }}</div></div>
@@ -141,7 +154,8 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
       </div>
       <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
         <button v-if="ficha.estado !== 'VENDIDO'" class="btn b-out" style="flex: 1" @click="simular(ficha)"><Icon name="calculator" small />Simular</button>
-        <button v-if="ficha.estado === 'DISPONIVEL'" class="btn b-pri" style="flex: 1" @click="router.push('/vender?bem=' + ficha.id)"><Icon name="plus" small />Vender</button>
+        <button v-if="ehIndicador" class="btn b-pri" style="flex: 1" data-indicar-aparelho @click="indicar(ficha)"><Icon name="user-plus" small />Indicar</button>
+        <button v-else-if="ficha.estado === 'DISPONIVEL'" class="btn b-pri" style="flex: 1" @click="router.push('/vender?bem=' + ficha.id)"><Icon name="plus" small />Vender</button>
         <button v-if="ehAdmin && ficha.estado !== 'VENDIDO'" class="btn b-sub" style="flex-basis: 100%" @click="editar(ficha)">Editar aparelho</button>
       </div>
       <div v-if="ficha.estado === 'VENDIDO'" class="small" style="margin-top: 8px">Aparelho vendido não pode ser alterado.</div>
@@ -149,4 +163,5 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
   </Sheet>
 
   <AparelhoForm :aberto="formAberto" :aparelho="editando" @fechar="formAberto = false" @salvo="aoSalvar" />
+  <IndicarFluxo v-if="ehIndicador" ref="fluxo" />
 </template>

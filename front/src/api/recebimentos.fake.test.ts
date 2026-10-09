@@ -39,7 +39,9 @@ describe('permissões', () => {
     for (const s of [VEND, IND]) {
       expect((await falha(receber(s, v, {})))?.status).toBe(403)
       expect((await falha(api.pagamentos(s, 'VENDA', v)))?.status).toBe(403)
-      expect((await falha(api.cobrancas(s, {})))?.status).toBe(403)
+      // a lista de cobranças: o vendedor não vê; o indicador vê só a das operações dele (indicador-leitura.fake.test.ts)
+      if (s === VEND) expect((await falha(api.cobrancas(s, {})))?.status).toBe(403)
+      else expect(await falha(api.cobrancas(s, {}))).toBeNull()
       expect((await falha(api.desfazer(s, 1)))?.status).toBe(403)
     }
   })

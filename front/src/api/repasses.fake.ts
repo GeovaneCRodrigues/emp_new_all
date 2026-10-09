@@ -68,7 +68,10 @@ export function criarRepassesFake(d: { vendas: VendasApi; emprestimos: Emprestim
     async detalhe(s, id) {
       if (s.perfil === 'INDICADOR') { if (s.indicadorId !== id) throw new ErroApi(404, 'Indicador não encontrado', 'NAO_ENCONTRADO') }
       else if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Você não tem acesso aos repasses', 'SEM_PERMISSAO')
-      return detalhe(s, id)
+      const d2 = await detalhe(s, id)
+      // o capital (custo do aparelho / valor emprestado) é da loja: o indicador só vê o que é dele
+      if (s.perfil === 'INDICADOR') return { ...d2, operacoes: d2.operacoes.map(({ investido: _investido, ...o }) => o) }
+      return d2
     },
 
     async pagar(s, id, e: EntradaRepasse) {

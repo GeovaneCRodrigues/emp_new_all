@@ -11,7 +11,7 @@ import { modoDemo, useAuth } from '@/composables/useAuth'
 import { iniciais } from '@/domain/format'
 import type { Perfil } from '@/domain/types'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
-import { GRUPOS_ADMIN, ITENS_ADMIN, MENUS, TITULOS, type ItemMenu } from '@/layouts/menus'
+import { GRUPOS_ADMIN, ITENS_ADMIN, MENUS, TITULOS, TITULOS_INDICADOR, type ItemMenu } from '@/layouts/menus'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,7 +32,7 @@ async function sair() {
 
 const menu = computed(() => MENUS[sessao.value.perfil])
 const secao = computed(() => (route.params.secao as string) || menu.value.inicio)
-const titulo = computed(() => TITULOS[secao.value] ?? 'Mundo dos iPhones')
+const titulo = computed(() => (sessao.value.perfil === 'INDICADOR' ? TITULOS_INDICADOR[secao.value] : undefined) ?? TITULOS[secao.value] ?? 'Mundo dos iPhones')
 const fabSide = computed(() => menu.value.abas.find((a) => a.fab))
 const maisAberto = ref(false)
 const contaAberta = ref(false)
@@ -116,6 +116,10 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
             <button v-for="n in lateralItens" :key="n.id" class="item" :class="{ on: secao === n.id }" @click="ir(n.id)">
               <Icon :name="n.icon" />{{ n.label }}<span v-if="contador(n.id)" class="cnt">{{ contador(n.id) }}</span>
             </button>
+            <template v-if="maisItens.length">
+              <div class="titulo">Mais</div>
+              <button v-for="n in maisItens" :key="n.id" class="item" :class="{ on: secao === n.id }" @click="ir(n.id)"><Icon :name="n.icon" />{{ n.label }}</button>
+            </template>
             <button class="item sair" style="margin-top: auto" data-sair @click="sair"><Icon name="log-out" />Sair do sistema</button>
           </template>
           <div class="rod" style="margin-top: 8px">
@@ -143,7 +147,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
               <Icon :name="a.icon" />{{ a.label }}<span v-if="contador(a.id)" class="badge-dot">{{ contador(a.id) }}</span>
             </button>
           </template>
-          <button v-if="menu.mais.length" :class="{ on: noMais }" @click="maisAberto = true"><Icon name="menu" />Mais</button>
+          <button v-if="ehAdmin && menu.mais.length" :class="{ on: noMais }" @click="maisAberto = true"><Icon name="menu" />Mais</button>
         </nav>
       </div>
     </div>
