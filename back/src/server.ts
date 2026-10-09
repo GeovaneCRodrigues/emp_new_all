@@ -13,6 +13,8 @@ import { createEstoqueService } from './modules/estoque/services/estoque.service
 import { createConfigRepository } from './modules/config/models/repository.js'
 import { createConfigService } from './modules/config/services/config.service.js'
 import { createAcordosRepository } from './modules/acordos/models/repository.js'
+import { createPropostasRepository } from './modules/propostas/models/repository.js'
+import { createPropostasService } from './modules/propostas/services/propostas.service.js'
 import { createRepassesRepository } from './modules/repasses/models/repository.js'
 import { createRepassesService } from './modules/repasses/services/repasses.service.js'
 import { createAcordosService } from './modules/acordos/services/acordos.service.js'
@@ -64,6 +66,8 @@ const repasses = createRepassesService({
   emprestimos: createEmprestimosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex),
 })
 
+const propostas = createPropostasService({ repo: createPropostasRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
+
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
 const aud = createAuditoriaRepository(db.knex)
@@ -71,7 +75,7 @@ const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db
 const fechamentos = createFechamentosService({ repo: createFechamentosRepository(db.knex), auditoria: aud })
 const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

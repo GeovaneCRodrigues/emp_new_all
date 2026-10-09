@@ -26,6 +26,8 @@ import type { VendasService } from './modules/vendas/services/vendas.service.js'
 import { recebimentosRoutes } from './modules/recebimentos/routes.js'
 import type { RecebimentosService } from './modules/recebimentos/services/recebimentos.service.js'
 import { acordosRoutes } from './modules/acordos/routes.js'
+import { propostasRoutes } from './modules/propostas/routes.js'
+import type { PropostasService } from './modules/propostas/services/propostas.service.js'
 import { repassesRoutes } from './modules/repasses/routes.js'
 import type { RepassesService } from './modules/repasses/services/repasses.service.js'
 import type { AcordosService } from './modules/acordos/services/acordos.service.js'
@@ -51,6 +53,7 @@ export type Deps = {
   emprestimos?: EmprestimosService
   acordos?: AcordosService
   repasses?: RepassesService
+  propostas?: PropostasService
   config: ConfigService
   recebimentos: RecebimentosService
   aprovacoes: AprovacoesService
@@ -94,6 +97,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(estoqueRoutes(deps.estoque, exigir), { prefix: '/api' })
   await app.register(vendasRoutes(deps.vendas, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   if (deps.acordos) await app.register(acordosRoutes(deps.acordos, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
+  if (deps.propostas) await app.register(propostasRoutes(deps.propostas, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   if (deps.repasses) await app.register(repassesRoutes(deps.repasses, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   if (deps.emprestimos) await app.register(emprestimosRoutes(deps.emprestimos, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })

@@ -6,7 +6,7 @@ import type { ResultadoLista, ResultadoSalvar } from '../services/clientes.servi
 export function clienteView(c: Cliente, perfil: Perfil) {
   const base = { id: c.id, nome: c.nome, fone: c.fone, desde: c.desde }
   if (perfil === 'INDICADOR') return base
-  return { ...base, cpf: c.cpf, rg: c.rg, endereco: c.endereco, origem: c.origem, responsavelId: c.responsavelId }
+  return { ...base, cpf: c.cpf, rg: c.rg, endereco: c.endereco, origem: c.origem, responsavelId: c.responsavelId, indicadorId: c.indicadorId }
 }
 
 export const listaView = (r: ResultadoLista, perfil: Perfil) => ({
