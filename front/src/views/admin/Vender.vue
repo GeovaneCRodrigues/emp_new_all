@@ -13,7 +13,7 @@ import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { somaMes } from '@/domain/datas'
 import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
-import { mascaraFone } from '@/domain/documentos'
+import { exibirFone, mascaraFone } from '@/domain/documentos'
 import { simularVenda } from '@/domain/calc'
 
 const route = useRoute()
@@ -219,7 +219,7 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
           </div>
           <div class="card list">
             <button v-for="c in clientes" :key="c.id" class="li" :data-cliente="c.id" @click="escolherCliente(c)">
-              <span class="ini">{{ iniciais(c.nome) }}</span><span class="mid"><span class="t">{{ c.nome }}</span><span class="s">{{ mascaraFone(c.fone) }}</span></span>
+              <span class="ini">{{ iniciais(c.nome) }}</span><span class="mid"><span class="t">{{ c.nome }}</span><span class="s">{{ exibirFone(c.fone) }}</span></span>
             </button>
             <div v-if="!clientes.length" class="empty">Ninguém encontrado. Cadastre o cliente em "Novo".</div>
           </div>

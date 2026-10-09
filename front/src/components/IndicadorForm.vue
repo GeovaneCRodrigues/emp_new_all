@@ -66,7 +66,7 @@ async function enviar() {
     <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="enviar">
       <div class="field">
         <label for="iNome">Nome *</label>
-        <div class="inp"><input id="iNome" v-model="f.nome" autocomplete="off" autofocus /></div>
+        <div class="inp maiusc"><input id="iNome" v-model="f.nome" autocomplete="off" autofocus /></div>
         <span v-if="erros.nome" class="erro-campo">{{ erros.nome }}</span>
       </div>
       <div class="grid2">

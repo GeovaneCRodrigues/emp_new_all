@@ -17,11 +17,11 @@ export interface ClientesRepository {
 
 type Linha = {
   id: number; nome: string; fone: string; cpf: string | null; rg: string | null; endereco: string | null
-  origem: string | null; responsavel_id: number | null; indicador_id: number | null; created_at: Date
+  origem: string | null; email: string | null; observacoes: string | null; responsavel_id: number | null; indicador_id: number | null; created_at: Date
 }
 
 const paraCliente = (l: Linha): Cliente => ({
-  id: l.id, nome: l.nome, fone: l.fone, cpf: l.cpf, rg: l.rg, endereco: l.endereco, origem: l.origem,
+  id: l.id, nome: l.nome, fone: l.fone, cpf: l.cpf, rg: l.rg, endereco: l.endereco, origem: l.origem, email: l.email, observacoes: l.observacoes,
   responsavelId: l.responsavel_id, indicadorId: l.indicador_id, desde: new Date(l.created_at).toISOString().slice(0, 10),
 })
 
@@ -33,6 +33,8 @@ const paraLinha = (d: Partial<DadosCliente>) => {
   if (d.rg !== undefined) l.rg = d.rg
   if (d.endereco !== undefined) l.endereco = d.endereco
   if (d.origem !== undefined) l.origem = d.origem
+  if (d.email !== undefined) l.email = d.email
+  if (d.observacoes !== undefined) l.observacoes = d.observacoes
   if (d.responsavelId !== undefined) l.responsavel_id = d.responsavelId
   if (d.indicadorId !== undefined) l.indicador_id = d.indicadorId
   return l

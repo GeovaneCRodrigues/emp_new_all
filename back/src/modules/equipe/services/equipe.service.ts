@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { maiusculas } from '../../../shared/texto.js'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import { normalizarFone } from '../../../shared/documentos.js'
 import type { Sessao } from '../../../shared/perfis.js'
@@ -49,7 +50,7 @@ export function createEquipeService(dep: { repo: EquipeRepository; auditoria: Au
       const senhaTemporaria = randomBytes(10).toString('base64url')
       let id: number
       try {
-        id = await dep.repo.criar({ nome: e.nome.trim().replace(/\s+/g, ' '), email, senhaHash: await hashSenha(senhaTemporaria), perfil: e.perfil, fone })
+        id = await dep.repo.criar({ nome: maiusculas(e.nome), email, senhaHash: await hashSenha(senhaTemporaria), perfil: e.perfil, fone })
       } catch (err) {
         if ((err as { code?: string }).code === '23505') throw EMAIL_EM_USO
         throw err
@@ -71,7 +72,7 @@ export function createEquipeService(dep: { repo: EquipeRepository; auditoria: Au
       if ('ativo' in e && typeof e.ativo !== 'boolean') throw requisicaoInvalida('ativo deve ser verdadeiro ou falso')
       if (e.ativo === false && id === s.usuarioId) throw requisicaoInvalida('Você não pode desativar o seu próprio acesso')
 
-      if ('nome' in e || fone !== undefined) await dep.repo.atualizar(id, { ...('nome' in e ? { nome: (e.nome as string).trim().replace(/\s+/g, ' ') } : {}), ...(fone !== undefined ? { fone } : {}) })
+      if ('nome' in e || fone !== undefined) await dep.repo.atualizar(id, { ...('nome' in e ? { nome: maiusculas(e.nome as string) } : {}), ...(fone !== undefined ? { fone } : {}) })
       if (typeof e.ativo === 'boolean' && e.ativo !== alvo.ativo) await dep.repo.definirAtivo(id, e.ativo)
       const depois = (await pessoas()).find((p) => p.id === id)!
       await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'EQUIPE_ALTERADO', entidade: 'usuario', entidadeId: id, antes: { nome: antes.nome, fone: antes.fone, ativo: antes.ativo }, depois: { nome: depois.nome, fone: depois.fone, ativo: depois.ativo } })

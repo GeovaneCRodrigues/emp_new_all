@@ -43,7 +43,7 @@ test.describe('clientes', () => {
     await page.fill('#cCpf', '')
     await page.fill('#cFone', '11981112233')
     await page.getByRole('button', { name: 'Cadastrar cliente' }).click()
-    await expect(page.getByRole('status')).toContainText('Já existe um cliente com esse telefone: Marcos Vieira')
+    await expect(page.getByRole('status')).toContainText('Já existe um cliente com esse telefone: MARCOS VIEIRA')
   })
 
   test('abre a ficha, edita e o Esc fecha a folha', async ({ page }) => {
@@ -55,7 +55,7 @@ test.describe('clientes', () => {
     await page.fill('#cEnd', 'Rua das Flores, 120')
     await page.getByRole('button', { name: 'Salvar alterações' }).click()
     await page.locator('.li', { hasText: 'Ricardo Nunes' }).click()
-    await expect(page.getByRole('dialog')).toContainText('Rua das Flores, 120')
+    await expect(page.getByRole('dialog')).toContainText('RUA DAS FLORES, 120')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
   })

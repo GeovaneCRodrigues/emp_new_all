@@ -9,7 +9,7 @@ import Sheet from '@/components/Sheet.vue'
 import { modoDemo } from '@/composables/useAuth'
 import { useApp } from '@/composables/useApp'
 import { dmyA, iniciais } from '@/domain/format'
-import { mascaraCpf, mascaraFone } from '@/domain/documentos'
+import { exibirFone, mascaraCpf, mascaraFone } from '@/domain/documentos'
 
 const { sessao, operacoes, contas } = useApp()
 
@@ -93,7 +93,7 @@ const linkZap = (fone: string) => `https://wa.me/55${fone}`
       <span class="ini">{{ iniciais(c.nome) }}</span>
       <div class="mid">
         <div class="t">{{ c.nome }}</div>
-        <div class="s">{{ mascaraFone(c.fone) }}<template v-if="nomeResponsavel(c.responsavelId)"> · {{ nomeResponsavel(c.responsavelId) }}</template></div>
+        <div class="s">{{ exibirFone(c.fone) }}<template v-if="nomeResponsavel(c.responsavelId)"> · {{ nomeResponsavel(c.responsavelId) }}</template></div>
       </div>
       <span v-if="veDocumentos && !c.cpf" class="chip c-neu">sem CPF</span>
     </button>
@@ -106,7 +106,7 @@ const linkZap = (fone: string) => `https://wa.me/55${fone}`
     <template v-if="ficha">
       <div class="row" style="gap: 12px; margin-bottom: 12px"><span class="ini">{{ iniciais(ficha.nome) }}</span><div><h3>{{ ficha.nome }}</h3><div class="small">cliente desde {{ dmyA(ficha.desde) }}</div></div></div>
       <div class="dl card pad">
-        <div><div class="lbl">WhatsApp</div><a class="val" :href="linkZap(ficha.fone)" target="_blank" rel="noopener">{{ mascaraFone(ficha.fone) }}</a></div>
+        <div><div class="lbl">WhatsApp</div><a v-if="ficha.fone" class="val" :href="linkZap(ficha.fone)" target="_blank" rel="noopener">{{ mascaraFone(ficha.fone) }}</a><div v-else class="val" style="color: var(--dim)" data-sem-telefone>sem telefone</div></div>
         <template v-if="veDocumentos">
           <div><div class="lbl">CPF</div><div class="val num">{{ ficha.cpf ? mascaraCpf(ficha.cpf) : '—' }}</div></div>
           <div><div class="lbl">RG</div><div class="val">{{ ficha.rg || '—' }}</div></div>

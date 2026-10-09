@@ -12,6 +12,9 @@ export interface ClienteApi {
   rg?: string | null
   endereco?: string | null
   origem?: string | null
+  /** só o administrador recebe */
+  email?: string | null
+  observacoes?: string | null
   responsavelId?: number | null
   /** o indicador que cadastrou o cliente (só o administrador vê) */
   indicadorId?: number | null
@@ -26,6 +29,9 @@ export interface EntradaCliente {
   rg?: string | null
   endereco?: string | null
   origem?: string | null
+  /** só o administrador grava (o vendedor e o indicador não enviam) */
+  email?: string | null
+  observacoes?: string | null
   /** só o administrador escolhe; o vendedor cadastra sempre na própria carteira */
   responsavelId?: number | null
 }
