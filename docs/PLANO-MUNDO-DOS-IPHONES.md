@@ -116,12 +116,18 @@ Layout geral:
 - Botões, não links, na navegação do celular.
 - Campos de dinheiro usam máscara BRL que digita pelos centavos: digitar `400000` vira `4.000,00`.
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
-- Toda modal tem um botão **"x"** no canto de cima, à direita, que continua visível quando o conteúdo rola. Esc e clicar fora também fecham. Pedido do Geovane.
+- Toda modal tem um botão **"x"** redondo no canto de cima, à direita, **saindo um pouco pra fora** da modal (no celular, sai por cima da borda). Ele fica fora da área que rola, então está sempre visível. Esc e clicar fora também fecham. Pedido do Geovane.
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.
 - **Botão Novo** (central no celular, e o botão de destaque da lateral no computador): abre a escolha entre **Venda de iPhone**, **Empréstimo** e **Só simular**. Pedido do Geovane.
-- **Mais / lateral:** Operações, Simulador, Clientes, Cronograma, Caixa, Relatórios, Contratos, Indicadores e repasses, Equipe, Configurações.
+- **Lateral (computador), em grupos** (pedido do Geovane):
+  - **Dia a dia:** Início, Cobranças, Cronograma, Caixa, Simulador.
+  - **Cadastros:** Clientes, Estoque, Operações, Contratos.
+  - **Gestão:** Indicadores e repasses, Equipe, Relatórios.
+  - **Configurações** fica sozinho no rodapé da lateral, logo acima do usuário.
+- **Mais (celular):** os mesmos grupos, sem o que já está na barra de baixo, e Configurações por último.
+- Nas cobranças, parcela atrasada mostra a **data de vencimento** ("venceu 01/09") além dos dias de atraso.
 - **Início:** o que cobrar hoje, atrasados, vendas do mês, lucro no bolso.
 - **Cobranças:**
   - abas Tudo / iPhones / Empréstimos;

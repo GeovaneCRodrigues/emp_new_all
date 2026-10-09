@@ -43,6 +43,7 @@ input,select{font:inherit;color:var(--strong)}
 .mlist{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}
 .mlist>span{display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:13px;color:var(--strong);border-top:1px solid var(--border)}
 .mlist>span:first-child{border-top:0}
+.mlist>span.mgrupo{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600;background:var(--bg);padding:6px 12px}
 .mlist>span .icon{width:17px;height:17px;color:var(--soft)}
 .mlist>span .small{margin-left:auto}
 .mlist .grupo{background:var(--muted);font-size:11px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.05em;padding:5px 12px}
@@ -160,7 +161,7 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 
 @container (min-width:880px){
   .shell{grid-template-columns:236px 1fr;grid-template-rows:1fr}
-  .side{display:flex;flex-direction:column;gap:4px;background:var(--surface);border-right:1px solid var(--border);color:var(--text);padding:16px 12px;grid-row:1}
+  .side{display:flex;flex-direction:column;gap:4px;background:var(--surface);border-right:1px solid var(--border);color:var(--text);padding:16px 12px;grid-row:1;overflow-y:auto;min-height:0}
   .tabs{display:none}
   .top .avatar.mais,.logo-m{display:none}
   .so-pc.so-pc{display:inline-flex!important}
@@ -174,6 +175,9 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 .side .item.on{background:var(--primary-soft);color:var(--primary);font-weight:600}
 .side .item .cnt{margin-left:auto;background:var(--bad);color:#fff;font-size:10px;font-weight:600;border-radius:9px;padding:1px 6px}
 .side .novo{margin:6px 0 8px;display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border-radius:12px;background:var(--primary);color:#fff;font-weight:700;box-shadow:0 4px 12px rgba(15,143,95,.25)}
+.side>*{flex-shrink:0}
+.side .fundo{margin-top:auto;padding-top:10px}
+.side .fundo+.rod{margin-top:0}
 .side .rod{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 8px 0;border-top:1px solid var(--border);font-size:13px}
 
 /* peças */
@@ -304,10 +308,14 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 .sheet{background:var(--surface);width:100%;max-width:560px;max-height:88dvh;overflow-y:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom,0px));animation:up .2s ease-out}
 .sheet .grab{width:38px;height:4px;border-radius:4px;background:var(--border);margin:4px auto 10px}
 .sheet h3{margin:0;font-size:17px;color:var(--strong)}
-.xfechar{position:sticky;top:0;float:right;z-index:3;width:34px;height:34px;margin:-2px -4px 4px 8px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--muted);color:var(--strong);cursor:pointer}
+.sheet-w{position:relative;width:100%;max-width:560px;display:flex;animation:up .2s ease-out}
+.sheet-w.larga{max-width:860px}
+.sheet-w>.sheet{animation:none}
+.xfechar{position:absolute;top:-14px;right:14px;z-index:3;width:36px;height:36px;border:1px solid var(--border);border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--strong);box-shadow:0 4px 14px rgba(6,10,20,.18);cursor:pointer}
 .xfechar svg{width:18px;height:18px}
 .xfechar:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-@media (hover:hover){.xfechar:hover{background:var(--border)}}
+@media (hover:hover){.xfechar:hover{background:var(--muted)}}
+@media (min-width:760px){.xfechar{top:-14px;right:-14px}}
 @media (min-width:760px){.ov{align-items:center}.sheet{border-radius:18px;padding:18px 20px}.sheet .grab{display:none}}
 @keyframes up{from{transform:translateY(30px);opacity:.4}}
 @keyframes fade{from{opacity:0}}
@@ -1529,7 +1537,7 @@ function folhaPCliente(cid) {
 function pCobLinha(x, paga) {
   const atr = !x.p.pago && x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0
   return `<div class="li"><span class="ini">${iniciais(x.c.nome)}</span>
-      <button class="mid" style="text-align:left" data-pcli="${x.c.id}"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${paga ? `pagou ${fmt(pagoP(x.p))} em ${dmy(x.p.pagos.at(-1).data)}` : `<b style="color:var(--strong)">${fmt(faltaP(x.p))}</b> · ${atr ? `<b style="color:var(--bad)">${atr} ${atr === 1 ? 'dia' : 'dias'}</b>` : x.p.venc === HOJE ? '<b style="color:var(--warn)">vence hoje</b>' : `vence ${dmy(x.p.venc)}`}`} · ${nomeItem(x.v)} · ${x.p.n}/${x.v.parcelas.length}</span></button>
+      <button class="mid" style="text-align:left" data-pcli="${x.c.id}"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${paga ? `pagou ${fmt(pagoP(x.p))} em ${dmy(x.p.pagos.at(-1).data)}` : `<b style="color:var(--strong)">${fmt(faltaP(x.p))}</b> · ${atr ? `<b style="color:var(--bad)">venceu ${dmy(x.p.venc)} · ${atr} ${atr === 1 ? 'dia' : 'dias'}</b>` : x.p.venc === HOJE ? '<b style="color:var(--warn)">vence hoje</b>' : `vence ${dmy(x.p.venc)}`}`} · ${nomeItem(x.v)} · ${x.p.n}/${x.v.parcelas.length}</span></button>
       ${!paga && x.p.venc <= HOJE ? `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}</div>`
 }
 function pCobranca(D) {
@@ -1695,8 +1703,20 @@ const MAIS = [
   { id: 'equipe', label: 'Equipe', icon: 'user-cog' },
   { id: 'config', label: 'Configurações', icon: 'settings' },
 ]
+// lateral do admin: rotina do dia, cadastros, gestão; Configurações fica embaixo, perto do usuário
+const GRUPOS = [
+  { titulo: 'Dia a dia', ids: ['inicio', 'cobrancas', 'cronograma', 'caixa', 'simulador'] },
+  { titulo: 'Cadastros', ids: ['clientes', 'estoque', 'vendas', 'contratos'] },
+  { titulo: 'Gestão', ids: ['indicadores', 'equipe', 'relatorios'] },
+]
+const itemNav = (id) => [...NAV, ...MAIS].find((n) => n.id === id)
 const TITULO = { simulador: 'Simulador', inicio: 'Início', cobrancas: 'Cobranças', vender: 'Nova venda', estoque: 'Estoque', vendas: 'Operações', clientes: 'Clientes', cliente: 'Cliente', emprestimos: 'Empréstimos', caixa: 'Caixa', contratos: 'Contratos', cronograma: 'Cronograma', relatorios: 'Relatórios', indicadores: 'Indicadores', config: 'Configurações', equipe: 'Equipe' }
 
+function itemSide(n, atr) {
+  const on = S.tela === n.id || (n.id === 'clientes' && S.tela === 'cliente')
+  const cnt = n.id === 'cobrancas' && atr ? `<span class="cnt">${atr}</span>` : n.id === 'equipe' && aprovacoes.length ? `<span class="cnt" style="background:var(--warn)">${aprovacoes.length}</span>` : ''
+  return `<button class="item ${on ? 'on' : ''}" data-mais="${n.id}">${ic(n.icon)}${n.label}${cnt}</button>`
+}
 function qtdAtraso() { return new Set(cobrancas().filter((x) => !x.p.pago && x.p.venc < HOJE).map((x) => x.v.id)).size }
 
 function shell() {
@@ -1707,9 +1727,8 @@ function shell() {
     <aside class="side">
       <div class="marca">${logo()}<span>Mundo dos<br><em>iPhones</em></span></div>
       <button class="novo" data-folha="novo">${ic('plus')}Novo</button>
-      ${NAV.filter((n) => n.id !== 'vender').map((n) => `<button class="item ${S.tela === n.id ? 'on' : ''}" data-ir="${n.id}">${ic(n.icon)}${n.label}${n.id === 'cobrancas' && atr ? `<span class="cnt">${atr}</span>` : ''}</button>`).join('')}
-      <div class="titulo">Mais</div>
-      ${MAIS.map((n) => `<button class="item ${S.tela === n.id || (n.id === 'clientes' && S.tela === 'cliente') ? 'on' : ''}" data-mais="${n.id}">${ic(n.icon)}${n.label}${n.id === 'equipe' && aprovacoes.length ? `<span class="cnt" style="background:var(--warn)">${aprovacoes.length}</span>` : ''}</button>`).join('')}
+      ${GRUPOS.map((g) => `<div class="titulo">${g.titulo}</div>${g.ids.map((id) => itemSide(itemNav(id), atr)).join('')}`).join('')}
+      <div class="fundo">${itemSide(itemNav('config'), atr)}</div>
       <div class="rod"><span class="avatar">GC</span><div><div style="color:var(--strong);font-weight:600">Geovane</div><div style="font-size:11px;color:var(--dim)">Administrador</div></div></div>
     </aside>`
   const NAVM = NAV.filter((n) => n.id !== 'vendas')
@@ -1783,7 +1802,7 @@ function cobLinha(x) {
   const tag = x.p.pago ? `<span style="color:var(--ok);font-weight:600">pago ${dmy(x.p.pago)}${x.p.desconto ? ' com desconto' : ''}</span>` : atraso ? `<span style="color:var(--bad);font-weight:600">${atraso} ${atraso === 1 ? 'dia' : 'dias'}</span>` : hoje ? '<span style="color:var(--warn);font-weight:600">vence hoje</span>' : `<span class="num">vence ${dmy(x.p.venc)}</span>`
   return `<div class="cob"><span class="ini">${iniciais(x.c.nome)}</span>
     <button class="mid" style="flex:1;min-width:0;text-align:left" data-venda="${x.v.id}"><div class="t" style="font-weight:500;color:var(--strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.c.nome}</div>
-    <div class="s" style="font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b class="num" style="color:var(--strong)">${fmt(valorLinha)}</b>${parcial ? ' <span style="color:var(--warn);font-weight:600">resta</span>' : ''} · ${tag}</div><div class="s" style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.b.modelo} · parcela ${x.p.n}/${x.v.parcelas.length}${parcial ? ` · já pagou ${fmt0(pagoP(x.p))}` : ''}${x.p.vencOrig && !x.p.pago ? ` · remarcada (era ${dmy(x.p.vencOrig)})` : ''}</div></button>
+    <div class="s" style="font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b class="num" style="color:var(--strong)">${fmt(valorLinha)}</b>${parcial ? ' <span style="color:var(--warn);font-weight:600">resta</span>' : ''} · ${tag}</div><div class="s" style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${atraso ? `venceu ${dmy(x.p.venc)} · ` : ''}${x.b.modelo} · parcela ${x.p.n}/${x.v.parcelas.length}${parcial ? ` · já pagou ${fmt0(pagoP(x.p))}` : ''}${x.p.vencOrig && !x.p.pago ? ` · remarcada (era ${dmy(x.p.vencOrig)})` : ''}</div></button>
     <div class="acts">${x.p.pago ? '' : `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Cobrar no WhatsApp">${ic('message-circle', 'i-sm')}</button><button class="btn b-ok b-sm" data-receber="${x.v.id}:${x.p.n}">Recebi</button>`}</div></div>`
 }
 
@@ -2030,7 +2049,7 @@ function folhaMenus() {
       <div><div class="lbl" style="margin-bottom:8px">Menu de baixo (celular)</div>
         <div class="mtabs">${tab('Início', 'house', true)}${tab('Cobranças', 'hand-coins', false, atr)}${fab('Novo', 'plus')}${tab('Estoque', 'smartphone')}${tab('Mais', 'menu')}</div></div>
       <div><div class="lbl" style="margin-bottom:8px">Dentro do “Mais” (no computador fica tudo na lateral)</div>
-        <div class="mlist">${[NAV.find((n) => n.id === 'vendas'), ...MAIS].map((n) => item(n.label, n.icon)).join('')}</div></div>
+        <div class="mlist">${GRUPOS.map((g) => `<span class="mgrupo">${g.titulo}</span>${g.ids.filter((id) => !['inicio', 'cobrancas', 'estoque'].includes(id)).map((id) => item(itemNav(id).label, itemNav(id).icon)).join('')}`).join('')}<span class="mgrupo">Embaixo</span>${item('Configurações', 'settings')}</div></div>
       ${pode(['Vende, empresta e dá baixa nas parcelas', 'Paga repasse e muda o % de cada indicador', 'Vê caixa, lucro e relatórios'], [])}
       <button class="btn b-pri b-block" data-ver-como="admin">Abrir como admin</button>
     </section>`
@@ -2059,7 +2078,10 @@ function folhaMenus() {
 }
 
 function folhaMais() {
-  return `<h3>Mais</h3><div class="card list" style="margin-top:12px">${[NAV.find((n) => n.id === 'vendas'), ...MAIS].map((n) => `<button class="li" data-mais="${n.id}">${ic(n.icon)}<span class="mid t">${n.label}</span>${ic('chevron-right', 'i-sm')}</button>`).join('')}</div>`
+  const naBarra = ['inicio', 'cobrancas', 'estoque']
+  const li = (n) => `<button class="li" data-mais="${n.id}">${ic(n.icon)}<span class="mid t">${n.label}</span>${ic('chevron-right', 'i-sm')}</button>`
+  return `<h3>Mais</h3>${GRUPOS.map((g) => { const ns = g.ids.filter((id) => !naBarra.includes(id)).map(itemNav); return ns.length ? `<div class="lbl" style="margin:14px 0 6px">${g.titulo}</div><div class="card list">${ns.map(li).join('')}</div>` : '' }).join('')}
+    <div class="card list" style="margin-top:14px">${li(itemNav('config'))}</div>`
 }
 function folhaMaisItem(id) {
   const n = MAIS.find((x) => x.id === id)
@@ -2497,7 +2519,7 @@ function render() {
 function renderCamada() {
   const el = document.getElementById('camada')
   let h = ''
-  if (S.folha) h += `<div class="ov" data-ov><div class="sheet${S.folha.tipo === 'menus' ? ' larga' : ''}" role="dialog"><div class="grab"></div><button class="xfechar" data-fechar aria-label="Fechar" title="Fechar (Esc)">${ic('x')}</button>${FOLHAS[S.folha.tipo](S.folha.arg)}</div></div>`
+  if (S.folha) h += `<div class="ov" data-ov><div class="sheet-w${S.folha.tipo === 'menus' ? ' larga' : ''}"><button class="xfechar" data-fechar aria-label="Fechar" title="Fechar (Esc)">${ic('x')}</button><div class="sheet${S.folha.tipo === 'menus' ? ' larga' : ''}" role="dialog"><div class="grab"></div>${FOLHAS[S.folha.tipo](S.folha.arg)}</div></div></div>`
   if (S.toast) h += `<div class="toast">${S.toast.msg}${S.toast.desfazer ? '<button data-desfazer>Desfazer</button>' : ''}</div>`
   el.innerHTML = h
     marcaTema()
