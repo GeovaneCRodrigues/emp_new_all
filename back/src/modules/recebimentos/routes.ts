@@ -8,8 +8,10 @@ export function recebimentosRoutes(service: RecebimentosService, auth: preHandle
   const limite = { config: { rateLimit: { max: limitePorMinuto, timeWindow: '1 minute' } } }
   return async (app: FastifyInstance) => {
     // quem pode o quê fica no service; aqui só exige estar logado
-    app.post('/vendas/:id/recebimentos', { ...p, ...limite }, c.registrar)
-    app.get('/vendas/:id/pagamentos', p, c.pagamentos)
+    app.post('/vendas/:id/recebimentos', { ...p, ...limite }, c.registrar('VENDA'))
+    app.get('/vendas/:id/pagamentos', p, c.pagamentos('VENDA'))
+    app.post('/emprestimos/:id/recebimentos', { ...p, ...limite }, c.registrar('EMPRESTIMO'))
+    app.get('/emprestimos/:id/pagamentos', p, c.pagamentos('EMPRESTIMO'))
     app.get('/recibos/:id', p, c.recibo)
     app.post('/recebimentos/:id/desfazer', { ...p, ...limite }, c.desfazer)
     app.get('/cobrancas', p, c.cobrancas)

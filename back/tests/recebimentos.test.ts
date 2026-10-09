@@ -117,7 +117,7 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       hoje = '2026-11-10'
       const r = await receber('admin', v, { parcela: 1, valor: 840, forma: 'PIX' })
       expect(r.statusCode).toBe(201)
-      const { recibo, efeitos, vendaQuitada } = r.json()
+      const { recibo, efeitos, quitada: vendaQuitada } = r.json()
       expect(efeitos).toEqual([{ tipo: 'QUITA', numero: 1 }])
       expect(vendaQuitada).toBe(false)
       expect(recibo).toMatchObject({ valor: 840, forma: 'PIX', data: '2026-11-10', referencia: 'parcela 1/4', faltaDepois: 2520, restantes: 3, desfeita: false, aparelho: 'iPhone 13', empresa: { nome: 'Mundo dos iPhones', cnpj: null } })
@@ -133,7 +133,7 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       const v = await venda()
       const r = await receber('admin', v, { parcela: 1, valor: 3360 })
       expect(r.statusCode).toBe(201)
-      expect(r.json()).toMatchObject({ vendaQuitada: true })
+      expect(r.json()).toMatchObject({ quitada: true })
       expect(r.json().recibo.mensagem).toContain('Tudo quitado! Obrigado pela confiança.')
       expect(r.json().recibo.proxima).toBeNull()
       expect(await statusVenda(v)).toBe('QUITADA')
@@ -392,7 +392,7 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       hoje = '2026-11-12' // 1ª atrasada (2 dias); 2ª em 28 dias (próximas); nenhuma esta semana
       const atr = await itens('admin', 'atrasadas')
       expect(atr.itens).toHaveLength(1)
-      expect(atr.itens[0]).toMatchObject({ vendaId: v, parcela: 1, nParcelas: 4, falta: 840, atrasoDias: 2, vencimento: '2026-11-10', cliente: { nome: 'Ana Souza' }, aparelho: 'iPhone 13' })
+      expect(atr.itens[0]).toMatchObject({ tipo: 'VENDA', operacaoId: v, parcela: 1, nParcelas: 4, falta: 840, atrasoDias: 2, vencimento: '2026-11-10', cliente: { nome: 'Ana Souza' }, aparelho: 'iPhone 13' })
       expect(atr.valorTotal).toBe(840)
       expect(atr.contagens).toEqual({ atrasadas: 1, hoje: 0, proximas: 1 })
       expect((await itens('admin', 'proximas')).itens.map((x: { parcela: number }) => x.parcela)).toEqual([2])
@@ -404,27 +404,27 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       hoje = '2026-11-12'
       const rec = (await receber('admin', v, { parcela: 1, valor: 100, resto: 'FICA', novoVencimento: '2026-11-19' })).json().recibo.id
       const atr = await itens('admin', 'atrasadas')
-      expect(atr.itens.filter((x: { vendaId: number }) => x.vendaId === v)).toHaveLength(0) // remarcada: saiu dos atrasados
-      const hojeAba = (await itens('admin', 'hoje')).itens.find((x: { vendaId: number }) => x.vendaId === v)
+      expect(atr.itens.filter((x: { operacaoId: number }) => x.operacaoId === v)).toHaveLength(0) // remarcada: saiu dos atrasados
+      const hojeAba = (await itens('admin', 'hoje')).itens.find((x: { operacaoId: number }) => x.operacaoId === v)
       expect(hojeAba).toMatchObject({ parcela: 1, falta: 740, pago: 100, vencimento: '2026-11-19', vencimentoOriginal: '2026-11-10' })
-      const recebidas = (await itens('admin', 'recebidas')).itens.find((x: { vendaId: number }) => x.vendaId === v)
+      const recebidas = (await itens('admin', 'recebidas')).itens.find((x: { operacaoId: number }) => x.operacaoId === v)
       expect(recebidas).toMatchObject({ parcela: 1, pago: 100, ultimaTransacaoId: rec, ultimoRecebimentoEm: '2026-11-12' })
       hoje = '2026-12-20' // passou de 30 dias
-      expect((await itens('admin', 'recebidas')).itens.find((x: { vendaId: number }) => x.vendaId === v)).toBeUndefined()
+      expect((await itens('admin', 'recebidas')).itens.find((x: { operacaoId: number }) => x.operacaoId === v)).toBeUndefined()
     })
     it('o cobrador só vê a carteira dele; recebimento desfeito deixa de contar; venda retomada some', async () => {
       const a = await venda(id.cA)
       const b = await venda(id.cB)
       hoje = '2026-11-12'
-      const dele = (await itens('cobrador', 'atrasadas')).itens.map((x: { vendaId: number }) => x.vendaId)
+      const dele = (await itens('cobrador', 'atrasadas')).itens.map((x: { operacaoId: number }) => x.operacaoId)
       expect(dele).toContain(a)
       expect(dele).not.toContain(b)
       const rec = (await receber('cobrador', a, { parcela: 1, valor: 840 })).json().recibo.id
-      expect((await itens('cobrador', 'atrasadas')).itens.map((x: { vendaId: number }) => x.vendaId)).not.toContain(a)
+      expect((await itens('cobrador', 'atrasadas')).itens.map((x: { operacaoId: number }) => x.operacaoId)).not.toContain(a)
       await req('POST', `/api/recebimentos/${rec}/desfazer`, 'cobrador')
-      expect((await itens('cobrador', 'atrasadas')).itens.map((x: { vendaId: number }) => x.vendaId)).toContain(a)
+      expect((await itens('cobrador', 'atrasadas')).itens.map((x: { operacaoId: number }) => x.operacaoId)).toContain(a)
       await db!('vendas').where({ id: a }).update({ status: 'RETOMADA' })
-      expect((await itens('admin', 'atrasadas')).itens.map((x: { vendaId: number }) => x.vendaId)).not.toContain(a)
+      expect((await itens('admin', 'atrasadas')).itens.map((x: { operacaoId: number }) => x.operacaoId)).not.toContain(a)
     })
     it('aba inválida é 400; pagina e corta o limite em 100', async () => {
       expect((await req('GET', '/api/cobrancas?aba=xyz', 'admin')).statusCode).toBe(400)

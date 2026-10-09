@@ -27,6 +27,8 @@ export type Emprestimo = {
   taxa: number
   status: StatusEmprestimo
   observacoes: string | null
+  /** só juros: quanto do capital já foi pago adiantado (excedente dos recebimentos). Conta como dinheiro recebido. */
+  amortizado: number
   parcelas: ParcelaEmprestimo[]
 }
 

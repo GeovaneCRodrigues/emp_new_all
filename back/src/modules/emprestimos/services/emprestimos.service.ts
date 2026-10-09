@@ -51,7 +51,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
   const hoje = d.hoje ?? (() => hojeBR())
   const calcular = (e: Emprestimo): EmprestimoCalculado => ({
     emprestimo: e,
-    ...contas({ entrada: 0, troca: 0, investido: e.capital, pct: e.pct, statusGravado: e.status, parcelas: e.parcelas.map((p) => ({ valor: p.valor, desconto: p.desconto, pago: p.pago, vencimento: p.vencimento })) }, hoje()),
+    ...contas({ entrada: e.amortizado, troca: 0, investido: e.capital, pct: e.pct, statusGravado: e.status, parcelas: e.parcelas.map((p) => ({ valor: p.valor, desconto: p.desconto, pago: p.pago, vencimento: p.vencimento })) }, hoje()),
   })
 
   return {

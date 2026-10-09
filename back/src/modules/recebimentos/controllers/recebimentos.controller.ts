@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { naoAutenticado, requisicaoInvalida } from '../../../shared/errors.js'
+import type { Alvo } from '../models/types.js'
 import type { RecebimentosService } from '../services/recebimentos.service.js'
 import { cobrancasView, pagamentosView, registradoView, reciboView } from '../views/recebimentos.view.js'
 
@@ -13,16 +14,16 @@ function idDaRota(req: FastifyRequest): number {
 
 export function createRecebimentosController(service: RecebimentosService) {
   return {
-    async registrar(req: FastifyRequest, reply: FastifyReply) {
-      const r = await service.registrar(sessaoOuErro(req), idDaRota(req), (req.body ?? {}) as Record<string, unknown>)
+    registrar: (alvo: Alvo) => async (req: FastifyRequest, reply: FastifyReply) => {
+      const r = await service.registrar(sessaoOuErro(req), alvo, idDaRota(req), (req.body ?? {}) as Record<string, unknown>)
       return reply.code(201).send(registradoView(r))
     },
-    async pagamentos(req: FastifyRequest) { return pagamentosView(await service.pagamentos(sessaoOuErro(req), idDaRota(req))) },
+    pagamentos: (alvo: Alvo) => async (req: FastifyRequest) => pagamentosView(await service.pagamentos(sessaoOuErro(req), alvo, idDaRota(req))),
     async recibo(req: FastifyRequest) { return reciboView(await service.recibo(sessaoOuErro(req), idDaRota(req))) },
     async desfazer(req: FastifyRequest, reply: FastifyReply) { await service.desfazer(sessaoOuErro(req), idDaRota(req)); return reply.code(204).send() },
     async cobrancas(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
-      return cobrancasView(await service.cobrancas(sessaoOuErro(req), { aba: typeof q.aba === 'string' ? q.aba : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))
+      return cobrancasView(await service.cobrancas(sessaoOuErro(req), { aba: typeof q.aba === 'string' ? q.aba : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))
     },
   }
 }

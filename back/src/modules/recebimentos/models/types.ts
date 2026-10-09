@@ -5,27 +5,38 @@ export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 /** Quem pode ver/mexer: admin em tudo; cobrador só nos clientes da carteira dele. */
 export type EscopoRecebimentos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: number }
 
-export type VendaTravada = {
+/** O que o dinheiro paga: uma venda de iPhone ou um empréstimo. */
+export type Alvo = 'VENDA' | 'EMPRESTIMO'
+
+export type OperacaoTravada = {
   id: number
+  alvo: Alvo
   clienteId: number
   clienteNome: string
   clienteFone: string
   status: 'ATIVA' | 'QUITADA' | 'RETOMADA' | 'CANCELADA'
-  dataVenda: string
-  modelo: string
+  /** data da venda ou do empréstimo */
+  data: string
+  /** "iPhone 15 Pro" ou "Empréstimo só juros" (vai no recibo) */
+  descricao: string
   nParcelas: number
+  /** só empréstimo */
+  modalidade: 'PARCELADO' | 'JUROS' | 'DIARIA' | null
+  taxa: number | null
 }
 
 /** O que o recibo mostra, tirado na hora do recebimento. */
 export type ResumoRecibo = {
   tipo: 'PARCELAS' | 'ENTRADA'
   referencia: string
-  /** quanto ainda falta na venda depois deste recebimento */
+  /** quanto ainda falta na operação depois deste recebimento */
   faltaDepois: number
   proxima: { numero: number; valor: number; vencimento: string } | null
   restantes: number
   /** quando pagou menos e o resto ficou para outra data */
   ficaDevendo: { numero: number; valor: number; vencimento: string } | null
+  /** só juros: o que passou do juro abateu o capital */
+  amortizacao?: { valor: number; capitalRestante: number }
 }
 
 export type TransacaoRegistro = {
@@ -39,16 +50,21 @@ export type TransacaoRegistro = {
   recebidoPorNome: string | null
   desfeita: boolean
   resumo: ResumoRecibo | null
+  /** o que mudou fora da parcela paga (só juros) */
+  ajustes: AjustesTransacao | null
 }
 
-export type ReciboRegistro = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA'; vendaId: number | null; clienteNome: string; clienteFone: string; modelo: string; responsavelId: number | null }
+export type AjustesTransacao = { amortizacao: number; parcelas: { parcelaId: number; numero: number; antes: EstadoParcela }[] }
 
-export type PagamentoDaVenda = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA' }
+export type ReciboRegistro = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA'; alvo: Alvo | null; operacaoId: number | null; clienteNome: string; clienteFone: string; descricao: string; responsavelId: number | null }
 
-export type RecebimentoDaTransacao = { id: number; vendaParcelaId: number; numero: number; vendaId: number; valor: number; antes: EstadoParcela | null }
+export type PagamentoDaOperacao = TransacaoRegistro & { tipo: 'ENTRADA' | 'PARCELA' }
+
+export type RecebimentoDaTransacao = { id: number; parcelaId: number; numero: number; operacaoId: number; valor: number; antes: EstadoParcela | null }
 
 export type LinhaCobranca = {
-  vendaId: number
+  tipo: Alvo
+  operacaoId: number
   numero: number
   nParcelas: number
   vencimento: string
@@ -57,12 +73,13 @@ export type LinhaCobranca = {
   pago: number
   falta: number
   cliente: { id: number; nome: string; fone: string }
-  modelo: string
+  descricao: string
   ultimaTransacaoId: number | null
   ultimoRecebimentoEm: string | null
 }
 
 export type Aba = 'atrasadas' | 'hoje' | 'proximas' | 'recebidas'
+export type FiltroTipo = Alvo | undefined
 export type ResultadoCobrancas = { itens: LinhaCobranca[]; total: number; valorTotal: number; contagens: { atrasadas: number; hoje: number; proximas: number } }
 
 export type { EstadoParcela, ParcelaAberta }
