@@ -21,10 +21,10 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(lateral.locator('.titulo')).toHaveText('Mais')
   })
 
-  test('celular: barra Início, Cobrança, Indicar, Clientes, Repasse; o resto fica no fim do Início', async ({ page }) => {
+  test('celular: barra Início, Cobrança, Novo, Clientes, Repasse; o resto fica no fim do Início', async ({ page }) => {
     test.skip(ehComputador(), 'só no celular')
     const barra = page.locator('nav.tabs')
-    for (const n of ['Início', 'Cobrança', 'Indicar', 'Clientes', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
+    for (const n of ['Início', 'Cobrança', 'Novo', 'Clientes', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
     await expect(page.locator('[data-mais]')).toHaveCount(4)
   })
 
@@ -35,7 +35,7 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(page.getByTestId('vai-ganhar')).toContainText('R$')
     await expect(page.getByTestId('nivel')).toContainText('Nível')
     await expect(page.getByTestId('cobrar-hoje').locator('.cob').first().getByRole('link', { name: 'Cobrar no WhatsApp' })).toBeVisible()
-    await expect(page.getByTestId('cobrar-hoje').getByRole('button', { name: 'Recebi' })).toHaveCount(0) // quem dá a baixa é a loja
+    await expect(page.getByTestId('cobrar-hoje').getByRole('button', { name: 'Recebi' }).first()).toBeVisible() // avisa a loja (não dá a baixa)
   })
 
   test('Início: o atalho Indicar abre a escolha de cliente; o nível leva a Níveis', async ({ page }) => {
@@ -46,13 +46,13 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(page.locator('h1')).toHaveText('Níveis')
   })
 
-  test('Cobrança: só os clientes dele, com WhatsApp e sem o botão Recebi; abas e filtro por tipo', async ({ page }) => {
+  test('Cobrança: só os clientes dele, com WhatsApp e o Recebi (que só avisa a loja); abas e filtro por tipo', async ({ page }) => {
     await ir(page, 'Cobrança')
     await expect(page.locator('h1')).toHaveText('Cobrança')
     const linha = page.locator('.cob').first()
     await expect(linha).toContainText('venceu')
     await expect(linha.getByRole('link', { name: 'Cobrar no WhatsApp' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Recebi' })).toHaveCount(0)
+    await expect(linha.getByRole('button', { name: 'Recebi' })).toBeVisible()
     const total = numero(await page.getByTestId('cobrancas-total').innerText())
     expect(total).toBeGreaterThan(0)
     await page.getByTestId('filtro-tipo').getByRole('button', { name: 'iPhones' }).click()

@@ -6,13 +6,16 @@ import { ErroApi } from '@/api/clientes'
 import type { PessoaApi } from '@/api/equipe'
 import type { FechamentoApi } from '@/api/fechamentos'
 import type { PropostaApi } from '@/api/propostas'
+import type { ReciboApi } from '@/api/recebimentos'
 import { aprovacoesApi, equipeApi, fechamentosApi, propostasApi } from '@/api/recursos'
+import DateField from '@/components/DateField.vue'
 import Icon from '@/components/Icon.vue'
+import ReciboSheet from '@/components/ReciboSheet.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
-import { dmy, fmt, iniciais } from '@/domain/format'
+import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
 
 const { sessao } = useApp()
 const { mostrar } = useToast()
@@ -94,6 +97,36 @@ async function copiar(t: string) {
 }
 
 const NOME_PERFIL = { ADMIN: 'Administrador', COBRADOR: 'Cobrador', VENDEDOR: 'Vendedor' } as const
+// ---- aviso de baixa do indicador: confirmar vira recebimento (e o recibo sai); veio menos que a parcela, a loja decide o resto ----
+const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
+const reciboAberto = ref<ReciboApi | null>(null)
+const decidindo = ref<AprovacaoApi | null>(null)
+const resto = ref<'FICA' | 'DESCONTO'>('FICA')
+const novaData = ref('')
+const erroBaixa = ref('')
+const { hoje } = useApp()
+
+async function confirmarBaixa(p: AprovacaoApi, decisao?: { resto: 'FICA' | 'DESCONTO'; novoVencimento?: string }) {
+  if (ocupado.value) return
+  ocupado.value = `a${p.id}`; erroBaixa.value = ''
+  try {
+    const r = await aprovacoesApi.aprovar(sessao.value, p.id, decisao)
+    decidindo.value = null
+    mostrar(`Baixa confirmada: ${fmt(p.valor)} de ${p.cliente.nome}.`)
+    reciboAberto.value = r.recibo ?? null
+    await carregar()
+  } catch (e) {
+    // veio menos que a parcela (ou a data do resto é obrigatória): pergunta o que fazer com o resto
+    if (e instanceof ErroApi && (e.codigo === 'RESTO_OBRIGATORIO' || e.codigo === 'VENCIMENTO_INVALIDO')) {
+      if (!decidindo.value) { decidindo.value = p; resto.value = 'FICA'; novaData.value = hoje.value }
+      erroBaixa.value = decisao ? e.message : ''
+    } else { mostrar(msg(e, 'Não consegui confirmar a baixa.')); await carregar() }
+  } finally {
+    ocupado.value = null
+  }
+}
+const decidir = () => decidindo.value && confirmarBaixa(decidindo.value, resto.value === 'FICA' ? { resto: 'FICA', novoVencimento: novaData.value || undefined } : { resto: 'DESCONTO' })
+
 const total = computed(() => pedidos.value.length + fechamentos.value.length + propostas.value.length)
 
 // ---- propostas dos indicadores: a loja aceita (e lança a venda/empréstimo no nome dele) ou recusa ----
@@ -136,17 +169,19 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
         <div class="row" style="gap: 10px; align-items: flex-start">
           <span class="ini">{{ iniciais(p.solicitante.nome) }}</span>
           <div style="flex: 1; min-width: 0">
-            <div v-if="p.tipo === 'RETOMADA'" class="val" data-tipo="RETOMADA">{{ p.solicitante.nome }} pede para <b>retomar</b> o {{ p.aparelho }}</div>
+            <div v-if="p.tipo === 'BAIXA'" class="val" data-tipo="BAIXA">{{ p.solicitante.nome.split(' ')[0] }} avisou que recebeu <span class="num">{{ fmt(p.valor) }}</span></div>
+            <div v-else-if="p.tipo === 'RETOMADA'" class="val" data-tipo="RETOMADA">{{ p.solicitante.nome }} pede para <b>retomar</b> o {{ p.aparelho }}</div>
             <div v-else-if="p.tipo === 'ACORDO'" class="val" data-tipo="ACORDO">{{ p.solicitante.nome }} propõe um <b>acordo</b> de <span class="num">{{ fmt(p.valor) }}</span> em {{ p.acordo?.parcelas }}x</div>
             <div v-else class="val" data-tipo="DESCONTO">{{ p.solicitante.nome }} pede <span class="num">{{ fmt(p.valor) }}</span> de desconto</div>
-            <div v-if="p.tipo === 'RETOMADA'" class="small">{{ p.cliente.nome }} · {{ fmt(p.valor) }} em aberto · a venda sai das cobranças e o aparelho volta pro estoque</div>
+            <div v-if="p.tipo === 'BAIXA' && p.baixa" class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · parcela {{ p.parcela }}/{{ p.nParcelas }} · {{ NOME_FORMA[p.baixa.forma] }} em {{ dmyA(p.baixa.data) }}<template v-if="p.baixa.comprovante"> · comprovante {{ p.baixa.comprovante }}</template></div>
+            <div v-else-if="p.tipo === 'RETOMADA'" class="small">{{ p.cliente.nome }} · {{ fmt(p.valor) }} em aberto · a venda sai das cobranças e o aparelho volta pro estoque</div>
             <div v-else-if="p.tipo === 'ACORDO'" class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · hoje ele deve {{ fmt(p.acordo?.saldoNoPedido ?? 0) }} · 1ª parcela {{ p.acordo ? dmy(p.acordo.primeiraParcela) : '' }}</div>
             <div v-else class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · parcela {{ p.parcela }}/{{ p.nParcelas }}</div>
             <div v-if="p.motivo" class="small" style="margin-top: 4px">“{{ p.motivo }}”</div>
           </div>
         </div>
         <div class="row" style="gap: 8px; margin-top: 10px">
-          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" @click="aprovar(p)">Aprovar</button>
+          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" :data-confirmar="p.tipo === 'BAIXA' ? '' : undefined" @click="p.tipo === 'BAIXA' ? confirmarBaixa(p) : aprovar(p)">{{ p.tipo === 'BAIXA' ? 'Confirmar baixa' : 'Aprovar' }}</button>
           <button class="btn b-out" style="flex: 1" :disabled="!!ocupado" @click="recusar(p)">Recusar</button>
         </div>
       </div>
@@ -209,6 +244,23 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
       </form>
     </template>
   </Sheet>
+
+  <Sheet :aberto="decidindo !== null" @fechar="decidindo = null">
+    <template v-if="decidindo">
+      <h3>E o resto da parcela?</h3>
+      <div class="small">{{ decidindo.solicitante.nome.split(' ')[0] }} recebeu {{ fmt(decidindo.valor) }} de {{ decidindo.cliente.nome }}, e a parcela {{ decidindo.parcela }} é maior que isso.</div>
+      <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" @submit.prevent="decidir">
+        <div class="field">
+          <label class="row" style="gap: 8px; cursor: pointer"><input v-model="resto" type="radio" value="FICA" name="resto" data-resto="FICA" />Fica devendo o resto</label>
+          <div v-if="resto === 'FICA'" style="margin-top: 6px"><label for="rNovaData" class="small">Nova data do resto</label><DateField id="rNovaData" v-model="novaData" :min="hoje" /></div>
+        </div>
+        <label class="row" style="gap: 8px; cursor: pointer"><input v-model="resto" type="radio" value="DESCONTO" name="resto" data-resto="DESCONTO" />Perdoar o resto (desconto)</label>
+        <div v-if="erroBaixa" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroBaixa }}</div>
+        <button class="btn b-ok b-block" type="submit" :disabled="!!ocupado">Confirmar baixa</button>
+      </form>
+    </template>
+  </Sheet>
+  <ReciboSheet :recibo="reciboAberto" @fechar="reciboAberto = null" />
 
   <Sheet :aberto="recusandoProposta !== null" @fechar="recusandoProposta = null">
     <template v-if="recusandoProposta">

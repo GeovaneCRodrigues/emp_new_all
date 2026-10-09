@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AbaCobranca, AlvoApi, CobrancaApi, ListaCobrancasApi } from '@/api/recebimentos'
 import { recebimentosApi } from '@/api/recursos'
+import AvisarRecebiForm from '@/components/AvisarRecebiForm.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import Seg from '@/components/Seg.vue'
 import { useApp } from '@/composables/useApp'
@@ -22,6 +23,7 @@ const pagina = ref(1)
 const contagens = ref<ListaCobrancasApi['contagens']>({ atrasadas: 0, hoje: 0, proximas: 0 })
 const carregando = ref(true)
 const erro = ref('')
+const aviso = ref<InstanceType<typeof AvisarRecebiForm> | null>(null)
 
 let pedido = 0
 async function carregar(mais = false) {
@@ -62,10 +64,11 @@ const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { i
       <b class="num" data-testid="cobrancas-total" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(valorTotal) }}</b>
     </div>
     <div class="list">
-      <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" sem-receber />
+      <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" indicador @avisar="aviso?.abrir($event)" />
       <div v-if="!itens.length && !carregando && !erro" class="empty">Nada aqui.</div>
       <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
     </div>
   </div>
   <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+  <AvisarRecebiForm ref="aviso" @enviado="carregar()" />
 </template>

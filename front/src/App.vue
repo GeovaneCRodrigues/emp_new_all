@@ -101,7 +101,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
             <span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
             <span>Mundo dos<br /><em>iPhones</em></span>
           </div>
-          <button v-if="temNovo && fabSide" class="novo" @click="ir(fabSide.id)"><Icon name="plus" />{{ sessao.perfil === 'INDICADOR' ? 'Indicar' : sessao.perfil === 'ADMIN' ? 'Novo' : 'Nova venda' }}</button>
+          <button v-if="temNovo && fabSide" class="novo" @click="ir(fabSide.id)"><Icon name="plus" />{{ sessao.perfil === 'INDICADOR' || sessao.perfil === 'ADMIN' ? 'Novo' : 'Nova venda' }}</button>
           <!-- administrador: o menu em grupos; os outros perfis: a lista deles -->
           <template v-if="ehAdmin">
             <template v-for="g in gruposLateral" :key="g.titulo">

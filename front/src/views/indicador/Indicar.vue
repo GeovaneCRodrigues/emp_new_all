@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import type { AprovacaoApi } from '@/api/aprovacoes'
 import { ErroApi } from '@/api/clientes'
 import type { PropostaApi, StatusProposta } from '@/api/propostas'
-import { propostasApi } from '@/api/recursos'
+import { aprovacoesApi, propostasApi } from '@/api/recursos'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { useApp } from '@/composables/useApp'
@@ -14,13 +15,16 @@ const { sessao } = useApp()
 const { mostrar } = useToast()
 
 const propostas = ref<PropostaApi[]>([])
+const avisos = ref<AprovacaoApi[]>([])
 const carregando = ref(true)
 const erro = ref('')
 const ocupado = ref<number | null>(null)
 
 async function carregar() {
   erro.value = ''
-  try { propostas.value = (await propostasApi.listar(sessao.value, { limite: 100 })).itens }
+  try {
+    ;[propostas.value, avisos.value] = await Promise.all([propostasApi.listar(sessao.value, { limite: 100 }).then((r) => r.itens), aprovacoesApi.listar(sessao.value, { limite: 100 }).then((r) => r.itens.filter((a) => a.tipo === 'BAIXA' || a.tipo === 'DESCONTO'))])
+  }
   catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as propostas.' }
   finally { carregando.value = false }
 }
@@ -37,6 +41,9 @@ async function cancelar(p: PropostaApi) {
   finally { ocupado.value = null; await carregar() }
 }
 
+const AVISO_ROTULO = { PENDENTE: 'esperando a loja', APROVADO: 'confirmado', RECUSADO: 'recusado' } as const
+const AVISO_CHIP = { PENDENTE: 'c-warn', APROVADO: 'c-ok', RECUSADO: 'c-bad' } as const
+const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 const ROTULO: Record<StatusProposta, string> = { PENDENTE: 'esperando a loja', ACEITA: 'aceita', RECUSADA: 'recusada', CANCELADA: 'cancelada' }
 const CHIP: Record<StatusProposta, string> = { PENDENTE: 'c-warn', ACEITA: 'c-ok', RECUSADA: 'c-bad', CANCELADA: 'c-neu' }
 const resumo = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'Venda' : 'Empréstimo', p.interesse, p.valor ? fmt(p.valor) : null, p.parcelas ? `${p.parcelas}x` : null].filter(Boolean).join(' · ')
@@ -68,6 +75,20 @@ const pendentes = computed(() => propostas.value.filter((p) => p.status === 'PEN
       </div>
     </div>
     <div v-if="!propostas.length && !carregando" class="empty">Nenhuma proposta ainda. Toque em “Indicar cliente”.</div>
+  </div>
+
+  <div class="sec-t"><h2>Meus avisos de recebimento</h2></div>
+  <div class="card list" data-testid="meus-avisos">
+    <div v-for="a in avisos" :key="a.id" class="li" :data-aviso="a.id" style="cursor: default; align-items: flex-start">
+      <span class="ini">{{ iniciais(a.cliente.nome) }}</span>
+      <div class="mid">
+        <div class="t">{{ a.cliente.nome }}</div>
+        <div class="s">{{ a.tipo === 'BAIXA' ? 'Recebi' : 'Desconto' }} {{ fmt(a.valor) }} · parcela {{ a.parcela }}/{{ a.nParcelas }}<template v-if="a.baixa"> · {{ NOME_FORMA[a.baixa.forma] }} em {{ dmyA(a.baixa.data) }}</template></div>
+        <div v-if="a.status === 'RECUSADO' && a.resposta" class="s" style="color: var(--bad)">“{{ a.resposta }}”</div>
+      </div>
+      <span class="chip" :class="AVISO_CHIP[a.status]" data-status>{{ AVISO_ROTULO[a.status] }}</span>
+    </div>
+    <div v-if="!avisos.length && !carregando" class="empty">Nenhum aviso ainda. Na Cobrança, toque em “Recebi”.</div>
   </div>
 
   <IndicarFluxo ref="fluxo" @enviada="carregar" />

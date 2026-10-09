@@ -70,7 +70,7 @@ onMounted(carregar)
 
 const soma = (l: CobrancaApi[]) => Math.round(l.reduce((x, c) => x + c.falta, 0) * 100) / 100
 const cobrarHoje = computed(() => soma(atrasadas.value) + soma(venceHoje.value))
-const NOME_TIPO = { DESCONTO: 'Desconto', RETOMADA: 'Retomada', ACORDO: 'Acordo' } as const
+const NOME_TIPO = { DESCONTO: 'Desconto', RETOMADA: 'Retomada', ACORDO: 'Acordo', BAIXA: 'Baixa' } as const
 const esperando = computed(() => {
   const tipos: string[] = [...new Set(pedidos.value.map((p) => NOME_TIPO[p.tipo]))]
   if (fechamentosPendentes.value) tipos.push('Fechamento')
