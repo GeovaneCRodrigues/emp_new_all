@@ -5,7 +5,7 @@ import type { PropostaApi, TipoProposta } from '@/api/propostas'
 import { clientesApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { mascaraFone } from '@/domain/documentos'
+import { exibirFone } from '@/domain/documentos'
 import { iniciais } from '@/domain/format'
 import ClienteForm from './ClienteForm.vue'
 import Icon from './Icon.vue'
@@ -62,7 +62,7 @@ defineExpose({ abrir })
     <div class="list card" style="margin-top: 10px" data-testid="escolher-cliente">
       <button v-for="c in meus" :key="c.id" class="li" :data-cliente="c.id" @click="escolher(c)">
         <span class="ini">{{ iniciais(c.nome) }}</span>
-        <div class="mid"><div class="t">{{ c.nome }}</div><div class="s">{{ mascaraFone(c.fone) }}</div></div>
+        <div class="mid"><div class="t">{{ c.nome }}</div><div class="s">{{ exibirFone(c.fone) }}</div></div>
       </button>
       <div v-if="!meus.length" class="empty">Nenhum cliente seu com esse nome.</div>
     </div>

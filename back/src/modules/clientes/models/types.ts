@@ -8,6 +8,9 @@ export type Cliente = {
   rg: string | null
   endereco: string | null
   origem: string | null
+  /** só o administrador vê e edita */
+  email: string | null
+  observacoes: string | null
   responsavelId: number | null
   /** o indicador que cadastrou o cliente (o cliente já nasce vinculado a ele) */
   indicadorId: number | null

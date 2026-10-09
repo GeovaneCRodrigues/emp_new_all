@@ -217,6 +217,33 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     it('sem login, 401', async () => expect((await req('POST', '/api/clientes', undefined, base)).statusCode).toBe(401))
   })
 
+  describe('e-mail e observações (só do administrador)', () => {
+    it('o admin grava e lê; vendedor e cobrador nunca recebem esses campos, e o que mandarem é ignorado', async () => {
+      const r = await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { email: 'maria@exemplo.com', observacoes: 'Cliente antigo, paga sempre no dia 10' })
+      expect(r.statusCode).toBe(200)
+      expect(r.json().cliente).toMatchObject({ email: 'maria@exemplo.com', observacoes: 'Cliente antigo, paga sempre no dia 10' })
+      expect((await req('GET', `/api/clientes/${id.maria}`, 'admin')).json()).toMatchObject({ email: 'maria@exemplo.com' })
+      for (const papel of ['vendedor1', 'cobrador']) {
+        const v = await req('GET', `/api/clientes/${id.maria}`, papel)
+        if (v.statusCode === 200) { expect('email' in v.json()).toBe(false); expect('observacoes' in v.json()).toBe(false) }
+      }
+      // quem não é admin tenta gravar: o campo nem entra
+      await req('PATCH', `/api/clientes/${id.maria}`, 'vendedor1', { observacoes: 'invasão', endereco: 'Rua Nova, 9' })
+      expect((await db!('clientes').where({ id: id.maria }).first()).observacoes).toBe('Cliente antigo, paga sempre no dia 10')
+    })
+    it('e-mail inválido (400); vazio apaga; observação enorme (400)', async () => {
+      expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { email: 'sem-arroba' })).statusCode).toBe(400)
+      expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { observacoes: 'x'.repeat(2001) })).statusCode).toBe(400)
+      expect((await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { email: '' })).json().cliente.email).toBeNull()
+    })
+    it('o indicador nunca vê (a resposta dele é só nome, telefone e data)', async () => {
+      const c = await db!('clientes').where({ id: id.maria }).first()
+      expect(c).toBeTruthy()
+      const r = await req('GET', `/api/clientes/${id.maria}`, 'indicador1')
+      if (r.statusCode === 200) expect(Object.keys(r.json()).sort()).toEqual(['desde', 'fone', 'id', 'nome'])
+    })
+  })
+
   describe('edição', () => {
     it('admin edita só o que mandou; o resto fica como estava', async () => {
       const r = await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { endereco: 'Rua B, 2' })

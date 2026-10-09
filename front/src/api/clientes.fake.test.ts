@@ -129,6 +129,30 @@ describe('indicador cadastra o cliente (mesmos cenários de back/tests/propostas
   })
 })
 
+describe('e-mail e observações (só do administrador; mesmos cenários de back/tests/clientes.test.ts)', () => {
+  it('o admin grava e lê; vendedor nunca recebe esses campos e o que mandar é ignorado', async () => {
+    const maria = (await api.listar(VEND, { limite: 100 })).itens[0]
+    const r = await api.atualizar(ADMIN, maria.id, { email: 'maria@exemplo.com', observacoes: 'Cliente antigo, paga sempre no dia 10' })
+    expect(r.cliente).toMatchObject({ email: 'maria@exemplo.com', observacoes: 'Cliente antigo, paga sempre no dia 10' })
+    const doVend = await api.obter(VEND, maria.id)
+    expect('email' in doVend).toBe(false); expect('observacoes' in doVend).toBe(false)
+    await api.atualizar(VEND, maria.id, { observacoes: 'invasão', endereco: 'Rua Nova, 9' })
+    expect((await api.obter(ADMIN, maria.id)).observacoes).toBe('Cliente antigo, paga sempre no dia 10')
+    expect((await api.obter(ADMIN, maria.id)).endereco).toBe('Rua Nova, 9') // o resto o vendedor edita normalmente
+  })
+  it('e-mail inválido (400); vazio apaga; observação enorme (400)', async () => {
+    const c = (await api.listar(ADMIN, { limite: 1 })).itens[0]
+    expect((await falha(api.atualizar(ADMIN, c.id, { email: 'sem-arroba' })))?.status).toBe(400)
+    expect((await falha(api.atualizar(ADMIN, c.id, { observacoes: 'x'.repeat(2001) })))?.status).toBe(400)
+    expect((await api.atualizar(ADMIN, c.id, { email: '' })).cliente.email).toBeNull()
+  })
+  it('o indicador nunca vê (só nome, telefone e data)', async () => {
+    const r = await api.criar(IND1, { nome: 'Maria Souza', fone: '11988124410', cpf: '52998224725', email: 'x@y.com', observacoes: 'segredo' } as never)
+    expect(Object.keys(r.cliente).sort()).toEqual(['desde', 'fone', 'id', 'nome'])
+    expect((await api.obter(ADMIN, r.cliente.id)).email).toBeNull()
+  })
+})
+
 describe('edição', () => {
   it('só muda o que veio e permite limpar campos opcionais', async () => {
     const { cliente } = await api.criar(ADMIN, { nome: 'Edita Ele', fone: '11922220000', cpf: '529.982.247-25', endereco: 'Rua A' })

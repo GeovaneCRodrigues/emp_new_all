@@ -12,7 +12,7 @@ export function criarClientesFake(): ClientesApi {
   let proximoId = 1000
   const lista: Required<ClienteApi>[] = seed.clientes.map((c) => ({
     id: c.id, nome: c.nome, fone: normalizarFone(c.fone) ?? soDigitos(c.fone), desde: c.desde,
-    cpf: null, rg: null, endereco: null, origem: null, responsavelId: c.responsavelId, indicadorId: null,
+    cpf: null, rg: null, endereco: null, origem: null, email: null, observacoes: null, responsavelId: c.responsavelId, indicadorId: null,
   }))
 
   const indicados = (indicadorId: number) =>
@@ -24,8 +24,19 @@ export function criarClientesFake(): ClientesApi {
     if (s.perfil === 'INDICADOR') { const ids = indicados(s.indicadorId ?? -1); return lista.filter((c) => c.indicadorId === s.indicadorId || ids.has(c.id)) }
     return lista.filter((c) => c.responsavelId === s.usuarioId)
   }
-  const visao = (c: Required<ClienteApi>, s: Sessao): ClienteApi =>
-    s.perfil === 'INDICADOR' ? { id: c.id, nome: c.nome, fone: c.fone, desde: c.desde } : { ...c }
+  // o indicador só vê o básico; e-mail e observações são só do administrador
+  const visao = (c: Required<ClienteApi>, s: Sessao): ClienteApi => {
+    if (s.perfil === 'INDICADOR') return { id: c.id, nome: c.nome, fone: c.fone, desde: c.desde }
+    if (s.perfil === 'ADMIN') return { ...c }
+    const { email: _email, observacoes: _obs, ...resto } = c
+    return resto
+  }
+  /** E-mail e observações são só do administrador: de quem não é, nem entram na conta. */
+  const soAdmin = <T extends Partial<EntradaCliente>>(s: Sessao, e: T): T => {
+    if (s.perfil === 'ADMIN') return e
+    const { email: _email, observacoes: _obs, ...resto } = e
+    return resto as T
+  }
 
   function validar(e: Partial<EntradaCliente>, parcial: boolean) {
     const d: Partial<Required<EntradaCliente>> = {}
@@ -44,7 +55,9 @@ export function criarClientesFake(): ClientesApi {
       else if (!cpfValido(bruto)) throw new ErroApi(400, 'CPF inválido')
       else d.cpf = soDigitos(bruto)
     }
-    for (const k of ['rg', 'endereco', 'origem'] as const) if (k in e) d[k] = (e[k] ?? '').trim() || null
+    for (const k of ['rg', 'endereco', 'origem', 'email', 'observacoes'] as const) if (k in e) d[k] = (e[k] ?? '').trim() || null
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) throw new ErroApi(400, 'E-mail inválido')
+    if (d.observacoes && d.observacoes.length > 2000) throw new ErroApi(400, 'observacoes pode ter no máximo 2000 caracteres')
     return d
   }
 
@@ -79,12 +92,13 @@ export function criarClientesFake(): ClientesApi {
     },
     async criar(s, e) {
       podeCriar(s)
+      e = soAdmin(s, e)
       const d = validar(e, false) as Required<EntradaCliente>
       // o indicador entrega a ficha com CPF (é o que evita cadastro repetido)
       if (s.perfil === 'INDICADOR' && !d.cpf) throw new ErroApi(400, 'Informe o CPF do cliente')
       if (d.cpf && lista.some((c) => c.cpf === d.cpf)) throw new ErroApi(409, 'Já existe um cliente com esse CPF', 'CPF_DUPLICADO')
       const novo: Required<ClienteApi> = {
-        id: ++proximoId, nome: d.nome, fone: d.fone, cpf: d.cpf ?? null, rg: d.rg ?? null, endereco: d.endereco ?? null, origem: d.origem ?? null,
+        id: ++proximoId, nome: d.nome, fone: d.fone, cpf: d.cpf ?? null, rg: d.rg ?? null, endereco: d.endereco ?? null, origem: d.origem ?? null, email: d.email ?? null, observacoes: d.observacoes ?? null,
         // vendedor: na própria carteira; indicador: sem carteira e já vinculado a ele (a loja distribui); admin escolhe
         responsavelId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : s.perfil === 'INDICADOR' ? null : (e.responsavelId ?? null),
         indicadorId: s.perfil === 'INDICADOR' ? (s.indicadorId ?? null) : null, desde: seed.hoje,
@@ -95,6 +109,7 @@ export function criarClientesFake(): ClientesApi {
     },
     async atualizar(s, id, e) {
       podeEditar(s)
+      e = soAdmin(s, e)
       const c = noEscopo(s).find((x) => x.id === id)
       if (!c) throw new ErroApi(404, 'Cliente não encontrado', 'NAO_ENCONTRADO')
       const d = validar(e, true)
