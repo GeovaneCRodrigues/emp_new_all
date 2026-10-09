@@ -118,6 +118,7 @@ Layout geral:
 - **Campos de data** (pedido do Geovane): aparecem como `dd/mm/aaaa`, dá pra digitar só os números (`08112026` vira `08/11/2026`) ou tocar no ícone e escolher num **calendário** que abre embaixo do campo, com atalhos "Hoje" e "Daqui a 30 dias". Dias fora do permitido (antes da data do empréstimo, no futuro para "quando recebeu") ficam apagados.
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
 - Toda modal tem um botão **"x"** redondo no canto de cima, à direita, **saindo um pouco pra fora** da modal (no celular, sai por cima da borda). Ele fica fora da área que rola, então está sempre visível. Esc e clicar fora também fecham. Pedido do Geovane.
+- Trocar uma opção dentro da modal (pílulas, passos) **não reabre nem anima a modal de novo** e não volta a rolagem pro topo; só o conteúdo muda. Pedido do Geovane ("parece que dá reload").
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.

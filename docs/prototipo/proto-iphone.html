@@ -2641,7 +2641,15 @@ function renderCamada() {
   el.innerHTML = h
     marcaTema()
 }
-function abrir(tipo, arg) { S.folha = { tipo, arg }; renderCamada() }
+function abrir(tipo, arg) {
+  // mesma modal aberta: troca só o conteúdo, sem animar de novo nem voltar a rolagem pro topo
+  const sh = S.folha?.tipo === tipo && document.querySelector('#camada .sheet')
+  S.folha = { tipo, arg }
+  if (!sh) return renderCamada()
+  const top = sh.scrollTop
+  sh.innerHTML = `<div class="grab"></div>${FOLHAS[tipo](arg)}`
+  sh.scrollTop = top
+}
 function fechar() { S.folha = null; renderCamada() }
 function atualizarSim() {
   const el = document.getElementById('sim'); if (!el) return
