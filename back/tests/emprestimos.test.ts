@@ -36,6 +36,21 @@ describe('plano do empréstimo parcelado (puro)', () => {
   })
 })
 
+describe('plano do empréstimo só juros (puro)', () => {
+  it('3.000 a 12% em 3x: 360, 360 e 3.360 (capital na última)', () => {
+    const p = planoEmprestimo({ capital: 3000, modalidade: 'JUROS', taxa: 12, n: 3, data: '2026-05-10' })
+    expect(p.map((x) => x.valor)).toEqual([360, 360, 3360])
+    expect(p.map((x) => x.vencimento)).toEqual(['2026-06-10', '2026-07-10', '2026-08-10'])
+  })
+  it('1 parcela só: juro mais capital de uma vez', () => {
+    expect(planoEmprestimo({ capital: 1000, modalidade: 'JUROS', taxa: 5, n: 1, data: '2026-01-31' })).toEqual([{ vencimento: '2026-02-28', valor: 1050 }])
+  })
+  it('arredonda o juro ao centavo (sem acumular erro)', () => {
+    const p = planoEmprestimo({ capital: 1234.56, modalidade: 'JUROS', taxa: 7.5, n: 2, data: '2026-01-10' })
+    expect(p.map((x) => x.valor)).toEqual([92.59, 1327.15])
+  })
+})
+
 describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
   let app: FastifyInstance
   const hoje = '2026-10-08'
@@ -115,9 +130,16 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
       expect((await emprestar('admin', { indicadorId: id.ind2 })).statusCode).toBe(400)
       expect((await emprestar('admin', { clienteId: 999999 })).statusCode).toBe(404)
     })
-    it('JUROS e DIARIA ainda não estão liberadas (400), sem criar nada', async () => {
+    it('cria só juros: o cliente paga o juro todo mês e o capital volta na última parcela', async () => {
+      const r = await emprestar('admin', { modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3 })
+      expect(r.statusCode).toBe(201)
+      const e = r.json()
+      expect(e).toMatchObject({ modalidade: 'JUROS', capital: 3000, taxa: 12, nParcelas: 3, valorParcela: 360, total: 4080, lucroTotal: 1080, status: 'ATIVA' })
+      expect(e.parcelas.map((p: { valor: number }) => p.valor)).toEqual([360, 360, 3360])
+    })
+    it('DIARIA ainda não está liberada (400), sem criar nada', async () => {
       const antes = Number((await db!('emprestimos').count<{ count: string }[]>({ count: '*' }))[0].count)
-      for (const modalidade of ['JUROS', 'DIARIA']) expect((await emprestar('admin', { modalidade })).statusCode).toBe(400)
+      for (const modalidade of ['DIARIA']) expect((await emprestar('admin', { modalidade })).statusCode).toBe(400)
       expect(Number((await db!('emprestimos').count<{ count: string }[]>({ count: '*' }))[0].count)).toBe(antes)
     })
     it('falha no meio não deixa empréstimo sem parcelas (tudo ou nada)', async () => {

@@ -42,7 +42,7 @@ const previa = computed(() => {
   if (!(f.capital > 0) || !(f.taxa > 0) || !Number.isInteger(f.parcelas) || f.parcelas < 1 || f.parcelas > 60 || !MODALIDADES_LIBERADAS.includes(f.modalidade)) return null
   const plano = planoEmprestimo({ capital: f.capital, mod: f.modalidade, taxa: f.taxa, n: f.parcelas, data: hoje.value })
   const total = Math.round(plano.reduce((s, p) => s + p.valor, 0) * 100) / 100
-  return { parcela: plano[0].valor, total, lucro: Math.round((total - f.capital) * 100) / 100, primeira: plano[0].venc }
+  return { parcela: plano[0].valor, ultima: plano[plano.length - 1].valor, total, lucro: Math.round((total - f.capital) * 100) / 100, primeira: plano[0].venc }
 })
 const problema = computed(() => {
   if (!cliente.value) return 'Escolha o cliente.'
@@ -99,7 +99,8 @@ async function salvar() {
       <div class="field"><label for="eObs">Observações (opcional)</label><div class="inp"><input id="eObs" v-model="f.observacoes" maxlength="500" /></div></div>
 
       <div v-if="previa" class="card sim pad" data-testid="previa-emprestimo" style="display: flex; flex-direction: column; gap: 6px">
-        <div class="tot"><span>Parcela</span><span class="num" data-testid="previa-parcela">{{ fmt(previa.parcela) }}</span></div>
+        <div class="tot"><span>{{ f.modalidade === 'JUROS' ? 'Juro por mês' : 'Parcela' }}</span><span class="num" data-testid="previa-parcela">{{ fmt(previa.parcela) }}</span></div>
+        <div v-if="f.modalidade === 'JUROS'" class="tot"><span>Última parcela (com o capital)</span><span class="num" data-testid="previa-ultima">{{ fmt(previa.ultima) }}</span></div>
         <div class="tot"><span>O cliente paga</span><span class="num" data-testid="previa-total">{{ fmt(previa.total) }}</span></div>
         <div class="tot"><span>Seu lucro bruto</span><span class="num" style="color: var(--ok)">{{ fmt(previa.lucro) }}</span></div>
         <div class="small">A primeira parcela vence em {{ dmy(previa.primeira) }}.</div>

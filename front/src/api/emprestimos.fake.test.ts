@@ -42,10 +42,15 @@ describe('criar', () => {
     ['capital como texto', { capital: '5000' }], ['taxa zero', { taxa: 0 }], ['taxa acima de 100', { taxa: 101 }], ['zero parcelas', { parcelas: 0 }],
     ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 61 }], ['observações enormes', { observacoes: 'x'.repeat(501) }],
   ])('recusa %s (400)', async (_n, m) => { expect((await falha(emprestar(ADMIN, m)))?.status).toBe(400) })
-  it('cliente inexistente é 404; JUROS e DIARIA ainda não estão liberadas (400) e não criam nada', async () => {
+  it('só juros: 360, 360 e 3.360 (capital na última parcela)', async () => {
+    const e = await emprestar(ADMIN, { modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3 })
+    expect(e).toMatchObject({ modalidade: 'JUROS', nParcelas: 3, valorParcela: 360, total: 4080, lucroTotal: 1080 })
+    expect(e.parcelas.map((p) => p.valor)).toEqual([360, 360, 3360])
+  })
+  it('cliente inexistente é 404; DIARIA ainda não está liberada (400) e não cria nada', async () => {
     expect((await falha(emprestar(ADMIN, { clienteId: 999999 })))?.status).toBe(404)
     const antes = (await api.listar(ADMIN, { limite: 100 })).total
-    for (const modalidade of ['JUROS', 'DIARIA']) expect((await falha(emprestar(ADMIN, { modalidade })))?.status).toBe(400)
+    for (const modalidade of ['DIARIA']) expect((await falha(emprestar(ADMIN, { modalidade })))?.status).toBe(400)
     expect((await api.listar(ADMIN, { limite: 100 })).total).toBe(antes)
   })
 })

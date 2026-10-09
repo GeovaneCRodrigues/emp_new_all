@@ -22,7 +22,7 @@ export type EmprestimosService = {
 }
 
 /** Modalidades já liberadas. As outras entram uma de cada vez. */
-export const MODALIDADES_LIBERADAS: ModalidadeEmprestimo[] = ['PARCELADO']
+export const MODALIDADES_LIBERADAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS']
 const TODAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS', 'DIARIA']
 const LIMITE_MAX = 100
 const DINHEIRO_MAX = 100_000_000

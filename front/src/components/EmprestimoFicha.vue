@@ -30,7 +30,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
       <div v-if="emprestimo.capital !== undefined" class="dl card pad" style="margin-top: 10px" data-testid="dados-admin">
         <div><div class="lbl">Capital emprestado</div><div class="val num">{{ fmt(emprestimo.capital) }}</div></div>
         <div><div class="lbl">Taxa</div><div class="val num">{{ emprestimo.taxa }}%{{ emprestimo.modalidade === 'DIARIA' ? ' no período' : ' ao mês' }}</div></div>
-        <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
+        <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div><div v-if="emprestimo.modalidade === 'JUROS'" class="small">só o juro; o capital vem na última</div></div>
         <div><div class="lbl">Indicador</div><div class="val">{{ emprestimo.indicador?.nome ?? '—' }}</div></div>
         <div><div class="lbl">Lucro total</div><div class="val num" style="color: var(--ok)">{{ fmt(emprestimo.lucroTotal ?? 0) }}</div></div>
         <div v-if="emprestimo.indicador"><div class="lbl">Parte do indicador ({{ Math.round((emprestimo.percentualIndicador ?? 0) * 100) }}%)</div><div class="val num">{{ fmt(emprestimo.parteIndicador ?? 0) }}</div></div>

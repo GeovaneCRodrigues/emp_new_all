@@ -18,7 +18,7 @@ const chip = computed(() => {
 // quem não é admin não recebe capital nem taxa
 const resumo = computed(() => {
   const e = props.e
-  const base = `${MOD[e.modalidade]} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
+  const base = e.modalidade === 'JUROS' ? `${MOD[e.modalidade]} · ${e.nParcelas}x, juro ${fmt0(e.valorParcela)}/mês` : `${MOD[e.modalidade]} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
   return e.capital !== undefined ? `${base} · capital ${fmt0(e.capital)} a ${e.taxa}%${e.modalidade === 'DIARIA' ? '' : ' ao mês'}` : base
 })
 </script>
