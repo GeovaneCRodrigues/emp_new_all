@@ -8,6 +8,7 @@ test.describe('indicadores', () => {
   test('cadastra com % definido à mão e com % automático', async ({ page }) => {
     await entrar(page)
     await page.goto('/indicadores')
+    await page.locator('.abas').getByRole('button', { name: 'Indicadores' }).click()
     await novoIndicador(page).click()
     await page.getByRole('button', { name: 'Cadastrar indicador' }).click()
     await expect(page.getByText('Informe o nome (ao menos 2 letras)')).toBeVisible()
@@ -31,6 +32,7 @@ test.describe('indicadores', () => {
   test('cria o acesso: a senha temporária aparece uma vez só', async ({ page }) => {
     await entrar(page)
     await page.goto('/indicadores')
+    await page.locator('.abas').getByRole('button', { name: 'Indicadores' }).click()
     await page.locator('.fones .card', { hasText: 'Roberto Indicações' }).click()
     await page.getByRole('button', { name: 'Criar acesso ao sistema' }).click()
     await page.fill('#aMail', 'roberto@teste.com')
@@ -59,17 +61,11 @@ test.describe('indicadores', () => {
   test('desativar marca como inativo', async ({ page }) => {
     await entrar(page)
     await page.goto('/indicadores')
+    await page.locator('.abas').getByRole('button', { name: 'Indicadores' }).click()
     await page.locator('.fones .card', { hasText: 'Loja Ponto Cell' }).click()
     await page.getByRole('button', { name: 'Desativar indicador' }).click()
     await expect(page.getByRole('button', { name: 'Reativar indicador' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.locator('.fones .card', { hasText: 'Loja Ponto Cell' })).toContainText('inativo')
-  })
-
-  test('repasses e já pagos ainda avisam que vêm depois', async ({ page }) => {
-    await entrar(page)
-    await page.goto('/indicadores')
-    await page.locator('.abas').getByRole('button', { name: 'Repasses' }).click()
-    await expect(page.getByText('Entra junto com as vendas')).toBeVisible()
   })
 })

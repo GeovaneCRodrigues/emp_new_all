@@ -7,7 +7,7 @@ const atual = defineModel<string>({ required: true })
 
 <template>
   <div class="abas">
-    <button v-for="i in itens" :key="i.id" :class="{ on: atual === i.id }" @click="atual = i.id">
+    <button v-for="i in itens" :key="i.id" type="button" :class="{ on: atual === i.id }" @click="atual = i.id">
       <Icon :name="i.icon" />{{ i.label }}<span v-if="i.n" class="n">{{ i.n }}</span>
     </button>
   </div>

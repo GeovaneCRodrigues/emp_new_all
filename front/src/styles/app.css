@@ -334,3 +334,14 @@ input,select{font:inherit;color:var(--strong)}
 
 .card.sim>.tot{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--soft)}
 .card.sim>.tot .num{color:var(--strong);font-weight:700}
+
+.rep{padding:0;overflow:hidden;margin-top:14px}
+.rep-topo{padding:14px 16px}
+.rep-nums{border:0;border-top:1px solid var(--border);border-radius:0;background:transparent}
+.rep-nums>div{padding:12px 16px}
+.rep-ops{border-top:1px solid var(--border)}
+.rep-op{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:12px 16px;border-top:1px solid var(--border)}
+.rep-op:first-child{border-top:0}
+.rep-op-l{flex:1;min-width:0;max-width:340px}
+.rep-op-r{text-align:right;flex:none}
+@media(max-width:600px){.rep-op{flex-direction:column;align-items:stretch;gap:6px}.rep-op-l{max-width:none}.rep-op-r{text-align:left}}

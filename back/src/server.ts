@@ -13,6 +13,8 @@ import { createEstoqueService } from './modules/estoque/services/estoque.service
 import { createConfigRepository } from './modules/config/models/repository.js'
 import { createConfigService } from './modules/config/services/config.service.js'
 import { createAcordosRepository } from './modules/acordos/models/repository.js'
+import { createRepassesRepository } from './modules/repasses/models/repository.js'
+import { createRepassesService } from './modules/repasses/services/repasses.service.js'
 import { createAcordosService } from './modules/acordos/services/acordos.service.js'
 import { createEmprestimosRepository } from './modules/emprestimos/models/repository.js'
 import { createEmprestimosService } from './modules/emprestimos/services/emprestimos.service.js'
@@ -57,6 +59,11 @@ const emprestimos = createEmprestimosService({
 
 const acordos = createAcordosService({ repo: createAcordosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
+const repasses = createRepassesService({
+  repo: createRepassesRepository(db.knex), indicadores: createIndicadoresRepository(db.knex), vendas: createVendasRepository(db.knex),
+  emprestimos: createEmprestimosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex),
+})
+
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
 const aud = createAuditoriaRepository(db.knex)
@@ -64,7 +71,7 @@ const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db
 const fechamentos = createFechamentosService({ repo: createFechamentosRepository(db.knex), auditoria: aud })
 const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

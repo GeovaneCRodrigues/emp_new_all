@@ -2,21 +2,23 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AcessoCriado, IndicadorApi, TabelaNiveis } from '@/api/indicadores'
-import { indicadoresApi } from '@/api/recursos'
+import type { DetalheRepasseApi, RepasseApi, ResumoDoIndicadorApi } from '@/api/repasses'
+import { indicadoresApi, repassesApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
 import Icon from '@/components/Icon.vue'
 import IndicadorForm from '@/components/IndicadorForm.vue'
+import PagarRepasseForm from '@/components/PagarRepasseForm.vue'
 import SeloNivel from '@/components/SeloNivel.vue'
 import Sheet from '@/components/Sheet.vue'
 import { modoDemo } from '@/composables/useAuth'
 import { useApp } from '@/composables/useApp'
 import { mascaraFone } from '@/domain/documentos'
-import { iniciais } from '@/domain/format'
+import { dmyA, fmt, fmt0, iniciais } from '@/domain/format'
 import { validarNiveis } from '@/domain/repasse'
 
 const { sessao } = useApp()
 
-const aba = ref('indicadores')
+const aba = ref('repasses')
 const abas = [
   { id: 'repasses', label: 'Repasses', icon: 'send' },
   { id: 'indicadores', label: 'Indicadores', icon: 'share-2' },
@@ -40,7 +42,44 @@ async function carregar() {
     carregando.value = false
   }
 }
-onMounted(() => { carregar(); carregarNiveis() })
+onMounted(() => { carregar(); carregarNiveis(); carregarRepasses() })
+
+// ---- repasses ----
+const repasses = ref<{ item: ResumoDoIndicadorApi; detalhe: DetalheRepasseApi }[]>([])
+const pagos = ref<RepasseApi[]>([])
+const filtroPagos = ref('todos')
+const carregandoRep = ref(true)
+const erroRep = ref('')
+const pagando = ref<ResumoDoIndicadorApi | null>(null)
+
+async function carregarRepasses() {
+  erroRep.value = ''
+  try {
+    const resumo = await repassesApi.resumo(sessao.value)
+    const comMovimento = resumo.filter((r) => r.nOperacoes > 0 || r.resumo.pago > 0)
+    repasses.value = await Promise.all(comMovimento.map(async (item) => ({ item, detalhe: await repassesApi.detalhe(sessao.value, item.indicador.id) })))
+    pagos.value = await repassesApi.jaPagos(sessao.value)
+  } catch (e) {
+    erroRep.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os repasses.'
+  } finally {
+    carregandoRep.value = false
+  }
+}
+async function aoPagar(r: RepasseApi) {
+  pagando.value = null
+  aviso.value = `Repasse de ${fmt(r.valor)} para ${r.indicadorNome} registrado.`
+  await carregarRepasses()
+}
+const nivelDe = (id: number) => lista.value.find((i) => i.id === id)
+const totais = computed(() => ({
+  aPagar: Math.round(repasses.value.reduce((x, r) => x + r.item.resumo.aPagar, 0) * 100) / 100,
+  pago: Math.round(repasses.value.reduce((x, r) => x + r.item.resumo.pago, 0) * 100) / 100,
+  vaiLiberar: Math.round(repasses.value.reduce((x, r) => x + r.item.resumo.vaiLiberar, 0) * 100) / 100,
+}))
+const pagosFiltrados = computed(() => pagos.value.filter((p) => filtroPagos.value === 'todos' || String(p.indicadorId) === filtroPagos.value))
+const totalPagosFiltrados = computed(() => Math.round(pagosFiltrados.value.reduce((x, p) => x + p.valor, 0) * 100) / 100)
+const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', TRANSFERENCIA: 'Transferência' } as const
+const porcentoCapital = (recebido: number, investido: number) => (investido > 0 ? Math.min(100, Math.round((recebido / investido) * 100)) : 100)
 
 // ---- ficha e cadastro ----
 const ficha = ref<IndicadorApi | null>(null)
@@ -138,8 +177,64 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
 
   <div v-if="aviso" class="aviso" role="status" style="justify-content: space-between"><span>{{ aviso }}</span><button class="btn b-ghost b-sm" @click="aviso = ''">Ok</button></div>
 
+  <!-- repasses -->
+  <template v-if="aba === 'repasses'">
+    <div v-if="erroRep" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erroRep }}</span><button class="btn b-ghost b-sm" @click="carregarRepasses()">Tentar de novo</button></div>
+    <div class="resumo3" data-testid="totais-repasse">
+      <div><div class="lbl">A pagar</div><div class="val num" data-testid="total-a-pagar">{{ fmt(totais.aPagar) }}</div></div>
+      <div><div class="lbl">Já pago</div><div class="val num">{{ fmt(totais.pago) }}</div></div>
+      <div><div class="lbl">Vai liberar</div><div class="val num">{{ fmt(totais.vaiLiberar) }}</div></div>
+    </div>
+    <div v-for="{ item, detalhe } in repasses" :key="item.indicador.id" class="card rep" :data-repasse="item.indicador.id" :style="{ opacity: item.indicador.ativo ? 1 : 0.7 }">
+      <div class="row rep-topo">
+        <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(item.indicador.nome) }}</span>
+        <div style="flex: 1; min-width: 0">
+          <div class="row" style="gap: 8px; flex-wrap: wrap"><span class="val">{{ item.indicador.nome }}</span><SeloNivel v-if="nivelDe(item.indicador.id)" :id="nivelDe(item.indicador.id)!.nivel.id" :nome="nivelDe(item.indicador.id)!.nivel.nome" /><span v-if="!item.indicador.ativo" class="chip c-neu">inativo</span></div>
+          <div class="small">{{ item.nOperacoes }} {{ item.nOperacoes === 1 ? 'operação' : 'operações' }}<template v-if="nivelDe(item.indicador.id)"> · {{ pct(nivelDe(item.indicador.id)!.pct) }} do lucro</template></div>
+        </div>
+        <button class="btn b-pri b-sm" :disabled="item.resumo.aPagar <= 0" data-pagar @click="pagando = item">Pagar</button>
+      </div>
+      <div class="resumo3 rep-nums">
+        <div><div class="lbl">A pagar</div><div class="val num" data-a-pagar>{{ fmt(item.resumo.aPagar) }}</div></div>
+        <div><div class="lbl">Já pago</div><div class="val num" data-ja-pago>{{ fmt(item.resumo.pago) }}</div></div>
+        <div><div class="lbl">Vai liberar</div><div class="val num">{{ fmt(item.resumo.vaiLiberar) }}</div></div>
+      </div>
+      <div v-if="item.resumo.pagoAMais > 0" class="aviso" role="status" style="margin: 10px 14px 0">Foi pago {{ fmt(item.resumo.pagoAMais) }} além do liberado (um recebimento foi desfeito depois do repasse). Não há nada a pagar até voltar a liberar.</div>
+      <div class="rep-ops">
+        <div v-for="o in detalhe.operacoes" :key="o.tipo + o.id" class="rep-op" :data-operacao="o.tipo + o.id">
+          <div class="rep-op-l">
+            <div class="t"><b>{{ o.clienteNome }}</b> <span class="small">· {{ o.descricao }} · {{ pct(o.pct) }}</span></div>
+            <div class="bar" style="margin-top: 6px"><i :style="{ width: porcentoCapital(o.recebido, o.investido) + '%' }"></i></div>
+            <div class="small" style="margin-top: 4px">{{ o.capitalVoltou ? 'capital já voltou' : `capital ${fmt0(o.recebido)} de ${fmt0(o.investido)}` }}</div>
+          </div>
+          <div class="rep-op-r">
+            <div><b class="num">{{ fmt(o.liberado) }}</b> <span class="small num">de {{ fmt(o.parte) }}</span></div>
+            <div class="small">{{ o.aPagar > 0 ? `falta ${fmt(o.aPagar)}` : o.liberado > 0 ? 'tudo pago' : 'ainda não liberou' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-if="!repasses.length && !carregandoRep && !erroRep" class="card empty">Nenhum indicador trouxe operação ainda.</div>
+  </template>
+
+  <!-- já pagos -->
+  <template v-else-if="aba === 'pagos'">
+    <div class="row" style="gap: 10px; flex-wrap: wrap; justify-content: space-between">
+      <select v-model="filtroPagos" class="inp" style="height: 38px; min-width: 200px" aria-label="Filtrar por indicador"><option value="todos">Todos os indicadores</option><option v-for="i in lista" :key="i.id" :value="String(i.id)">{{ i.nome }}</option></select>
+      <div class="small">Total: <b class="num" data-testid="total-pagos">{{ fmt(totalPagosFiltrados) }}</b></div>
+    </div>
+    <div class="card list" data-testid="lista-pagos">
+      <div v-for="p in pagosFiltrados" :key="p.id" class="li" :data-pago="p.id" style="cursor: default">
+        <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(p.indicadorNome) }}</span>
+        <div class="mid"><div class="t">{{ p.indicadorNome }}</div><div class="s">{{ dmyA(p.data) }} · {{ NOME_FORMA[p.forma] }}<template v-if="p.obs"> · {{ p.obs }}</template><template v-if="p.feitoPor"> · por {{ p.feitoPor }}</template></div></div>
+        <b class="num">{{ fmt(p.valor) }}</b>
+      </div>
+      <div v-if="!pagosFiltrados.length" class="empty">Nenhum repasse registrado ainda.</div>
+    </div>
+  </template>
+
   <!-- indicadores -->
-  <template v-if="aba === 'indicadores'">
+  <template v-else-if="aba === 'indicadores'">
     <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
     <div class="resumo3">
       <div><div class="lbl">Indicadores</div><div class="val num">{{ ativos }}</div></div>
@@ -177,11 +272,6 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
     <button class="btn b-pri" style="align-self: flex-start" @click="salvarNiveis">Salvar níveis</button>
   </div>
 
-  <div v-else class="card empty" style="display: flex; flex-direction: column; align-items: center; gap: 8px">
-    <Icon name="wallet" /><b style="color: var(--strong)">{{ aba === 'repasses' ? 'Repasses' : 'Já pagos' }}</b>
-    <span class="small">Entra junto com as vendas e o pagamento de repasse.</span>
-  </div>
-
   <!-- ficha -->
   <Sheet :aberto="ficha !== null" @fechar="ficha = null">
     <template v-if="ficha">
@@ -203,6 +293,7 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
     </template>
   </Sheet>
 
+  <PagarRepasseForm :aberto="pagando !== null" :item="pagando" @fechar="pagando = null" @pago="aoPagar" />
   <IndicadorForm :aberto="formAberto" :indicador="editando" @fechar="formAberto = false" @salvo="aoSalvar" />
 
   <!-- acesso -->
