@@ -12,10 +12,10 @@ export function vendaView(c: VendaCalculada, perfil: Perfil) {
     id: v.id, aparelho: v.aparelho, cliente: v.cliente, indicador: v.indicador, dataVenda: v.dataVenda,
     precoAcordado: v.precoAcordado, entrada: v.entrada, troca: v.troca, jurosPct: v.jurosPct,
     nParcelas: v.parcelas.length, valorParcela: v.parcelas[0]?.valor ?? 0,
-    total: c.total, recebido: c.recebido, falta: c.falta, atrasadas: c.atrasadas, status: c.status, contrato: v.contrato,
+    total: c.total, recebido: c.recebido, falta: c.falta, atrasadas: c.atrasadas, status: c.status, contrato: v.contrato, retomada: v.retomada,
     parcelas: v.parcelas.map((p) => ({
       numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago,
-      falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm,
+      falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.acordo,
     })),
   }
   if (perfil !== 'ADMIN') return base

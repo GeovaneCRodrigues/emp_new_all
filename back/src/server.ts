@@ -12,6 +12,8 @@ import { createEstoqueRepository } from './modules/estoque/models/repository.js'
 import { createEstoqueService } from './modules/estoque/services/estoque.service.js'
 import { createConfigRepository } from './modules/config/models/repository.js'
 import { createConfigService } from './modules/config/services/config.service.js'
+import { createAcordosRepository } from './modules/acordos/models/repository.js'
+import { createAcordosService } from './modules/acordos/services/acordos.service.js'
 import { createEmprestimosRepository } from './modules/emprestimos/models/repository.js'
 import { createEmprestimosService } from './modules/emprestimos/services/emprestimos.service.js'
 import { createVendasRepository } from './modules/vendas/models/repository.js'
@@ -53,6 +55,8 @@ const emprestimos = createEmprestimosService({
   sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),
 })
 
+const acordos = createAcordosService({ repo: createAcordosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
+
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
 const aud = createAuditoriaRepository(db.knex)
@@ -60,7 +64,7 @@ const aprovacoes = createAprovacoesService({ repo: createAprovacoesRepository(db
 const fechamentos = createFechamentosService({ repo: createFechamentosRepository(db.knex), auditoria: aud })
 const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

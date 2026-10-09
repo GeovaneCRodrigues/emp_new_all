@@ -6,10 +6,11 @@ import { recebimentosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
+import AcordoForm from './AcordoForm.vue'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ emprestimo: EmprestimoApi | null }>()
-const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number] }>()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; mudou: [] }>()
 const { hoje, sessao } = useApp()
 
 const pagamentos = ref<PagamentoApi[]>([])
@@ -18,11 +19,15 @@ async function carregarPagamentos() {
   pagamentos.value = await recebimentosApi.pagamentos(sessao.value, 'EMPRESTIMO', props.emprestimo.id).catch(() => [])
 }
 watch(() => props.emprestimo, carregarPagamentos, { immediate: true })
+// acordo: só o administrador, empréstimo em andamento com saldo
+const podeAcordo = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
+const acordando = ref(false)
+function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 
 const pct = computed(() => (props.emprestimo && props.emprestimo.total > 0 ? Math.round((props.emprestimo.recebido / props.emprestimo.total) * 100) : 100))
 const capPct = computed(() => (props.emprestimo?.capital ? Math.round(((props.emprestimo.capitalDeVolta ?? 0) / props.emprestimo.capital) * 100) : 0))
-const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
+const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERRADA' ? 'acordo' : p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
 </script>
 
 <template>
@@ -51,14 +56,15 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
+      <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">Fazer acordo</button>
 
       <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
-      <div class="timeline" style="margin-bottom: 8px"><i v-for="p in emprestimo.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}: ${dmy(p.vencimento)}`"></i></div>
+      <div class="timeline" style="margin-bottom: 8px"><i v-for="p in emprestimo.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga' || situacao(p) === 'acordo', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}: ${dmy(p.vencimento)}`"></i></div>
       <div class="list">
         <div v-for="p in emprestimo.parcelas" :key="p.numero" class="li" style="cursor: default" :data-parcela="p.numero">
           <div class="mid"><div class="t">{{ p.numero }}ª · {{ dmy(p.vencimento) }}<template v-if="p.vencimentoOriginal"> (era {{ dmy(p.vencimentoOriginal) }})</template></div><div class="s">{{ fmt(p.valor) }} · {{ p.pago > 0 ? `pagou ${fmt(p.pago)}` : 'nada pago' }}<template v-if="p.desconto"> · desconto {{ fmt(p.desconto) }}</template></div></div>
-          <span class="chip" :class="situacao(p) === 'paga' ? 'c-ok' : situacao(p) === 'atrasada' ? 'c-bad' : 'c-neu'">{{ situacao(p) === 'paga' ? 'paga' : fmt(p.falta) }}</span>
-          <button v-if="situacao(p) !== 'paga'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
+          <span class="chip" :class="situacao(p) === 'paga' ? 'c-ok' : situacao(p) === 'atrasada' ? 'c-bad' : 'c-neu'">{{ situacao(p) === 'paga' ? 'paga' : situacao(p) === 'acordo' ? 'acordo' : fmt(p.falta) }}</span>
+          <button v-if="situacao(p) !== 'paga' && situacao(p) !== 'acordo'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
         </div>
       </div>
 
@@ -74,4 +80,6 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.falta <= 0.009 ? '
       </template>
     </template>
   </Sheet>
+
+  <AcordoForm :aberto="acordando" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade), saldo: emprestimo.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 </template>

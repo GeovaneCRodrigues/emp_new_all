@@ -78,6 +78,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
             return {
               id: l.id, alvo, clienteId: l.cliente_id, clienteNome: l.nome, clienteFone: l.fone, status: l.status, data: dia(l.data)!, nParcelas: Number(l.n),
               descricao: alvo === 'VENDA' ? l.modelo! : nomeEmprestimo(l.modalidade!, l.periodicidade!), modalidade: alvo === 'EMPRESTIMO' ? l.modalidade! : null, taxa: alvo === 'EMPRESTIMO' ? Number(l.taxa) : null,
+              temAcordo: !!(await trx('acordos').where({ [t.opFk]: id, status: 'ATIVO' }).first('id')),
             }
           },
           async parcelas(alvo, operacaoId) {
@@ -117,8 +118,8 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
           async recebimentosDaTransacao(alvo, transacaoId) {
             const t = T[alvo]
             const ls = await trx('recebimentos as r').join(`${t.parcela} as p`, 'p.id', `r.${t.fk}`).where('r.transacao_id', transacaoId).orderBy('p.numero')
-              .select<{ id: number; parcela_id: number; numero: number; operacao_id: number; valor: string; antes: EstadoParcela | null }[]>('r.id', `r.${t.fk} as parcela_id`, 'p.numero', `p.${t.opFk} as operacao_id`, 'r.valor', 'r.antes')
-            return ls.map((l) => ({ id: l.id, parcelaId: l.parcela_id, numero: l.numero, operacaoId: l.operacao_id, valor: Number(l.valor), antes: l.antes }))
+              .select<{ id: number; parcela_id: number; numero: number; operacao_id: number; valor: string; antes: EstadoParcela | null; encerrada: number | null }[]>('r.id', `r.${t.fk} as parcela_id`, 'p.numero', `p.${t.opFk} as operacao_id`, 'r.valor', 'r.antes', 'p.encerrada_acordo_id as encerrada')
+            return ls.map((l) => ({ id: l.id, parcelaId: l.parcela_id, numero: l.numero, operacaoId: l.operacao_id, valor: Number(l.valor), antes: l.antes, encerradaPorAcordo: l.encerrada !== null }))
           },
           async ehUltimaDaOperacao(alvo, operacaoId, transacaoId) {
             const t = T[alvo]

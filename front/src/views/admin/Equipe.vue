@@ -55,7 +55,7 @@ async function executar(chave: string, fn: () => Promise<unknown>, ok: string) {
   finally { ocupado.value = null }
 }
 
-const aprovar = (p: AprovacaoApi) => executar(`a${p.id}`, () => aprovacoesApi.aprovar(sessao.value, p.id), `Desconto de ${fmt(p.valor)} aprovado.`)
+const aprovar = (p: AprovacaoApi) => executar(`a${p.id}`, () => aprovacoesApi.aprovar(sessao.value, p.id), p.tipo === 'RETOMADA' ? 'Aparelho retomado. Voltou pro estoque.' : p.tipo === 'ACORDO' ? 'Acordo feito.' : `Desconto de ${fmt(p.valor)} aprovado.`)
 function recusar(p: AprovacaoApi) { recusando.value = p; motivoRecusa.value = '' }
 async function confirmarRecusa() {
   const p = recusando.value
@@ -102,8 +102,12 @@ const total = computed(() => pedidos.value.length + fechamentos.value.length)
         <div class="row" style="gap: 10px; align-items: flex-start">
           <span class="ini">{{ iniciais(p.solicitante.nome) }}</span>
           <div style="flex: 1; min-width: 0">
-            <div class="val">{{ p.solicitante.nome }} pede <span class="num">{{ fmt(p.valor) }}</span> de desconto</div>
-            <div class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · parcela {{ p.parcela }}/{{ p.nParcelas }}</div>
+            <div v-if="p.tipo === 'RETOMADA'" class="val" data-tipo="RETOMADA">{{ p.solicitante.nome }} pede para <b>retomar</b> o {{ p.aparelho }}</div>
+            <div v-else-if="p.tipo === 'ACORDO'" class="val" data-tipo="ACORDO">{{ p.solicitante.nome }} propõe um <b>acordo</b> de <span class="num">{{ fmt(p.valor) }}</span> em {{ p.acordo?.parcelas }}x</div>
+            <div v-else class="val" data-tipo="DESCONTO">{{ p.solicitante.nome }} pede <span class="num">{{ fmt(p.valor) }}</span> de desconto</div>
+            <div v-if="p.tipo === 'RETOMADA'" class="small">{{ p.cliente.nome }} · {{ fmt(p.valor) }} em aberto · a venda sai das cobranças e o aparelho volta pro estoque</div>
+            <div v-else-if="p.tipo === 'ACORDO'" class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · hoje ele deve {{ fmt(p.acordo?.saldoNoPedido ?? 0) }} · 1ª parcela {{ p.acordo ? dmy(p.acordo.primeiraParcela) : '' }}</div>
+            <div v-else class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · parcela {{ p.parcela }}/{{ p.nParcelas }}</div>
             <div v-if="p.motivo" class="small" style="margin-top: 4px">“{{ p.motivo }}”</div>
           </div>
         </div>
@@ -147,7 +151,7 @@ const total = computed(() => pedidos.value.length + fechamentos.value.length)
 
   <Sheet :aberto="recusando !== null" @fechar="recusando = null">
     <template v-if="recusando">
-      <h3>Recusar o pedido de {{ fmt(recusando.valor) }}?</h3>
+      <h3>{{ recusando.tipo === 'RETOMADA' ? 'Recusar a retomada?' : recusando.tipo === 'ACORDO' ? 'Recusar o acordo?' : `Recusar o pedido de ${fmt(recusando.valor)}?` }}</h3>
       <div class="small">{{ recusando.solicitante.nome }} · {{ recusando.cliente.nome }}</div>
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" @submit.prevent="confirmarRecusa">
         <div class="field"><label for="mRecusa">Quer explicar o motivo? (opcional)</label><div class="inp"><input id="mRecusa" v-model="motivoRecusa" maxlength="500" placeholder="Ex.: margem apertada" /></div></div>

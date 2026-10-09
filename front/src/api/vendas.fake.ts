@@ -8,11 +8,11 @@ import type { EstoqueFake } from './estoque.fake'
 import type { IndicadoresFake } from './indicadores.fake'
 import type { EntradaVenda, FormaPagamentoApi, JurosApi, StatusVenda, VendaApi, VendasApi } from './vendas'
 
-interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
+export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
 export interface Registro {
   id: number; aparelho: VendaApi['aparelho']; cliente: VendaApi['cliente']; vendedorId: number | null; indicador: VendaApi['indicador']; pct: number
   dataVenda: string; precoAcordado: number; entrada: number; troca: number; jurosPct: number; investido: number; status: StatusVenda
-  contrato: VendaApi['contrato']; parcelas: Parcela[]
+  contrato: VendaApi['contrato']; retomada: VendaApi['retomada']; parcelas: Parcela[]
 }
 
 const FORMAS: FormaPagamentoApi[] = ['PIX', 'DINHEIRO', 'CARTAO']
@@ -48,11 +48,13 @@ export interface Transacao {
 /** Pedido de desconto do cobrador, esperando o administrador. */
 export interface Pedido {
   id: number
+  tipo: 'DESCONTO' | 'RETOMADA' | 'ACORDO'
   /** o que o pedido mexe: uma venda ou um empréstimo */
   alvo: 'VENDA' | 'EMPRESTIMO'
   /** id da venda ou do empréstimo */
   operacaoId: number
-  parcela: number
+  /** a retomada é da venda toda: sem parcela */
+  parcela: number | null
   valor: number
   motivo: string
   solicitanteId: number
@@ -62,6 +64,8 @@ export interface Pedido {
   respondidoPor: string | null
   respondidoEm: string | null
   resposta: string | null
+  /** pedido de acordo: a proposta do cobrador */
+  dados?: { parcelas: number; primeiraParcela: string; saldoNoPedido: number }
 }
 
 /** O dia de um cobrador, fechado por ele e (depois) conferido pelo administrador. */
@@ -90,6 +94,8 @@ export interface VendasFake extends VendasApi {
     proximoFechamento(): number
     proximoRecibo(): number
     proximaTransacao(): number
+    /** A regra única da retomada (a mesma no caminho direto e na aprovação do pedido do cobrador). */
+    retomarRegistro(vendaId: number, usuarioId: number, motivo: string | null, excetoPedidoId?: number): void
     noEscopo(s: Sessao): Registro[]
     calcular(r: Registro, perfil: Sessao['perfil']): VendaApi
   }
@@ -119,7 +125,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     return {
       id: v.id, aparelho: { id: b.id, modelo: b.modelo, gb: b.gb, cor: b.cor }, cliente: { id: cli.id, nome: cli.nome }, vendedorId: cli.responsavelId,
       indicador: ind ? { id: ind.id, nome: ind.nome } : null, pct: v.pct, dataVenda: v.data, precoAcordado: b.preco, entrada: v.entrada, troca: v.troca,
-      jurosPct: 10, investido: b.custo + b.extras, status: v.status, contrato: v.contrato,
+      jurosPct: 10, investido: b.custo + b.extras, status: v.status, contrato: v.contrato, retomada: null,
       parcelas: v.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((s, g) => s + g.valor, 0), quitadaEm: p.pago })),
     }
   })
@@ -144,9 +150,9 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   // dois pedidos de desconto esperando o administrador e um fechamento de ontem para conferir
   const vendaDe = (clienteId: number) => registros.find((r) => r.cliente.id === clienteId)!
   pedidos.push(
-    { id: ++seqPedido, alvo: 'VENDA', operacaoId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
-    { id: ++seqPedido, alvo: 'VENDA', operacaoId: vendaDe(4).id, parcela: 3, valor: 100, motivo: 'Está sem trabalho e prometeu pagar o resto dia 15', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
-  )
+    { id: ++seqPedido, tipo: 'DESCONTO', alvo: 'VENDA', operacaoId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+    { id: ++seqPedido, tipo: 'RETOMADA', alvo: 'VENDA', operacaoId: vendaDe(4).id, parcela: null, valor: arred2(vendaDe(4).parcelas.reduce((x, p) => x + Math.max(0, p.valor - p.pago - p.desconto), 0)), motivo: '2 parcelas atrasadas e não atende mais', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
+    { id: ++seqPedido, tipo: 'ACORDO', alvo: 'VENDA', operacaoId: vendaDe(6).id, parcela: null, valor: 3000, motivo: 'Perdeu o emprego, pediu pra pagar em 6x', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T08:30:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null, dados: { parcelas: 6, primeiraParcela: '2026-10-15', saldoNoPedido: arred2(vendaDe(6).parcelas.reduce((x, p) => x + Math.max(0, p.valor - p.pago - p.desconto), 0)) } },  )
   fechamentos.push({ id: ++seqFechamento, usuarioId: 3, usuarioNome: 'Diego Ramos', data: '2026-10-07', dinheiro: 350, pix: 500, cartao: 0, status: 'PENDENTE', conferidoPor: null, conferidoEm: null })
 
   const clientesDe = (r: Registro, s: Sessao) => (s.perfil === 'VENDEDOR' ? r.vendedorId === s.usuarioId || seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId : seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId)
@@ -164,8 +170,8 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
     const base: VendaApi = {
       id: r.id, aparelho: r.aparelho, cliente: r.cliente, indicador: r.indicador, dataVenda: r.dataVenda, precoAcordado: r.precoAcordado, entrada: r.entrada,
       troca: r.troca, jurosPct: r.jurosPct, nParcelas: r.parcelas.length, valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta,
-      atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status, contrato: r.contrato,
-      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm })),
+      atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status, contrato: r.contrato, retomada: r.retomada,
+      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
     if (perfil !== 'ADMIN') return base
     return {
@@ -180,8 +186,28 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   const inteiro = (v: unknown, c: string, min: number, max: number) => { if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) throw erro(`${c} precisa ser um número inteiro entre ${min} e ${max}`); return v }
   const dinheiro = (v: unknown, c: string, positivo = false) => { if (typeof v !== 'number' || !Number.isFinite(v) || v > 1e8 || (positivo ? v <= 0 : v < 0)) throw erro(positivo ? `${c} precisa ser maior que zero` : `${c} não pode ser negativo`); return arred2(v) }
 
+  /**
+   * Retomada (mesma regra do backend): só venda em andamento com parcela atrasada; a venda vira RETOMADA (o dinheiro já
+   * recebido fica no histórico), o aparelho volta ao estoque disponível e os pedidos pendentes da venda são recusados.
+   */
+  function retomarRegistro(vendaId: number, usuarioId: number, motivo: string | null, excetoPedidoId?: number) {
+    const r = registros.find((x) => x.id === vendaId)
+    if (!r) throw new ErroApi(404, 'Venda não encontrada', 'NAO_ENCONTRADO')
+    if (calcular(r, 'ADMIN').status !== 'ATIVA') throw new ErroApi(409, 'Só dá para retomar o aparelho de uma venda em andamento', 'VENDA_NAO_RETOMAVEL')
+    if (!r.parcelas.some((p) => arred2(p.valor - p.pago - p.desconto) > 0.009 && p.vencimento < hoje)) throw new ErroApi(409, 'Só dá para retomar quando o cliente tem parcela atrasada', 'SEM_ATRASO')
+    r.status = 'RETOMADA'
+    r.retomada = { em: `${hoje}T12:00:00.000Z`, motivo }
+    dep.estoque._interno.devolver(r.aparelho.id, hoje, `Retomado da venda #${r.id} em ${hoje.slice(8, 10)}/${hoje.slice(5, 7)}/${hoje.slice(0, 4)}.`)
+    for (const p of pedidos) {
+      if (p.alvo === 'VENDA' && p.operacaoId === r.id && p.status === 'PENDENTE' && p.id !== excetoPedidoId) {
+        p.status = 'RECUSADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`; p.resposta = 'Venda retomada'
+      }
+    }
+    void usuarioId
+  }
+
   return {
-    _interno: { hoje, registros, transacoes, pedidos, fechamentos, proximoPedido: () => ++seqPedido, proximoFechamento: () => ++seqFechamento, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, noEscopo, calcular },
+    _interno: { hoje, registros, transacoes, pedidos, fechamentos, proximoPedido: () => ++seqPedido, proximoFechamento: () => ++seqFechamento, proximoRecibo: () => ++seqRecibo, proximaTransacao: () => ++seqTransacao, retomarRegistro, noEscopo, calcular },
     async juros(s) {
       if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso a esta configuração', 'SEM_PERMISSAO')
       return { ...JUROS }
@@ -233,7 +259,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
         id: ++proximoId, aparelho: { id: ap.id, modelo: ap.modelo, gb: ap.gb, cor: ap.cor }, cliente: { id: cliente.id, nome: cliente.nome },
         vendedorId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : (e.vendedorId ?? null), indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null,
         pct: indicador?.pct ?? 0, dataVenda: hoje, precoAcordado: preco, entrada, troca: trocaValor, jurosPct: JUROS.pct, investido: arred2(ap.custo + ap.extras),
-        status: parcelado === 0 ? 'QUITADA' : 'ATIVA', contrato: 'AGUARDANDO',
+        status: parcelado === 0 ? 'QUITADA' : 'ATIVA', contrato: 'AGUARDANDO', retomada: null,
         parcelas: Array.from({ length: n }, (_, i) => ({ numero: i + 1, vencimento: somaMes(hoje, i + 1, dia), vencimentoOriginal: null, valor: parc, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)
@@ -261,6 +287,17 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
       const r = noEscopo(s).find((x) => x.id === id)
       if (!r) throw new ErroApi(404, 'Venda não encontrada', 'NAO_ENCONTRADO')
       return calcular(r, s.perfil)
+    },
+
+    async retomar(s, id, e) {
+      if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador retoma o aparelho (o cobrador pede a retomada)', 'SEM_PERMISSAO')
+      let motivo: string | null = null
+      if (e?.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
+        if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw new ErroApi(400, 'motivo: no máximo 500 letras')
+        motivo = e.motivo.trim() || null
+      }
+      retomarRegistro(id, s.usuarioId ?? 1, motivo)
+      return calcular(registros.find((x) => x.id === id)!, s.perfil)
     },
 
     async resumo(s) {

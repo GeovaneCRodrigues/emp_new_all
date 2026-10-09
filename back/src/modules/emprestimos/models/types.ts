@@ -13,6 +13,8 @@ export type ParcelaEmprestimo = {
   quitadaEm: string | null
   /** quanto já entrou nesta parcela (recebimentos não desfeitos) */
   pago: number
+  /** NOVA: criada por um acordo. ENCERRADA: um acordo a encerrou (ficou só com o que já foi pago). */
+  acordo: 'NOVA' | 'ENCERRADA' | null
 }
 
 export type Emprestimo = {

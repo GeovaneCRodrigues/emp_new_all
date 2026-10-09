@@ -5,6 +5,9 @@ import { criarEmprestimosFake } from './emprestimos.fake'
 import { criarEmprestimosHttp } from './emprestimos.http'
 import type { EstoqueApi } from './estoque'
 import { criarEstoqueFake } from './estoque.fake'
+import type { AcordosApi } from './acordos'
+import { criarAcordosFake } from './acordos.fake'
+import { criarAcordosHttp } from './acordos.http'
 import type { AprovacoesApi } from './aprovacoes'
 import type { EquipeApi } from './equipe'
 import { criarAprovacoesFake, criarEquipeFake, criarFechamentosFake } from './equipe.fake'
@@ -43,6 +46,8 @@ const emprestimosFake = modoDemo ? criarEmprestimosFake({ clientes: clientesFake
 export const emprestimosApi: EmprestimosApi = emprestimosFake ?? criarEmprestimosHttp(URL_API, requisicao)
 export const recebimentosApi: RecebimentosApi = vendasFake ? criarRecebimentosFake(vendasFake, emprestimosFake!) : criarRecebimentosHttp(URL_API, requisicao)
 
-export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!) : criarAprovacoesHttp(URL_API, requisicao)
+const acordosFake = vendasFake ? criarAcordosFake(vendasFake, emprestimosFake!) : null
+export const acordosApi: AcordosApi = acordosFake ?? criarAcordosHttp(URL_API, requisicao)
+export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!, acordosFake!) : criarAprovacoesHttp(URL_API, requisicao)
 export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(vendasFake) : criarFechamentosHttp(URL_API, requisicao)
 export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : criarEquipeHttp(URL_API, requisicao)

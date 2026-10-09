@@ -27,5 +27,6 @@ export function criarVendasHttp(baseUrl: string, requisicao: Requisicao): Vendas
     obter: (_s, id) => chamar(`/vendas/${id}`),
     resumo: () => chamar('/vendas/resumo'),
     juros: () => chamar('/config/juros'),
+    retomar: (_s, id, e) => chamar(`/vendas/${id}/retomar`, { method: 'POST', body: JSON.stringify(e ?? {}) }),
   }
 }

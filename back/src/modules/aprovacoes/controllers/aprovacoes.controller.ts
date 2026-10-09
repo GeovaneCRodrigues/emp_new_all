@@ -13,7 +13,7 @@ function idDaRota(req: FastifyRequest): number {
 
 export function createAprovacoesController(service: AprovacoesService) {
   return {
-    async pedir(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(aprovacaoView(await service.pedirDesconto(sessaoOuErro(req), (req.body ?? {}) as Record<string, unknown>))) },
+    async pedir(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(aprovacaoView(await service.pedir(sessaoOuErro(req), (req.body ?? {}) as Record<string, unknown>))) },
     async listar(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
       return listaView(await service.listar(sessaoOuErro(req), { status: typeof q.status === 'string' ? q.status : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))

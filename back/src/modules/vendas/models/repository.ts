@@ -1,4 +1,6 @@
 import type { Knex } from 'knex'
+import { naoEncontrado } from '../../../shared/errors.js'
+import { retomarVenda, type ResultadoRetomada } from './retomada.js'
 import type { AparelhoTravado, EscopoVendas, FormaPagamento, NovaTroca, NovaVenda, ParcelaVenda, Venda } from './types.js'
 
 /** Operações que precisam acontecer juntas, na mesma transação do banco. */
@@ -20,14 +22,16 @@ export interface VendasRepository {
   /** Todas as vendas do escopo (com parcelas e quanto já foi pago), da mais nova para a mais antiga. */
   listar(escopo: EscopoVendas): Promise<Venda[]>
   buscar(id: number, escopo: EscopoVendas): Promise<Venda | null>
+  /** Retoma o aparelho (venda travada, regra única em `retomarVenda`). */
+  retomar(d: { vendaId: number; usuarioId: number; motivo: string | null; dia: string }): Promise<ResultadoRetomada>
 }
 
 type LinhaVenda = {
   id: number; bem_id: number; modelo: string; gb: number; cor: string; cliente_id: number; cliente_nome: string; vendedor_id: number | null
   indicador_id: number | null; indicador_nome: string | null; percentual_indicador: string; data_venda: Date | string; preco_acordado: string
-  entrada: string; troca_valor: string; juros_pct: string; valor_investido: string; status: Venda['status']; contrato_status: Venda['contrato']
+  entrada: string; troca_valor: string; juros_pct: string; valor_investido: string; status: Venda['status']; contrato_status: Venda['contrato']; retomada_em: Date | null; retomada_motivo: string | null
 }
-type LinhaParcela = { id: number; venda_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string }
+type LinhaParcela = { id: number; venda_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string; acordo_id: number | null; encerrada_acordo_id: number | null }
 
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const diaOuNull = (d: Date | string | null) => (d === null ? null : dia(d))
@@ -58,7 +62,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
     const porVenda = new Map<number, ParcelaVenda[]>()
     for (const p of ps) {
       const lista = porVenda.get(p.venda_id) ?? []
-      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago) })
+      lista.push({ id: p.id, numero: p.numero, vencimento: dia(p.vencimento), vencimentoOriginal: diaOuNull(p.vencimento_original), valor: Number(p.valor), desconto: Number(p.desconto), quitadaEm: diaOuNull(p.quitada_em), pago: Number(p.pago), acordo: p.encerrada_acordo_id ? 'ENCERRADA' : p.acordo_id ? 'NOVA' : null })
       porVenda.set(p.venda_id, lista)
     }
     return linhas.map((l) => ({
@@ -66,6 +70,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
       vendedorId: l.vendedor_id, indicador: l.indicador_id ? { id: l.indicador_id, nome: l.indicador_nome ?? '' } : null,
       pct: Number(l.percentual_indicador), dataVenda: dia(l.data_venda), precoAcordado: Number(l.preco_acordado), entrada: Number(l.entrada),
       troca: Number(l.troca_valor), jurosPct: Number(l.juros_pct), investido: Number(l.valor_investido), status: l.status, contrato: l.contrato_status,
+      retomada: l.retomada_em ? { em: l.retomada_em.toISOString(), motivo: l.retomada_motivo } : null,
       parcelas: porVenda.get(l.id) ?? [],
     }))
   }
@@ -77,6 +82,13 @@ export function createVendasRepository(db: Knex): VendasRepository {
     async buscar(id, escopo) {
       const l = await consulta(escopo).where('v.id', id).first()
       return l ? (await montar([l]))[0] : null
+    },
+
+    async retomar(d) {
+      return db.transaction(async (trx) => {
+        if (!(await trx('vendas').where({ id: d.vendaId }).forUpdate().first('id'))) throw naoEncontrado('Venda não encontrada')
+        return retomarVenda(trx, d)
+      })
     },
 
     async emTransacao(fn) {

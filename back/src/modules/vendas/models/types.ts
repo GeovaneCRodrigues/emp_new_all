@@ -13,6 +13,8 @@ export type ParcelaVenda = {
   quitadaEm: string | null
   /** quanto já entrou nesta parcela (recebimentos não desfeitos) */
   pago: number
+  /** NOVA: criada por um acordo. ENCERRADA: um acordo a encerrou (ficou só com o que já foi pago). */
+  acordo: 'NOVA' | 'ENCERRADA' | null
 }
 
 export type Venda = {
@@ -32,6 +34,8 @@ export type Venda = {
   investido: number
   status: StatusVenda
   contrato: StatusContrato
+  /** quando e por quê o aparelho foi retomado (só em venda RETOMADA) */
+  retomada: { em: string; motivo: string | null } | null
   parcelas: ParcelaVenda[]
 }
 

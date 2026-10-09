@@ -206,7 +206,7 @@ describe('equipe', () => {
     const lista = await equipe.listar(ADMIN)
     expect(lista.map((p) => p.perfil)).toEqual(['ADMIN', 'COBRADOR', 'VENDEDOR'])
     const diego = lista.find((p) => p.nome === 'Diego Ramos')!
-    expect(diego).toMatchObject({ carteira: 4, pedidosPendentes: 2 })
+    expect(diego).toMatchObject({ carteira: 4, pedidosPendentes: 3 })
     expect(diego.comAtraso).toBeGreaterThan(0)
     expect(diego.recebidoNoMes).toBe(840)
     expect(lista.find((p) => p.nome === 'Bruna Teixeira')!.carteira).toBe(4)
