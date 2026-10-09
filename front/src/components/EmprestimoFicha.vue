@@ -7,6 +7,7 @@ import { useApp } from '@/composables/useApp'
 import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
 import AcordoForm from './AcordoForm.vue'
+import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ emprestimo: EmprestimoApi | null }>()
@@ -20,7 +21,11 @@ async function carregarPagamentos() {
 }
 watch(() => props.emprestimo, carregarPagamentos, { immediate: true })
 // acordo: só o administrador, empréstimo em andamento com saldo
-const podeAcordo = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
+const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
+// desconto: o cobrador pede por parcela
+const descontando = ref<{ numero: number; falta: number; vencimento: string } | null>(null)
+function aoPedirDesconto() { descontando.value = null; emit('mudou') }
+const podeAcordo = computed(() => (sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR') && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
 const acordando = ref(false)
 function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
@@ -56,7 +61,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
-      <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">Fazer acordo</button>
+      <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">{{ ehCobrador ? 'Pedir acordo' : 'Fazer acordo' }}</button>
 
       <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
       <div class="timeline" style="margin-bottom: 8px"><i v-for="p in emprestimo.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga' || situacao(p) === 'acordo', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}: ${dmy(p.vencimento)}`"></i></div>
@@ -64,6 +69,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div v-for="p in emprestimo.parcelas" :key="p.numero" class="li" style="cursor: default" :data-parcela="p.numero">
           <div class="mid"><div class="t">{{ p.numero }}ª · {{ dmy(p.vencimento) }}<template v-if="p.vencimentoOriginal"> (era {{ dmy(p.vencimentoOriginal) }})</template></div><div class="s">{{ fmt(p.valor) }} · {{ p.pago > 0 ? `pagou ${fmt(p.pago)}` : 'nada pago' }}<template v-if="p.desconto"> · desconto {{ fmt(p.desconto) }}</template></div></div>
           <span class="chip" :class="situacao(p) === 'paga' ? 'c-ok' : situacao(p) === 'atrasada' ? 'c-bad' : 'c-neu'">{{ situacao(p) === 'paga' ? 'paga' : situacao(p) === 'acordo' ? 'acordo' : fmt(p.falta) }}</span>
+ <button v-if="ehCobrador && situacao(p) !== 'paga' && situacao(p) !== 'acordo' && emprestimo.status === 'ATIVA'" class="btn b-ghost b-sm" :data-desconto="p.numero" @click="descontando = { numero: p.numero, falta: p.falta, vencimento: p.vencimento }">Desconto</button>
           <button v-if="situacao(p) !== 'paga' && situacao(p) !== 'acordo'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
         </div>
       </div>
@@ -81,5 +87,6 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
     </template>
   </Sheet>
 
+  <PedirDescontoForm :aberto="descontando !== null" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) } : null" :parcela="descontando" @fechar="descontando = null" @feito="aoPedirDesconto" />
   <AcordoForm :aberto="acordando" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade), saldo: emprestimo.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 </template>

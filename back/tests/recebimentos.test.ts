@@ -384,6 +384,27 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
     })
   })
 
+  describe('cobranças: busca pelo nome do cliente', () => {
+    const buscar = async (papel: string, b: string, aba = 'proximas') => (await req('GET', `/api/cobrancas?aba=${aba}&limite=100&busca=${encodeURIComponent(b)}`, papel)).json()
+    it('acha pelo pedaço do nome, sem acento e sem maiúscula; o que não bate some; vazio traz tudo', async () => {
+      const [c] = await db!('clientes').insert({ nome: 'José Conceição Álvares', fone: '11900000099', responsavel_id: id.cobrador }).returning('id')
+      const [b] = await db!('bens').insert({ modelo: 'iPhone 11', gb: 64, cor: 'Preto', preco_venda: 2000, valor_compra: 1000, data_compra: '2026-09-01' }).returning('id')
+      const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId: c.id, preco: 2000, entrada: 500, parcelas: 3, diaVencimento: 10 })
+      expect(r.statusCode).toBe(201)
+      for (const q of ['jose', 'JOSÉ', 'conceicao', 'alvares', 'ao alv', 'Álvares']) {
+        const itens = (await buscar('admin', q, 'hoje')).itens.concat((await buscar('admin', q, 'proximas')).itens)
+        expect(itens.some((x: { cliente: { nome: string } }) => x.cliente.nome === 'José Conceição Álvares'), q).toBe(true)
+      }
+      expect((await buscar('admin', 'zzzz')).itens).toHaveLength(0)
+      expect((await buscar('admin', '')).itens.length).toBeGreaterThan(0)
+    })
+    it('o cobrador só acha dentro da carteira dele; o caractere % não vira curinga; busca enorme é 400', async () => {
+      expect((await buscar('cobrador2', 'jose')).itens.concat((await buscar('cobrador2', 'jose', 'hoje')).itens)).toHaveLength(0)
+      expect((await buscar('admin', '%')).itens).toHaveLength(0)
+      expect((await req('GET', `/api/cobrancas?busca=${'x'.repeat(81)}`, 'admin')).statusCode).toBe(400)
+    })
+  })
+
   describe('cobranças', () => {
     const itens = async (papel: string, aba: string) => (await req('GET', `/api/cobrancas?aba=${aba}&limite=100`, papel)).json()
     it('separa atrasadas, esta semana, próximas e recebidas, com contagens e valor total', async () => {

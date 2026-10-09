@@ -42,7 +42,7 @@ export type RecebimentosService = {
   recibo(s: Sessao, transacaoId: number): Promise<Recibo>
   pagamentos(s: Sessao, alvo: Alvo, operacaoId: number): Promise<PagamentoView[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
-  cobrancas(s: Sessao, q: { aba?: string; tipo?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
+  cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
 }
 
 const FORMAS: FormaPagamento[] = ['PIX', 'DINHEIRO', 'CARTAO']
@@ -275,8 +275,10 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 20) || 20, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw requisicaoInvalida('tipo deve ser VENDA ou EMPRESTIMO')
+      if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw requisicaoInvalida('busca: no máximo 80 letras')
+      const busca = q.busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() || undefined
       const dia = hoje()
-      const r = await dep.repo.cobrancas(escopo, { aba, tipo: q.tipo as Alvo | undefined, hoje: dia, limite, offset: (pagina - 1) * limite })
+      const r = await dep.repo.cobrancas(escopo, { aba, tipo: q.tipo as Alvo | undefined, busca, hoje: dia, limite, offset: (pagina - 1) * limite })
       const atraso = (l: LinhaCobranca) => (l.falta > 0.009 && l.vencimento < dia ? Math.round((Date.parse(dia) - Date.parse(l.vencimento)) / 864e5) : 0)
       return { ...r, itens: r.itens.map((l) => ({ ...l, atrasoDias: atraso(l) })), pagina, limite }
     },

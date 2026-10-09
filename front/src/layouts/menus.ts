@@ -25,7 +25,7 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
   ADMIN: {
     nomePerfil: 'Administrador',
     inicio: 'inicio',
-    abas: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('vender', 'Vender', 'plus', true), i('estoque', 'Estoque', 'smartphone')],
+    abas: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('estoque', 'Estoque', 'smartphone')],
     lateral: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('estoque', 'Estoque', 'smartphone'), i('operacoes', 'Operações', 'receipt-text')],
     mais: [
       i('operacoes', 'Operações', 'receipt-text'), i('simulador', 'Simulador', 'calculator'), i('clientes', 'Clientes', 'users'),

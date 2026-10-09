@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
+import NovoSheet from '@/components/NovoSheet.vue'
 import Sheet from '@/components/Sheet.vue'
 import Toast from '@/components/Toast.vue'
 import { useAtrasadas } from '@/composables/useAtrasadas'
@@ -32,6 +33,7 @@ const secao = computed(() => (route.params.secao as string) || menu.value.inicio
 const titulo = computed(() => TITULOS[secao.value] ?? 'Mundo dos iPhones')
 const fabSide = computed(() => menu.value.abas.find((a) => a.fab))
 const maisAberto = ref(false)
+const novoAberto = ref(false)
 
 const PERFIS: { id: Perfil; label: string }[] = [
   { id: 'ADMIN', label: 'Admin' }, { id: 'INDICADOR', label: 'Indicador' }, { id: 'COBRADOR', label: 'Cobrador' }, { id: 'VENDEDOR', label: 'Vendedor' },
@@ -45,13 +47,16 @@ const nomeLogado = computed(() => {
 })
 
 // o contador do menu vem do servidor (parcelas atrasadas) e é atualizado a cada recebimento
-watch(() => sessao.value, (s) => atualizarAtrasadas(s), { immediate: true, deep: true })
+// (no sistema de verdade só depois de entrar: antes disso o servidor responderia 401)
+watch([() => sessao.value, auth.usuario], ([s]) => { if (modoDemo || auth.usuario.value) atualizarAtrasadas(s) }, { immediate: true, deep: true })
 const contador = (id: string) => (id === 'cobrancas' || id === 'cobranca' || id === 'hoje') && sessao.value.perfil !== 'INDICADOR' && atrasadas.value ? atrasadas.value : 0
 
 const noMais = computed(() => !menu.value.abas.some((a) => a.id === secao.value))
 
 function ir(id: string) {
   maisAberto.value = false
+  // "Novo" não é uma tela: abre a escolha entre venda, empréstimo e só simular
+  if (id === 'novo') { novoAberto.value = true; return }
   router.push('/' + id)
 }
 function trocarPerfil(p: Perfil) {
@@ -84,7 +89,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
             <span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
             <span>Mundo dos<br /><em>iPhones</em></span>
           </div>
-          <button v-if="temNovo && fabSide" class="novo" @click="ir(fabSide.id)"><Icon name="plus" />{{ sessao.perfil === 'INDICADOR' ? 'Indicar' : 'Nova venda' }}</button>
+          <button v-if="temNovo && fabSide" class="novo" @click="ir(fabSide.id)"><Icon name="plus" />{{ sessao.perfil === 'INDICADOR' ? 'Indicar' : sessao.perfil === 'ADMIN' ? 'Novo' : 'Nova venda' }}</button>
           <button v-for="n in lateralItens" :key="n.id" class="item" :class="{ on: secao === n.id }" @click="ir(n.id)">
             <Icon :name="n.icon" />{{ n.label }}<span v-if="contador(n.id)" class="cnt">{{ contador(n.id) }}</span>
           </button>
@@ -123,6 +128,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
       </div>
     </div>
 
+    <NovoSheet :aberto="novoAberto" @fechar="novoAberto = false" />
     <Toast />
     <Sheet :aberto="maisAberto" @fechar="maisAberto = false">
       <h3>Mais</h3>
