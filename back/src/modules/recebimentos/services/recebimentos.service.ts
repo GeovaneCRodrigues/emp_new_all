@@ -29,7 +29,7 @@ export type Recibo = {
   mensagem: string
 }
 
-export type Registrado = { recibo: Recibo; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean }
+export type Registrado = { recibo: Recibo; efeitos: EfeitoRecebimento[]; vendaQuitada: boolean; pedidoDescontoId: number | null }
 export type PagamentoView = { transacaoId: number; numero: string; data: string; forma: FormaPagamento; valor: number; recebidoPor: string; referencia: string; tipo: 'ENTRADA' | 'PARCELA'; desfeita: boolean; podeDesfazer: boolean }
 export type ListaCobrancas = { itens: (LinhaCobranca & { atrasoDias: number })[]; total: number; valorTotal: number; pagina: number; limite: number; contagens: { atrasadas: number; hoje: number; proximas: number } }
 
@@ -117,9 +117,23 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (e.novoVencimento !== undefined && e.novoVencimento !== null && !dataValida(e.novoVencimento)) throw requisicaoInvalida('novoVencimento precisa ser uma data válida (AAAA-MM-DD)')
       // cobrador: só lança o que recebeu hoje, e desconto só com a aprovação do administrador
       if (s.perfil === 'COBRADOR' && data !== dia) throw semPermissao('O cobrador só lança o que recebeu hoje')
-      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador')
+      if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador: use "pedir desconto"')
+      // o cobrador pode pedir desconto do que faltou: o pagamento é lançado e a parcela fica aberta até o admin responder
+      let pedir: { motivo: string } | null = null
+      if (e.pedirDesconto !== undefined && e.pedirDesconto !== null) {
+        if (s.perfil !== 'COBRADOR') throw semPermissao('Só o cobrador pede desconto (o administrador dá o desconto direto)')
+        const motivo = typeof (e.pedirDesconto as { motivo?: unknown })?.motivo === 'string' ? (e.pedirDesconto as { motivo: string }).motivo.trim() : ''
+        if (motivo.length < 3 || motivo.length > 500) throw requisicaoInvalida('Explique o motivo do pedido de desconto (de 3 a 500 letras)')
+        if (e.resto !== 'FICA') throw requisicaoInvalida('Para pedir desconto, o resto precisa ficar devendo até o administrador responder')
+        pedir = { motivo }
+      }
 
       const feito = await dep.repo.emTransacao(async (tx) => {
+        // o caixa do cobrador é serializado: receber e fechar o dia nunca se atropelam
+        if (s.perfil === 'COBRADOR') {
+          await tx.travarCaixa(s.usuarioId)
+          if (await tx.diaFechado(s.usuarioId, data)) throw new HttpError(409, 'O seu dia já foi fechado. Peça ao administrador para reabrir.', 'DIA_FECHADO')
+        }
         const venda = await tx.travarVenda(vendaId, escopo)
         if (!venda) throw naoEncontrado('Venda não encontrada')
         if (venda.status === 'RETOMADA' || venda.status === 'CANCELADA') throw new HttpError(409, 'Esta venda foi retomada ou cancelada: não recebe pagamentos', 'VENDA_ENCERRADA')
@@ -147,6 +161,13 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
           proxima: abertas[0] ? { numero: abertas[0].numero, valor: falta(abertas[0]), vencimento: abertas[0].vencimento } : null, restantes: abertas.length,
           ficaDevendo: fica ? { numero: fica.numero, valor: fica.resta, vencimento: fica.vencimento } : null,
         }
+        let pedidoId: number | null = null
+        if (pedir) {
+          const resta = r.itens[0].faltaDepois
+          if (resta <= 0.009) throw requisicaoInvalida('Não sobrou nada na parcela para pedir desconto')
+          if (await tx.pedidoPendente(r.itens[0].parcelaId)) throw new HttpError(409, 'Já existe um pedido de desconto esperando para esta parcela', 'PEDIDO_JA_EXISTE')
+          pedidoId = await tx.criarPedidoDesconto({ vendaId, parcelaId: r.itens[0].parcelaId, solicitadoPor: s.usuarioId, valor: resta, motivo: pedir.motivo })
+        }
         const t = await tx.criarTransacao({ clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: s.usuarioId, resumo })
         for (const it of r.itens) {
           await tx.criarRecebimento({ transacaoId: t.id, vendaParcelaId: it.parcelaId, valor: it.valorPago, antes: it.antes })
@@ -155,7 +176,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         }
         const quitada = abertas.length === 0
         await tx.definirStatusVenda(vendaId, quitada ? 'QUITADA' : 'ATIVA')
-        return { transacaoId: t.id, efeitos: r.efeitos, quitada, primeiro: r.itens[0] }
+        return { transacaoId: t.id, efeitos: r.efeitos, quitada, primeiro: r.itens[0], pedidoId, motivoPedido: pedir?.motivo ?? null }
       })
 
       // trilha de auditoria: baixa, desconto e mudança de vencimento
@@ -165,7 +186,9 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (desc) await dep.auditoria.registrar({ ...base, acao: 'DESCONTO_CONCEDIDO', depois: { transacaoId: feito.transacaoId, ...desc } })
       if (feito.primeiro.depois.vencimento !== feito.primeiro.antes.vencimento) await dep.auditoria.registrar({ ...base, acao: 'VENCIMENTO_ALTERADO', antes: { parcela: numero, vencimento: feito.primeiro.antes.vencimento }, depois: { parcela: numero, vencimento: feito.primeiro.depois.vencimento } })
 
-      return { recibo: await reciboDe(s, feito.transacaoId), efeitos: feito.efeitos, vendaQuitada: feito.quitada }
+      if (feito.pedidoId) await dep.auditoria.registrar({ ...base, entidade: 'aprovacao', entidadeId: feito.pedidoId, acao: 'DESCONTO_PEDIDO', depois: { vendaId, parcela: numero, motivo: feito.motivoPedido } })
+
+      return { recibo: await reciboDe(s, feito.transacaoId), efeitos: feito.efeitos, vendaQuitada: feito.quitada, pedidoDescontoId: feito.pedidoId }
     },
 
     recibo: reciboDe,
@@ -199,6 +222,11 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         if (!t) throw naoEncontrado('Recebimento não encontrado')
         if (t.desfeita) throw new HttpError(409, 'Este recebimento já foi desfeito', 'JA_DESFEITO')
         if (s.perfil === 'COBRADOR' && (t.recebidoPor !== s.usuarioId || t.data !== dia)) throw semPermissao('O cobrador só desfaz o que ele mesmo recebeu hoje')
+        // dia fechado é dia fechado: desfazer mudaria o dinheiro que o administrador conferiu (ou vai conferir)
+        if (t.recebidoPor !== null) {
+          await tx.travarCaixa(t.recebidoPor)
+          if (await tx.diaFechado(t.recebidoPor, t.data)) throw new HttpError(409, 'O dia desse recebimento já foi fechado. Reabra o fechamento antes de desfazer.', 'DIA_FECHADO')
+        }
         // só o último: desfazer um antigo bagunçaria o que veio depois
         if (!(await tx.ehUltimaDaVenda(vendaId, transacaoId))) throw new HttpError(409, 'Só o último recebimento da venda pode ser desfeito', 'NAO_E_O_ULTIMO')
 

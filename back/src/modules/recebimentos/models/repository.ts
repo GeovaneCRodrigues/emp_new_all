@@ -17,6 +17,12 @@ export interface RecebimentosTx {
   /** É a transação de parcelas mais recente (não desfeita) desta venda? */
   ehUltimaDaVenda(vendaId: number, transacaoId: number): Promise<boolean>
   marcarDesfeita(id: number, usuarioId: number): Promise<void>
+  /** Serializa o caixa de um cobrador: receber, desfazer e fechar o dia nunca se atropelam. */
+  travarCaixa(usuarioId: number): Promise<void>
+  /** O dia dessa pessoa já foi fechado? */
+  diaFechado(usuarioId: number, data: string): Promise<boolean>
+  pedidoPendente(parcelaId: number): Promise<boolean>
+  criarPedidoDesconto(d: { vendaId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
 }
 
 export interface RecebimentosRepository {
@@ -91,6 +97,13 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
             const r = await trx('transacoes_recebimento as t').join('recebimentos as r', 'r.transacao_id', 't.id').join('venda_parcelas as p', 'p.id', 'r.venda_parcela_id')
               .where('p.venda_id', vendaId).whereNull('t.desfeita_em').max<{ max: number | null }>('t.id as max').first()
             return r?.max === transacaoId
+          },
+          async travarCaixa(usuarioId) { await trx.raw('select pg_advisory_xact_lock(?, ?)', [7001, usuarioId]) },
+          async diaFechado(usuarioId, data) { return !!(await trx('fechamentos_caixa').where({ usuario_id: usuarioId, data }).first('id')) },
+          async pedidoPendente(parcelaId) { return !!(await trx('aprovacoes').where({ venda_parcela_id: parcelaId, status: 'PENDENTE', tipo: 'DESCONTO' }).first('id')) },
+          async criarPedidoDesconto(d) {
+            const [{ id }] = await trx('aprovacoes').insert({ tipo: 'DESCONTO', solicitado_por: d.solicitadoPor, venda_id: d.vendaId, venda_parcela_id: d.parcelaId, valor: d.valor, motivo: d.motivo }).returning('id')
+            return id
           },
           async marcarDesfeita(id, usuarioId) {
             await trx('transacoes_recebimento').where({ id }).update({ desfeita_em: trx.fn.now(), desfeita_por: usuarioId, updated_at: trx.fn.now() })

@@ -1,0 +1,181 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import type { AprovacaoApi } from '@/api/aprovacoes'
+import { ErroApi } from '@/api/clientes'
+import type { PessoaApi } from '@/api/equipe'
+import type { FechamentoApi } from '@/api/fechamentos'
+import { aprovacoesApi, equipeApi, fechamentosApi } from '@/api/recursos'
+import Icon from '@/components/Icon.vue'
+import Sheet from '@/components/Sheet.vue'
+import { useApp } from '@/composables/useApp'
+import { useToast } from '@/composables/useToast'
+import { dmy, fmt, iniciais } from '@/domain/format'
+
+const { sessao } = useApp()
+const { mostrar } = useToast()
+
+const pessoas = ref<PessoaApi[]>([])
+const pedidos = ref<AprovacaoApi[]>([])
+const fechamentos = ref<FechamentoApi[]>([])
+const carregando = ref(true)
+const erro = ref('')
+const ocupado = ref<string | null>(null)
+
+const recusando = ref<AprovacaoApi | null>(null)
+const motivoRecusa = ref('')
+const convidando = ref(false)
+const convite = reactive({ nome: '', email: '', perfil: 'COBRADOR' as 'COBRADOR' | 'VENDEDOR', fone: '' })
+const erroConvite = ref('')
+const criado = ref<{ email: string; senhaTemporaria: string } | null>(null)
+
+const msg = (e: unknown, padrao: string) => (e instanceof ErroApi ? e.message : padrao)
+
+async function carregar() {
+  erro.value = ''
+  try {
+    const [p, a, f] = await Promise.all([
+      equipeApi.listar(sessao.value),
+      aprovacoesApi.listar(sessao.value, { status: 'PENDENTE', limite: 50 }),
+      fechamentosApi.listar(sessao.value, { status: 'PENDENTE', limite: 50 }),
+    ])
+    pessoas.value = p; pedidos.value = a.itens; fechamentos.value = f.itens
+  } catch (e) {
+    erro.value = msg(e, 'Não consegui carregar a equipe.')
+  } finally {
+    carregando.value = false
+  }
+}
+onMounted(carregar)
+
+async function executar(chave: string, fn: () => Promise<unknown>, ok: string) {
+  if (ocupado.value) return
+  ocupado.value = chave
+  try { await fn(); mostrar(ok); await carregar() }
+  catch (e) { mostrar(msg(e, 'Algo deu errado. Tente de novo.')); await carregar() }
+  finally { ocupado.value = null }
+}
+
+const aprovar = (p: AprovacaoApi) => executar(`a${p.id}`, () => aprovacoesApi.aprovar(sessao.value, p.id), `Desconto de ${fmt(p.valor)} aprovado.`)
+function recusar(p: AprovacaoApi) { recusando.value = p; motivoRecusa.value = '' }
+async function confirmarRecusa() {
+  const p = recusando.value
+  if (!p) return
+  recusando.value = null
+  await executar(`r${p.id}`, () => aprovacoesApi.recusar(sessao.value, p.id, motivoRecusa.value.trim() || undefined), 'Pedido recusado.')
+}
+const conferir = (f: FechamentoApi) => executar(`c${f.id}`, () => fechamentosApi.conferir(sessao.value, f.id), 'Fechamento conferido.')
+const reabrir = (f: FechamentoApi) => executar(`o${f.id}`, () => fechamentosApi.reabrir(sessao.value, f.id), `Dia de ${f.usuario.nome.split(' ')[0]} reaberto.`)
+const alternar = (p: PessoaApi) => executar(`p${p.id}`, () => equipeApi.atualizar(sessao.value, p.id, { ativo: !p.ativo }), p.ativo ? `${p.nome.split(' ')[0]} não entra mais.` : `${p.nome.split(' ')[0]} voltou a entrar.`)
+
+function abrirConvite() { Object.assign(convite, { nome: '', email: '', perfil: 'COBRADOR', fone: '' }); erroConvite.value = ''; criado.value = null; convidando.value = true }
+async function convidar() {
+  if (ocupado.value) return
+  ocupado.value = 'convite'; erroConvite.value = ''
+  try {
+    const r = await equipeApi.convidar(sessao.value, { nome: convite.nome, email: convite.email, perfil: convite.perfil, fone: convite.fone || null })
+    criado.value = { email: r.email, senhaTemporaria: r.senhaTemporaria }
+    await carregar()
+  } catch (e) {
+    erroConvite.value = msg(e, 'Não consegui convidar.')
+  } finally {
+    ocupado.value = null
+  }
+}
+async function copiar(t: string) {
+  try { await navigator.clipboard.writeText(t); mostrar('Copiado.') } catch { mostrar('Não consegui copiar. Selecione e copie à mão.') }
+}
+
+const NOME_PERFIL = { ADMIN: 'Administrador', COBRADOR: 'Cobrador', VENDEDOR: 'Vendedor' } as const
+const total = computed(() => pedidos.value.length + fechamentos.value.length)
+</script>
+
+<template>
+  <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar">Tentar de novo</button></div>
+  <div v-if="carregando" class="card empty">Carregando…</div>
+
+  <template v-else>
+    <section data-testid="esperando">
+      <h3 class="sec">Esperando você <span v-if="total" class="chip c-warn">{{ total }}</span></h3>
+      <div v-if="!total" class="card empty">Nada esperando. Tudo em dia.</div>
+
+      <div v-for="p in pedidos" :key="'p' + p.id" class="card pad item" data-testid="pedido">
+        <div class="row" style="gap: 10px; align-items: flex-start">
+          <span class="ini">{{ iniciais(p.solicitante.nome) }}</span>
+          <div style="flex: 1; min-width: 0">
+            <div class="val">{{ p.solicitante.nome }} pede <span class="num">{{ fmt(p.valor) }}</span> de desconto</div>
+            <div class="small">{{ p.cliente.nome }} · {{ p.aparelho }} · parcela {{ p.parcela }}/{{ p.nParcelas }}</div>
+            <div v-if="p.motivo" class="small" style="margin-top: 4px">“{{ p.motivo }}”</div>
+          </div>
+        </div>
+        <div class="row" style="gap: 8px; margin-top: 10px">
+          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" @click="aprovar(p)">Aprovar</button>
+          <button class="btn b-out" style="flex: 1" :disabled="!!ocupado" @click="recusar(p)">Recusar</button>
+        </div>
+      </div>
+
+      <div v-for="f in fechamentos" :key="'f' + f.id" class="card pad item" data-testid="fechamento">
+        <div class="row" style="gap: 10px; align-items: flex-start">
+          <span class="ini">{{ iniciais(f.usuario.nome) }}</span>
+          <div style="flex: 1; min-width: 0">
+            <div class="val">{{ f.usuario.nome }} fechou o dia {{ dmy(f.data) }}</div>
+            <div class="small num">{{ fmt(f.total) }} · dinheiro {{ fmt(f.totalDinheiro) }} · Pix {{ fmt(f.totalPix) }} · cartão {{ fmt(f.totalCartao) }}</div>
+          </div>
+        </div>
+        <div class="row" style="gap: 8px; margin-top: 10px">
+          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" @click="conferir(f)">Conferido</button>
+          <button class="btn b-out" style="flex: 1" :disabled="!!ocupado" @click="reabrir(f)">Reabrir</button>
+        </div>
+      </div>
+    </section>
+
+    <section data-testid="pessoas">
+      <div class="row" style="justify-content: space-between"><h3 class="sec">Pessoas</h3><button class="btn b-pri" @click="abrirConvite"><Icon name="plus" small />Convidar</button></div>
+      <div v-for="p in pessoas" :key="p.id" class="card pad item" :style="{ opacity: p.ativo ? 1 : 0.6 }" data-testid="pessoa">
+        <div class="row" style="gap: 10px; align-items: flex-start">
+          <span class="ini">{{ iniciais(p.nome) }}</span>
+          <div style="flex: 1; min-width: 0">
+            <div class="val">{{ p.nome }} <span class="chip c-neu">{{ NOME_PERFIL[p.perfil] }}</span><span v-if="!p.ativo" class="chip c-bad">sem acesso</span></div>
+            <div class="small">{{ p.email }}</div>
+            <div v-if="p.perfil === 'COBRADOR'" class="small num">{{ p.carteira }} clientes · {{ p.comAtraso }} com atraso · recebeu {{ fmt(p.recebidoNoMes) }} no mês<template v-if="p.pedidosPendentes"> · {{ p.pedidosPendentes }} pedido(s) esperando</template></div>
+            <div v-else-if="p.perfil === 'VENDEDOR'" class="small num">{{ p.carteira }} clientes · {{ p.vendasNoMes }} venda(s) no mês</div>
+          </div>
+          <button v-if="p.perfil !== 'ADMIN'" class="btn b-ghost b-sm" :disabled="!!ocupado" @click="alternar(p)">{{ p.ativo ? 'Desativar' : 'Reativar' }}</button>
+        </div>
+      </div>
+    </section>
+  </template>
+
+  <Sheet :aberto="recusando !== null" @fechar="recusando = null">
+    <template v-if="recusando">
+      <h3>Recusar o pedido de {{ fmt(recusando.valor) }}?</h3>
+      <div class="small">{{ recusando.solicitante.nome }} · {{ recusando.cliente.nome }}</div>
+      <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" @submit.prevent="confirmarRecusa">
+        <div class="field"><label for="mRecusa">Quer explicar o motivo? (opcional)</label><div class="inp"><input id="mRecusa" v-model="motivoRecusa" maxlength="500" placeholder="Ex.: margem apertada" /></div></div>
+        <button class="btn b-bad b-block" type="submit">Recusar</button>
+      </form>
+    </template>
+  </Sheet>
+
+  <Sheet :aberto="convidando" @fechar="convidando = false">
+    <template v-if="criado">
+      <h3>Acesso criado</h3>
+      <p class="small">Passe estes dados para a pessoa. A senha só aparece agora; no primeiro acesso ela escolhe uma nova.</p>
+      <div class="card pad" style="margin-top: 12px; background: var(--elevated)" data-testid="senha-temporaria">
+        <div class="lbl">E-mail</div><div class="val">{{ criado.email }}</div>
+        <div class="lbl" style="margin-top: 8px">Senha temporária</div><div class="val mono">{{ criado.senhaTemporaria }}</div>
+      </div>
+      <div class="row" style="gap: 8px; margin-top: 14px"><button class="btn b-out" style="flex: 1" @click="copiar(criado.senhaTemporaria)">Copiar senha</button><button class="btn b-pri" style="flex: 1" @click="convidando = false">Pronto</button></div>
+    </template>
+    <template v-else>
+      <h3>Convidar pessoa</h3>
+      <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 12px" novalidate @submit.prevent="convidar">
+        <div class="field"><label for="cNome">Nome</label><div class="inp"><input id="cNome" v-model="convite.nome" autocomplete="off" /></div></div>
+        <div class="field"><label for="cEmail">E-mail</label><div class="inp"><input id="cEmail" v-model="convite.email" type="email" autocomplete="off" /></div></div>
+        <div class="field"><label for="cFone">Telefone (opcional)</label><div class="inp"><input id="cFone" v-model="convite.fone" inputmode="tel" placeholder="(11) 98812-4410" /></div></div>
+        <div class="field"><label>Função</label><div class="pills"><button type="button" class="pill" :class="{ on: convite.perfil === 'COBRADOR' }" @click="convite.perfil = 'COBRADOR'">Cobrador</button><button type="button" class="pill" :class="{ on: convite.perfil === 'VENDEDOR' }" @click="convite.perfil = 'VENDEDOR'">Vendedor</button></div></div>
+        <div v-if="erroConvite" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroConvite }}</div>
+        <button class="btn b-pri b-block" type="submit" :disabled="ocupado === 'convite'">{{ ocupado === 'convite' ? 'Criando…' : 'Criar acesso' }}</button>
+      </form>
+    </template>
+  </Sheet>
+</template>

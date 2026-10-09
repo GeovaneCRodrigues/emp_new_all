@@ -23,6 +23,12 @@ import { vendasRoutes } from './modules/vendas/routes.js'
 import type { VendasService } from './modules/vendas/services/vendas.service.js'
 import { recebimentosRoutes } from './modules/recebimentos/routes.js'
 import type { RecebimentosService } from './modules/recebimentos/services/recebimentos.service.js'
+import { aprovacoesRoutes } from './modules/aprovacoes/routes.js'
+import type { AprovacoesService } from './modules/aprovacoes/services/aprovacoes.service.js'
+import { fechamentosRoutes } from './modules/fechamentos/routes.js'
+import type { FechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
+import { equipeRoutes } from './modules/equipe/routes.js'
+import type { EquipeService } from './modules/equipe/services/equipe.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
 /** Tudo o que o app precisa vem de fora (injeção), assim os testes trocam o banco por um falso. */
@@ -38,6 +44,9 @@ export type Deps = {
   vendas: VendasService
   config: ConfigService
   recebimentos: RecebimentosService
+  aprovacoes: AprovacoesService
+  fechamentos: FechamentosService
+  equipe: EquipeService
   /** Ajustes de limite; os testes sobem o limite para não esbarrar nele. */
   limites?: { vendasPorMinuto?: number; recebimentosPorMinuto?: number }
 }
@@ -76,6 +85,9 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(estoqueRoutes(deps.estoque, exigir), { prefix: '/api' })
   await app.register(vendasRoutes(deps.vendas, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })
+  await app.register(aprovacoesRoutes(deps.aprovacoes, exigir), { prefix: '/api' })
+  await app.register(fechamentosRoutes(deps.fechamentos, exigir), { prefix: '/api' })
+  await app.register(equipeRoutes(deps.equipe, exigir), { prefix: '/api' })
   await app.register(recebimentosRoutes(deps.recebimentos, exigir, deps.limites?.recebimentosPorMinuto), { prefix: '/api' })
 
   return app

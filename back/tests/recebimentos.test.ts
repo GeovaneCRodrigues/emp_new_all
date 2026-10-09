@@ -77,6 +77,7 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       estoque: createEstoqueService(createEstoqueRepository(k), audit), config: createConfigService(config),
       vendas: createVendasService({ vendas: createVendasRepository(k), config, auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
       recebimentos: createRecebimentosService({ repo: createRecebimentosRepository(k), auditoria: audit, hoje: () => hoje, depoisDeLerParcelas: async () => { if (seguraTransacao) await new Promise((r) => setTimeout(r, 150)) } }),
+      aprovacoes: {} as never, fechamentos: {} as never, equipe: {} as never,
       limites: { vendasPorMinuto: 100_000, recebimentosPorMinuto: 100_000 },
     })
     for (const papel of ['admin', 'vendedor', 'cobrador', 'cobrador2', 'indicador'])
