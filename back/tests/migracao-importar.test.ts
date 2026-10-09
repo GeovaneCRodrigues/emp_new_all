@@ -124,7 +124,7 @@ describe.skipIf(!db)('importar indicadores e clientes do sistema antigo (Postgre
     const r = await importar(db!, cenario(), { aplicar: false })
     const texto = (formatarRelatorio(r) + JSON.stringify(r)).toLowerCase()
     for (const dado of ['Fictício', '52998224725', '529.982.247-25', '988124410', 'ana@exemplo.com', 'Rua A', 'paga sempre']) expect(texto, dado).not.toContain(dado.toLowerCase())
-    expect(texto).toContain('SIMULAÇÃO')
+    expect(texto).toContain('simulação')
   })
 
   it('bases vazias: não faz nada e não quebra', async () => {
