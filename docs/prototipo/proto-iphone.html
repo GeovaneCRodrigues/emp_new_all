@@ -179,6 +179,14 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 .side>*{flex-shrink:0}
 .side .fundo{margin-top:auto;padding-top:10px}
 .side .fundo+.rod{margin-top:0}
+.sair-ic{margin-left:auto;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--soft);flex:none}
+.sair-ic:hover{background:var(--bad-soft);color:var(--bad)}
+.li.sair,.item.sair,.li.sair .t,.li.sair .icon{color:var(--bad)}
+.side .item.sair{margin-top:6px}
+.login{grid-column:1/-1;grid-row:1/-1;display:grid;place-items:center;padding:24px 16px;overflow-y:auto;background:var(--bg)}
+.login .card{width:100%;max-width:380px;padding:24px;display:flex;flex-direction:column;gap:14px}
+.login .marca{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--strong);font-size:16px;line-height:1.1}
+.login .marca em{font-style:normal;color:var(--primary)}
 .side .rod{margin-top:auto;display:flex;align-items:center;gap:10px;padding:10px 8px 0;border-top:1px solid var(--border);font-size:13px}
 
 /* peças */
@@ -1521,10 +1529,11 @@ function portalShell() {
       <button class="novo" data-folha="pNovo">${ic('plus')}Novo</button>
       ${NAVP.map(([id, l, i]) => `<button class="item ${t === id || (id === 'vendas' && t === 'vender') ? 'on' : ''}" data-ptela="${id}">${ic(i)}${l}${id === 'cobranca' && nAv ? `<span class="cnt" style="background:var(--warn)">${nAv}</span>` : ''}</button>`).join('')}
       <div class="rod" style="flex-direction:column;align-items:stretch;gap:6px"><div class="small">Nível ${D.nv.nivel.nome} · ${Math.round(D.p.pct * 100)}% do lucro</div>${D.nv.prox ? `<div class="bar"><i style="width:${Math.round((D.nv.n - D.nv.nivel.min) / (D.nv.prox.min - D.nv.nivel.min) * 100)}%;background:${D.nv.prox.cor}"></i></div><div class="small">Faltam ${D.nv.prox.min - D.nv.n} para ${D.nv.prox.nome}</div>` : '<div class="small">Nível máximo</div>'}</div>
+      <button class="item sair" data-sair>${ic('log-out')}Sair do sistema</button>
     </aside>`
   const tb = ([id, l, i]) => `<button class="${t === id ? 'on' : ''}" data-ptela="${id}">${ic(i, 'icon')}${l.replace('Meus c', 'C')}</button>`
   const tabs = `<nav class="tabs">${[NAVP[0], NAVP[1]].map(tb).join('')}<button class="vender" data-folha="pNovo"><span class="fab">${ic('plus')}</span>Novo</button>${[NAVP[2], NAVP[6]].map(tb).join('')}</nav>`
-  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${{ inicio: `Olá, ${D.p.nome.split(' ')[0]}`, clientes: 'Meus clientes', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis', vendas: 'Minhas vendas', estoque: 'Estoque', simulador: 'Simulador', vender: 'Nova venda' }[t]}</h1>${selo(D.nv.nivel)}</header><div class="content">${telas[t](D)}</div></div>${tabs}`
+  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${{ inicio: `Olá, ${D.p.nome.split(' ')[0]}`, clientes: 'Meus clientes', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis', vendas: 'Minhas vendas', estoque: 'Estoque', simulador: 'Simulador', vender: 'Nova venda' }[t]}</h1>${selo(D.nv.nivel)}<button class="avatar mais" style="background:${D.nv.nivel.fundo};color:${D.nv.nivel.cor}" data-folha="conta" aria-label="Minha conta">${iniciais(D.p.nome)}</button></header><div class="content">${telas[t](D)}</div></div>${tabs}`
 }
 function pInicio(D) {
   const { p, r, nv, meses, prev } = D
@@ -1895,7 +1904,29 @@ function itemSide(n, atr) {
 }
 function qtdAtraso() { return new Set(cobrancas().filter((x) => !x.p.pago && x.p.venc < HOJE).map((x) => x.v.id)).size }
 
+function quemLogado() {
+  if (S.modo === 'indicador') { const p = portalDados(S.portalPid).p; return { nome: p.nome, perfil: 'Indicador', login: p.tel || '(11) 98888-1234' } }
+  if (S.modo === 'equipe') { const u = eu(); return { nome: u.nome, perfil: PERFIS[u.perfil].label, login: u.email || `${u.nome.split(' ')[0].toLowerCase()}@mundodosiphones.com` } }
+  return { nome: 'Geovane', perfil: 'Administrador', login: 'geovane@mundodosiphones.com' }
+}
+function telaLogin() {
+  const q = quemLogado()
+  return `<div class="login"><div class="card">
+    <div class="marca">${logo()}<span>Mundo dos<br><em>iPhones</em></span></div>
+    <div><h3 style="margin:6px 0 2px">Entrar</h3><div class="small">Você saiu do sistema.</div></div>
+    <div class="field"><label>E-mail ou WhatsApp</label><div class="inp"><input value="${q.login}" style="font-size:14px"></div></div>
+    <div class="field"><label>Senha</label><div class="inp"><input type="password" value="12345678" style="font-size:14px"></div></div>
+    <button class="btn b-pri b-block" data-entrar>Entrar</button>
+    <button class="btn b-sub b-block" data-toast-msg="No sistema de verdade, manda um link no WhatsApp pra trocar a senha">Esqueci a senha</button>
+  </div></div>`
+}
+function folhaConta() {
+  const q = quemLogado()
+  return `<div class="row" style="gap:12px"><span class="avatar" style="width:44px;height:44px;font-size:14px">${iniciais(q.nome)}</span><div><h3 style="margin:0">${q.nome}</h3><div class="small">${q.perfil} · ${q.login}</div></div></div>
+    <div class="card list" style="margin-top:16px"><button class="li sair" data-sair>${ic('log-out')}<span class="mid t">Sair do sistema</span></button></div>`
+}
 function shell() {
+  if (S.saiu) return telaLogin()
   if (S.modo === 'indicador') return portalShell()
   if (S.modo === 'equipe') return equipeShell()
   const atr = qtdAtraso()
@@ -1905,7 +1936,7 @@ function shell() {
       <button class="novo" data-folha="novo">${ic('plus')}Novo</button>
       ${GRUPOS.map((g) => `<div class="titulo">${g.titulo}</div>${g.ids.map((id) => itemSide(itemNav(id), atr)).join('')}`).join('')}
       <div class="fundo">${itemSide(itemNav('config'), atr)}</div>
-      <div class="rod"><span class="avatar">GC</span><div><div style="color:var(--strong);font-weight:600">Geovane</div><div style="font-size:11px;color:var(--dim)">Administrador</div></div></div>
+      <div class="rod"><span class="avatar">GC</span><div><div style="color:var(--strong);font-weight:600">Geovane</div><div style="font-size:11px;color:var(--dim)">Administrador</div></div><button class="sair-ic" data-sair title="Sair do sistema" aria-label="Sair do sistema">${ic('log-out', 'i-sm')}</button></div>
     </aside>`
   const NAVM = NAV.filter((n) => n.id !== 'vendas')
   const noMais = !NAVM.some((n) => n.id === S.tela)
@@ -2258,7 +2289,7 @@ function folhaMais() {
   const naBarra = ['inicio', 'cobrancas', 'estoque']
   const li = (n) => `<button class="li" data-mais="${n.id}">${ic(n.icon)}<span class="mid t">${n.label}</span>${ic('chevron-right', 'i-sm')}</button>`
   return `<h3>Mais</h3>${GRUPOS.map((g) => { const ns = g.ids.filter((id) => !naBarra.includes(id)).map(itemNav); return ns.length ? `<div class="lbl" style="margin:14px 0 6px">${g.titulo}</div><div class="card list">${ns.map(li).join('')}</div>` : '' }).join('')}
-    <div class="card list" style="margin-top:14px">${li(itemNav('config'))}</div>`
+    <div class="card list" style="margin-top:14px">${li(itemNav('config'))}<button class="li sair" data-sair>${ic('log-out')}<span class="mid t">Sair do sistema</span></button></div>`
 }
 function folhaMaisItem(id) {
   const n = MAIS.find((x) => x.id === id)
@@ -2388,10 +2419,11 @@ function equipeShell() {
       <button class="novo" ${cob ? 'data-folha="eReceber"' : 'data-evender'}>${ic(fab[1])}${cob ? 'Registrar recebimento' : 'Nova venda'}</button>
       ${NAVE.map(([id, l, i]) => `<button class="item ${t === id ? 'on' : ''}" data-etela="${id}">${ic(i)}${l}${cnt(id)}</button>`).join('')}
       <div class="rod" style="flex-direction:column;align-items:stretch;gap:4px"><div class="small">${carteira(u.id).length} clientes na carteira</div><div class="small">${cob ? 'Desconto e retomada vão pro Geovane aprovar.' : 'Custo e lucro só o Geovane vê.'}</div></div>
+      <button class="item sair" data-sair>${ic('log-out')}Sair do sistema</button>
     </aside>`
   const tb = ([id, l, i]) => `<button class="${t === id ? 'on' : ''}" data-etela="${id}">${ic(i, 'icon')}${l.replace('Meu caixa', 'Caixa')}${id === 'pedidos' && nPed ? `<span class="badge-dot" style="background:var(--warn)">${nPed}</span>` : ''}</button>`
   const tabs = `<nav class="tabs">${NAVE.slice(0, 2).map(tb).join('')}<button class="vender ${t === 'vender' ? 'on' : ''}" ${cob ? 'data-folha="eReceber"' : 'data-evender'}><span class="fab">${ic(fab[1])}</span>${fab[2]}</button>${NAVE.slice(2, 4).map(tb).join('')}</nav>`
-  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${titulo}</h1><span class="chip ${PERFIS[u.perfil].cor}">${PERFIS[u.perfil].label}</span></header><div class="content">${telas[t]()}</div></div>${tabs}`
+  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${titulo}</h1><span class="chip ${PERFIS[u.perfil].cor}">${PERFIS[u.perfil].label}</span><button class="avatar mais" data-folha="conta" aria-label="Minha conta">${iniciais(u.nome)}</button></header><div class="content">${telas[t]()}</div></div>${tabs}`
 }
 
 // linha de cobrança na visão da equipe (sem lucro)
@@ -2690,7 +2722,7 @@ function folhaNovo() {
     ${op('data-folha="novoEmprestimo"', 'landmark', 'Empréstimo', 'Parcelado, só juros ou diária')}
     ${op('data-mais="simulador"', 'calculator', 'Só simular uma venda', 'Monta as parcelas pra mandar pro cliente')}</div>`
 }
-const FOLHAS = { pNovo: folhaPNovo, pReceber: folhaPReceber, novo: folhaNovo, simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
+const FOLHAS = { pNovo: folhaPNovo, pReceber: folhaPReceber, novo: folhaNovo, simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, conta: folhaConta, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
 
 // ---------- render ----------
 function render() {
@@ -2788,6 +2820,10 @@ document.addEventListener('click', (e) => {
   if (!t) return
   const d = t.dataset
   if ('ov' in d) { if (e.target === t) fechar(); return }
+  if (d.perfil || d.verComo) S.saiu = false
+  if ('sair' in d) { S.saiu = true; S.folha = null; render(); return }
+  if ('entrar' in d) { S.saiu = false; render(); toast(`Bem-vindo de volta, ${quemLogado().nome.split(' ')[0]}`); return }
+  if (d.toastMsg) { toast(d.toastMsg); return }
   if (cliquesSim(t, d) || cliquesEquipe(t, d) || cliquesNovos(t, d)) return
   if (d.ir) { if ('nova' in d) S.nv = null; ir(d.ir); return }
   if (d.mais) { ir(d.mais); return }

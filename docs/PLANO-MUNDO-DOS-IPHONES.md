@@ -119,6 +119,10 @@ Layout geral:
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
 - Toda modal tem um botão **"x"** redondo no canto de cima, à direita, **saindo um pouco pra fora** da modal (no celular, sai por cima da borda). Ele fica fora da área que rola, então está sempre visível. Esc e clicar fora também fecham. Pedido do Geovane.
 - Trocar uma opção dentro da modal (pílulas, passos) **não reabre nem anima a modal de novo** e não volta a rolagem pro topo; só o conteúdo muda. Pedido do Geovane ("parece que dá reload").
+- **Sair do sistema** (pedido do Geovane, que não achou o botão):
+  - Computador: ícone de sair ao lado do nome, no rodapé do menu lateral (admin), ou o item "Sair do sistema" no fim do menu (indicador, cobrador e vendedor).
+  - Celular: no admin fica no fim do **Mais**. Nos outros perfis, a bolinha com as iniciais no canto da barra de cima abre **Minha conta** com nome, perfil, login e "Sair do sistema".
+  - Sair limpa a sessão e volta pra tela de **Entrar** (e-mail ou WhatsApp, senha, "Esqueci a senha").
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.
