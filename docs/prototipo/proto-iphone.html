@@ -163,6 +163,7 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
   .shell{grid-template-columns:236px 1fr;grid-template-rows:1fr}
   .side{display:flex;flex-direction:column;gap:4px;background:var(--surface);border-right:1px solid var(--border);color:var(--text);padding:16px 12px;grid-row:1;overflow-y:auto;min-height:0}
   .tabs{display:none}
+  .ind-mais{display:none}
   .top .avatar.mais,.logo-m{display:none}
   .so-pc.so-pc{display:inline-flex!important}
   .content{padding:24px}
@@ -823,9 +824,9 @@ function caixaRelatorios() {
 // ---------- Equipe ----------
 function telaEquipe() {
   return `${aprovacoes.length ? `<div class="sec-t"><h2>Esperando sua aprovação</h2></div>
-    <div class="card list">${aprovacoes.map((a) => `<div class="li" style="align-items:flex-start;flex-wrap:wrap"><span class="chip ${a.tipo === 'Retomada' ? 'c-bad' : a.tipo === 'Fechamento' ? 'c-pri' : 'c-warn'}" style="margin-top:2px">${a.tipo}</span>
-      <span class="mid" style="min-width:200px"><span class="t" style="display:block;white-space:normal">${a.texto}</span><span class="s" style="display:block;white-space:normal">Pedido por ${usuarios.find((u) => u.id === a.por).nome.split(' ')[0]} · ${a.quando} · “${a.motivo}”</span></span>
-      <span class="row" style="gap:6px"><button class="btn b-ghost b-sm" data-recusar="${a.id}">Recusar</button><button class="btn b-pri b-sm" data-aprovar="${a.id}">${a.tipo === 'Fechamento' ? 'Conferido' : 'Aprovar'}</button></span></div>`).join('')}</div>` : ''}
+    <div class="card list">${aprovacoes.map((a) => `<div class="li" style="align-items:flex-start;flex-wrap:wrap"><span class="chip ${a.tipo === 'Retomada' ? 'c-bad' : a.tipo === 'Fechamento' || a.tipo === 'Baixa' ? 'c-pri' : 'c-warn'}" style="margin-top:2px">${a.tipo}</span>
+      <span class="mid" style="min-width:200px"><span class="t" style="display:block;white-space:normal">${a.texto}</span><span class="s" style="display:block;white-space:normal">${a.tipo === 'Baixa' ? 'Recebido por' : 'Pedido por'} ${(a.porNome || nomeUsuario(a.por)).split(' ')[0]} · ${a.quando} · “${a.motivo}”</span></span>
+      <span class="row" style="gap:6px"><button class="btn b-ghost b-sm" data-recusar="${a.id}">Recusar</button><button class="btn b-pri b-sm" data-aprovar="${a.id}">${a.tipo === 'Fechamento' ? 'Conferido' : a.tipo === 'Baixa' ? 'Confirmar baixa' : 'Aprovar'}</button></span></div>`).join('')}</div>` : ''}
     <div class="sec-t"><h2>Pessoas</h2></div>
     <div class="fones">${usuarios.map((u) => {
       const cart = clientes.filter((c) => c.resp === u.id), ss = cart.map(situacaoCliente)
@@ -1510,23 +1511,28 @@ const nomeCurto = (n) => { const [a, ...b] = n.split(' '); return b.length ? `${
 function portalShell() {
   syncNiveis()
   const D = portalDados(S.portalPid), t = S.pTela || 'inicio'
-  const NAVP = [['inicio', 'Início', 'house'], ['clientes', 'Meus clientes', 'users'], ['cobranca', 'Cobrança', 'hand-coins'], ['repasse', 'Repasse', 'wallet'], ['niveis', 'Níveis', 'award']]
-  const telas = { inicio: pInicio, clientes: pClientes, cobranca: pCobranca, repasse: pRepasse, niveis: pNiveis }
+  const NAVP = [['inicio', 'Início', 'house'], ['cobranca', 'Cobrança', 'hand-coins'], ['clientes', 'Meus clientes', 'users'], ['vendas', 'Minhas vendas', 'receipt-text'], ['estoque', 'Estoque', 'smartphone'], ['simulador', 'Simulador', 'calculator'], ['repasse', 'Repasse', 'wallet'], ['niveis', 'Níveis', 'award']]
+  const telas = { inicio: pInicio, clientes: pClientes, cobranca: pCobranca, repasse: pRepasse, niveis: pNiveis, vendas: pVendas, estoque: vEstoque, simulador: telaSimulador, vender: telaVender }
   const banner = `<div class="banner-ind">${ic('share-2', 'i-sm')}<span>Você está vendo o que <b>${D.p.nome}</b> vê quando entra.</span><button class="btn b-sm" data-portal-sair>Voltar pro sistema</button></div>`
+  const nAv = avisosDoIndicador(D.p.id).length
   const side = `<aside class="side">
       <div class="marca">${logo()}<span>Mundo dos<br><em>iPhones</em></span></div>
       <div class="me-card"><span class="ini" style="background:${D.nv.nivel.fundo};color:${D.nv.nivel.cor}">${iniciais(D.p.nome)}</span><div style="min-width:0"><div class="val" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${D.p.nome}</div>${selo(D.nv.nivel)}</div></div>
-      <button class="novo" data-folha="indicar">${ic('user-plus')}Indicar cliente</button>
-      ${NAVP.map(([id, l, i]) => `<button class="item ${t === id ? 'on' : ''}" data-ptela="${id}">${ic(i)}${l}</button>`).join('')}
+      <button class="novo" data-folha="pNovo">${ic('plus')}Novo</button>
+      ${NAVP.map(([id, l, i]) => `<button class="item ${t === id || (id === 'vendas' && t === 'vender') ? 'on' : ''}" data-ptela="${id}">${ic(i)}${l}${id === 'cobranca' && nAv ? `<span class="cnt" style="background:var(--warn)">${nAv}</span>` : ''}</button>`).join('')}
       <div class="rod" style="flex-direction:column;align-items:stretch;gap:6px"><div class="small">Nível ${D.nv.nivel.nome} · ${Math.round(D.p.pct * 100)}% do lucro</div>${D.nv.prox ? `<div class="bar"><i style="width:${Math.round((D.nv.n - D.nv.nivel.min) / (D.nv.prox.min - D.nv.nivel.min) * 100)}%;background:${D.nv.prox.cor}"></i></div><div class="small">Faltam ${D.nv.prox.min - D.nv.n} para ${D.nv.prox.nome}</div>` : '<div class="small">Nível máximo</div>'}</div>
     </aside>`
-  const tabs = `<nav class="tabs">${NAVP.slice(0, 2).map(([id, l, i]) => `<button class="${t === id ? 'on' : ''}" data-ptela="${id}">${ic(i, 'icon')}${l.replace('Meus c', 'C')}</button>`).join('')}<button class="vender" data-folha="indicar"><span class="fab">${ic('user-plus')}</span>Indicar</button>${NAVP.slice(2, 4).map(([id, l, i]) => `<button class="${t === id ? 'on' : ''}" data-ptela="${id}">${ic(i, 'icon')}${l}</button>`).join('')}</nav>`
-  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${{ inicio: `Olá, ${D.p.nome.split(' ')[0]}`, clientes: 'Meus clientes', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis' }[t]}</h1>${selo(D.nv.nivel)}</header><div class="content">${telas[t](D)}</div></div>${tabs}`
+  const tb = ([id, l, i]) => `<button class="${t === id ? 'on' : ''}" data-ptela="${id}">${ic(i, 'icon')}${l.replace('Meus c', 'C')}</button>`
+  const tabs = `<nav class="tabs">${[NAVP[0], NAVP[1]].map(tb).join('')}<button class="vender" data-folha="pNovo"><span class="fab">${ic('plus')}</span>Novo</button>${[NAVP[2], NAVP[6]].map(tb).join('')}</nav>`
+  return `${side}<div class="main">${banner}<header class="top"><span class="logo-m">${logo(true)}</span><h1>${{ inicio: `Olá, ${D.p.nome.split(' ')[0]}`, clientes: 'Meus clientes', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis', vendas: 'Minhas vendas', estoque: 'Estoque', simulador: 'Simulador', vender: 'Nova venda' }[t]}</h1>${selo(D.nv.nivel)}</header><div class="content">${telas[t](D)}</div></div>${tabs}`
 }
 function pInicio(D) {
   const { p, r, nv, meses, prev } = D
   const vai = Math.max(0, r.vaiGanhar - r.liberado)
-  return `<div class="hero" style="gap:6px"><div class="lbl">Você tem pra receber</div><div class="big disp num">${fmt(r.aPagar)}</div><div class="lbl">${r.aPagar ? 'Já liberado. O Geovane faz o Pix pra você.' : 'Nada liberado no momento.'}${p.pix ? ` Pix: ${p.pix}` : ''}</div></div>
+  const ab = cobrancasDoIndicador(p.id).filter((x) => !x.p.pago && !x.p.aviso && x.p.venc <= HOJE), aCobrar = ab.reduce((s, x) => s + faltaP(x.p), 0)
+  const atalhos = `<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn b-pri" style="flex:1" data-pvender>${ic('plus', 'i-sm')}Vender</button><button class="btn b-out" style="flex:1" data-folha="pReceber">${ic('hand-coins', 'i-sm')}Recebi</button><button class="btn b-out" style="flex:1" data-folha="indicar">${ic('user-plus', 'i-sm')}Indicar</button></div>
+    ${ab.length ? `<button class="card pad between" data-ptela="cobranca" style="text-align:left"><span><span class="lbl" style="display:block">Pra cobrar hoje</span><span class="val num" style="font-size:18px;color:var(--bad)">${fmt(aCobrar)}</span><span class="small" style="display:block">${new Set(ab.map((x) => x.c.id)).size} ${new Set(ab.map((x) => x.c.id)).size === 1 ? 'cliente' : 'clientes'} com parcela vencida ou vencendo hoje</span></span>${ic('chevron-right', 'i-sm')}</button>` : ''}`
+  return `${atalhos}<div class="hero" style="gap:6px"><div class="lbl">Você tem pra receber</div><div class="big disp num">${fmt(r.aPagar)}</div><div class="lbl">${r.aPagar ? 'Já liberado. O Geovane faz o Pix pra você.' : 'Nada liberado no momento.'}${p.pix ? ` Pix: ${p.pix}` : ''}</div></div>
     <div class="resumo3"><div><div class="lbl">Já recebeu</div><div class="val num" style="color:var(--ok)">${fmt0(r.jaPago)}</div></div><div><div class="lbl">Ainda vai ganhar</div><div class="val num">${fmt0(vai)}</div></div><div><div class="lbl">Clientes</div><div class="val num">${new Set(r.linhas.map((l) => l.o.clienteId)).size}</div></div></div>
     <button class="card pad" data-ptela="niveis" style="display:flex;flex-direction:column;gap:10px;text-align:left">
       <div class="between"><span class="row" style="gap:8px">${selo(nv.nivel, true)}<span class="small">${Math.round(p.pct * 100)}% do lucro</span></span>${nv.prox ? `<span class="small">próximo: ${selo(nv.prox)}</span>` : ''}</div>
@@ -1536,7 +1542,8 @@ function pInicio(D) {
     <div class="card pad"><div class="between"><b style="color:var(--strong)">Quando o dinheiro libera</b><span class="small">pelas parcelas previstas</span></div>
       <div class="dl" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px">${meses.map((k) => `<div><div class="lbl" style="text-transform:capitalize">${MESES[Number(k.slice(5, 7)) - 1]}</div><div class="val num">${fmt0(prev[k])}</div></div>`).join('')}</div>
       <div class="small" style="margin-top:8px">A sua parte só começa depois que o cliente devolve o valor do aparelho ou do empréstimo.</div></div>
-    <button class="btn b-pri b-block" data-folha="indicar">${ic('user-plus', 'i-sm')}Indicar um cliente</button>`
+    <div class="card list ind-mais">${[['vendas', 'Minhas vendas', 'receipt-text'], ['estoque', 'Estoque', 'smartphone'], ['simulador', 'Simulador', 'calculator'], ['niveis', 'Níveis', 'award']].map(([id, l, i]) => `<button class="li" data-ptela="${id}">${ic(i)}<span class="mid t">${l}</span>${ic('chevron-right', 'i-sm')}</button>`).join('')}</div>
+`
 }
 function pClientesV1(D) {
   const meus = leads.filter((l) => l.pid === D.p.id)
@@ -1583,7 +1590,7 @@ function leadsAdmin() {
 function cliquesPortal(t, d) {
   if (d.portal) { S.modo = 'indicador'; S.portalPid = Number(d.portal); S.pTela = 'inicio'; S.folha = null; render(); document.querySelector('.main')?.scrollTo(0, 0); return true }
   if ('portalSair' in d) { S.modo = null; S.folha = null; render(); return true }
-  if (d.ptela) { S.pTela = d.ptela; render(); document.querySelector('.main')?.scrollTo(0, 0); return true }
+  if (d.ptela) { S.pTela = d.ptela; S.folha = null; render(); document.querySelector('.main')?.scrollTo(0, 0); return true }
   if ('nivAuto' in d) { NIV_CFG.auto = !NIV_CFG.auto; render(); return true }
   if (d.ldTipo) { (S.ind ||= {}).tipo = d.ldTipo; renderCamada(); return true }
   if ('ldEnviar' in d) {
@@ -1629,16 +1636,16 @@ function folhaPCliente(cid) {
         <div class="dl" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div><div class="lbl">Já pagou</div><div class="val num">${fmt0(k.recebido)}</div></div><div><div class="lbl">Falta</div><div class="val num">${fmt0(k.falta)}</div></div><div><div class="lbl">Sua parte</div><div class="val num" style="color:var(--ok)">${fmt0(l.parteTotal)}</div></div></div>
         <div><div class="between small"><span>${l.volta.jaVoltou ? 'Sua parte já está liberando' : `Até sua parte começar: ${cap}%`}</span><span class="num">${fmt0(l.parte)} liberado</span></div><div class="bar" style="margin-top:5px"><i style="width:${cap}%"></i></div></div>
         <div><div class="lbl" style="margin-bottom:6px">Parcelas</div><div class="timeline">${tl}</div><div class="small" style="margin-top:6px">Verde pago · vermelho atrasado · laranja vence esta semana</div></div>
-        ${abertas.length ? `<div class="list" style="border-top:1px solid var(--border)">${abertas.map((p) => `<div class="li" style="padding:8px 0"><span class="mid"><span class="t" style="display:block">${p.n}ª parcela · ${fmt(faltaP(p))}</span><span class="s" style="display:block">${p.venc < HOJE ? `<b style="color:var(--bad)">venceu ${dmy(p.venc)} · ${diasEntre(p.venc, HOJE)} dias</b>` : `vence ${dmy(p.venc)}`}</span></span>${p.venc <= HOJE ? `<button class="wa" data-wa="${o.id}:${p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}</div>`).join('')}</div>` : ''}
+        ${abertas.length ? `<div class="list" style="border-top:1px solid var(--border)">${abertas.map((p) => `<div class="li" style="padding:8px 0"><span class="mid"><span class="t" style="display:block">${p.n}ª parcela · ${fmt(faltaP(p))}</span><span class="s" style="display:block">${p.venc < HOJE ? `<b style="color:var(--bad)">venceu ${dmy(p.venc)} · ${diasEntre(p.venc, HOJE)} dias</b>` : `vence ${dmy(p.venc)}`}</span></span>${p.aviso ? '<span class="chip c-warn">esperando a loja</span>' : `${p.venc <= HOJE ? `<button class="wa" data-wa="${o.id}:${p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}<button class="btn b-ok b-sm" data-receber="${o.id}:${p.n}">Recebi</button>`}</div>`).join('')}</div>` : ''}
       </div>`
     }).join('')}
-    <div class="small" style="margin-top:12px">Pagamento só é dado como recebido pela loja. Se o cliente disser que pagou, peça o comprovante e mande pro Geovane.</div>`
+    <div class="small" style="margin-top:12px">Quando você toca em Recebi, a loja confere e dá baixa. Desconto e acordo vão pro Geovane aprovar.</div>`
 }
 function pCobLinha(x, paga) {
-  const atr = !x.p.pago && x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0
+  const atr = !x.p.pago && x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0, av = !paga && x.p.aviso
   return `<div class="li"><span class="ini">${iniciais(x.c.nome)}</span>
       <button class="mid" style="text-align:left" data-pcli="${x.c.id}"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${paga ? `pagou ${fmt(pagoP(x.p))} em ${dmy(x.p.pagos.at(-1).data)}` : `<b style="color:var(--strong)">${fmt(faltaP(x.p))}</b> · ${atr ? `<b style="color:var(--bad)">venceu ${dmy(x.p.venc)} · ${atr} ${atr === 1 ? 'dia' : 'dias'}</b>` : x.p.venc === HOJE ? '<b style="color:var(--warn)">vence hoje</b>' : `vence ${dmy(x.p.venc)}`}`} · ${nomeItem(x.v)} · ${x.p.n}/${x.v.parcelas.length}</span></button>
-      ${!paga && x.p.venc <= HOJE ? `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}</div>`
+      ${av ? `<span class="chip c-warn" title="Você avisou ${fmt(x.p.aviso.valor)} em ${dmy(x.p.aviso.data)}">esperando a loja</span>` : !paga ? `${x.p.venc <= HOJE ? `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}<button class="btn b-ok b-sm" data-receber="${x.v.id}:${x.p.n}">Recebi</button>` : ''}</div>`
 }
 function pCobranca(D) {
   const todas = cobrancasDoIndicador(D.p.id), abertas = todas.filter((x) => !x.p.pago)
@@ -1651,11 +1658,14 @@ function pCobranca(D) {
   const aba = S.pCobAba || 'atrasadas', lista = G[aba], vista = S.pCobVista || 'lista'
   const total = lista.reduce((s, x) => s + (aba === 'pagas' ? pagoP(x.p) : faltaP(x.p)), 0)
   const troca = `<div class="filtros"><span class="seg">${[['lista', 'Lista', 'menu'], ['cal', 'Calendário', 'calendar-days']].map(([v, l, i]) => `<button class="${vista === v ? 'on' : ''}" style="display:inline-flex;align-items:center;gap:6px" data-pcob-vista="${v}">${ic(i, 'i-sm')}${l}</button>`).join('')}</span></div>`
-  if (vista === 'cal') return `${troca}${cronCalendario(todas, (x) => pCobLinha(x, !!x.p.pago))}<p class="small" style="margin:0">Aqui você só acompanha. Quem dá baixa nos pagamentos é a loja.</p>`
-  return `${troca}<div class="filtros"><span class="seg">${[['atrasadas', 'Atrasadas'], ['semana', 'Esta semana'], ['proximas', 'Próximas'], ['pagas', 'Pagas']].map(([v, l]) => `<button class="${aba === v ? 'on' : ''}" data-pcob="${v}">${l}${G[v].length && v !== 'pagas' ? ` · ${G[v].length}` : ''}</button>`).join('')}</span></div>
+  const avs = avisosDoIndicador(D.p.id)
+  const blocoAv = avs.length ? `<div class="card"><div class="totbar"><b style="color:var(--warn)">Esperando a loja confirmar · ${avs.length}</b><b class="num">${fmt(avs.reduce((s, x) => s + x.p.aviso.valor, 0))}</b></div><div class="list">${avs.map((x) => `<div class="li"><span class="ini">${iniciais(x.c.nome)}</span><span class="mid"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${fmt(x.p.aviso.valor)} · ${x.p.aviso.forma} · ${dmy(x.p.aviso.data)} · ${x.p.n}ª parcela${x.p.aviso.comp ? ' · com comprovante' : ''}</span></span></div>`).join('')}</div></div>` : ''
+  const nota = '<p class="small" style="margin:0">Recebeu do cliente? Toca em Recebi. A loja confere, dá baixa e o recibo vai pro cliente.</p>'
+  if (vista === 'cal') return `${troca}${blocoAv}${cronCalendario(todas, (x) => pCobLinha(x, !!x.p.pago))}${nota}`
+  return `${troca}${blocoAv}<div class="filtros"><span class="seg">${[['atrasadas', 'Atrasadas'], ['semana', 'Esta semana'], ['proximas', 'Próximas'], ['pagas', 'Pagas']].map(([v, l]) => `<button class="${aba === v ? 'on' : ''}" data-pcob="${v}">${l}${G[v].length && v !== 'pagas' ? ` · ${G[v].length}` : ''}</button>`).join('')}</span></div>
     <div class="card"><div class="totbar"><span class="small">${lista.length} ${lista.length === 1 ? 'parcela' : 'parcelas'}</span><b class="num" style="color:${aba === 'atrasadas' ? 'var(--bad)' : aba === 'pagas' ? 'var(--ok)' : 'var(--strong)'}">${fmt(total)}</b></div>
     <div class="list">${lista.map((x) => pCobLinha(x, aba === 'pagas')).join('') || '<div class="empty">Nada aqui.</div>'}</div></div>
-    <p class="small" style="margin:0">Aqui você só acompanha. Quem dá baixa nos pagamentos é a loja.</p>`
+    ${nota}`
 }
 function pRepasse(D) {
   const { r, pagos, meses, prev } = D
@@ -1675,7 +1685,56 @@ function cliquesPortal2(t, d) {
   return false
 }
 
+// ===== indicador também vende e cobra (pedido do Geovane, 09/10) =====
+// Ele vende como o vendedor (sem ver custo nem lucro) e cobra os clientes dele.
+// O "Recebi" dele não dá baixa: vira um aviso que a loja confirma em Equipe.
+const avisosDoIndicador = (pid) => cobrancasDoIndicador(pid).filter((x) => x.p.aviso && !x.p.pago)
+function pVendas(D) {
+  const mv = vendas.filter((v) => v.parceiroId === D.p.id).slice().sort((a, b) => b.data.localeCompare(a.data))
+  return `<div class="row" style="gap:8px"><button class="btn b-out" style="flex:1" data-ptela="simulador">${ic('calculator', 'i-sm')}Simular</button><button class="btn b-pri" style="flex:1" data-pvender>${ic('plus', 'i-sm')}Nova venda</button></div>
+    <div class="card list">${mv.map((v) => { const k = contas(v); return `<button class="li" data-pcli="${v.clienteId}"><span class="ini" style="${k.atrasadas.length ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${iniciais(cliente(v.clienteId).nome)}</span>
+      <span class="mid"><span class="t" style="display:block">${cliente(v.clienteId).nome}</span><span class="s" style="display:block">${nomeItem(v)} · ${dmyA(v.data)} · ${v.parcelas.length}x ${fmt0(v.parcelas[0]?.valor || 0)}</span></span>
+      ${v.status === 'RETOMADA' ? '<span class="chip c-neu">retomada</span>' : k.status === 'QUITADA' ? '<span class="chip c-ok">quitada</span>' : k.atrasadas.length ? '<span class="chip c-bad">atraso</span>' : v.contrato === 'AGUARDANDO' ? '<span class="chip c-warn">assinar</span>' : '<span class="chip c-ok">em dia</span>'}</button>` }).join('') || '<div class="empty">Nenhuma venda ainda.</div>'}</div>
+    <p class="small" style="margin:0">Toda venda que você faz já entra como sua indicação, com o seu % do lucro.</p>`
+}
+function folhaPNovo() {
+  const op = (attrs, icone, t, sub) => `<button class="li" ${attrs}><span class="pic" style="width:40px;height:40px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center">${ic(icone)}</span><span class="mid"><span class="t" style="display:block">${t}</span><span class="s" style="display:block">${sub}</span></span>${ic('chevron-right', 'i-sm')}</button>`
+  return `<h3>O que você vai fazer?</h3><div class="card list" style="margin-top:12px">
+    ${op('data-pvender', 'smartphone', 'Vender iPhone', 'Aparelho do estoque, parcelado')}
+    ${op('data-folha="pReceber"', 'hand-coins', 'Recebi de um cliente', 'Avisa a loja pra dar baixa')}
+    ${op('data-folha="indicar"', 'user-plus', 'Indicar cliente', 'A loja chama e fecha pra você')}
+    ${op('data-ptela="simulador"', 'calculator', 'Só simular', 'Monta as parcelas pra mandar pro cliente')}</div>`
+}
+function folhaPReceber() {
+  const abertas = cobrancasDoIndicador(S.portalPid).filter((x) => !x.p.pago && !x.p.aviso && diasEntre(HOJE, x.p.venc) <= 7).sort((a, b) => a.p.venc.localeCompare(b.p.venc))
+  return `<h3>Quem pagou?</h3><div class="small">Parcelas dos seus clientes vencidas ou que vencem esta semana.</div>
+    <div class="card list" style="margin-top:12px">${abertas.map((x) => { const atr = x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0; return `<button class="li" data-receber="${x.v.id}:${x.p.n}"><span class="ini">${iniciais(x.c.nome)}</span><span class="mid"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${nomeItem(x.v)} ${x.p.n}/${x.v.parcelas.length} · ${atr ? `<b style="color:var(--bad)">${atr} dias</b>` : `vence ${dmy(x.p.venc)}`}</span></span><b class="num">${fmt(faltaP(x.p))}</b>${ic('chevron-right', 'i-sm')}</button>` }).join('') || '<div class="empty">Nada pra receber agora.</div>'}</div>`
+}
+function cliquesIndicador(t, d) {
+  if (!ehIndicador()) return false
+  const pid = S.portalPid
+  const vender = (bemId) => { S.nv = null; novaVenda(bemId ?? null); S.nv.parceiroId = pid; S.pTela = 'vender'; S.folha = null; render(); document.querySelector('.main')?.scrollTo(0, 0) }
+  if ('pvender' in d) { vender(); return true }
+  if ('evender' in d) { vender(d.evender ? Number(d.evender) : null); return true }
+  if (d.ir === 'vender') { vender(); return true }
+  if ('recComp' in d) { S.rec.comp = !S.rec.comp; abrir('receber'); return true }
+  if ('recConfirmar' in d) {
+    const r = S.rec, v = opById(r.vid), valor = numBR(r.valor), alvo = v.parcelas.find((x) => x.n === r.n), c = cliente(v.clienteId), p = parceiro(pid)
+    if (valor <= 0) return true
+    const resto = r.resto === 'DESCONTO' ? 'FICA' : r.resto, novoVenc = r.novoVenc
+    alvo.aviso = { valor, data: r.data, forma: r.forma, comp: !!r.comp, pid }
+    aprovacoes.push({ id: ++seq, tipo: 'Baixa', por: `ind:${pid}`, porNome: p.nome, quando: 'agora', motivo: r.comp ? 'Mandou comprovante' : 'Sem comprovante',
+      texto: `${fmt(valor)} de ${c.nome} (${nomeItem(v)}, ${alvo.n}ª parcela) · ${r.forma} · ${dmy(r.data)}`,
+      acao: () => { delete alvo.aviso; registrar(v, alvo.n, r.data, valor, r.forma, resto, `ind:${pid}`); if (resto === 'FICA' && !alvo.pago && novoVenc && novoVenc !== alvo.venc) { alvo.vencOrig ??= alvo.venc; alvo.venc = novoVenc } },
+      aoRecusar: () => { delete alvo.aviso } })
+    if (r.resto === 'DESCONTO') { aprovacoes.push({ id: ++seq, tipo: 'Desconto', por: `ind:${pid}`, porNome: p.nome, quando: 'agora', motivo: 'Pediu na hora do recebimento', texto: `${fmt(faltaP(alvo) - valor)} de desconto na ${alvo.n}ª parcela de ${c.nome} (${nomeItem(v)})`, acao: () => { alvo.desconto += Math.max(0, faltaP(alvo)); if (faltaP(alvo) <= 0.009) alvo.pago = HOJE } }) }
+    S.rec = null; S.folha = null; S.pTela = 'cobranca'; render(); toast('Avisado. A loja confere e dá baixa')
+    return true
+  }
+  return false
+}
 function cliquesExtra(t, d) {
+  if (cliquesIndicador(t, d)) return true
   if (cliquesPortal2(t, d)) return true
   if (cliquesPortal(t, d)) return true
   if (cliquesRepasses(t, d)) return true
@@ -1750,9 +1809,10 @@ function cliquesNovos(t, d) {
     const id = Number(d.aprovar || d.recusar), i = aprovacoes.findIndex((a) => a.id === id), a = aprovacoes[i]; aprovacoes.splice(i, 1)
     S.pedHist.unshift({ por: a.por, tipo: a.tipo, texto: a.texto, quando: dmy(HOJE), ok: !!d.aprovar })
     if (d.aprovar && a.acao) a.acao()
+    if (!d.aprovar && a.aoRecusar) a.aoRecusar()
     if (d.aprovar && !a.acao && a.tipo === 'Desconto') { const v = vendas.find((x) => x.clienteId === 3); const p = v.parcelas[1]; p.desconto += 50; if (faltaP(p) <= 0.009) p.pago = HOJE }
     if (d.aprovar && !a.acao && a.tipo === 'Retomada') { const v = vendas.find((x) => x.clienteId === 4); v.status = 'RETOMADA'; const b = bem(v.bemId); b.estado = 'DISPONIVEL'; b.desde = HOJE; b.origem = 'TROCA' }
-    render(); toast(d.aprovar ? (a.tipo === 'Fechamento' ? 'Fechamento conferido' : a.tipo === 'Retomada' ? 'Retomada aprovada' : `${a.tipo} aprovado`) : `${a.tipo} recusada. ${usuarios.find((u) => u.id === a.por).nome.split(' ')[0]} vai ser avisado`); return true
+    render(); toast(d.aprovar ? (a.tipo === 'Fechamento' ? 'Fechamento conferido' : a.tipo === 'Baixa' ? 'Baixa confirmada. Recibo enviado pro cliente' : a.tipo === 'Retomada' ? 'Retomada aprovada' : `${a.tipo} aprovado`) : `${a.tipo} recusad${a.tipo === 'Baixa' ? 'a' : 'o'}. ${(a.porNome || nomeUsuario(a.por)).split(' ')[0]} vai ser avisado`); return true
   }
   if (d.convPerfil) { S.convPerfil = d.convPerfil; abrir('convite'); return true }
   if ('convEnviar' in d) { const nome = document.getElementById('uNome').value.trim(); if (!nome) return true; usuarios.push({ id: ++seq, nome, perfil: S.convPerfil || 'COBRADOR', fone: document.getElementById('uFone').value || '—' }); S.folha = null; render(); toast(`Convite enviado pra ${nome.split(' ')[0]}`); return true }
@@ -1919,7 +1979,7 @@ function cobLinha(x) {
   const tag = x.p.pago ? `<span style="color:var(--ok);font-weight:600">pago ${dmy(x.p.pago)}${x.p.desconto ? ' com desconto' : ''}</span>` : atraso ? `<span style="color:var(--bad);font-weight:600">${atraso} ${atraso === 1 ? 'dia' : 'dias'}</span>` : hoje ? '<span style="color:var(--warn);font-weight:600">vence hoje</span>' : `<span class="num">vence ${dmy(x.p.venc)}</span>`
   return `<div class="cob"><span class="ini">${iniciais(x.c.nome)}</span>
     <button class="mid" style="flex:1;min-width:0;text-align:left" data-venda="${x.v.id}"><div class="t" style="font-weight:500;color:var(--strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.c.nome}</div>
-    <div class="s" style="font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b class="num" style="color:var(--strong)">${fmt(valorLinha)}</b>${parcial ? ' <span style="color:var(--warn);font-weight:600">resta</span>' : ''} · ${tag}</div><div class="s" style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${atraso ? `venceu ${dmy(x.p.venc)} · ` : ''}${x.b.modelo} · parcela ${x.p.n}/${x.v.parcelas.length}${parcial ? ` · já pagou ${fmt0(pagoP(x.p))}` : ''}${x.p.vencOrig && !x.p.pago ? ` · remarcada (era ${dmy(x.p.vencOrig)})` : ''}</div></button>
+    <div class="s" style="font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><b class="num" style="color:var(--strong)">${fmt(valorLinha)}</b>${parcial ? ' <span style="color:var(--warn);font-weight:600">resta</span>' : ''} · ${tag}</div><div class="s" style="font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${atraso ? `venceu ${dmy(x.p.venc)} · ` : ''}${x.b.modelo} · parcela ${x.p.n}/${x.v.parcelas.length}${parcial ? ` · já pagou ${fmt0(pagoP(x.p))}` : ''}${x.p.vencOrig && !x.p.pago ? ` · remarcada (era ${dmy(x.p.vencOrig)})` : ''}${x.p.aviso && !x.p.pago ? ` · <b style="color:var(--warn)">${parceiro(x.p.aviso.pid).nome.split(' ')[0]} avisou ${fmt(x.p.aviso.valor)}</b>` : ''}</div></button>
     <div class="acts">${x.p.pago ? '' : `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Cobrar no WhatsApp">${ic('message-circle', 'i-sm')}</button><button class="btn b-ok b-sm" data-receber="${x.v.id}:${x.p.n}">Recebi</button>`}</div></div>`
 }
 
@@ -2011,14 +2071,14 @@ function telaVender() {
       </div>
       <div class="field"><label>Parcelas</label><div class="pills">${Array.from({ length: JUROS.max }, (_, i) => i + 1).map((n) => `<button class="pill ${nv.n === n ? 'on' : ''}" data-n="${n}">${n}x</button>`).join('')}</div></div>
       <div class="field"><label>Vence todo dia</label><div class="pills">${[5, 10, 15, 20, 25].map((d) => `<button class="pill ${nv.dia === d ? 'on' : ''}" data-dia="${d}">${d}</button>`).join('')}</div></div>
-      <div class="field"><label>Veio por indicação?</label><div class="pills">${parceiros.map((p) => `<button class="pill ${nv.parceiroId === p.id ? 'on' : ''}" data-parc="${p.id}">${p.id ? `${p.nome.split(' ')[0]} ${Math.round(p.pct * 100)}%` : 'Não'}</button>`).join('')}</div></div>
+      ${ehIndicador() ? '' : vIndicacao(nv)}
     </div>
     <div class="card pad sim" id="sim">${simCard(r, nv)}</div></div>`
   }
   return `${steps}${corpo}`
 }
 function simCard(r, nv) {
-  if (ehVendedor()) return simCardVend(r, nv)
+  if (semCusto()) return simCardVend(r, nv)
   const caps = Array.from({ length: Math.min(nv.n, 18) }, (_, i) => `<i class="${r.volta !== null && i + 1 >= r.volta ? (i + 1 === r.volta ? 'cap' : 'luc') : 'cap'}" style="${r.volta !== null && i + 1 > r.volta ? '' : ''}"></i>`).join('')
   const primeiro = somaMes(HOJE, 1, nv.dia)
   return `<div class="lbl">Cliente paga</div>
@@ -2037,6 +2097,7 @@ function simCard(r, nv) {
     <div class="small" style="margin-top:4px">Azul é o capital voltando, verde já é lucro.</div></div>
     <button class="btn b-pri b-block" style="margin-top:16px" data-confirmar ${r.lucro < 0 ? '' : ''}>${ic('file-signature', 'i-sm')}Fechar venda e enviar contrato</button>`
 }
+function vIndicacao(nv) { return `<div class="field"><label>Veio por indicação?</label><div class="pills">${parceiros.map((p) => `<button class="pill ${nv.parceiroId === p.id ? 'on' : ''}" data-parc="${p.id}">${p.id ? `${p.nome.split(' ')[0]} ${Math.round(p.pct * 100)}%` : 'Não'}</button>`).join('')}</div></div>` }
 function vendaFeita() {
   const v = opById(S.nv.feito), k = contas(v), c = cliente(v.clienteId)
   return `<div class="card ok-big"><span class="ring">${ic('check')}</span>
@@ -2044,9 +2105,9 @@ function vendaFeita() {
     <div class="small" style="max-width:34ch">${k.b.modelo} ${k.b.gb} GB para ${c.nome}. O contrato foi pro WhatsApp ${c.fone} para assinatura, e as ${v.parcelas.length} parcelas já estão nas Cobranças.</div>
     <div class="dl" style="width:100%;max-width:360px;margin-top:8px;text-align:left">
       <div><div class="lbl">Parcela</div><div class="val num">${v.parcelas.length}x ${fmt(v.parcelas[0].valor)}</div></div>
-      ${ehVendedor() ? `<div><div class="lbl">Total</div><div class="val num">${fmt(k.total)}</div></div>` : `<div><div class="lbl">Seu lucro</div><div class="val num" style="color:var(--ok)">${fmt(k.seuLucro)}</div></div>`}
+      ${semCusto() ? `<div><div class="lbl">Total</div><div class="val num">${fmt(k.total)}</div></div>` : `<div><div class="lbl">Seu lucro</div><div class="val num" style="color:var(--ok)">${fmt(k.seuLucro)}</div></div>`}
     </div>
-    <div class="row" style="margin-top:10px;flex-wrap:wrap;justify-content:center"><button class="btn b-out" ${ehVendedor() ? `data-ecli="${v.clienteId}"` : `data-venda="${v.id}"`}>Ver venda</button><button class="btn b-pri" data-ir="vender" data-nova>Vender outro</button></div></div>`
+    <div class="row" style="margin-top:10px;flex-wrap:wrap;justify-content:center"><button class="btn b-out" ${ehVendedor() ? `data-ecli="${v.clienteId}"` : ehIndicador() ? `data-pcli="${v.clienteId}"` : `data-venda="${v.id}"`}>Ver venda</button><button class="btn b-pri" data-ir="vender" data-nova>Vender outro</button></div></div>`
 }
 
 // ----- Cobranças -----
@@ -2173,10 +2234,10 @@ function folhaMenus() {
   const ind = `<section>
       <div class="quem"><span class="ini" style="background:${nv.nivel.fundo};color:${nv.nivel.cor}">${iniciais(p.nome)}</span><div><h4>Indicador</h4><div class="small">${p.nome} · ${selo(nv.nivel)}</div></div></div>
       <div><div class="lbl" style="margin-bottom:8px">Menu de baixo (celular)</div>
-        <div class="mtabs">${tab('Início', 'house', true)}${tab('Clientes', 'users')}${fab('Indicar', 'user-plus')}${tab('Cobrança', 'hand-coins')}${tab('Repasse', 'wallet')}</div></div>
+        <div class="mtabs">${tab('Início', 'house', true)}${tab('Cobrança', 'hand-coins')}${fab('Novo', 'plus')}${tab('Clientes', 'users')}${tab('Repasse', 'wallet')}</div></div>
       <div><div class="lbl" style="margin-bottom:8px">Lateral (computador)</div>
-        <div class="mlist">${item('Início', 'house')}${item('Meus clientes', 'users')}${item('Cobrança', 'hand-coins')}${item('Repasse', 'wallet')}${item('Níveis', 'award', '<span class="small">no celular, pelo card do Início</span>')}</div></div>
-      ${pode(['Vê só os clientes que ele indicou', 'Acompanha parcelas e chama o cliente no WhatsApp', 'Vê o calendário de recebimento dos clientes dele', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não dá baixa, não vê caixa nem estoque', 'Não vê cliente de outro indicador'])}
+        <div class="mlist">${item('Início', 'house')}${item('Cobrança', 'hand-coins')}${item('Meus clientes', 'users')}${item('Minhas vendas', 'receipt-text')}${item('Estoque', 'smartphone')}${item('Simulador', 'calculator')}${item('Repasse', 'wallet')}${item('Níveis', 'award', '<span class="small">no celular, pelo card do Início</span>')}</div></div>
+      ${pode(['Vende iPhone do estoque (entra como indicação dele)', 'Cobra os clientes dele e avisa quando recebe', 'Vê o calendário de recebimento dos clientes dele', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não dá baixa sozinho: a loja confirma', 'Não vê custo, lucro da loja nem caixa', 'Não vê cliente de outro indicador'])}
       <button class="btn b-pri b-block" data-ver-como="indicador">Abrir como ${p.nome.split(' ')[0]}</button>
     </section>`
   const sec = (uid, titulo, sub, tabsH, lista, sim, nao) => `<section>
@@ -2256,7 +2317,7 @@ function planoRec() {
       <div style="display:flex;flex-direction:column;gap:8px">
         <button class="opt ${r.resto === 'FICA' ? 'on' : ''}" data-rec-resto="FICA"><span class="radio"></span><span><span class="val" style="display:block">Fica devendo nesta parcela</span><span class="small">A ${p.n}ª continua aberta com ${fmt(dif)} pra pagar</span></span></button>
         ${r.resto === 'FICA' ? novoVencRec(p, dif) : ''}
-        <button class="opt ${r.resto === 'DESCONTO' ? 'on' : ''}" data-rec-resto="DESCONTO"><span class="radio"></span><span><span class="val" style="display:block">${ehCobrador() ? `Pedir desconto de ${fmt(dif)}` : `Dar desconto de ${fmt(dif)}`}</span><span class="small">${ehCobrador() ? 'Vai pro Geovane aprovar. Até lá a parcela fica aberta' : `A ${p.n}ª fica quitada. Desconto sai do seu lucro`}</span></span></button>
+        <button class="opt ${r.resto === 'DESCONTO' ? 'on' : ''}" data-rec-resto="DESCONTO"><span class="radio"></span><span><span class="val" style="display:block">${pedeAprovacao() ? `Pedir desconto de ${fmt(dif)}` : `Dar desconto de ${fmt(dif)}`}</span><span class="small">${ehCobrador() ? 'Vai pro Geovane aprovar. Até lá a parcela fica aberta' : `A ${p.n}ª fica quitada. Desconto sai do seu lucro`}</span></span></button>
       </div>`
   }
   // pagou a mais: abate das próximas
@@ -2284,7 +2345,9 @@ function folhaReceber() {
         <div class="pills"><button class="pill" data-rec-valor="cheio">Valor cheio</button><button class="pill" data-rec-valor="metade">Metade</button></div></div>
       <div class="field"><label>Como pagou?</label><div class="pills">${['Pix', 'Dinheiro', 'Cartão'].map((f) => `<button class="pill ${r.forma === f ? 'on' : ''}" data-rec-forma="${f}">${f}</button>`).join('')}</div></div>
       <div id="planoRec">${planoRec()}</div>
-      <button class="btn b-ok b-block" data-rec-confirmar>Confirmar recebimento</button>
+      ${ehIndicador() ? `<button class="opt ${r.comp ? 'on' : ''}" data-rec-comp><span class="radio"></span><span><span class="val" style="display:block">Anexar comprovante</span><span class="small">${r.comp ? 'comprovante_pix.jpg' : 'Foto do Pix ou do dinheiro entregue. Ajuda a loja a conferir.'}</span></span></button>` : ''}
+      <button class="btn b-ok b-block" data-rec-confirmar>${ehIndicador() ? `${ic('send', 'i-sm')}Avisar a loja que recebi` : 'Confirmar recebimento'}</button>
+      ${ehIndicador() ? '<div class="small" style="text-align:center">A parcela baixa e o recibo vai pro cliente quando a loja confirmar.</div>' : ''}
     </div>`
 }
 // ----- área da equipe: cobrador e vendedor (cada um vê só o que é dele) -----
@@ -2292,8 +2355,13 @@ function eu() { return usuarios.find((u) => u.id === S.eqUid) }
 function ehEquipe() { return S.modo === 'equipe' }
 function ehVendedor() { return ehEquipe() && eu()?.perfil === 'VENDEDOR' }
 function ehCobrador() { return ehEquipe() && eu()?.perfil === 'COBRADOR' }
+function ehIndicador() { return typeof S !== 'undefined' && S.modo === 'indicador' }
+// quem não vê custo nem lucro: vendedor e indicador
+function semCusto() { return ehVendedor() || ehIndicador() }
+// cobrador e indicador pedem desconto em vez de dar
+function pedeAprovacao() { return ehCobrador() || ehIndicador() }
 function quemRecebe() { return typeof S !== 'undefined' && ehEquipe() ? S.eqUid : 1 }
-const nomeUsuario = (id) => (usuarios.find((u) => u.id === id) || usuarios[0]).nome
+const nomeUsuario = (id) => (typeof id === 'string' && id.startsWith('ind:') ? parceiro(Number(id.slice(4))).nome : (usuarios.find((u) => u.id === id) || usuarios[0]).nome)
 const carteira = (uid) => clientes.filter((c) => c.resp === uid)
 const cobDaCarteira = (uid) => { const ids = new Set(carteira(uid).map((c) => c.id)); return cobrancas().filter((x) => ids.has(x.c.id)) }
 const minhasVendas = (uid) => vendas.filter((v) => (v.vendedor ?? cliente(v.clienteId).resp) === uid)
@@ -2575,7 +2643,7 @@ function telaSimulador() {
     <div class="card sim" id="simRes" style="padding:0">${simRes()}</div></div>`
 }
 function simRes() {
-  const D = simDados(), s = D.s, sel = D.linhas.find((l) => l.n === s.n) || D.linhas.at(-1), vend = ehVendedor()
+  const D = simDados(), s = D.s, sel = D.linhas.find((l) => l.n === s.n) || D.linhas.at(-1), vend = semCusto()
   return `<div style="padding:16px 16px 8px"><div class="lbl">Fica pra parcelar</div><div class="disp num" style="font-size:24px;color:var(--strong)">${fmt(D.fin)}</div>
       <div class="small">${fmt(D.preco)}${D.entrada ? ` − ${fmt(D.entrada)} de entrada` : ' · sem entrada'}</div></div>
     <div class="list simtab">${D.linhas.map((l) => `<button class="li ${l.n === s.n ? 'on' : ''}" data-sim-n="${l.n}">
@@ -2602,10 +2670,10 @@ function cliquesSim(t, d) {
     const s = S.sim
     novaVenda(s.bemId); Object.assign(S.nv, { preco: numBR(s.preco), entrada: numBR(s.entrada), n: s.n, passo: s.bemId ? 2 : 1, precoFixo: !s.bemId })
     S.folha = null
-    if (ehEquipe()) S.eTela = 'vender'; else S.tela = 'vender'
+    if (ehEquipe()) S.eTela = 'vender'; else if (ehIndicador()) { S.pTela = 'vender'; S.nv.parceiroId = S.portalPid } else S.tela = 'vender'
     render(); document.querySelector('.main')?.scrollTo(0, 0); return true
   }
-  if (d.simBem) { S.sim = { bemId: Number(d.simBem), preco: bem(Number(d.simBem)).preco, entrada: 0, n: JUROS.max }; S.folha = null; if (ehEquipe()) S.eTela = 'simulador'; else S.tela = 'simulador'; render(); return true }
+  if (d.simBem) { S.sim = { bemId: Number(d.simBem), preco: bem(Number(d.simBem)).preco, entrada: 0, n: JUROS.max }; S.folha = null; if (ehEquipe()) S.eTela = 'simulador'; else if (ehIndicador()) S.pTela = 'simulador'; else S.tela = 'simulador'; render(); return true }
   return false
 }
 function inputsSim(t) {
@@ -2623,7 +2691,7 @@ function folhaNovo() {
     ${op('data-folha="novoEmprestimo"', 'landmark', 'Empréstimo', 'Parcelado, só juros ou diária')}
     ${op('data-mais="simulador"', 'calculator', 'Só simular uma venda', 'Monta as parcelas pra mandar pro cliente')}</div>`
 }
-const FOLHAS = { novo: folhaNovo, simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
+const FOLHAS = { pNovo: folhaPNovo, pReceber: folhaPReceber, novo: folhaNovo, simWa: folhaSimWa, eReceber: folhaEReceber, eCliente: folhaECliente, pedido: folhaPedido, recibo: folhaRecibo, menus: folhaMenus, pCliente: folhaPCliente, indicar: folhaIndicar, pagarRepasse: folhaPagarRepasse, contrato: folhaContrato, indicador: folhaIndicador, novoIndicador: folhaNovoIndicador, reneg: folhaReneg, emprestimo: folhaEmprestimo, novoEmprestimo: folhaNovoEmprestimo, movimento: folhaMovimento, convite: folhaConvite, receber: folhaReceber, bem: folhaBem, venda: folhaVenda, wa: folhaWa, mais: folhaMais, maisItem: folhaMaisItem, novoAparelho: folhaNovoAparelho, novoCliente: folhaNovoCliente }
 
 // ---------- render ----------
 function render() {
@@ -2796,7 +2864,7 @@ document.addEventListener('click', (e) => {
   }
   if ('salvarCliente' in d) {
     const nome = document.getElementById('cNome').value.trim(); if (!nome) return
-    const c = { id: ++seq, nome, fone: document.getElementById('cFone').value || '—', desde: HOJE, resp: 1 }; clientes.push(c); S.folha = null; if (S.tela === 'vender' && nv) { nv.clienteId = c.id; render() } else { S.clienteId = c.id; ir('cliente') } return
+    const c = { id: ++seq, nome, fone: document.getElementById('cFone').value || '—', desde: HOJE, resp: 1 }; clientes.push(c); S.folha = null; if (nv && !nv.feito && (S.tela === 'vender' || (ehIndicador() && S.pTela === 'vender') || (ehEquipe() && S.eTela === 'vender'))) { nv.clienteId = c.id; render() } else { S.clienteId = c.id; ir('cliente') } return
   }
 })
 // campo de dinheiro: digita só números e vira 4.000,00 (centavos à direita, como maquininha)

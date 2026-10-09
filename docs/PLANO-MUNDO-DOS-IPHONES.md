@@ -100,7 +100,7 @@ O Geovane quer começar um front novo do zero, em outro repositório, a partir d
 | **Admin** | Tudo | Tudo, inclusive aprovar pedidos e conferir o fechamento do dia | — |
 | **Vendedor** | Estoque com **preço de venda**, os clientes dele, as vendas dele, Simulador | Vender, mandar contrato, cadastrar cliente | Ver **custo e lucro** em qualquer tela; mexer em caixa ou repasse |
 | **Cobrador** | Só a **carteira dele** (clientes com `responsável = ele`) | Dar baixa no que recebeu, mandar recibo, chamar no WhatsApp, fechar o dia | Dar desconto, acordo ou retomada sem aprovação; ver lucro, caixa da loja ou estoque |
-| **Indicador** | Só os **clientes que ele indicou**, as parcelas deles e os repasses dele | Ver, chamar o cliente no WhatsApp, mandar indicação nova | **Dar baixa** ("só nós aqui damos baixa"); ver cliente de outro indicador |
+| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles, o estoque (preço de venda) e os repasses dele | **Vender** iPhone (como o vendedor), **cobrar** os clientes dele e **avisar que recebeu**, mandar indicação nova, simular | **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
 
 - O cobrador **pede** desconto, acordo ou retomada, e o pedido vai para a fila "Esperando sua aprovação" do admin (tela Equipe). A parcela só muda quando o admin aprova.
 - **Fechamento do dia do cobrador:** ele vê quanto recebeu em dinheiro e em Pix e toca em "Fechar o dia". Isso vai pro admin marcar como conferido.
@@ -182,12 +182,18 @@ Layout geral:
 - **Início:** vendas do mês, contratos esperando assinatura (com Reenviar), aparelhos disponíveis e clientes dele com atraso.
 
 ### Indicador
-- **Barra de baixo:** Início, Clientes, **Indicar** (central), Cobrança, Repasse. A lateral também tem Níveis.
-- **Início:** quanto tem pra receber, quanto já recebeu e quanto ainda vai ganhar, além do nível e quanto falta pro próximo.
-- **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, e o status de cada parcela.
-- **Cobrança:** só para olhar, com o aviso "Quem dá baixa é a loja". Tem duas vistas:
-  - **Lista:** Atrasadas, Esta semana, Próximas e Pagas.
-  - **Calendário:** o cronograma do mês só com os clientes dele (previsto, recebido e em atraso, e as parcelas do dia escolhido), igual ao Cronograma do admin, mas sem botão de dar baixa. Pedido do Geovane.
+O indicador **vende e cobra**, como o vendedor e o cobrador juntos, e continua com repasse e níveis. Pedido do Geovane (09/10).
+- **Barra de baixo:** Início, Cobrança, **Novo** (central), Clientes, Repasse. Minhas vendas, Estoque, Simulador e Níveis ficam na lateral no computador, e no fim do Início no celular.
+- **Novo:** Vender iPhone, Recebi de um cliente, Indicar cliente, Só simular.
+- **Início:** atalhos Vender / Recebi / Indicar, "Pra cobrar hoje", quanto tem pra receber, quanto já recebeu e vai ganhar, e o nível.
+- **Vender:** mesmo fluxo de 3 passos do vendedor, **sem custo nem lucro**. A venda entra já com ele como indicador (o % dele), sem escolher indicação.
+- **Cobrança:** Lista (Atrasadas, Esta semana, Próximas, Pagas) e Calendário, só com os clientes dele. Cada parcela tem **Recebi** e WhatsApp.
+  - O **Recebi** abre o mesmo registro de recebimento, com opção de **anexar comprovante**, e o botão é **"Avisar a loja que recebi"**.
+  - Isso **não dá baixa**: a parcela fica "esperando a loja" e aparece pro admin em **Equipe › Esperando sua aprovação** como **Baixa**, com "Confirmar baixa" ou "Recusar". Confirmando, registra o pagamento (recebido por ele) e o recibo vai pro cliente. Recusando, volta a ficar em aberto.
+  - Desconto vira pedido de **Desconto** pro admin, igual ao cobrador.
+  - No admin, a cobrança mostra "Roberto avisou R$ X" na parcela.
+- **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, com Recebi nas parcelas abertas.
+- **Minhas vendas:** as vendas com ele como indicador, com status.
 - **Repasse:** valor por cliente e repasses recebidos.
 - **Indicar:** manda o nome e o telefone, e o pedido aparece pro admin como "Indicações esperando". O admin aceita e a pessoa vira cliente.
 - Ele vê **vendas e empréstimos** que indicou.
@@ -219,6 +225,7 @@ Lido nas migrations em `backend/src/database/migrations`:
    - `numero_recibo`.
 5. **Remarcação do restante:** quando o pagamento é parcial, atualiza `vencimento` e preenche `vencimento_original` (para empréstimos, criar o mesmo campo).
 6. **Pedidos de aprovação:** tabela `aprovacoes`.
+   - Novo tipo **`BAIXA`**: pagamento avisado pelo indicador (valor, data, forma, comprovante opcional). Só vira recebimento quando o admin confirma. Enquanto isso a parcela mostra "esperando a loja".
    - Campos: `tipo` (`DESCONTO | ACORDO | RETOMADA | FECHAMENTO`), `solicitado_por`, `operacao` (venda ou empréstimo), `parcela`, `valor`, `motivo`, `status` (`PENDENTE | APROVADO | RECUSADO`), `respondido_por`, datas.
    - A ação só é aplicada quando aprovada.
 7. **Fechamento do dia:** tabela `fechamentos_caixa`, com usuário, data, total em dinheiro, total em Pix, status e quem conferiu.
@@ -235,7 +242,7 @@ Lido nas migrations em `backend/src/database/migrations`:
 1. **Visual e navegação:** marca nova, tema, fonte, menu lateral e barra de baixo do admin; Início, Cobranças, Operações (abas) e Estoque, usando só o backend que já existe.
 2. **Venda e Simulador:** regra dos 10% por parcela (configurável), Simulador, Nova venda em 3 passos com o resumo de lucro.
 3. **Recebimento novo:** parcial com nova data, a mais abatendo as próximas, forma de pagamento, quem recebeu, transação, recibo (WhatsApp) e desfazer.
-4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (só leitura) e indicações.
+4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (vende, cobra e avisa recebimento; a baixa é confirmada pela loja) e indicações.
 5. **Equipe:** perfis vendedor e cobrador, carteira, áreas de cada um, pedidos de aprovação, fechamento do dia, auditoria e escopo no backend.
 
 Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a tela ao Geovane com um link de prévia; ele prefere link a print. Não faça merge sem o OK dele.
