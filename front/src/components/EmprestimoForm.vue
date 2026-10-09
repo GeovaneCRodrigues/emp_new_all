@@ -90,8 +90,8 @@ async function salvar() {
 
       <div class="field"><label for="eCapital">Quanto vai emprestar?</label><MoneyInput id="eCapital" v-model="f.capital" /></div>
       <div class="row" style="gap: 12px">
-        <div class="field" style="flex: 1"><label for="eTaxa">Taxa (% ao mês)</label><div class="inp"><input id="eTaxa" v-model.number="f.taxa" type="number" min="0.01" max="100" step="0.01" inputmode="decimal" /></div></div>
-        <div class="field" style="flex: 1"><label for="eParcelas">Parcelas</label><div class="inp"><input id="eParcelas" v-model.number="f.parcelas" type="number" min="1" max="60" step="1" inputmode="numeric" /></div></div>
+        <div class="field" style="flex: 1"><label for="eTaxa">{{ f.modalidade === 'DIARIA' ? 'Taxa (% do período todo)' : 'Taxa (% ao mês)' }}</label><div class="inp"><input id="eTaxa" v-model.number="f.taxa" type="number" min="0.01" max="100" step="0.01" inputmode="decimal" /></div></div>
+        <div class="field" style="flex: 1"><label for="eParcelas">{{ f.modalidade === 'DIARIA' ? 'Dias úteis' : 'Parcelas' }}</label><div class="inp"><input id="eParcelas" v-model.number="f.parcelas" type="number" min="1" max="60" step="1" inputmode="numeric" /></div></div>
       </div>
       <div class="field"><label for="eInd">Indicador (opcional)</label>
         <div class="inp"><select id="eInd" v-model.number="f.indicadorId"><option :value="0">Sem indicador</option><option v-for="i in indicadores" :key="i.id" :value="i.id">{{ i.nome }}</option></select></div>
@@ -99,11 +99,11 @@ async function salvar() {
       <div class="field"><label for="eObs">Observações (opcional)</label><div class="inp"><input id="eObs" v-model="f.observacoes" maxlength="500" /></div></div>
 
       <div v-if="previa" class="card sim pad" data-testid="previa-emprestimo" style="display: flex; flex-direction: column; gap: 6px">
-        <div class="tot"><span>{{ f.modalidade === 'JUROS' ? 'Juro por mês' : 'Parcela' }}</span><span class="num" data-testid="previa-parcela">{{ fmt(previa.parcela) }}</span></div>
+        <div class="tot"><span>{{ f.modalidade === 'JUROS' ? 'Juro por mês' : f.modalidade === 'DIARIA' ? 'Parcela por dia' : 'Parcela' }}</span><span class="num" data-testid="previa-parcela">{{ fmt(previa.parcela) }}</span></div>
         <div v-if="f.modalidade === 'JUROS'" class="tot"><span>Última parcela (com o capital)</span><span class="num" data-testid="previa-ultima">{{ fmt(previa.ultima) }}</span></div>
         <div class="tot"><span>O cliente paga</span><span class="num" data-testid="previa-total">{{ fmt(previa.total) }}</span></div>
         <div class="tot"><span>Seu lucro bruto</span><span class="num" style="color: var(--ok)">{{ fmt(previa.lucro) }}</span></div>
-        <div class="small">A primeira parcela vence em {{ dmy(previa.primeira) }}.</div>
+        <div class="small">{{ f.modalidade === 'DIARIA' ? 'Cobra de segunda a sábado; a primeira vence' : 'A primeira parcela vence' }} em {{ dmy(previa.primeira) }}.</div>
       </div>
       <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
       <button class="btn b-pri b-block" type="submit" :disabled="enviando || !!problema" :title="problema">{{ enviando ? 'Salvando…' : 'Fazer empréstimo' }}</button>

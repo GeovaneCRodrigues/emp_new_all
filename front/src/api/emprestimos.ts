@@ -46,7 +46,7 @@ export interface EntradaEmprestimo {
 }
 
 /** Modalidades já liberadas no sistema (as outras entram uma de cada vez). */
-export const MODALIDADES_LIBERADAS: ModalidadeApi[] = ['PARCELADO', 'JUROS']
+export const MODALIDADES_LIBERADAS: ModalidadeApi[] = ['PARCELADO', 'JUROS', 'DIARIA']
 
 export interface EmprestimosApi {
   criar(s: Sessao, e: EntradaEmprestimo): Promise<EmprestimoApi>

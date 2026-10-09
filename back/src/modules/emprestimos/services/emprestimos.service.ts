@@ -22,7 +22,7 @@ export type EmprestimosService = {
 }
 
 /** Modalidades já liberadas. As outras entram uma de cada vez. */
-export const MODALIDADES_LIBERADAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS']
+export const MODALIDADES_LIBERADAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS', 'DIARIA']
 const TODAS: ModalidadeEmprestimo[] = ['PARCELADO', 'JUROS', 'DIARIA']
 const LIMITE_MAX = 100
 const DINHEIRO_MAX = 100_000_000
@@ -62,7 +62,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const modalidade = e.modalidade as ModalidadeEmprestimo
       if (!MODALIDADES_LIBERADAS.includes(modalidade)) throw requisicaoInvalida('Esta modalidade ainda não está disponível')
       if (typeof e.capital !== 'number' || !Number.isFinite(e.capital) || e.capital <= 0 || e.capital > DINHEIRO_MAX) throw requisicaoInvalida('capital precisa ser maior que zero')
-      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > 100) throw requisicaoInvalida('taxa precisa ficar entre 0 e 100 (% ao mês)')
+      if (typeof e.taxa !== 'number' || !Number.isFinite(e.taxa) || e.taxa <= 0 || e.taxa > 100) throw requisicaoInvalida('taxa precisa ficar entre 0 e 100 (% ao mês; na diária, % do período todo)')
       const n = inteiro(e.parcelas, 'parcelas', 1, 60)
       const indicadorId = e.indicadorId === undefined || e.indicadorId === null ? null : inteiro(e.indicadorId, 'indicadorId', 1, 2 ** 31 - 1)
       let observacoes: string | null = null

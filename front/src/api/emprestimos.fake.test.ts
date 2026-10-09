@@ -47,12 +47,12 @@ describe('criar', () => {
     expect(e).toMatchObject({ modalidade: 'JUROS', nParcelas: 3, valorParcela: 360, total: 4080, lucroTotal: 1080 })
     expect(e.parcelas.map((p) => p.valor)).toEqual([360, 360, 3360])
   })
-  it('cliente inexistente é 404; DIARIA ainda não está liberada (400) e não cria nada', async () => {
-    expect((await falha(emprestar(ADMIN, { clienteId: 999999 })))?.status).toBe(404)
-    const antes = (await api.listar(ADMIN, { limite: 100 })).total
-    for (const modalidade of ['DIARIA']) expect((await falha(emprestar(ADMIN, { modalidade })))?.status).toBe(400)
-    expect((await api.listar(ADMIN, { limite: 100 })).total).toBe(antes)
+  it('diária: parcela por dia útil (sem domingo) com a taxa do período todo', async () => {
+    const e = await emprestar(ADMIN, { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 24 })
+    expect(e).toMatchObject({ modalidade: 'DIARIA', nParcelas: 24, valorParcela: 50, total: 1200, lucroTotal: 200 })
+    expect(e.parcelas.every((p) => new Date(p.vencimento + 'T12:00:00Z').getUTCDay() !== 0)).toBe(true)
   })
+  it('cliente inexistente é 404', async () => { expect((await falha(emprestar(ADMIN, { clienteId: 999999 })))?.status).toBe(404) })
 })
 
 describe('ler e escopo', () => {

@@ -51,6 +51,26 @@ describe('plano do empréstimo só juros (puro)', () => {
   })
 })
 
+describe('plano do empréstimo diário (puro)', () => {
+  it('pula domingo: sábado 03/10 → segunda 05, terça 06, quarta 07', () => {
+    const p = planoEmprestimo({ capital: 1000, modalidade: 'DIARIA', taxa: 20, n: 3, data: '2026-10-03' })
+    expect(p.map((x) => x.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
+    expect(p.every((x) => x.valor === 400)).toBe(true) // 1000 × 1,2 ÷ 3
+  })
+  it('a taxa é do período todo, não por dia: 1.000 a 20% em 24x → 50,00 por dia útil', () => {
+    const p = planoEmprestimo({ capital: 1000, modalidade: 'DIARIA', taxa: 20, n: 24, data: '2026-09-24' })
+    expect(p.every((x) => x.valor === 50)).toBe(true)
+    expect(p.some((x) => new Date(x.vencimento + 'T12:00:00Z').getUTCDay() === 0)).toBe(false)
+    expect(p).toHaveLength(24)
+  })
+  it('arredonda a parcela para cima no centavo', () => {
+    expect(planoEmprestimo({ capital: 600, modalidade: 'DIARIA', taxa: 20, n: 7, data: '2026-10-01' })[0].valor).toBe(102.86) // 720 ÷ 7 = 102,857…
+  })
+  it('um domingo de partida: a primeira parcela é a segunda seguinte', () => {
+    expect(planoEmprestimo({ capital: 100, modalidade: 'DIARIA', taxa: 10, n: 1, data: '2026-10-04' })[0].vencimento).toBe('2026-10-05')
+  })
+})
+
 describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
   let app: FastifyInstance
   const hoje = '2026-10-08'
@@ -137,9 +157,16 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
       expect(e).toMatchObject({ modalidade: 'JUROS', capital: 3000, taxa: 12, nParcelas: 3, valorParcela: 360, total: 4080, lucroTotal: 1080, status: 'ATIVA' })
       expect(e.parcelas.map((p: { valor: number }) => p.valor)).toEqual([360, 360, 3360])
     })
-    it('DIARIA ainda não está liberada (400), sem criar nada', async () => {
+    it('cria diária: capital + juros do período divididos em parcelas por dia útil', async () => {
+      const r = await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 24 })
+      expect(r.statusCode).toBe(201)
+      const e = r.json()
+      expect(e).toMatchObject({ modalidade: 'DIARIA', capital: 1000, taxa: 20, nParcelas: 24, valorParcela: 50, total: 1200, lucroTotal: 200 })
+      expect(e.parcelas.every((p: { vencimento: string }) => new Date(p.vencimento + 'T12:00:00Z').getUTCDay() !== 0)).toBe(true)
+    })
+    it('modalidade inventada não cria nada', async () => {
       const antes = Number((await db!('emprestimos').count<{ count: string }[]>({ count: '*' }))[0].count)
-      for (const modalidade of ['DIARIA']) expect((await emprestar('admin', { modalidade })).statusCode).toBe(400)
+      expect((await emprestar('admin', { modalidade: 'SEMANAL' })).statusCode).toBe(400)
       expect(Number((await db!('emprestimos').count<{ count: string }[]>({ count: '*' }))[0].count)).toBe(antes)
     })
     it('falha no meio não deixa empréstimo sem parcelas (tudo ou nada)', async () => {
