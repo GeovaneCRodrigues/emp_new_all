@@ -223,3 +223,32 @@ test.describe('operações', () => {
     await expect(page.locator('.fones .card').first()).toBeVisible()
   })
 })
+
+test.describe('empréstimos parcelados', () => {
+  const abrirAba = async (page: import('@playwright/test').Page) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.getByRole('tab', { name: /Empréstimos/ }).or(page.getByRole('button', { name: /Empréstimos/ })).first().click()
+  }
+
+  test('lista os empréstimos com os 3 números e abre a ficha com capital e lucro (admin)', async ({ page }) => {
+    await abrirAba(page)
+    await expect(page.locator('[data-emprestimo]').first()).toBeVisible()
+    await page.locator('[data-emprestimo]').first().click()
+    await expect(page.getByTestId('dados-admin')).toContainText('Capital emprestado')
+  })
+
+  test('faz um empréstimo parcelado: a prévia bate com a conta e ele aparece na lista', async ({ page }) => {
+    await abrirAba(page)
+    await page.getByRole('button', { name: 'Empréstimo', exact: true }).click()
+    await page.locator('[data-cliente]').first().click()
+    await expect(page.locator('[data-mod="JUROS"]')).toBeDisabled()
+    await page.locator('#eCapital').fill('500000')
+    await page.fill('#eTaxa', '10')
+    await page.fill('#eParcelas', '6')
+    await expect(page.getByTestId('previa-parcela')).toContainText('1.333,34')
+    await expect(page.getByTestId('previa-total')).toContainText('8.000,04')
+    await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+    await expect(page.getByTestId('dados-admin')).toContainText('5.000,00')
+  })
+})
