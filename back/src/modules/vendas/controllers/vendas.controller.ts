@@ -21,6 +21,7 @@ export function createVendasController(service: VendasService) {
     },
     async resumo(req: FastifyRequest) { const s = sessaoOuErro(req); return resumoView(await service.resumo(s), s.perfil) },
     async obter(req: FastifyRequest) { const s = sessaoOuErro(req); return vendaView(await service.obter(s, idDaRota(req)), s.perfil) },
+    async retomar(req: FastifyRequest) { const s = sessaoOuErro(req); return vendaView(await service.retomar(s, idDaRota(req), (req.body ?? {}) as Record<string, unknown>), s.perfil) },
     async criar(req: FastifyRequest, reply: FastifyReply) {
       const s = sessaoOuErro(req)
       return reply.code(201).send(vendaView(await service.criar(s, (req.body ?? {}) as Record<string, unknown>), s.perfil))

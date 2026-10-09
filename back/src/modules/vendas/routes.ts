@@ -11,6 +11,7 @@ export function vendasRoutes(service: VendasService, auth: preHandlerAsyncHookHa
     app.get('/vendas', p, c.listar)
     app.get('/vendas/resumo', p, c.resumo) // antes de /:id
     app.get('/vendas/:id', p, c.obter)
+    app.post('/vendas/:id/retomar', { ...p, config: { rateLimit: { max: limitePorMinuto, timeWindow: '1 minute' } } }, c.retomar)
     app.post('/vendas', { ...p, config: { rateLimit: { max: limitePorMinuto, timeWindow: '1 minute' } } }, c.criar)
   }
 }

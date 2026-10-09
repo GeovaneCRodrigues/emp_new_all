@@ -2,16 +2,19 @@ export type StatusAprovacao = 'PENDENTE' | 'APROVADO' | 'RECUSADO'
 
 /** O que o pedido mexe: uma venda de iPhone ou um empréstimo. */
 export type Alvo = 'VENDA' | 'EMPRESTIMO'
+export type TipoAprovacao = 'DESCONTO' | 'RETOMADA'
 
 export type Aprovacao = {
   id: number
-  tipo: 'DESCONTO'
+  tipo: TipoAprovacao
   status: StatusAprovacao
   alvo: Alvo
   /** id da venda ou do empréstimo */
   operacaoId: number
-  parcela: number
+  /** a parcela do desconto (a retomada é da venda toda: sem parcela) */
+  parcela: number | null
   nParcelas: number
+  /** desconto: o valor pedido. Retomada: o que estava em aberto na venda quando pediu. */
   valor: number
   motivo: string | null
   solicitante: { id: number; nome: string }

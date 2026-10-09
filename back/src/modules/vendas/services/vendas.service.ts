@@ -20,6 +20,8 @@ export type VendasService = {
   listar(s: Sessao, f: FiltroVendas): Promise<ResultadoLista>
   obter(s: Sessao, id: number): Promise<VendaCalculada>
   resumo(s: Sessao): Promise<ResumoVendas>
+  /** Retoma o aparelho de uma venda com parcela atrasada (só o administrador; o cobrador pede em /aprovacoes). */
+  retomar(s: Sessao, id: number, e: Entrada): Promise<VendaCalculada>
 }
 
 const FORMAS: FormaPagamento[] = ['PIX', 'DINHEIRO', 'CARTAO']
@@ -208,6 +210,20 @@ export function createVendasService(d: Dependencias): VendasService {
       const v = await d.vendas.buscar(id, escopoDe(s))
       if (!v) throw naoEncontrado('Venda não encontrada')
       return calcular(v)
+    },
+
+    async retomar(s, id, e) {
+      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador retoma o aparelho (o cobrador pede a retomada)')
+      let motivo: string | null = null
+      if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
+        if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('motivo: no máximo 500 letras')
+        motivo = e.motivo.trim() || null
+      }
+      const antes = await d.vendas.buscar(id, { tipo: 'TODOS' })
+      if (!antes) throw naoEncontrado('Venda não encontrada')
+      const r = await d.vendas.retomar({ vendaId: id, usuarioId: s.usuarioId, motivo, dia: hoje() })
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'VENDA_RETOMADA', entidade: 'venda', entidadeId: id, antes: { status: antes.status }, depois: { status: 'RETOMADA', aparelhoId: r.bemId, emAberto: r.emAberto, parcelasAtrasadas: r.atrasadas, motivo } })
+      return calcular((await d.vendas.buscar(id, { tipo: 'TODOS' }))!)
     },
 
     async resumo(s) {

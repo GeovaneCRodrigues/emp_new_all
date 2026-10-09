@@ -32,6 +32,8 @@ export type Venda = {
   investido: number
   status: StatusVenda
   contrato: StatusContrato
+  /** quando e por quê o aparelho foi retomado (só em venda RETOMADA) */
+  retomada: { em: string; motivo: string | null } | null
   parcelas: ParcelaVenda[]
 }
 
