@@ -7,7 +7,7 @@ test.describe('equipe', () => {
   test('mostra o que espera o administrador: pedidos de desconto e fechamento para conferir', async ({ page }) => {
     await entrar(page)
     await page.goto('/equipe')
-    await expect(pedidos(page)).toHaveCount(2)
+    await expect(pedidos(page)).toHaveCount(3)
     await expect(pedidos(page).first()).toContainText('Diego Ramos pede')
     await expect(page.getByTestId('fechamento')).toHaveCount(1)
     await expect(page.getByTestId('pessoa')).toHaveCount(3)
@@ -17,11 +17,11 @@ test.describe('equipe', () => {
     await entrar(page)
     await page.goto('/equipe')
     await pedidos(page).first().getByRole('button', { name: 'Aprovar' }).click()
-    await expect(pedidos(page)).toHaveCount(1)
+    await expect(pedidos(page)).toHaveCount(2)
     await pedidos(page).first().getByRole('button', { name: 'Recusar' }).click()
     await page.locator('#mRecusa').fill('Margem apertada')
     await page.getByRole('button', { name: 'Recusar', exact: true }).last().click()
-    await expect(pedidos(page)).toHaveCount(0)
+    await expect(pedidos(page)).toHaveCount(1)
   })
 
   test('conferir o fechamento tira da lista', async ({ page }) => {
@@ -84,5 +84,28 @@ test.describe('equipe', () => {
     await page.locator('#mRecusa').fill('Vamos esperar até dia 25')
     await page.getByRole('button', { name: 'Recusar', exact: true }).last().click()
     await expect(ret).toHaveCount(0)
+  })
+
+  test('o pedido de acordo mostra a proposta e aprovar faz o acordo', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/equipe')
+    const acc = pedidos(page).filter({ has: page.locator('[data-tipo="ACORDO"]') })
+    await expect(acc).toHaveCount(1)
+    await expect(acc).toContainText('Diego Ramos propõe um acordo de R$ 3.000,00 em 6x')
+    await expect(acc).toContainText('hoje ele deve')
+    await expect(acc).toContainText('1ª parcela 15/10')
+    await acc.getByRole('button', { name: 'Aprovar' }).click()
+    await expect(page.getByText('Acordo feito.')).toBeVisible()
+    await expect(acc).toHaveCount(0)
+  })
+
+  test('recusar o acordo pede o motivo e deixa tudo como estava', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/equipe')
+    const acc = pedidos(page).filter({ has: page.locator('[data-tipo="ACORDO"]') })
+    await acc.getByRole('button', { name: 'Recusar' }).click()
+    await expect(page.getByRole('heading', { name: 'Recusar o acordo?' })).toBeVisible()
+    await page.getByRole('button', { name: 'Recusar', exact: true }).last().click()
+    await expect(acc).toHaveCount(0)
   })
 })

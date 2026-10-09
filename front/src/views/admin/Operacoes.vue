@@ -148,8 +148,8 @@ const abas = computed(() => [
     <button v-if="emps.length < totalEmp" class="btn b-out" :disabled="carregandoEmp" @click="carregarEmp(true)">{{ carregandoEmp ? 'Carregando…' : 'Carregar mais' }}</button>
   </template>
 
-  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @retomada="aposMudar" />
-  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
+  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
   <EmprestimoForm :aberto="formEmp" @fechar="formEmp = false" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

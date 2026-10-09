@@ -371,3 +371,64 @@ test.describe('retomada do aparelho', () => {
     await expect(page.locator('[data-retomar]')).toHaveCount(0)
   })
 })
+
+test.describe('acordo', () => {
+  const abrirCarlos = async (page: Page) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.locator('.seg').getByRole('button', { name: 'Com atraso' }).click()
+    await page.locator('.card', { hasText: 'Carlos Henrique' }).first().click()
+  }
+
+  test('o administrador faz o acordo pela ficha: prévia das parcelas, parcelas antigas viram "acordo" e o atraso some', async ({ page }) => {
+    await abrirCarlos(page)
+    await page.locator('[data-acordo]').click()
+    await expect(page.getByRole('heading', { name: 'Fazer acordo' })).toBeVisible()
+    await expect(page.getByTestId('acordo-saldo')).toContainText('R$')
+    await page.getByRole('button', { name: '4x', exact: true }).click()
+    await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(4)
+    await page.locator('#aValor').fill('300000')
+    await expect(page.getByTestId('acordo-diferenca')).toBeVisible()
+    await page.locator('#aMotivo').fill('Cliente perdeu o emprego')
+    await page.getByRole('button', { name: 'Fazer acordo', exact: true }).last().click()
+    await expect(page.getByText('Acordo feito.')).toBeVisible()
+    await expect(page.locator('[data-parcela]').filter({ hasText: 'acordo' }).first()).toBeVisible()
+    await expect(page.locator('[data-acordo]')).toBeVisible() // ainda tem saldo: dá para fazer outro
+    await page.keyboard.press('Escape')
+    await page.locator('.seg').getByRole('button', { name: 'Com atraso' }).click()
+    await expect(page.locator('.card', { hasText: 'Carlos Henrique' })).toHaveCount(0)
+  })
+
+  test('a proposta é validada na tela: sem valor ou com data que já passou o botão trava e diz o motivo', async ({ page }) => {
+    await abrirCarlos(page)
+    await page.locator('[data-acordo]').click()
+    await page.locator('#aValor').fill('0')
+    await expect(page.getByTestId('problema-acordo')).toContainText('valor do acordo')
+    await expect(page.getByRole('button', { name: 'Fazer acordo', exact: true }).last()).toBeDisabled()
+    await page.locator('#aValor').fill('100000')
+    await page.fill('#aData', '2020-01-01')
+    await expect(page.getByTestId('problema-acordo')).toContainText('já passou')
+  })
+
+  test('o acordo de empréstimo aparece na ficha do empréstimo e as parcelas antigas ficam encerradas', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.getByRole('button', { name: /Empréstimos/ }).click()
+    await page.locator('[data-emprestimo]').first().click()
+    await page.locator('[data-acordo]').click()
+    await page.getByRole('button', { name: '2x', exact: true }).click()
+    await page.getByRole('button', { name: 'Fazer acordo', exact: true }).last().click()
+    await expect(page.getByText('Acordo feito.')).toBeVisible()
+    await expect(page.locator('[data-parcela]').filter({ hasText: 'acordo' }).first()).toBeVisible()
+  })
+
+  test('o vendedor nunca vê o botão de acordo', async ({ page }) => {
+    await entrar(page, 'vendedor')
+    await page.goto('/vendas')
+    const card = page.locator('.fones button.card').first()
+    await expect(card).toBeVisible()
+    await card.click()
+    await expect(page.getByRole('heading', { level: 3 }).first()).toBeVisible()
+    await expect(page.locator('[data-acordo]')).toHaveCount(0)
+  })
+})

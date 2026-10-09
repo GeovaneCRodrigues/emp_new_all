@@ -3,11 +3,13 @@ import { normalizarFone } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import { falta } from '@/domain/recebimento'
+import { problemaDoAcordo } from '@/domain/acordo'
 import { nomeEmprestimo } from '@/domain/emprestimo'
 import type { AprovacaoApi, AprovacoesApi, StatusAprovacao } from './aprovacoes'
 import { ErroApi } from './clientes'
 import type { EquipeApi, PessoaApi } from './equipe'
 import type { CaixaApi, FechamentoApi, FechamentosApi } from './fechamentos'
+import type { AcordosFake } from './acordos.fake'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
 import type { AlvoApi } from './recebimentos'
 import type { FechamentoReg, Pedido, Registro, VendasFake } from './vendas.fake'
@@ -31,7 +33,7 @@ interface OpPedido {
 }
 
 /** Pedidos de desconto de demonstração: mesmas regras do backend (só o cobrador pede, só o admin responde, um pendente por parcela). */
-export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake): AprovacoesApi {
+export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake, acordos?: AcordosFake): AprovacoesApi {
   const { pedidos, hoje } = vendas._interno
   const comoOp = (r: Registro): OpPedido => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, descricao: r.aparelho.modelo, status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
   const comoOpEmp = (r: RegistroEmprestimo): OpPedido => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
@@ -49,6 +51,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
     return {
       id: p.id, tipo: p.tipo, status: p.status, alvo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, nParcelas: o.parcelas.length, valor: p.valor, motivo: p.motivo,
       solicitante: { id: p.solicitanteId, nome: p.solicitanteNome }, cliente: { id: o.cliente.id, nome: o.cliente.nome }, aparelho: o.descricao,
+      acordo: p.tipo === 'ACORDO' && p.dados ? p.dados : null,
       criadaEm: p.criadaEm, respondidoPor: p.respondidoPor, respondidoEm: p.respondidoEm, resposta: p.resposta,
     }
   }
@@ -97,6 +100,26 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       return visao(novo)
     },
 
+    async pedirAcordo(s, e) {
+      if (s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o cobrador pede o acordo (o administrador faz o acordo direto na ficha)', 'SEM_PERMISSAO')
+      const alvo = (e.alvo === undefined ? 'VENDA' : e.alvo) as AlvoApi
+      if (alvo !== 'VENDA' && alvo !== 'EMPRESTIMO') throw erro('alvo deve ser VENDA ou EMPRESTIMO')
+      if (!Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw erro(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
+      const motivo = (e.motivo ?? '').trim()
+      if (motivo.length < 3 || motivo.length > 500) throw erro('Explique o motivo do pedido (de 3 a 500 letras)')
+      const problema = problemaDoAcordo({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, hoje)
+      if (problema) throw erro(problema)
+      const o = opDe(alvo, e.operacaoId, s)
+      if (!o) throw new ErroApi(404, alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado', 'NAO_ENCONTRADO')
+      if (encerrada(o.status)) throw new ErroApi(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      const saldo = arred2(o.parcelas.reduce((x, p) => x + Math.max(0, falta(p)), 0))
+      if (o.status !== 'ATIVA' || saldo <= 0.009) throw new ErroApi(409, 'Não há nada em aberto para renegociar', 'SEM_SALDO')
+      if (pedidos.some((x) => x.tipo === 'ACORDO' && x.alvo === alvo && x.operacaoId === o.id && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de acordo esperando para esta operação', 'PEDIDO_JA_EXISTE')
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'ACORDO', alvo, operacaoId: o.id, parcela: null, valor: arred2(e.valorTotal), motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null, dados: { parcelas: e.parcelas, primeiraParcela: e.primeiraParcela, saldoNoPedido: saldo } }
+      pedidos.push(novo)
+      return visao(novo)
+    },
+
     async listar(s, q) {
       permitido(s)
       if (q.status && !['PENDENTE', 'APROVADO', 'RECUSADO'].includes(q.status)) throw erro('status inválido')
@@ -114,6 +137,13 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (p.status !== 'PENDENTE') throw new ErroApi(409, 'Este pedido já foi respondido', 'PEDIDO_JA_RESPONDIDO')
       const o = opDe(p.alvo, p.operacaoId)!
       if (encerrada(o.status)) throw new ErroApi(409, p.alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      if (p.tipo === 'ACORDO') {
+        if (!acordos || !p.dados) throw new ErroApi(409, 'Pedido de acordo sem proposta', 'PEDIDO_DESATUALIZADO')
+        if (p.dados.primeiraParcela < hoje) throw new ErroApi(409, 'A data da 1ª parcela proposta já passou. Recuse o pedido e peça de novo.', 'PEDIDO_DESATUALIZADO')
+        acordos._interno.fazerAcordo({ alvo: p.alvo, operacaoId: o.id, usuarioNome: 'Geovane Cataneo', valorTotal: p.valor, n: p.dados.parcelas, primeira: p.dados.primeiraParcela, motivo: p.motivo, aprovacaoId: p.id, saldoEsperado: p.dados.saldoNoPedido })
+        p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
+        return visao(p)
+      }
       if (p.tipo === 'RETOMADA') {
         try { vendas._interno.retomarRegistro(o.id, s.usuarioId ?? 1, p.motivo, p.id) }
         catch (err) { if (err instanceof ErroApi && err.codigo === 'SEM_ATRASO') throw new ErroApi(409, 'O cliente já não tem parcela atrasada: recuse o pedido', 'PEDIDO_DESATUALIZADO'); throw err }

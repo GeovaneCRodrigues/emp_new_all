@@ -8,7 +8,7 @@ import type { EstoqueFake } from './estoque.fake'
 import type { IndicadoresFake } from './indicadores.fake'
 import type { EntradaVenda, FormaPagamentoApi, JurosApi, StatusVenda, VendaApi, VendasApi } from './vendas'
 
-interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
+export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
 export interface Registro {
   id: number; aparelho: VendaApi['aparelho']; cliente: VendaApi['cliente']; vendedorId: number | null; indicador: VendaApi['indicador']; pct: number
   dataVenda: string; precoAcordado: number; entrada: number; troca: number; jurosPct: number; investido: number; status: StatusVenda
@@ -48,7 +48,7 @@ export interface Transacao {
 /** Pedido de desconto do cobrador, esperando o administrador. */
 export interface Pedido {
   id: number
-  tipo: 'DESCONTO' | 'RETOMADA'
+  tipo: 'DESCONTO' | 'RETOMADA' | 'ACORDO'
   /** o que o pedido mexe: uma venda ou um empréstimo */
   alvo: 'VENDA' | 'EMPRESTIMO'
   /** id da venda ou do empréstimo */
@@ -64,6 +64,8 @@ export interface Pedido {
   respondidoPor: string | null
   respondidoEm: string | null
   resposta: string | null
+  /** pedido de acordo: a proposta do cobrador */
+  dados?: { parcelas: number; primeiraParcela: string; saldoNoPedido: number }
 }
 
 /** O dia de um cobrador, fechado por ele e (depois) conferido pelo administrador. */
@@ -150,7 +152,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
   pedidos.push(
     { id: ++seqPedido, tipo: 'DESCONTO', alvo: 'VENDA', operacaoId: vendaDe(3).id, parcela: 2, valor: 50, motivo: 'Cliente pagou o resto em dinheiro e pediu pra arredondar', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T09:12:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
     { id: ++seqPedido, tipo: 'RETOMADA', alvo: 'VENDA', operacaoId: vendaDe(4).id, parcela: null, valor: arred2(vendaDe(4).parcelas.reduce((x, p) => x + Math.max(0, p.valor - p.pago - p.desconto), 0)), motivo: '2 parcelas atrasadas e não atende mais', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-07T18:40:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null },
-  )
+    { id: ++seqPedido, tipo: 'ACORDO', alvo: 'VENDA', operacaoId: vendaDe(6).id, parcela: null, valor: 3000, motivo: 'Perdeu o emprego, pediu pra pagar em 6x', solicitanteId: 3, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: '2026-10-08T08:30:00.000Z', respondidoPor: null, respondidoEm: null, resposta: null, dados: { parcelas: 6, primeiraParcela: '2026-10-15', saldoNoPedido: arred2(vendaDe(6).parcelas.reduce((x, p) => x + Math.max(0, p.valor - p.pago - p.desconto), 0)) } },  )
   fechamentos.push({ id: ++seqFechamento, usuarioId: 3, usuarioNome: 'Diego Ramos', data: '2026-10-07', dinheiro: 350, pix: 500, cartao: 0, status: 'PENDENTE', conferidoPor: null, conferidoEm: null })
 
   const clientesDe = (r: Registro, s: Sessao) => (s.perfil === 'VENDEDOR' ? r.vendedorId === s.usuarioId || seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId : seed.clientes.find((c) => c.id === r.cliente.id)?.responsavelId === s.usuarioId)
@@ -169,7 +171,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
       id: r.id, aparelho: r.aparelho, cliente: r.cliente, indicador: r.indicador, dataVenda: r.dataVenda, precoAcordado: r.precoAcordado, entrada: r.entrada,
       troca: r.troca, jurosPct: r.jurosPct, nParcelas: r.parcelas.length, valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta,
       atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status, contrato: r.contrato, retomada: r.retomada,
-      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm })),
+      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
     if (perfil !== 'ADMIN') return base
     return {

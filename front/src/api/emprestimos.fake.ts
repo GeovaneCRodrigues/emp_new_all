@@ -7,7 +7,7 @@ import { ErroApi, type ClientesApi } from './clientes'
 import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type PeriodicidadeApi, type StatusEmprestimo } from './emprestimos'
 import type { IndicadoresFake } from './indicadores.fake'
 
-interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null }
+export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
 export interface RegistroEmprestimo {
   id: number; cliente: { id: number; nome: string }; indicador: { id: number; nome: string } | null; pct: number; dataEmprestimo: string
   capital: number; modalidade: ModalidadeApi; taxa: number; periodicidade: PeriodicidadeApi; status: StatusEmprestimo; observacoes: string | null
@@ -59,7 +59,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const base: EmprestimoApi = {
       id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
       valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
-      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm })),
+      parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
     if (perfil !== 'ADMIN') return base
     return {

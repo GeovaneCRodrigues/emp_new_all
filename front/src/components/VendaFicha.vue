@@ -7,15 +7,20 @@ import type { VendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { dmy, dmyA, fmt, fmt0 } from '@/domain/format'
+import AcordoForm from './AcordoForm.vue'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ venda: VendaApi | null }>()
-const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; retomada: [] }>()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; mudou: [] }>()
 const { hoje, sessao } = useApp()
 
 const { mostrar } = useToast()
 // retomar o aparelho: só o administrador, venda em andamento com parcela atrasada
 const podeRetomar = computed(() => sessao.value.perfil === 'ADMIN' && props.venda?.status === 'ATIVA' && (props.venda?.atrasadas ?? 0) > 0)
+// acordo: só o administrador, venda em andamento com saldo
+const podeAcordo = computed(() => sessao.value.perfil === 'ADMIN' && props.venda?.status === 'ATIVA' && (props.venda?.falta ?? 0) > 0.009)
+const acordando = ref(false)
+function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const retomando = ref(false)
 const motivoRetomada = ref('')
 const erroRetomada = ref('')
@@ -28,7 +33,7 @@ async function confirmarRetomada() {
     await vendasApi.retomar(sessao.value, props.venda.id, motivoRetomada.value.trim() ? { motivo: motivoRetomada.value.trim() } : {})
     retomando.value = false
     mostrar('Aparelho retomado. Voltou pro estoque.')
-    emit('retomada')
+    emit('mudou')
   } catch (e) {
     erroRetomada.value = e instanceof ErroApi ? e.message : 'Não consegui retomar. Tente de novo.'
   } finally {
@@ -46,7 +51,7 @@ watch(() => props.venda, carregarPagamentos, { immediate: true })
 
 const pct = computed(() => (props.venda && props.venda.total > 0 ? Math.round((props.venda.recebido / props.venda.total) * 100) : 100))
 const capPct = computed(() => (props.venda?.custoNoDia ? Math.round(((props.venda.capitalDeVolta ?? 0) / props.venda.custoNoDia) * 100) : 0))
-const situacao = (p: VendaApi['parcelas'][number]) => (p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
+const situacao = (p: VendaApi['parcelas'][number]) => (p.acordo === 'ENCERRADA' ? 'acordo' : p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando assinatura', ASSINADO: 'assinado' } as const
 </script>
@@ -64,7 +69,10 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
       </div>
 
       <div v-if="venda.status === 'RETOMADA'" class="aviso" role="status" data-testid="retomada-aviso" style="margin-top: 10px">Aparelho retomado em {{ dmyA(venda.retomada?.em.slice(0, 10) ?? venda.dataVenda) }}<template v-if="venda.retomada?.motivo"> · {{ venda.retomada.motivo }}</template>. O que o cliente já pagou continua no histórico.</div>
-      <button v-if="podeRetomar" class="btn b-out b-block" style="margin-top: 10px; color: var(--bad)" data-retomar @click="abrirRetomada">Retomar aparelho</button>
+      <div v-if="podeAcordo || podeRetomar" class="row" style="gap: 8px; margin-top: 10px; flex-wrap: wrap">
+        <button v-if="podeAcordo" class="btn b-out" style="flex: 1" data-acordo @click="acordando = true">Fazer acordo</button>
+        <button v-if="podeRetomar" class="btn b-out" style="flex: 1; color: var(--bad)" data-retomar @click="abrirRetomada">Retomar aparelho</button>
+      </div>
 
       <div class="dl card pad" style="margin-top: 10px">
         <div><div class="lbl">Preço combinado</div><div class="val num">{{ fmt(venda.precoAcordado) }}</div></div>
@@ -85,12 +93,12 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
 
       <template v-if="venda.parcelas.length">
         <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
-        <div class="timeline" style="margin-bottom: 8px"><i v-for="p in venda.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}`">{{ p.numero }}</i></div>
+        <div class="timeline" style="margin-bottom: 8px"><i v-for="p in venda.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga' || situacao(p) === 'acordo', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}`">{{ p.numero }}</i></div>
         <div class="card list">
           <div v-for="p in venda.parcelas" :key="p.numero" class="li" :data-parcela="p.numero">
             <span class="mid"><span class="t">{{ p.numero }}ª · {{ dmy(p.vencimento) }}<template v-if="p.vencimentoOriginal"> (era {{ dmy(p.vencimentoOriginal) }})</template></span><span class="s">{{ fmt(p.valor) }}<template v-if="p.pago > 0 && p.falta > 0"> · já pagou {{ fmt0(p.pago) }}</template></span></span>
-            <span class="chip" :class="{ 'c-ok': situacao(p) === 'paga', 'c-bad': situacao(p) === 'atrasada', 'c-neu': situacao(p) === 'aberta' }">{{ situacao(p) }}</span>
-            <button v-if="podeReceber && situacao(p) !== 'paga'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
+            <span class="chip" :class="{ 'c-ok': situacao(p) === 'paga', 'c-bad': situacao(p) === 'atrasada', 'c-neu': situacao(p) === 'aberta' || situacao(p) === 'acordo' }">{{ situacao(p) }}</span>
+            <button v-if="podeReceber && situacao(p) !== 'paga' && situacao(p) !== 'acordo'" class="btn b-ok b-sm" :data-receber="p.numero" @click="emit('receber', p.numero)">Recebi</button>
           </div>
         </div>
       </template>
@@ -107,6 +115,8 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
       </template>
     </template>
   </Sheet>
+
+  <AcordoForm :aberto="acordando" alvo="VENDA" :operacao="venda ? { id: venda.id, cliente: venda.cliente.nome, descricao: venda.aparelho.modelo, saldo: venda.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 
   <Sheet :aberto="retomando" @fechar="retomando = false">
     <template v-if="venda">

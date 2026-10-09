@@ -126,7 +126,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       let amortizacao = 0
       let capitalRestante = 0
       try {
-        if (o.emp && o.emp.modalidade === 'JUROS') {
+        // só juros segue a regra própria (excedente abate o capital) enquanto não houve acordo; depois do acordo são parcelas comuns
+        if (o.emp && o.emp.modalidade === 'JUROS' && !o.emp.parcelas.some((x) => x.acordoId && !x.encerradaId)) {
           const j = calcularRecebimentoJuros(comoAberta(o), pedidoCalc, { capitalAberto: capitalAberto(o.emp), taxa: o.emp.taxa })
           res = j; ajustes = j.ajustes; amortizacao = j.amortizacao; capitalRestante = j.capitalRestante
         } else res = calcularRecebimento(comoAberta(o), pedidoCalc)
@@ -197,6 +198,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (s.perfil === 'COBRADOR' && (t.recebidoPorId !== s.usuarioId || t.data !== hoje)) throw new ErroApi(403, 'O cobrador só desfaz o que ele mesmo recebeu hoje', 'SEM_PERMISSAO')
       if (!ehUltima(t)) throw new ErroApi(409, t.alvo === 'VENDA' ? 'Só o último recebimento da venda pode ser desfeito' : 'Só o último recebimento do empréstimo pode ser desfeito', 'NAO_E_O_ULTIMO')
       if (t.recebidoPorId !== null && vendas._interno.fechamentos.some((f) => f.usuarioId === t.recebidoPorId && f.data === t.data)) throw new ErroApi(409, 'O dia desse recebimento já foi fechado. Reabra o fechamento antes de desfazer.', 'DIA_FECHADO')
+      // depois de um acordo, a parcela paga antes dele foi encerrada: desfazer o pagamento faria a dívida reaparecer em dobro
+      if (t.itens.some((it) => o.parcelas.find((x) => x.numero === it.numero)?.encerradaId)) throw new ErroApi(409, 'Este pagamento é de antes de um acordo e não pode mais ser desfeito', 'ACORDO_FEITO')
       for (const it of t.itens) {
         const p = o.parcelas.find((x) => x.numero === it.numero)!
         p.pago = arred2(p.pago - it.valorPago)

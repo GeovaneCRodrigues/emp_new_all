@@ -12,6 +12,8 @@ export interface ParcelaVendaApi {
   pago: number
   falta: number
   quitadaEm: string | null
+  /** NOVA: criada por um acordo. ENCERRADA: um acordo a encerrou (ficou só com o que já foi pago). */
+  acordo: 'NOVA' | 'ENCERRADA' | null
 }
 
 /** Venda como a API devolve. Os campos de custo e lucro só existem para o admin. */
