@@ -116,6 +116,7 @@ Layout geral:
 - Botões, não links, na navegação do celular.
 - Campos de dinheiro usam máscara BRL que digita pelos centavos: digitar `400000` vira `4.000,00`.
 - Tudo o que é clicável (linhas de lista, cards, itens do menu) tem **hover** visível e cursor de mãozinha no computador, e foco visível no teclado. Pedido do Geovane.
+- Toda modal tem um botão **"x"** no canto de cima, à direita, que continua visível quando o conteúdo rola. Esc e clicar fora também fecham. Pedido do Geovane.
 
 ### Admin
 - **Barra de baixo:** Início, Cobranças, **Novo** (central), Estoque, Mais.
@@ -166,7 +167,9 @@ Layout geral:
 - **Barra de baixo:** Início, Clientes, **Indicar** (central), Cobrança, Repasse. A lateral também tem Níveis.
 - **Início:** quanto tem pra receber, quanto já recebeu e quanto ainda vai ganhar, além do nível e quanto falta pro próximo.
 - **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, e o status de cada parcela.
-- **Cobrança:** só para olhar, com o aviso "Quem dá baixa é a loja".
+- **Cobrança:** só para olhar, com o aviso "Quem dá baixa é a loja". Tem duas vistas:
+  - **Lista:** Atrasadas, Esta semana, Próximas e Pagas.
+  - **Calendário:** o cronograma do mês só com os clientes dele (previsto, recebido e em atraso, e as parcelas do dia escolhido), igual ao Cronograma do admin, mas sem botão de dar baixa. Pedido do Geovane.
 - **Repasse:** valor por cliente e repasses recebidos.
 - **Indicar:** manda o nome e o telefone, e o pedido aparece pro admin como "Indicações esperando". O admin aceita e a pessoa vira cliente.
 - Ele vê **vendas e empréstimos** que indicou.

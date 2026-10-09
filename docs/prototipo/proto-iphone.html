@@ -304,6 +304,10 @@ button.li:focus-visible,button.card:focus-visible{outline:2px solid var(--primar
 .sheet{background:var(--surface);width:100%;max-width:560px;max-height:88dvh;overflow-y:auto;border-radius:20px 20px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom,0px));animation:up .2s ease-out}
 .sheet .grab{width:38px;height:4px;border-radius:4px;background:var(--border);margin:4px auto 10px}
 .sheet h3{margin:0;font-size:17px;color:var(--strong)}
+.xfechar{position:sticky;top:0;float:right;z-index:3;width:34px;height:34px;margin:-2px -4px 4px 8px;border:0;border-radius:50%;display:grid;place-items:center;background:var(--muted);color:var(--strong);cursor:pointer}
+.xfechar svg{width:18px;height:18px}
+.xfechar:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+@media (hover:hover){.xfechar:hover{background:var(--border)}}
 @media (min-width:760px){.ov{align-items:center}.sheet{border-radius:18px;padding:18px 20px}.sheet .grab{display:none}}
 @keyframes up{from{transform:translateY(30px);opacity:.4}}
 @keyframes fade{from{opacity:0}}
@@ -979,8 +983,12 @@ Object.assign(parceiros[2], { fone: '(11) 3344-5566', pix: '00.000.000/0001-99' 
 
 // ----- Cronograma -----
 function telaCronograma() {
+  return `${abasTipo([['todos', 'Tudo', 'layers', 0], ['iphone', 'iPhones', 'smartphone', 0], ['emp', 'Empréstimos', 'landmark', 0]], S.cobTipo, 'cobtipo')}
+    ${cronCalendario(cobrancas().filter(filtroTipo), cobLinha)}`
+}
+// calendário do mês: serve pro admin (Cronograma) e pro indicador (Cobrança › Calendário)
+function cronCalendario(todas, linha) {
   const ym = S.cronMes || HOJE.slice(0, 7)
-  const todas = cobrancas().filter(filtroTipo)
   const doMes = todas.filter((x) => x.p.venc.slice(0, 7) === ym)
   const previsto = doMes.reduce((s, x) => s + x.p.valor, 0)
   const recebido = doMes.reduce((s, x) => s + pagoP(x.p), 0)
@@ -997,12 +1005,11 @@ function telaCronograma() {
     cel.push(`<button class="d ${iso === HOJE ? 'hoje' : ''} ${iso === sel ? 'sel' : ''}" data-cron-dia="${iso}"><span class="n">${d}</span>${xs.length ? `<span class="v num" style="color:${cor}">${kfmt(tot)}</span><span class="q">${xs.length} ${xs.length === 1 ? 'parcela' : 'parcelas'}</span>` : ''}</button>`)
   }
   const doDia = sel ? doMes.filter((x) => x.p.venc === sel) : []
-  return `${abasTipo([['todos', 'Tudo', 'layers', 0], ['iphone', 'iPhones', 'smartphone', 0], ['emp', 'Empréstimos', 'landmark', 0]], S.cobTipo, 'cobtipo')}
-    <div class="between" style="gap:8px"><div class="row" style="gap:6px"><button class="btn b-out b-sm" data-cron-mes="-1" aria-label="Mês anterior">${ic('chevron-left', 'i-sm')}</button><b style="color:var(--strong);font-size:15px;min-width:140px;text-align:center;text-transform:capitalize">${mesLabel(ym)}</b><button class="btn b-out b-sm" data-cron-mes="1" aria-label="Próximo mês">${ic('chevron-right', 'i-sm')}</button></div>${ym !== HOJE.slice(0, 7) ? '<button class="btn b-ghost b-sm" data-cron-mes="0">Hoje</button>' : ''}</div>
+  return `<div class="between" style="gap:8px"><div class="row" style="gap:6px"><button class="btn b-out b-sm" data-cron-mes="-1" aria-label="Mês anterior">${ic('chevron-left', 'i-sm')}</button><b style="color:var(--strong);font-size:15px;min-width:140px;text-align:center;text-transform:capitalize">${mesLabel(ym)}</b><button class="btn b-out b-sm" data-cron-mes="1" aria-label="Próximo mês">${ic('chevron-right', 'i-sm')}</button></div>${ym !== HOJE.slice(0, 7) ? '<button class="btn b-ghost b-sm" data-cron-mes="0">Hoje</button>' : ''}</div>
     <div class="resumo3"><div><div class="lbl">Previsto</div><div class="val num">${fmt0(previsto)}</div></div><div><div class="lbl">Recebido</div><div class="val num" style="color:var(--ok)">${fmt0(recebido)}</div></div><div><div class="lbl">Em atraso</div><div class="val num" style="color:${atrasado ? 'var(--bad)' : 'var(--strong)'}">${fmt0(atrasado)}</div></div></div>
     <div class="card pad"><div class="cal sem">${['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => `<span>${d}</span>`).join('')}</div><div class="cal">${cel.join('')}</div>
       <div class="small" style="margin-top:10px">Vermelho atrasado · laranja vence esta semana · verde pago</div></div>
-    ${sel ? `<div class="card"><div class="totbar"><b style="color:var(--strong)">${Number(sel.slice(8))} de ${MESES[Number(sel.slice(5, 7)) - 1]}</b><span class="small">${doDia.length ? `${doDia.length} ${doDia.length === 1 ? 'parcela' : 'parcelas'}` : 'nada vence neste dia'}</span></div>${doDia.length ? `<div class="list">${doDia.map(cobLinha).join('')}</div>` : ''}</div>` : ''}`
+    ${sel ? `<div class="card"><div class="totbar"><b style="color:var(--strong)">${Number(sel.slice(8))} de ${MESES[Number(sel.slice(5, 7)) - 1]}</b><span class="small">${doDia.length ? `${doDia.length} ${doDia.length === 1 ? 'parcela' : 'parcelas'}` : 'nada vence neste dia'}</span></div>${doDia.length ? `<div class="list">${doDia.map(linha).join('')}</div>` : ''}</div>` : ''}`
 }
 
 // ----- Indicadores -----
@@ -1519,6 +1526,12 @@ function folhaPCliente(cid) {
     }).join('')}
     <div class="small" style="margin-top:12px">Pagamento só é dado como recebido pela loja. Se o cliente disser que pagou, peça o comprovante e mande pro Geovane.</div>`
 }
+function pCobLinha(x, paga) {
+  const atr = !x.p.pago && x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0
+  return `<div class="li"><span class="ini">${iniciais(x.c.nome)}</span>
+      <button class="mid" style="text-align:left" data-pcli="${x.c.id}"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${paga ? `pagou ${fmt(pagoP(x.p))} em ${dmy(x.p.pagos.at(-1).data)}` : `<b style="color:var(--strong)">${fmt(faltaP(x.p))}</b> · ${atr ? `<b style="color:var(--bad)">${atr} ${atr === 1 ? 'dia' : 'dias'}</b>` : x.p.venc === HOJE ? '<b style="color:var(--warn)">vence hoje</b>' : `vence ${dmy(x.p.venc)}`}`} · ${nomeItem(x.v)} · ${x.p.n}/${x.v.parcelas.length}</span></button>
+      ${!paga && x.p.venc <= HOJE ? `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}</div>`
+}
 function pCobranca(D) {
   const todas = cobrancasDoIndicador(D.p.id), abertas = todas.filter((x) => !x.p.pago)
   const G = {
@@ -1527,13 +1540,13 @@ function pCobranca(D) {
     proximas: abertas.filter((x) => diasEntre(HOJE, x.p.venc) > 7 && diasEntre(HOJE, x.p.venc) <= 45).sort((a, b) => a.p.venc.localeCompare(b.p.venc)),
     pagas: todas.filter((x) => x.p.pagos.some((g) => g.data >= '2026-09-08')).sort((a, b) => b.p.pagos.at(-1).data.localeCompare(a.p.pagos.at(-1).data)),
   }
-  const aba = S.pCobAba || 'atrasadas', lista = G[aba]
+  const aba = S.pCobAba || 'atrasadas', lista = G[aba], vista = S.pCobVista || 'lista'
   const total = lista.reduce((s, x) => s + (aba === 'pagas' ? pagoP(x.p) : faltaP(x.p)), 0)
-  return `<div class="filtros"><span class="seg">${[['atrasadas', 'Atrasadas'], ['semana', 'Esta semana'], ['proximas', 'Próximas'], ['pagas', 'Pagas']].map(([v, l]) => `<button class="${aba === v ? 'on' : ''}" data-pcob="${v}">${l}${G[v].length && v !== 'pagas' ? ` · ${G[v].length}` : ''}</button>`).join('')}</span></div>
+  const troca = `<div class="filtros"><span class="seg">${[['lista', 'Lista', 'menu'], ['cal', 'Calendário', 'calendar-days']].map(([v, l, i]) => `<button class="${vista === v ? 'on' : ''}" style="display:inline-flex;align-items:center;gap:6px" data-pcob-vista="${v}">${ic(i, 'i-sm')}${l}</button>`).join('')}</span></div>`
+  if (vista === 'cal') return `${troca}${cronCalendario(todas, (x) => pCobLinha(x, !!x.p.pago))}<p class="small" style="margin:0">Aqui você só acompanha. Quem dá baixa nos pagamentos é a loja.</p>`
+  return `${troca}<div class="filtros"><span class="seg">${[['atrasadas', 'Atrasadas'], ['semana', 'Esta semana'], ['proximas', 'Próximas'], ['pagas', 'Pagas']].map(([v, l]) => `<button class="${aba === v ? 'on' : ''}" data-pcob="${v}">${l}${G[v].length && v !== 'pagas' ? ` · ${G[v].length}` : ''}</button>`).join('')}</span></div>
     <div class="card"><div class="totbar"><span class="small">${lista.length} ${lista.length === 1 ? 'parcela' : 'parcelas'}</span><b class="num" style="color:${aba === 'atrasadas' ? 'var(--bad)' : aba === 'pagas' ? 'var(--ok)' : 'var(--strong)'}">${fmt(total)}</b></div>
-    <div class="list">${lista.map((x) => { const atr = !x.p.pago && x.p.venc < HOJE ? diasEntre(x.p.venc, HOJE) : 0; return `<div class="li"><span class="ini">${iniciais(x.c.nome)}</span>
-      <button class="mid" style="text-align:left" data-pcli="${x.c.id}"><span class="t" style="display:block">${x.c.nome}</span><span class="s" style="display:block">${aba === 'pagas' ? `pagou ${fmt(pagoP(x.p))} em ${dmy(x.p.pagos.at(-1).data)}` : `<b style="color:var(--strong)">${fmt(faltaP(x.p))}</b> · ${atr ? `<b style="color:var(--bad)">${atr} ${atr === 1 ? 'dia' : 'dias'}</b>` : x.p.venc === HOJE ? '<b style="color:var(--warn)">vence hoje</b>' : `vence ${dmy(x.p.venc)}`}`} · ${nomeItem(x.v)} · ${x.p.n}/${x.v.parcelas.length}</span></button>
-      ${aba !== 'pagas' && x.p.venc <= HOJE ? `<button class="wa" data-wa="${x.v.id}:${x.p.n}" aria-label="Chamar no WhatsApp">${ic('message-circle', 'i-sm')}</button>` : ''}</div>` }).join('') || '<div class="empty">Nada aqui.</div>'}</div></div>
+    <div class="list">${lista.map((x) => pCobLinha(x, aba === 'pagas')).join('') || '<div class="empty">Nada aqui.</div>'}</div></div>
     <p class="small" style="margin:0">Aqui você só acompanha. Quem dá baixa nos pagamentos é a loja.</p>`
 }
 function pRepasse(D) {
@@ -1550,6 +1563,7 @@ function cliquesPortal2(t, d) {
   if (d.pcliF) { S.pCliF = d.pcliF; render(); return true }
   if (d.pcli) { abrir('pCliente', Number(d.pcli)); return true }
   if (d.pcob) { S.pCobAba = d.pcob; render(); return true }
+  if (d.pcobVista) { S.pCobVista = d.pcobVista; S.cronDia = null; render(); return true }
   return false
 }
 
@@ -2026,7 +2040,7 @@ function folhaMenus() {
         <div class="mtabs">${tab('Início', 'house', true)}${tab('Clientes', 'users')}${fab('Indicar', 'user-plus')}${tab('Cobrança', 'hand-coins')}${tab('Repasse', 'wallet')}</div></div>
       <div><div class="lbl" style="margin-bottom:8px">Lateral (computador)</div>
         <div class="mlist">${item('Início', 'house')}${item('Meus clientes', 'users')}${item('Cobrança', 'hand-coins')}${item('Repasse', 'wallet')}${item('Níveis', 'award', '<span class="small">no celular, pelo card do Início</span>')}</div></div>
-      ${pode(['Vê só os clientes que ele indicou', 'Acompanha parcelas e chama o cliente no WhatsApp', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não dá baixa, não vê caixa nem estoque', 'Não vê cliente de outro indicador'])}
+      ${pode(['Vê só os clientes que ele indicou', 'Acompanha parcelas e chama o cliente no WhatsApp', 'Vê o calendário de recebimento dos clientes dele', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não dá baixa, não vê caixa nem estoque', 'Não vê cliente de outro indicador'])}
       <button class="btn b-pri b-block" data-ver-como="indicador">Abrir como ${p.nome.split(' ')[0]}</button>
     </section>`
   const sec = (uid, titulo, sub, tabsH, lista, sim, nao) => `<section>
@@ -2483,7 +2497,7 @@ function render() {
 function renderCamada() {
   const el = document.getElementById('camada')
   let h = ''
-  if (S.folha) h += `<div class="ov" data-ov><div class="sheet${S.folha.tipo === 'menus' ? ' larga' : ''}" role="dialog"><div class="grab"></div>${FOLHAS[S.folha.tipo](S.folha.arg)}</div></div>`
+  if (S.folha) h += `<div class="ov" data-ov><div class="sheet${S.folha.tipo === 'menus' ? ' larga' : ''}" role="dialog"><div class="grab"></div><button class="xfechar" data-fechar aria-label="Fechar" title="Fechar (Esc)">${ic('x')}</button>${FOLHAS[S.folha.tipo](S.folha.arg)}</div></div>`
   if (S.toast) h += `<div class="toast">${S.toast.msg}${S.toast.desfazer ? '<button data-desfazer>Desfazer</button>' : ''}</div>`
   el.innerHTML = h
     marcaTema()
