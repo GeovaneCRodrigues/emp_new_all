@@ -75,7 +75,7 @@ async function enviar() {
     <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="enviar">
       <div class="field">
         <label for="cNome">Nome completo *</label>
-        <div class="inp"><input id="cNome" v-model="f.nome" autocomplete="off" autofocus /></div>
+        <div class="inp maiusc"><input id="cNome" v-model="f.nome" autocomplete="off" autofocus /></div>
         <span v-if="erros.nome" class="erro-campo">{{ erros.nome }}</span>
       </div>
       <div class="grid2">
@@ -91,13 +91,13 @@ async function enviar() {
         </div>
       </div>
       <div class="grid2">
-        <div class="field"><label for="cRg">RG</label><div class="inp"><input id="cRg" v-model="f.rg" autocomplete="off" /></div></div>
+        <div class="field"><label for="cRg">RG</label><div class="inp maiusc"><input id="cRg" v-model="f.rg" autocomplete="off" /></div></div>
         <div class="field">
           <label for="cOrigem">Como chegou</label>
           <div class="inp"><input id="cOrigem" v-model="f.origem" list="origens" autocomplete="off" /><datalist id="origens"><option v-for="o in ORIGENS" :key="o" :value="o" /></datalist></div>
         </div>
       </div>
-      <div class="field"><label for="cEnd">Endereço</label><div class="inp"><input id="cEnd" v-model="f.endereco" autocomplete="off" /></div></div>
+      <div class="field"><label for="cEnd">Endereço</label><div class="inp maiusc"><input id="cEnd" v-model="f.endereco" autocomplete="off" /></div></div>
       <template v-if="ehAdmin">
         <div class="field">
           <label for="cEmail">E-mail (só você vê)</label>

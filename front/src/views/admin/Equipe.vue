@@ -286,7 +286,7 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
     <template v-else>
       <h3>Convidar pessoa</h3>
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 12px" novalidate @submit.prevent="convidar">
-        <div class="field"><label for="cNome">Nome</label><div class="inp"><input id="cNome" v-model="convite.nome" autocomplete="off" /></div></div>
+        <div class="field"><label for="cNome">Nome</label><div class="inp maiusc"><input id="cNome" v-model="convite.nome" autocomplete="off" /></div></div>
         <div class="field"><label for="cEmail">E-mail</label><div class="inp"><input id="cEmail" v-model="convite.email" type="email" autocomplete="off" /></div></div>
         <div class="field"><label for="cFone">Telefone (opcional)</label><div class="inp"><input id="cFone" v-model="convite.fone" inputmode="tel" placeholder="(11) 98812-4410" /></div></div>
         <div class="field"><label>Função</label><div class="pills"><button type="button" class="pill" :class="{ on: convite.perfil === 'COBRADOR' }" @click="convite.perfil = 'COBRADOR'">Cobrador</button><button type="button" class="pill" :class="{ on: convite.perfil === 'VENDEDOR' }" @click="convite.perfil = 'VENDEDOR'">Vendedor</button></div></div>

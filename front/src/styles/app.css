@@ -362,3 +362,6 @@ input,select{font:inherit;color:var(--strong)}
 .nivel-passo{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface)}
 .nivel-passo.atual{background:var(--gold-soft,#fdf1d6);border-color:var(--gold,#e9c46a)}
 .nivel-passo .bola{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;flex:none;border:2px solid var(--border)}
+
+/* cadastro em letras maiúsculas: o campo já mostra assim enquanto digita (quem padroniza de verdade é o servidor) */
+.inp.maiusc input{text-transform:uppercase}

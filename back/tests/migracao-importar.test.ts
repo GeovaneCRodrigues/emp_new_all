@@ -45,14 +45,14 @@ describe.skipIf(!db)('importar indicadores e clientes do sistema antigo (Postgre
     expect(r.modo).toBe('APLICADO')
     expect(await conta('indicadores')).toBe(3); expect(await conta('clientes')).toBe(5)
     const i1 = await db!('indicadores').where({ legacy_id: 1 }).first()
-    expect(i1).toMatchObject({ nome: 'Indicador Fictício 1', whatsapp: '11988124410', pct_manual: true, ativo: true, legacy_id: 1 })
+    expect(i1).toMatchObject({ nome: 'INDICADOR FICTÍCIO 1', whatsapp: '11988124410', pct_manual: true, ativo: true, legacy_id: 1 })
     expect(Number(i1.pct)).toBe(0.5)
     const i2 = await db!('indicadores').where({ legacy_id: 2 }).first()
     expect(i2.ativo).toBe(false); expect(Number(i2.pct)).toBe(0.3)
     expect(Number((await db!('indicadores').where({ legacy_id: 3 }).first()).pct)).toBe(0.5) // sem % → padrão
 
     const c10 = await db!('clientes').where({ legacy_id: 10 }).first()
-    expect(c10).toMatchObject({ nome: 'Cliente Fictício 10', cpf: '52998224725', fone: '11988124410', email: 'ana@exemplo.com', observacoes: 'paga sempre no dia 10', endereco: 'Rua A, 10, Centro, Campinas/SP, CEP 13000-000', origem: null, responsavel_id: null })
+    expect(c10).toMatchObject({ nome: 'CLIENTE FICTÍCIO 10', cpf: '52998224725', fone: '11988124410', email: 'ana@exemplo.com', observacoes: 'paga sempre no dia 10', endereco: 'RUA A, 10, CENTRO, CAMPINAS/SP, CEP 13000-000', origem: null, responsavel_id: null })
     expect(c10.indicador_id).toBe(i1.id)
     expect(new Date(c10.created_at).toISOString()).toBe('2026-05-05T10:00:00.000Z')
     expect((await db!('clientes').where({ legacy_id: 11 }).first()).fone).toBe('') // sem telefone
@@ -122,8 +122,8 @@ describe.skipIf(!db)('importar indicadores e clientes do sistema antigo (Postgre
 
   it('o relatório é só números e ids: sem nome, CPF, telefone nem e-mail', async () => {
     const r = await importar(db!, cenario(), { aplicar: false })
-    const texto = formatarRelatorio(r) + JSON.stringify(r)
-    for (const dado of ['Fictício', '52998224725', '529.982.247-25', '988124410', 'ana@exemplo.com', 'Rua A', 'paga sempre']) expect(texto, dado).not.toContain(dado)
+    const texto = (formatarRelatorio(r) + JSON.stringify(r)).toLowerCase()
+    for (const dado of ['Fictício', '52998224725', '529.982.247-25', '988124410', 'ana@exemplo.com', 'Rua A', 'paga sempre']) expect(texto, dado).not.toContain(dado.toLowerCase())
     expect(texto).toContain('SIMULAÇÃO')
   })
 

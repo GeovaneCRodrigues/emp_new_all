@@ -1,3 +1,4 @@
+import { maiusculas } from '@/domain/format'
 import { criarSeed } from '@/data/seed'
 import { cpfValido, normalizarFone, soDigitos } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
@@ -42,7 +43,7 @@ export function criarClientesFake(): ClientesApi {
     const d: Partial<Required<EntradaCliente>> = {}
     if (!parcial || 'nome' in e) {
       if (typeof e.nome !== 'string' || e.nome.trim().length < 2) throw new ErroApi(400, 'Informe o nome do cliente (ao menos 2 letras)')
-      d.nome = e.nome.trim().replace(/\s+/g, ' ')
+      d.nome = maiusculas(e.nome)
     }
     if (!parcial || 'fone' in e) {
       const f = typeof e.fone === 'string' ? normalizarFone(e.fone) : null
@@ -55,7 +56,7 @@ export function criarClientesFake(): ClientesApi {
       else if (!cpfValido(bruto)) throw new ErroApi(400, 'CPF inválido')
       else d.cpf = soDigitos(bruto)
     }
-    for (const k of ['rg', 'endereco', 'origem', 'email', 'observacoes'] as const) if (k in e) d[k] = (e[k] ?? '').trim() || null
+    for (const k of ['rg', 'endereco', 'origem', 'email', 'observacoes'] as const) if (k in e) d[k] = ((k === 'rg' || k === 'endereco') ? maiusculas(e[k] ?? '') : (e[k] ?? '').trim()) || null
     if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) throw new ErroApi(400, 'E-mail inválido')
     if (d.observacoes && d.observacoes.length > 2000) throw new ErroApi(400, 'observacoes pode ter no máximo 2000 caracteres')
     return d

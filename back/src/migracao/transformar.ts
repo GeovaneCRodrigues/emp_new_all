@@ -1,4 +1,5 @@
 import { cpfValido, normalizarFone, soDigitos } from '../shared/documentos.js'
+import { maiusculas } from '../shared/texto.js'
 import type { ClienteAntigo, ClienteNovo, CodigoAviso, Convertido, IndicadorAntigo, IndicadorNovo } from './tipos.js'
 
 const limpo = (v: string | null | undefined) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '')
@@ -22,7 +23,7 @@ export function percentualDoIndicador(p: IndicadorAntigo['percentuais']): number
 
 export function converterIndicador(a: IndicadorAntigo): Convertido<IndicadorNovo> {
   const avisos: CodigoAviso[] = []
-  const nome = limpo(a.nome)
+  const nome = maiusculas(a.nome ?? '')
   if (!nome) return { novo: null, avisos, erro: 'indicador sem nome' }
   let whatsapp: string | null = null
   if (limpo(a.telefone)) {
@@ -54,7 +55,7 @@ export function montarEndereco(a: Pick<ClienteAntigo, 'endereco' | 'numero' | 'c
 
 export function converterCliente(a: ClienteAntigo): Convertido<ClienteNovo> {
   const avisos: CodigoAviso[] = []
-  const nome = limpo(a.nome)
+  const nome = maiusculas(a.nome ?? '')
   if (!nome) return { novo: null, avisos, erro: 'cliente sem nome' }
 
   // documento: CPF (11) ou CNPJ (14), só dígitos; outro tamanho não se adivinha
@@ -85,8 +86,8 @@ export function converterCliente(a: ClienteAntigo): Convertido<ClienteNovo> {
   const e = limpo(a.email).toLowerCase()
   if (e) { if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <= 255) email = e; else avisos.push('email_invalido') }
 
-  const rg = vazioParaNull(cortar(limpo(a.rg), 20, 'rg_cortado', avisos))
-  const endereco = vazioParaNull(cortar(montarEndereco(a), 500, 'endereco_cortado', avisos))
+  const rg = vazioParaNull(cortar(maiusculas(a.rg ?? ''), 20, 'rg_cortado', avisos))
+  const endereco = vazioParaNull(cortar(maiusculas(montarEndereco(a)), 500, 'endereco_cortado', avisos))
   const obs = [typeof a.obs === 'string' ? a.obs.trim() : '', ...anotacoes].filter(Boolean).join('\n')
   const observacoes = vazioParaNull(cortar(obs, 2000, 'observacao_cortada', avisos))
   if (String(a.status).toUpperCase() !== 'ATIVO') avisos.push('cliente_inativo')

@@ -143,7 +143,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
       const r = await req('POST', '/api/clientes', 'admin', { ...base, endereco: 'Rua A, 1', origem: 'Instagram', responsavelId: id.vendedorA })
       expect(r.statusCode).toBe(201)
       const { cliente, avisos } = r.json()
-      expect(cliente).toMatchObject({ nome: 'Maria da Silva', fone: '11955551234', cpf: '52998224725', endereco: 'Rua A, 1', origem: 'Instagram', responsavelId: id.vendedorA })
+      expect(cliente).toMatchObject({ nome: 'MARIA DA SILVA', fone: '11955551234', cpf: '52998224725', endereco: 'RUA A, 1', origem: 'Instagram', responsavelId: id.vendedorA })
       expect(avisos).toEqual([])
       const aud = await db!('auditoria').where({ acao: 'CLIENTE_CRIADO', entidade_id: cliente.id }).first()
       expect(aud).toMatchObject({ usuario_id: id.admin })
@@ -205,8 +205,8 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
       const r = await req('POST', '/api/clientes', 'vendedorA', { nome: 'Do Vendedor', fone: '11933330003', responsavelId: id.vendedorB })
       expect(r.statusCode).toBe(201)
       expect(r.json().cliente.responsavelId).toBe(id.vendedorA)
-      expect(await nomes('vendedorA')).toContain('Do Vendedor')
-      expect(await nomes('vendedorB')).not.toContain('Do Vendedor')
+      expect(await nomes('vendedorA')).toContain('DO VENDEDOR')
+      expect(await nomes('vendedorB')).not.toContain('DO VENDEDOR')
     })
 
     it('cobrador não cadastra (403); o indicador cadastra, mas só com CPF (400 sem ele) — o resto está em propostas.test.ts', async () => {
@@ -248,7 +248,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     it('admin edita só o que mandou; o resto fica como estava', async () => {
       const r = await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { endereco: 'Rua B, 2' })
       expect(r.statusCode).toBe(200)
-      expect(r.json().cliente).toMatchObject({ nome: 'Maria da Silva', cpf: '52998224725', endereco: 'Rua B, 2', origem: 'Instagram' })
+      expect(r.json().cliente).toMatchObject({ nome: 'MARIA DA SILVA', cpf: '52998224725', endereco: 'RUA B, 2', origem: 'Instagram' })
     })
 
     it('grava a auditoria com o antes e o depois', async () => {

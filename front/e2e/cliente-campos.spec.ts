@@ -27,3 +27,19 @@ test.describe('e-mail e observações do cliente (só do administrador)', () => 
     await expect(page.locator('#cObs')).toHaveCount(0)
   })
 })
+
+test.describe('cadastro em letras maiúsculas', () => {
+  test('o campo já mostra maiúsculo enquanto digita e o cadastro fica salvo assim (nome e endereço)', async ({ page }) => {
+    await entrar(page)
+    await navegar(page, '/clientes')
+    await page.getByRole('button', { name: 'Cliente', exact: true }).click()
+    await page.fill('#cNome', '  josé da conceição  ')
+    await page.fill('#cFone', '11981112233')
+    await page.fill('#cEnd', 'rua são joão, 5')
+    expect(await page.locator('#cNome').evaluate((el) => getComputedStyle(el).textTransform)).toBe('uppercase')
+    await page.getByRole('button', { name: 'Cadastrar cliente' }).click()
+    await expect(page.locator('.li', { hasText: 'JOSÉ DA CONCEIÇÃO' })).toHaveCount(1)
+    await page.locator('.li', { hasText: 'JOSÉ DA CONCEIÇÃO' }).click()
+    await expect(page.getByRole('dialog')).toContainText('RUA SÃO JOÃO, 5')
+  })
+})

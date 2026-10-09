@@ -26,7 +26,7 @@ describe('o % do indicador', () => {
 describe('converter indicador', () => {
   it('traz nome, whatsapp só com dígitos, % fixo à mão e ativo', () => {
     const r = converterIndicador(indicador({ telefone: '(11) 98812-4410' }))
-    expect(r.novo).toEqual({ legacyId: 1, nome: 'Roberto', whatsapp: '11988124410', pct: 0.5, pctManual: true, ativo: true })
+    expect(r.novo).toEqual({ legacyId: 1, nome: 'ROBERTO', whatsapp: '11988124410', pct: 0.5, pctManual: true, ativo: true })
     expect(r.avisos).toEqual([])
   })
   it('inativo vira ativo=false e avisa; sem % usa 50% e avisa', () => {
@@ -41,7 +41,7 @@ describe('converter indicador', () => {
     expect(r.novo?.whatsapp).toBeNull(); expect(r.avisos).toContain('whatsapp_invalido')
   })
   it('espaços sobrando no nome somem; nome vazio não importa (erro)', () => {
-    expect(converterIndicador(indicador({ nome: '  Loja   Ponto  Cell ' })).novo?.nome).toBe('Loja Ponto Cell')
+    expect(converterIndicador(indicador({ nome: '  Loja   Ponto  Cell ' })).novo?.nome).toBe('LOJA PONTO CELL')
     expect(converterIndicador(indicador({ nome: '   ' }))).toMatchObject({ novo: null, erro: 'indicador sem nome' })
   })
 })
@@ -113,6 +113,11 @@ describe('converter cliente: endereço, e-mail, observação, indicador e datas'
     expect(montarEndereco({ ...base, cep: '1234567' })).toBe('Rua A')
     expect(montarEndereco({ ...base, cep: '13000-000' })).toBe('Rua A, CEP 13000-000')
   })
+  it('nome e endereço em LETRAS MAIÚSCULAS, com acento; e-mail e observação ficam como estão', () => {
+    const r = converterCliente(cliente({ nome: 'josé da conceição', endereco: 'rua são joão', numero: '5', cidade: 'jundiaí', uf: 'sp', email: 'Jose@X.com', obs: 'Paga no dia 10' }))
+    expect(r.novo).toMatchObject({ nome: 'JOSÉ DA CONCEIÇÃO', endereco: 'RUA SÃO JOÃO, 5, JUNDIAÍ/SP', email: 'jose@x.com', observacoes: 'Paga no dia 10' })
+  })
+  it('RG também em maiúsculas', () => { expect(converterCliente(cliente({ rg: '12.345.678-x' })).novo?.rg).toBe('12.345.678-X') })
   it('endereço vazio vira null', () => { expect(converterCliente(cliente()).novo?.endereco).toBeNull() })
   it('e-mail em minúsculas; inválido vira null e avisa', () => {
     expect(converterCliente(cliente({ email: ' Maria@Exemplo.COM ' })).novo?.email).toBe('maria@exemplo.com')
@@ -130,7 +135,7 @@ describe('converter cliente: endereço, e-mail, observação, indicador e datas'
     expect(r.novo?.rg).toHaveLength(20); expect(r.avisos).toContain('rg_cortado')
   })
   it('nome limpo (espaços) e nome vazio é erro', () => {
-    expect(converterCliente(cliente({ nome: '  Maria   da  Silva ' })).novo?.nome).toBe('Maria da Silva')
+    expect(converterCliente(cliente({ nome: '  Maria   da  Silva ' })).novo?.nome).toBe('MARIA DA SILVA')
     expect(converterCliente(cliente({ nome: '' }))).toMatchObject({ novo: null, erro: 'cliente sem nome' })
   })
   it('guarda o indicador (id antigo) e a data de cadastro original', () => {
