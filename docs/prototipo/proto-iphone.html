@@ -1530,7 +1530,7 @@ function pInicio(D) {
   const { p, r, nv, meses, prev } = D
   const vai = Math.max(0, r.vaiGanhar - r.liberado)
   const ab = cobrancasDoIndicador(p.id).filter((x) => !x.p.pago && !x.p.aviso && x.p.venc <= HOJE), aCobrar = ab.reduce((s, x) => s + faltaP(x.p), 0)
-  const atalhos = `<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn b-pri" style="flex:1" data-pvender>${ic('plus', 'i-sm')}Vender</button><button class="btn b-out" style="flex:1" data-folha="pReceber">${ic('hand-coins', 'i-sm')}Recebi</button><button class="btn b-out" style="flex:1" data-folha="indicar">${ic('user-plus', 'i-sm')}Indicar</button></div>
+  const atalhos = `<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn b-pri" style="flex:1" data-folha="indicar">${ic('user-plus', 'i-sm')}Indicar</button><button class="btn b-out" style="flex:1" data-folha="pReceber">${ic('hand-coins', 'i-sm')}Recebi</button><button class="btn b-out" style="flex:1" data-ptela="simulador">${ic('calculator', 'i-sm')}Simular</button></div>
     ${ab.length ? `<button class="card pad between" data-ptela="cobranca" style="text-align:left"><span><span class="lbl" style="display:block">Pra cobrar hoje</span><span class="val num" style="font-size:18px;color:var(--bad)">${fmt(aCobrar)}</span><span class="small" style="display:block">${new Set(ab.map((x) => x.c.id)).size} ${new Set(ab.map((x) => x.c.id)).size === 1 ? 'cliente' : 'clientes'} com parcela vencida ou vencendo hoje</span></span>${ic('chevron-right', 'i-sm')}</button>` : ''}`
   return `${atalhos}<div class="hero" style="gap:6px"><div class="lbl">Você tem pra receber</div><div class="big disp num">${fmt(r.aPagar)}</div><div class="lbl">${r.aPagar ? 'Já liberado. O Geovane faz o Pix pra você.' : 'Nada liberado no momento.'}${p.pix ? ` Pix: ${p.pix}` : ''}</div></div>
     <div class="resumo3"><div><div class="lbl">Já recebeu</div><div class="val num" style="color:var(--ok)">${fmt0(r.jaPago)}</div></div><div><div class="lbl">Ainda vai ganhar</div><div class="val num">${fmt0(vai)}</div></div><div><div class="lbl">Clientes</div><div class="val num">${new Set(r.linhas.map((l) => l.o.clienteId)).size}</div></div></div>
@@ -1691,18 +1691,17 @@ function cliquesPortal2(t, d) {
 const avisosDoIndicador = (pid) => cobrancasDoIndicador(pid).filter((x) => x.p.aviso && !x.p.pago)
 function pVendas(D) {
   const mv = vendas.filter((v) => v.parceiroId === D.p.id).slice().sort((a, b) => b.data.localeCompare(a.data))
-  return `<div class="row" style="gap:8px"><button class="btn b-out" style="flex:1" data-ptela="simulador">${ic('calculator', 'i-sm')}Simular</button><button class="btn b-pri" style="flex:1" data-pvender>${ic('plus', 'i-sm')}Nova venda</button></div>
+  return `<div class="row" style="gap:8px"><button class="btn b-out" style="flex:1" data-ptela="simulador">${ic('calculator', 'i-sm')}Simular</button><button class="btn b-pri" style="flex:1" data-folha="indicar">${ic('user-plus', 'i-sm')}Indicar cliente</button></div>
     <div class="card list">${mv.map((v) => { const k = contas(v); return `<button class="li" data-pcli="${v.clienteId}"><span class="ini" style="${k.atrasadas.length ? 'background:var(--bad-soft);color:var(--bad)' : ''}">${iniciais(cliente(v.clienteId).nome)}</span>
       <span class="mid"><span class="t" style="display:block">${cliente(v.clienteId).nome}</span><span class="s" style="display:block">${nomeItem(v)} · ${dmyA(v.data)} · ${v.parcelas.length}x ${fmt0(v.parcelas[0]?.valor || 0)}</span></span>
       ${v.status === 'RETOMADA' ? '<span class="chip c-neu">retomada</span>' : k.status === 'QUITADA' ? '<span class="chip c-ok">quitada</span>' : k.atrasadas.length ? '<span class="chip c-bad">atraso</span>' : v.contrato === 'AGUARDANDO' ? '<span class="chip c-warn">assinar</span>' : '<span class="chip c-ok">em dia</span>'}</button>` }).join('') || '<div class="empty">Nenhuma venda ainda.</div>'}</div>
-    <p class="small" style="margin:0">Toda venda que você faz já entra como sua indicação, com o seu % do lucro.</p>`
+    <p class="small" style="margin:0">Quem cadastra a venda é a loja. Fechou com um cliente? Manda como indicação, com o aparelho, que a loja cadastra no seu nome e ela aparece aqui.</p>`
 }
 function folhaPNovo() {
   const op = (attrs, icone, t, sub) => `<button class="li" ${attrs}><span class="pic" style="width:40px;height:40px;border-radius:12px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center">${ic(icone)}</span><span class="mid"><span class="t" style="display:block">${t}</span><span class="s" style="display:block">${sub}</span></span>${ic('chevron-right', 'i-sm')}</button>`
   return `<h3>O que você vai fazer?</h3><div class="card list" style="margin-top:12px">
-    ${op('data-pvender', 'smartphone', 'Vender iPhone', 'Aparelho do estoque, parcelado')}
     ${op('data-folha="pReceber"', 'hand-coins', 'Recebi de um cliente', 'Avisa a loja pra dar baixa')}
-    ${op('data-folha="indicar"', 'user-plus', 'Indicar cliente', 'A loja chama e fecha pra você')}
+    ${op('data-folha="indicar"', 'user-plus', 'Indicar cliente ou venda', 'A loja cadastra a venda no seu nome')}
     ${op('data-ptela="simulador"', 'calculator', 'Só simular', 'Monta as parcelas pra mandar pro cliente')}</div>`
 }
 function folhaPReceber() {
@@ -1713,10 +1712,10 @@ function folhaPReceber() {
 function cliquesIndicador(t, d) {
   if (!ehIndicador()) return false
   const pid = S.portalPid
-  const vender = (bemId) => { S.nv = null; novaVenda(bemId ?? null); S.nv.parceiroId = pid; S.pTela = 'vender'; S.folha = null; render(); document.querySelector('.main')?.scrollTo(0, 0) }
-  if ('pvender' in d) { vender(); return true }
-  if ('evender' in d) { vender(d.evender ? Number(d.evender) : null); return true }
-  if (d.ir === 'vender') { vender(); return true }
+  // venda quem cadastra é a loja: do estoque e do simulador ele manda como indicação
+  const indicar = (quer, obs) => { S.ind = { tipo: 'iPhone', ldQuer: quer, ldObs: obs || '' }; abrir('indicar') }
+  if (d.pindBem) { const b = bem(Number(d.pindBem)); indicar(`${b.modelo} ${b.gb} GB ${b.cor} · ${fmt0(b.preco)}`); return true }
+  if ('simIndicar' in d) { const D = simDados(), l = D.linhas[D.s.n - 1]; indicar(D.b ? `${D.b.modelo} ${D.b.gb} GB ${D.b.cor}` : `iPhone de ${fmt0(D.preco)}`, `${D.entrada ? `Entrada ${fmt(D.entrada)} + ` : ''}${l.n}x de ${fmt(l.parc)}`); return true }
   if ('recComp' in d) { S.rec.comp = !S.rec.comp; abrir('receber'); return true }
   if ('recConfirmar' in d) {
     const r = S.rec, v = opById(r.vid), valor = numBR(r.valor), alvo = v.parcelas.find((x) => x.n === r.n), c = cliente(v.clienteId), p = parceiro(pid)
@@ -2237,7 +2236,7 @@ function folhaMenus() {
         <div class="mtabs">${tab('Início', 'house', true)}${tab('Cobrança', 'hand-coins')}${fab('Novo', 'plus')}${tab('Clientes', 'users')}${tab('Repasse', 'wallet')}</div></div>
       <div><div class="lbl" style="margin-bottom:8px">Lateral (computador)</div>
         <div class="mlist">${item('Início', 'house')}${item('Cobrança', 'hand-coins')}${item('Meus clientes', 'users')}${item('Minhas vendas', 'receipt-text')}${item('Estoque', 'smartphone')}${item('Simulador', 'calculator')}${item('Repasse', 'wallet')}${item('Níveis', 'award', '<span class="small">no celular, pelo card do Início</span>')}</div></div>
-      ${pode(['Vende iPhone do estoque (entra como indicação dele)', 'Cobra os clientes dele e avisa quando recebe', 'Vê o calendário de recebimento dos clientes dele', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não dá baixa sozinho: a loja confirma', 'Não vê custo, lucro da loja nem caixa', 'Não vê cliente de outro indicador'])}
+      ${pode(['Vê as vendas dele e o estoque (só o preço de venda)', 'Indica cliente ou venda, e a loja cadastra no nome dele', 'Cobra os clientes dele e avisa quando recebe', 'Vê o calendário de recebimento dos clientes dele', 'Vê quanto tem pra receber e o nível dele', 'Manda indicação nova'], ['Não cadastra venda: quem cadastra é a loja', 'Não dá baixa sozinho: a loja confirma', 'Não vê custo, lucro da loja nem caixa', 'Não vê cliente de outro indicador'])}
       <button class="btn b-pri b-block" data-ver-como="indicador">Abrir como ${p.nome.split(' ')[0]}</button>
     </section>`
   const sec = (uid, titulo, sub, tabsH, lista, sim, nao) => `<section>
@@ -2502,8 +2501,8 @@ function vEstoque() {
     <div class="fones">${lista.map((b) => `<div class="card fone"><span class="pic">${ic('smartphone')}<span class="cor" style="background:${CORES[b.cor] || '#999'}"></span></span>
       <span class="info"><span class="nome"><span>${b.modelo} · ${b.gb} GB</span></span>
         <span class="specs"><span>${b.cor}</span><span>${b.cond}</span><span>${ic('battery-medium', 'i-sm')}${b.bateria}%</span></span>
-        <span class="precos"><b class="num" style="color:var(--strong);font-size:16px">${fmt0(b.preco)}</b><span class="row" style="gap:6px"><button class="btn b-out b-sm" data-sim-bem="${b.id}">Simular</button><button class="btn b-pri b-sm" data-evender="${b.id}">Vender</button></span></span></span></div>`).join('') || '<div class="card empty">Nada por aqui.</div>'}</div>
-    <p class="small" style="margin:0">Você vê o preço de venda. Custo e lucro ficam só com o Geovane.</p>`
+        <span class="precos"><b class="num" style="color:var(--strong);font-size:16px">${fmt0(b.preco)}</b><span class="row" style="gap:6px"><button class="btn b-out b-sm" data-sim-bem="${b.id}">Simular</button>${ehIndicador() ? `<button class="btn b-pri b-sm" data-pind-bem="${b.id}">Indicar</button>` : `<button class="btn b-pri b-sm" data-evender="${b.id}">Vender</button>`}</span></span></span></div>`).join('') || '<div class="card empty">Nada por aqui.</div>'}</div>
+    <p class="small" style="margin:0">Você vê o preço de venda. Custo e lucro ficam só com o Geovane.${ehIndicador() ? ' Quem cadastra a venda é a loja: toque em Indicar e mande o cliente.' : ''}</p>`
 }
 function vVendas() {
   const mv = minhasVendas(eu().id).slice().sort((a, b) => b.data.localeCompare(a.data))
@@ -2651,7 +2650,7 @@ function simRes() {
         ${!vend && l.lucro !== null ? `<span style="text-align:right"><span class="lbl" style="display:block">seu lucro</span><b class="num" style="color:${l.lucro >= 0 ? 'var(--ok)' : 'var(--bad)'}">${fmt0(l.lucro)}</b></span>` : ''}</button>`).join('')}</div>
     <div style="padding:12px 16px 16px;display:flex;flex-direction:column;gap:8px">
       <div class="small" style="text-align:center">Escolhido: <b style="color:var(--strong)">${D.entrada ? `${fmt(D.entrada)} + ` : ''}${sel.n}x ${fmt(sel.parc)}</b></div>
-      <div class="row" style="gap:8px"><button class="btn b-out" style="flex:1" data-sim-wa>${ic('message-circle', 'i-sm')}Mandar pro cliente</button><button class="btn b-pri" style="flex:1" data-sim-vender>${ic('plus', 'i-sm')}Vender assim</button></div></div>`
+      <div class="row" style="gap:8px"><button class="btn b-out" style="flex:1" data-sim-wa>${ic('message-circle', 'i-sm')}Mandar pro cliente</button><button class="btn b-pri" style="flex:1" ${ehIndicador() ? 'data-sim-indicar' : 'data-sim-vender'}>${ic(ehIndicador() ? 'user-plus' : 'plus', 'i-sm')}${ehIndicador() ? 'Indicar assim' : 'Vender assim'}</button></div></div>`
 }
 function folhaSimWa() {
   const D = simDados(), nome = D.b ? `${D.b.modelo} ${D.b.gb} GB` : 'iPhone'

@@ -100,7 +100,7 @@ O Geovane quer começar um front novo do zero, em outro repositório, a partir d
 | **Admin** | Tudo | Tudo, inclusive aprovar pedidos e conferir o fechamento do dia | — |
 | **Vendedor** | Estoque com **preço de venda**, os clientes dele, as vendas dele, Simulador | Vender, mandar contrato, cadastrar cliente | Ver **custo e lucro** em qualquer tela; mexer em caixa ou repasse |
 | **Cobrador** | Só a **carteira dele** (clientes com `responsável = ele`) | Dar baixa no que recebeu, mandar recibo, chamar no WhatsApp, fechar o dia | Dar desconto, acordo ou retomada sem aprovação; ver lucro, caixa da loja ou estoque |
-| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles, o estoque (preço de venda) e os repasses dele | **Vender** iPhone (como o vendedor), **cobrar** os clientes dele e **avisar que recebeu**, mandar indicação nova, simular | **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
+| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles, o estoque (preço de venda) e os repasses dele | **Cobrar** os clientes dele e **avisar que recebeu**, mandar indicação (cliente ou venda), simular | **Cadastrar venda** (quem cadastra é a loja). **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
 
 - O cobrador **pede** desconto, acordo ou retomada, e o pedido vai para a fila "Esperando sua aprovação" do admin (tela Equipe). A parcela só muda quando o admin aprova.
 - **Fechamento do dia do cobrador:** ele vê quanto recebeu em dinheiro e em Pix e toca em "Fechar o dia". Isso vai pro admin marcar como conferido.
@@ -182,18 +182,20 @@ Layout geral:
 - **Início:** vendas do mês, contratos esperando assinatura (com Reenviar), aparelhos disponíveis e clientes dele com atraso.
 
 ### Indicador
-O indicador **vende e cobra**, como o vendedor e o cobrador juntos, e continua com repasse e níveis. Pedido do Geovane (09/10).
+O indicador **cobra** os clientes dele, **vê as vendas dele** e continua com repasse e níveis. Pedido do Geovane (09/10). **Quem cadastra a venda é sempre a loja (admin)**: ele vê as vendas dele, mas não cria venda.
 - **Barra de baixo:** Início, Cobrança, **Novo** (central), Clientes, Repasse. Minhas vendas, Estoque, Simulador e Níveis ficam na lateral no computador, e no fim do Início no celular.
-- **Novo:** Vender iPhone, Recebi de um cliente, Indicar cliente, Só simular.
-- **Início:** atalhos Vender / Recebi / Indicar, "Pra cobrar hoje", quanto tem pra receber, quanto já recebeu e vai ganhar, e o nível.
-- **Vender:** mesmo fluxo de 3 passos do vendedor, **sem custo nem lucro**. A venda entra já com ele como indicador (o % dele), sem escolher indicação.
+- **Novo:** Recebi de um cliente, Indicar cliente ou venda (a loja cadastra a venda no nome dele), Só simular.
+- **Início:** atalhos Indicar / Recebi / Simular, "Pra cobrar hoje", quanto tem pra receber, quanto já recebeu e vai ganhar, e o nível.
+- **Sem tela de venda:** fechou com um cliente, ele manda como **indicação com o aparelho** e a loja cadastra a venda com ele como indicador (o % dele).
+- **Estoque:** só consulta, com preço de venda (sem custo). Cada aparelho tem **Indicar**, que abre a indicação já com o modelo preenchido.
+- **Simulador:** o botão final é **"Indicar assim"**, que abre a indicação com o aparelho e as parcelas na observação.
 - **Cobrança:** Lista (Atrasadas, Esta semana, Próximas, Pagas) e Calendário, só com os clientes dele. Cada parcela tem **Recebi** e WhatsApp.
   - O **Recebi** abre o mesmo registro de recebimento, com opção de **anexar comprovante**, e o botão é **"Avisar a loja que recebi"**.
   - Isso **não dá baixa**: a parcela fica "esperando a loja" e aparece pro admin em **Equipe › Esperando sua aprovação** como **Baixa**, com "Confirmar baixa" ou "Recusar". Confirmando, registra o pagamento (recebido por ele) e o recibo vai pro cliente. Recusando, volta a ficar em aberto.
   - Desconto vira pedido de **Desconto** pro admin, igual ao cobrador.
   - No admin, a cobrança mostra "Roberto avisou R$ X" na parcela.
 - **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, com Recebi nas parcelas abertas.
-- **Minhas vendas:** as vendas com ele como indicador, com status.
+- **Minhas vendas:** as vendas com ele como indicador, com status. Só leitura, com o botão Indicar cliente.
 - **Repasse:** valor por cliente e repasses recebidos.
 - **Indicar:** manda o nome e o telefone, e o pedido aparece pro admin como "Indicações esperando". O admin aceita e a pessoa vira cliente.
 - Ele vê **vendas e empréstimos** que indicou.
@@ -242,7 +244,7 @@ Lido nas migrations em `backend/src/database/migrations`:
 1. **Visual e navegação:** marca nova, tema, fonte, menu lateral e barra de baixo do admin; Início, Cobranças, Operações (abas) e Estoque, usando só o backend que já existe.
 2. **Venda e Simulador:** regra dos 10% por parcela (configurável), Simulador, Nova venda em 3 passos com o resumo de lucro.
 3. **Recebimento novo:** parcial com nova data, a mais abatendo as próximas, forma de pagamento, quem recebeu, transação, recibo (WhatsApp) e desfazer.
-4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (vende, cobra e avisa recebimento; a baixa é confirmada pela loja) e indicações.
+4. **Indicadores:** repasse por indicador com distribuição, níveis, área do indicador (vê as vendas dele, cobra e avisa recebimento; venda e baixa são feitas pela loja) e indicações.
 5. **Equipe:** perfis vendedor e cobrador, carteira, áreas de cada um, pedidos de aprovação, fechamento do dia, auditoria e escopo no backend.
 
 Em cada PR: rode o lint, o build e os testes que o repositório tiver. Mostre a tela ao Geovane com um link de prévia; ele prefere link a print. Não faça merge sem o OK dele.
