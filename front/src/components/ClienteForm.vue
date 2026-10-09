@@ -12,6 +12,7 @@ const emit = defineEmits<{ fechar: []; salvo: [r: SalvoCliente] }>()
 const { sessao, pode } = useApp()
 const editando = computed(() => props.cliente !== null)
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
+const ehIndicador = computed(() => sessao.value.perfil === 'INDICADOR')
 
 const ORIGENS = ['Instagram', 'WhatsApp', 'Indicação', 'Loja', 'Outro']
 
@@ -38,7 +39,8 @@ function validar(): boolean {
   Object.keys(erros).forEach((k) => delete erros[k])
   if (f.nome.trim().length < 2) erros.nome = 'Informe o nome (ao menos 2 letras)'
   if (!normalizarFone(f.fone)) erros.fone = 'Use DDD + número, por exemplo (11) 98812-4410'
-  if (f.cpf.trim() && !cpfValido(f.cpf)) erros.cpf = 'CPF inválido'
+  if (ehIndicador.value && !f.cpf.trim()) erros.cpf = 'Informe o CPF do cliente'
+  else if (f.cpf.trim() && !cpfValido(f.cpf)) erros.cpf = 'CPF inválido'
   return Object.keys(erros).length === 0
 }
 
@@ -79,7 +81,7 @@ async function enviar() {
           <span v-if="erros.fone" class="erro-campo">{{ erros.fone }}</span>
         </div>
         <div class="field">
-          <label for="cCpf">CPF</label>
+          <label for="cCpf">CPF{{ ehIndicador ? ' *' : '' }}</label>
           <div class="inp"><input id="cCpf" v-model="f.cpf" inputmode="numeric" placeholder="000.000.000-00" @input="f.cpf = mascaraCpf(f.cpf)" /></div>
           <span v-if="erros.cpf" class="erro-campo">{{ erros.cpf }}</span>
         </div>
@@ -96,7 +98,8 @@ async function enviar() {
         <label for="cResp">Responsável (carteira)</label>
         <div class="inp"><select id="cResp" v-model="f.responsavelId"><option value="">Sem responsável</option><option v-for="u in responsaveis" :key="u.id" :value="String(u.id)">{{ u.nome }}</option></select></div>
       </div>
-      <p v-if="!pode.verCustoELucro && !editando" class="small" style="margin: 0">O cliente entra na sua carteira.</p>
+      <p v-if="ehIndicador && !editando" class="small" style="margin: 0">O cliente fica ligado a você e a loja cuida do resto.</p>
+      <p v-else-if="!pode.verCustoELucro && !editando" class="small" style="margin: 0">O cliente entra na sua carteira.</p>
 
       <div v-if="erroGeral" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroGeral }}</div>
       <button class="btn b-pri b-block" type="submit" :disabled="enviando">{{ enviando ? 'Salvando…' : editando ? 'Salvar alterações' : 'Cadastrar cliente' }}</button>

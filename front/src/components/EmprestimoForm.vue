@@ -2,8 +2,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ErroApi, type ClienteApi } from '@/api/clientes'
 import type { EmprestimoApi, ModalidadeApi, PeriodicidadeApi } from '@/api/emprestimos'
-import { clientesApi, emprestimosApi, indicadoresApi } from '@/api/recursos'
+import { clientesApi, emprestimosApi, indicadoresApi, propostasApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
+import { useToast } from '@/composables/useToast'
 import { planoEmprestimo, primeiroVenc } from '@/domain/calc'
 import { addDia } from '@/domain/datas'
 import { FREQ, pctDaParcela, pctDoJuro, pctDoTotal } from '@/domain/emprestimo'
@@ -19,9 +20,11 @@ import DateField from './DateField.vue'
  *  2. como paga: parcelado ou só juros, de quanto em quanto tempo, quantas parcelas e os juros;
  *  3. datas e confirmar: 1º vencimento, a lista de todas as parcelas e o resumo.
  */
-const props = defineProps<{ aberto: boolean }>()
+/** `inicial`: vindo de uma proposta de indicador, cliente, indicador, valor e parcelas já vêm preenchidos e a proposta é ligada ao salvar. */
+const props = defineProps<{ aberto: boolean; inicial?: { clienteId?: number; indicadorId?: number; capital?: number; n?: number; propostaId?: number } | null }>()
 const emit = defineEmits<{ fechar: []; salvo: [e: EmprestimoApi] }>()
 const { sessao, hoje } = useApp()
+const { mostrar } = useToast()
 
 const PASSOS = ['Cliente e valor', 'Como paga', 'Datas e confirmar']
 const ATALHOS_PCT = [20, 30, 50, 80, 100]
@@ -47,6 +50,13 @@ watch(() => props.aberto, async (a) => {
   cliente.value = null; busca.value = ''; erro.value = ''; passo.value = 1
   indicadores.value = await indicadoresApi.opcoes(sessao.value).catch(() => [])
   await buscar()
+  const i = props.inicial
+  if (i) {
+    if (i.capital && i.capital > 0) f.capital = i.capital
+    if (i.n && i.n >= 1 && i.n <= 120) f.n = i.n
+    if (i.indicadorId) f.indicadorId = i.indicadorId
+    if (i.clienteId) cliente.value = (await clientesApi.obter(sessao.value, i.clienteId).catch(() => null)) ?? null
+  }
 })
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(buscar, 300) })
@@ -122,15 +132,25 @@ const problema = computed(() => problemaPasso(passo.value))
 function avancar() { if (!problema.value && passo.value < 3) passo.value += 1 }
 const irPara = (p: number) => { if (p <= passo.value || !problemaPasso(p - 1)) passo.value = p }
 
+/** O empréstimo saiu de uma proposta: liga uma ao outro. Se não der, o empréstimo continua valendo e a proposta fica pendente. */
+async function ligarProposta(emprestimoId: number) {
+  const pid = props.inicial?.propostaId
+  if (!pid) return
+  try { await propostasApi.aceitar(sessao.value, pid, { emprestimoId }); mostrar('Proposta aceita e ligada a este empréstimo.') }
+  catch (e) { mostrar(`O empréstimo foi feito, mas não consegui ligar a proposta: ${e instanceof ErroApi ? e.message : 'tente em Equipe.'}`) }
+}
+
 async function salvar() {
   if (enviando.value || problemaPasso(3) || !cliente.value) return
   enviando.value = true; erro.value = ''
   try {
-    emit('salvo', await emprestimosApi.criar(sessao.value, {
+    const criado = await emprestimosApi.criar(sessao.value, {
       clienteId: cliente.value.id, modalidade: modalidade.value, periodicidade: f.freq, capital: f.capital, taxa: f.taxa, parcelas: f.n,
       dataEmprestimo: f.data, primeiroVencimento: f.primeira,
       ...(f.indicadorId ? { indicadorId: f.indicadorId } : {}), ...(f.observacoes.trim() ? { observacoes: f.observacoes.trim() } : {}),
-    }))
+    })
+    await ligarProposta(criado.id)
+    emit('salvo', criado)
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Algo deu errado. Tente de novo.'
   } finally {

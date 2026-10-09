@@ -25,12 +25,28 @@ function imei(n: number) {
 }
 
 describe('permissões', () => {
-  it('cobrador e indicador não veem o estoque (403)', async () => {
-    for (const s of [COBR, IND]) {
-      expect((await falha(api.listar(s, {})))?.status).toBe(403)
-      expect((await falha(api.resumo(s)))?.status).toBe(403)
-      expect((await falha(api.obter(s, 1)))?.status).toBe(403)
+  it('cobrador não vê o estoque (403)', async () => {
+    expect((await falha(api.listar(COBR, {})))?.status).toBe(403)
+    expect((await falha(api.resumo(COBR)))?.status).toBe(403)
+    expect((await falha(api.obter(COBR, 1)))?.status).toBe(403)
+  })
+  it('indicador consulta só o que está disponível, sem custo, extras nem para quem é; não vê o resumo nem mexe (403)', async () => {
+    const itens = (await api.listar(IND, { limite: 100 })).itens
+    expect(itens.length).toBeGreaterThan(0)
+    for (const a of itens) {
+      expect(a.estado).toBe('DISPONIVEL')
+      for (const campo of ['custo', 'extras', 'observacoes']) expect(campo in a, campo).toBe(false)
+      expect(a.paraCliente).toBeNull()
     }
+    expect((await api.obter(IND, itens[0].id)).id).toBe(itens[0].id)
+    expect((await falha(api.resumo(IND)))?.status).toBe(403)
+    expect((await falha(api.criar(IND, novo())))?.status).toBe(403)
+    expect((await falha(api.atualizar(IND, itens[0].id, { preco: 1 })))?.status).toBe(403)
+  })
+  it('indicador não abre aparelho vendido nem encomendado (404, igual a inexistente)', async () => {
+    const todos = (await api.listar(ADMIN, { limite: 100 })).itens
+    for (const a of todos.filter((x) => x.estado !== 'DISPONIVEL')) expect((await falha(api.obter(IND, a.id)))?.status).toBe(404)
+    expect((await falha(api.obter(IND, 999999)))?.status).toBe(404)
   })
   it('vendedor não cadastra nem edita (403)', async () => {
     expect((await falha(api.criar(VEND, novo())))?.status).toBe(403)
