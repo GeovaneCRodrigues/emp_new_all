@@ -14,7 +14,7 @@ test.describe('cobranças', () => {
     await expect(page.locator('.cob').first()).toBeVisible()
     await expect(page.getByTestId('cobrancas-total')).toContainText('R$')
     await expect(page.locator('.cob').first().getByRole('link', { name: 'Cobrar no WhatsApp' })).toBeVisible()
-    await expect(linha(page, 'Carlos Henrique', 'parcela 2/12')).toContainText('33 dias')
+    await expect(linha(page, 'Carlos Henrique', 'parcela 2/12')).toContainText('venceu 05/09 · 33 dias')
     await aba(page, /Esta semana/).click()
     await expect(page.locator('.cob').first()).toBeVisible()
     await aba(page, /Recebidas/).click()
@@ -64,7 +64,7 @@ test.describe('recebimento', () => {
     await expect(linha(page, 'Fernanda Almeida', 'parcela 2/10')).toHaveCount(0)
     await aba(page, /Esta semana/).click()
     await expect(linha(page, 'Fernanda Almeida', 'parcela 2/10')).toContainText('remarcada (era 05/10)')
-    await expect(linha(page, 'Fernanda Almeida', 'parcela 2/10')).toContainText('já pagou R$ 100')
+    await expect(linha(page, 'Fernanda Almeida', 'parcela 2/10')).toContainText('pagou R$ 100,00 de')
   })
 
   test('pagou menos, desconto: quita a parcela e o desconto vira o efeito da prévia', async ({ page }) => {

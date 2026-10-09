@@ -9,6 +9,7 @@ import { useApp } from '@/composables/useApp'
 import { imeiValido, soDigitos } from '@/domain/documentos'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
+import DateField from './DateField.vue'
 
 const props = defineProps<{ aberto: boolean; aparelho: AparelhoApi | null }>()
 const emit = defineEmits<{ fechar: []; salvo: [a: AparelhoApi] }>()
@@ -118,7 +119,7 @@ async function enviar() {
         <span v-if="f.preco > 0" class="small">Lucro se vender por este preço: <b :style="{ color: f.preco - f.custo - f.extras >= 0 ? 'var(--ok)' : 'var(--bad)' }">{{ (f.preco - f.custo - f.extras).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }}</b></span>
       </div>
       <div class="grid2">
-        <div class="field"><label for="aData">Data da compra</label><div class="inp"><input id="aData" v-model="f.dataCompra" type="date" /></div><span v-if="erros.dataCompra" class="erro-campo">{{ erros.dataCompra }}</span></div>
+        <div class="field"><label for="aData">Data da compra</label><DateField id="aData" v-model="f.dataCompra" :max="hoje" /><span v-if="erros.dataCompra" class="erro-campo">{{ erros.dataCompra }}</span></div>
         <div class="field"><label>Veio de</label><div class="pills"><button v-for="o in ([['COMPRA', 'Compra'], ['TROCA', 'Troca']] as const)" :key="o[0]" type="button" class="pill" :class="{ on: f.origem === o[0] }" @click="f.origem = o[0]">{{ o[1] }}</button></div></div>
       </div>
       <div class="field">

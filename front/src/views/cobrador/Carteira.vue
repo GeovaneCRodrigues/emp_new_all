@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { ClienteApi } from '@/api/clientes'
 import { ErroApi } from '@/api/clientes'
+import { todasAsPaginas as todas } from '@/api/paginar'
 import { clientesApi, emprestimosApi, vendasApi } from '@/api/recursos'
 import FichasOperacao from '@/components/FichasOperacao.vue'
 import Icon from '@/components/Icon.vue'
@@ -22,17 +23,6 @@ const busca = ref('')
 const carregando = ref(true)
 const erro = ref('')
 const aberto = ref<ClienteCarteira<ClienteApi> | null>(null)
-
-/** Lê todas as páginas de uma lista (o servidor limita a 100 por vez). */
-async function todas<T>(buscar: (pagina: number) => Promise<{ itens: T[]; total: number }>): Promise<T[]> {
-  const out: T[] = []
-  for (let p = 1; p <= 30; p++) {
-    const r = await buscar(p)
-    out.push(...r.itens)
-    if (out.length >= r.total || !r.itens.length) break
-  }
-  return out
-}
 
 async function carregar() {
   erro.value = ''

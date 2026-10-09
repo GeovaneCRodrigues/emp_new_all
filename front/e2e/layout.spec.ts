@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { entrar } from './helpers'
+import { entrar, sair } from './helpers'
 
 const ROTAS_ADMIN = ['/', '/cobrancas', '/estoque', '/operacoes', '/simulador', '/clientes', '/indicadores']
 
@@ -39,7 +39,7 @@ test.describe('layout', () => {
       // o botão pode trazer um contador junto do nome ("Hoje 3")
       // a ação central é "Vender" na barra de baixo e "Nova venda" na lateral
       for (const item of itens) await expect(menu.getByRole('button', { name: new RegExp(item === 'Vender' ? '^(Vender|Nova venda)' : `^${item}`) }).first()).toBeVisible()
-      await page.getByRole('button', { name: 'Sair' }).click()
+      await sair(page)
       await expect(page).toHaveURL(/\/login$/)
     }
   })

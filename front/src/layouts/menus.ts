@@ -63,3 +63,18 @@ export const TITULOS: Record<string, string> = {
   indicadores: 'Indicadores', equipe: 'Equipe', config: 'Configurações', hoje: 'Hoje', carteira: 'Carteira', recebi: 'Recebi',
   pedidos: 'Pedidos', vendas: 'Vendas', indicar: 'Indicar', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis',
 }
+
+/** O menu do administrador em grupos (lateral no computador e "Mais" no celular). Configurações fica sozinho no rodapé. */
+export interface GrupoMenu { titulo: string; ids: string[] }
+
+export const GRUPOS_ADMIN: GrupoMenu[] = [
+  { titulo: 'Dia a dia', ids: ['inicio', 'cobrancas', 'cronograma', 'caixa', 'simulador'] },
+  { titulo: 'Cadastros', ids: ['clientes', 'estoque', 'operacoes', 'contratos'] },
+  { titulo: 'Gestão', ids: ['indicadores', 'equipe', 'relatorios'] },
+]
+
+export const ITENS_ADMIN: Record<string, ItemMenu> = Object.fromEntries([
+  i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('cronograma', 'Cronograma', 'calendar-range'), i('caixa', 'Caixa', 'wallet'), i('simulador', 'Simulador', 'calculator'),
+  i('clientes', 'Clientes', 'users'), i('estoque', 'Estoque', 'smartphone'), i('operacoes', 'Operações', 'layers'), i('contratos', 'Contratos', 'file-signature'),
+  i('indicadores', 'Indicadores e repasses', 'handshake'), i('equipe', 'Equipe', 'user-cog'), i('relatorios', 'Relatórios', 'chart-no-axes-combined'), i('config', 'Configurações', 'settings'),
+].map((x) => [x.id, x]))

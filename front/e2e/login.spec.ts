@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { entrar } from './helpers'
+import { entrar, sair } from './helpers'
 
 test.describe('login e sessão', () => {
   test('senha errada mostra o erro e não entra', async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe('login e sessão', () => {
     await expect(page.locator('h1')).toHaveText('Início')
     await page.reload()
     await expect(page.locator('h1')).toHaveText('Início')
-    await page.getByRole('button', { name: 'Sair' }).click()
+    await sair(page)
     await expect(page).toHaveURL(/\/login$/)
   })
 
@@ -33,7 +33,7 @@ test.describe('login e sessão', () => {
 
   test('depois de sair, as rotas protegidas voltam a pedir login', async ({ page }) => {
     await entrar(page)
-    await page.getByRole('button', { name: 'Sair' }).click()
+    await sair(page)
     await page.goto('/cobrancas')
     await expect(page).toHaveURL(/\/login/)
   })

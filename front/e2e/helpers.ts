@@ -40,6 +40,21 @@ export async function preencherEmprestimo(page: Page, e: NovoEmp) {
 /** Do passo 2 para o 3 (opcionalmente trocando o 1º vencimento) e grava. */
 export async function confirmarEmprestimo(page: Page, primeira?: string) {
   await page.getByRole('button', { name: 'Continuar' }).click()
-  if (primeira) await page.fill('#ePrimeira', primeira)
+  if (primeira) await page.fill('#ePrimeira', br(primeira))
   await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+}
+
+/** 2026-10-15 → 15/10/2026 (os campos de data aceitam dd/mm/aaaa). */
+export const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+
+/** Sai do sistema pelo caminho de cada tela: lateral no computador; no celular, o "Mais" (administrador) ou "Minha conta" (os outros). */
+export async function sair(page: Page) {
+  if (await page.locator('aside.side').isVisible()) {
+    await page.locator('aside.side').getByRole('button', { name: /^Sair/ }).click()
+    return
+  }
+  const mais = page.locator('nav.tabs').getByRole('button', { name: /^Mais/ })
+  if (await mais.count()) await mais.click()
+  else await page.getByRole('button', { name: 'Minha conta' }).click()
+  await page.getByRole('button', { name: 'Sair do sistema' }).click()
 }

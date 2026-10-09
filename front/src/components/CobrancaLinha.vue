@@ -28,19 +28,21 @@ const linkWhatsApp = computed(() => {
   <div class="cob" :data-cobranca="`${c.tipo === 'VENDA' ? '' : 'E'}${c.operacaoId}:${c.parcela}`">
     <span class="ini">{{ iniciais(c.cliente.nome) }}</span>
     <button class="mid" style="flex: 1; min-width: 0; text-align: left" @click="$emit('abrir', c)">
-      <div class="t" style="font-weight: 500; color: var(--strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.cliente.nome }}</div>
-      <div class="s" style="font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
-        <b class="num" style="color: var(--strong)">{{ fmt(valorLinha) }}</b>
-        <span v-if="parcial" style="color: var(--warn); font-weight: 600"> resta</span> ·
-        <span v-if="recebida" style="color: var(--ok); font-weight: 600">recebido {{ c.ultimoRecebimentoEm ? dmy(c.ultimoRecebimentoEm) : '' }}</span>
-        <span v-else-if="c.atrasoDias" style="color: var(--bad); font-weight: 600">{{ c.atrasoDias }} {{ c.atrasoDias === 1 ? 'dia' : 'dias' }}</span>
-        <span v-else-if="venceHoje" style="color: var(--warn); font-weight: 600">vence hoje</span>
-        <span v-else class="num">vence {{ dmy(c.vencimento) }}</span>
+      <div class="t" style="font-weight: 600; color: var(--strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.cliente.nome }}</div>
+      <div class="s" style="font-size: 12.5px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+        {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}<template v-if="c.vencimentoOriginal && aberta"> · remarcada (era {{ dmy(c.vencimentoOriginal) }})</template>
       </div>
-      <div class="s" style="font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
-        {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}<template v-if="parcial"> · já pagou {{ fmt0(c.pago) }}</template><template v-if="c.vencimentoOriginal && aberta"> · remarcada (era {{ dmy(c.vencimentoOriginal) }})</template>
+      <div class="s" style="font-size: 12px; font-weight: 600">
+        <span v-if="recebida" style="color: var(--ok)" data-situacao="recebida">recebido {{ c.ultimoRecebimentoEm ? dmy(c.ultimoRecebimentoEm) : '' }}</span>
+        <span v-else-if="c.atrasoDias" style="color: var(--bad)" data-situacao="atrasada">venceu {{ dmy(c.vencimento) }} · {{ c.atrasoDias }} {{ c.atrasoDias === 1 ? 'dia' : 'dias' }}</span>
+        <span v-else-if="venceHoje" style="color: var(--warn)" data-situacao="hoje">vence hoje</span>
+        <span v-else class="num" style="color: var(--soft)" data-situacao="aberta">vence {{ dmy(c.vencimento) }}</span>
       </div>
     </button>
+    <div class="valor-cob">
+      <b class="num">{{ fmt(valorLinha) }}</b>
+      <small v-if="parcial && !recebida" class="num">pagou {{ fmt(c.pago) }} de {{ fmt(c.valor) }}</small>
+    </div>
     <div class="acts">
       <template v-if="recebida && c.ultimaTransacaoId"><button class="btn b-out b-sm" @click="$emit('recibo', c.ultimaTransacaoId)">Recibo</button></template>
       <template v-else-if="aberta">

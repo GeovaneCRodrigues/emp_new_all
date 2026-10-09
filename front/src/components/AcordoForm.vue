@@ -10,6 +10,7 @@ import { addDia } from '@/domain/datas'
 import { arred2, dmy, fmt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
+import DateField from './DateField.vue'
 
 /**
  * Acordo: renegociar o que falta em parcelas novas. O administrador faz direto; o cobrador propõe e o administrador aprova.
@@ -79,7 +80,7 @@ async function confirmar() {
           <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
           <div class="inp"><input id="aParcelas" v-model.number="f.n" type="number" min="1" max="120" step="1" inputmode="numeric" /></div>
         </div>
-        <div class="field"><label for="aData">Data da 1ª parcela</label><div class="inp"><input id="aData" v-model="f.primeira" type="date" :min="hoje" /></div><div class="small">As outras vencem mês a mês, no mesmo dia.</div></div>
+        <div class="field"><label for="aData">Data da 1ª parcela</label><DateField id="aData" v-model="f.primeira" :min="hoje" /><div class="small">As outras vencem mês a mês, no mesmo dia.</div></div>
         <div class="field"><label for="aMotivo">{{ ehCobrador ? 'Por que pedir o acordo?' : 'Motivo (opcional)' }}</label><div class="inp"><input id="aMotivo" v-model="f.motivo" maxlength="500" :placeholder="ehCobrador ? 'Ex.: cliente perdeu o emprego' : 'Ex.: renegociação a pedido do cliente'" /></div></div>
 
         <div v-if="valores.length && datas.length" class="card list" data-testid="lista-acordo" style="max-height: 220px; overflow: auto">
