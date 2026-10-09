@@ -23,6 +23,9 @@ import { criarEstoqueHttp } from './estoque.http'
 import type { IndicadoresApi } from './indicadores'
 import { criarIndicadoresFake } from './indicadores.fake'
 import { criarIndicadoresHttp } from './indicadores.http'
+import type { RepassesApi } from './repasses'
+import { criarRepassesFake } from './repasses.fake'
+import { criarRepassesHttp } from './repasses.http'
 import { criarClientesFake } from './clientes.fake'
 import { criarClientesHttp } from './clientes.http'
 
@@ -50,4 +53,5 @@ const acordosFake = vendasFake ? criarAcordosFake(vendasFake, emprestimosFake!) 
 export const acordosApi: AcordosApi = acordosFake ?? criarAcordosHttp(URL_API, requisicao)
 export const aprovacoesApi: AprovacoesApi = vendasFake ? criarAprovacoesFake(vendasFake, emprestimosFake!, acordosFake!) : criarAprovacoesHttp(URL_API, requisicao)
 export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(vendasFake) : criarFechamentosHttp(URL_API, requisicao)
+export const repassesApi: RepassesApi = vendasFake ? criarRepassesFake({ vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarRepassesHttp(URL_API, requisicao)
 export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : criarEquipeHttp(URL_API, requisicao)
