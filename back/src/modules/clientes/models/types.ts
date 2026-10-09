@@ -9,6 +9,8 @@ export type Cliente = {
   endereco: string | null
   origem: string | null
   responsavelId: number | null
+  /** o indicador que cadastrou o cliente (o cliente já nasce vinculado a ele) */
+  indicadorId: number | null
   /** data do cadastro (YYYY-MM-DD) */
   desde: string
 }

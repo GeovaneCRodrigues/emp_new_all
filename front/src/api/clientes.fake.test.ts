@@ -89,8 +89,43 @@ describe('cadastro', () => {
     expect(cliente.responsavelId).toBe(2)
     expect(await nomes(VEND)).toContain('Do Vendedor')
   })
-  it('cobrador e indicador não cadastram (403)', async () => {
-    for (const s of [COBR, IND1]) expect((await falha(api.criar(s, { nome: 'Fulano', fone: '11933330004' })))?.status).toBe(403)
+  it('cobrador não cadastra (403)', async () => {
+    expect((await falha(api.criar(COBR, { nome: 'Fulano', fone: '11933330004' })))?.status).toBe(403)
+  })
+})
+
+describe('indicador cadastra o cliente (mesmos cenários de back/tests/propostas.test.ts)', () => {
+  const ficha = { nome: 'Maria Souza', fone: '11988124410', cpf: '52998224725' }
+  it('já nasce vinculado a ele e sem carteira: ele vê, o outro indicador não', async () => {
+    const r = await api.criar(IND1, ficha)
+    expect(Object.keys(r.cliente).sort()).toEqual(['desde', 'fone', 'id', 'nome']) // só o necessário
+    expect(await nomes(IND1)).toContain('Maria Souza')
+    expect(await nomes(IND2)).not.toContain('Maria Souza')
+    expect((await falha(api.obter(IND2, r.cliente.id)))?.status).toBe(404)
+    const doAdmin = await api.obter(ADMIN, r.cliente.id)
+    expect(doAdmin).toMatchObject({ responsavelId: null, indicadorId: 1 })
+  })
+  it('CPF é obrigatório (400) e inválido também', async () => {
+    expect((await falha(api.criar(IND1, { nome: 'Sem CPF', fone: '11988124410' })))?.status).toBe(400)
+    expect((await falha(api.criar(IND1, { ...ficha, cpf: '11111111111' })))?.status).toBe(400)
+    expect(await nomes(IND1)).not.toContain('Maria Souza')
+  })
+  it('CPF repetido: 409 sem dizer de quem é', async () => {
+    await api.criar(ADMIN, { nome: 'Cliente da Loja', fone: '11977776666', cpf: ficha.cpf })
+    const e = await falha(api.criar(IND1, ficha))
+    expect(e).toMatchObject({ status: 409, codigo: 'CPF_DUPLICADO' })
+    expect(e?.message).not.toContain('Cliente da Loja')
+  })
+  it('telefone repetido de cliente que ele não enxerga: aviso genérico, sem nome', async () => {
+    await api.criar(ADMIN, { nome: 'Cliente da Loja', fone: '11988124410' })
+    const r = await api.criar(IND1, ficha)
+    expect(r.avisos[0]).toContain('outra carteira')
+    expect(r.avisos.join()).not.toContain('Cliente da Loja')
+  })
+  it('não escolhe o responsável pelo corpo e não edita cliente (403)', async () => {
+    const r = await api.criar(IND1, { ...ficha, responsavelId: 3 })
+    expect((await api.obter(ADMIN, r.cliente.id)).responsavelId).toBeNull()
+    expect((await falha(api.atualizar(IND1, r.cliente.id, { nome: 'Outro Nome' })))?.status).toBe(403)
   })
 })
 

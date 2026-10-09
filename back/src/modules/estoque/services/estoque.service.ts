@@ -21,14 +21,17 @@ const LIMITE_MAX = 100
 const DINHEIRO_MAX = 100_000_000
 const IMEI_DUPLICADO = new HttpError(409, 'Já existe um aparelho com esse IMEI', 'IMEI_DUPLICADO')
 
-/** Quem enxerga o estoque: o admin vê tudo; o vendedor só o que está à venda (disponível e encomendado), sem custo. */
+/**
+ * Quem enxerga o estoque: o admin vê tudo; o vendedor só o que está à venda (disponível e encomendado), sem custo;
+ * o indicador só consulta o que está disponível (com o preço de venda, sem custo) para saber o que indicar.
+ */
 function exigirVer(s: Sessao) {
-  if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw semPermissao('Você não tem acesso ao estoque')
+  if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw semPermissao('Você não tem acesso ao estoque')
 }
 function exigirAdmin(s: Sessao) {
   if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador cadastra e edita aparelhos')
 }
-const estadosVisiveis = (s: Sessao): EstadoAparelho[] | undefined => (s.perfil === 'ADMIN' ? undefined : ['DISPONIVEL', 'ENCOMENDADO'])
+const estadosVisiveis = (s: Sessao): EstadoAparelho[] | undefined => (s.perfil === 'ADMIN' ? undefined : s.perfil === 'INDICADOR' ? ['DISPONIVEL'] : ['DISPONIVEL', 'ENCOMENDADO'])
 
 function texto(e: Entrada, campo: string, min: number, max: number): string {
   const v = e[campo]
@@ -174,6 +177,7 @@ export function createEstoqueService(repo: EstoqueRepository, auditoria: Auditor
 
     async resumo(s) {
       exigirVer(s)
+      if (s.perfil === 'INDICADOR') throw semPermissao('Você não tem acesso ao resumo do estoque')
       const r = await repo.resumo()
       return s.perfil === 'ADMIN' ? r : { ...r, capitalParado: 0, margemMedia: 0 }
     },

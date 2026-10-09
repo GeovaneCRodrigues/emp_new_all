@@ -17,12 +17,12 @@ export interface ClientesRepository {
 
 type Linha = {
   id: number; nome: string; fone: string; cpf: string | null; rg: string | null; endereco: string | null
-  origem: string | null; responsavel_id: number | null; created_at: Date
+  origem: string | null; responsavel_id: number | null; indicador_id: number | null; created_at: Date
 }
 
 const paraCliente = (l: Linha): Cliente => ({
   id: l.id, nome: l.nome, fone: l.fone, cpf: l.cpf, rg: l.rg, endereco: l.endereco, origem: l.origem,
-  responsavelId: l.responsavel_id, desde: new Date(l.created_at).toISOString().slice(0, 10),
+  responsavelId: l.responsavel_id, indicadorId: l.indicador_id, desde: new Date(l.created_at).toISOString().slice(0, 10),
 })
 
 const paraLinha = (d: Partial<DadosCliente>) => {
@@ -34,6 +34,7 @@ const paraLinha = (d: Partial<DadosCliente>) => {
   if (d.endereco !== undefined) l.endereco = d.endereco
   if (d.origem !== undefined) l.origem = d.origem
   if (d.responsavelId !== undefined) l.responsavel_id = d.responsavelId
+  if (d.indicadorId !== undefined) l.indicador_id = d.indicadorId
   return l
 }
 
@@ -44,7 +45,9 @@ function aplicarEscopo(q: Knex.QueryBuilder, e: EscopoClientes) {
   if (e.tipo === 'CARTEIRA') q.where('clientes.responsavel_id', e.usuarioId)
   else if (e.tipo === 'INDICADOR') {
     q.where((w) => {
-      w.whereExists(function () { this.select(1).from('vendas').whereRaw('vendas.cliente_id = clientes.id').where('vendas.indicador_id', e.indicadorId) })
+      // os que ele mesmo cadastrou, mais os que têm venda ou empréstimo com ele como indicador
+      w.where('clientes.indicador_id', e.indicadorId)
+        .orWhereExists(function () { this.select(1).from('vendas').whereRaw('vendas.cliente_id = clientes.id').where('vendas.indicador_id', e.indicadorId) })
         .orWhereExists(function () { this.select(1).from('emprestimos').whereRaw('emprestimos.cliente_id = clientes.id').where('emprestimos.indicador_id', e.indicadorId) })
     })
   }

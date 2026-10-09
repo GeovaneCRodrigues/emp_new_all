@@ -31,9 +31,10 @@ export function criarEstoqueFake(): EstoqueFake {
     paraClienteId: b.paraCliente ?? null,
   }))
 
-  const ver = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso ao estoque', 'SEM_PERMISSAO') }
+  const ver = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw new ErroApi(403, 'Você não tem acesso ao estoque', 'SEM_PERMISSAO') }
   const admin = (s: Sessao) => { if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador cadastra e edita aparelhos', 'SEM_PERMISSAO') }
-  const visivel = (s: Sessao, r: Registro) => s.perfil === 'ADMIN' || r.estado !== 'VENDIDO'
+  // o indicador só consulta o que está disponível (sem custo) para saber o que indicar
+  const visivel = (s: Sessao, r: Registro) => s.perfil === 'ADMIN' || (s.perfil === 'INDICADOR' ? r.estado === 'DISPONIVEL' : r.estado !== 'VENDIDO')
   const naCarteira = (s: Sessao, clienteId: number | null) => !!clienteId && seed.clientes.some((c) => c.id === clienteId && c.responsavelId === s.usuarioId)
 
   const visao = (s: Sessao, r: Registro): AparelhoApi => {
@@ -140,6 +141,7 @@ export function criarEstoqueFake(): EstoqueFake {
     },
     async resumo(s): Promise<ResumoEstoqueApi> {
       ver(s)
+      if (s.perfil === 'INDICADOR') throw new ErroApi(403, 'Você não tem acesso ao resumo do estoque', 'SEM_PERMISSAO')
       const disp = registros.filter((r) => r.estado === 'DISPONIVEL')
       const base = { disponiveis: disp.length, encomendados: registros.filter((r) => r.estado === 'ENCOMENDADO').length, valorEmVitrine: disp.reduce((x, r) => x + r.preco, 0) }
       if (s.perfil !== 'ADMIN') return base

@@ -209,9 +209,9 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
       expect(await nomes('vendedorB')).not.toContain('Do Vendedor')
     })
 
-    it('cobrador e indicador não cadastram (403)', async () => {
-      for (const papel of ['cobrador', 'indicador1'])
-        expect((await req('POST', '/api/clientes', papel, { nome: 'Fulano', fone: '11933330004' })).statusCode).toBe(403)
+    it('cobrador não cadastra (403); o indicador cadastra, mas só com CPF (400 sem ele) — o resto está em propostas.test.ts', async () => {
+      expect((await req('POST', '/api/clientes', 'cobrador', { nome: 'Fulano', fone: '11933330004' })).statusCode).toBe(403)
+      expect((await req('POST', '/api/clientes', 'indicador1', { nome: 'Fulano', fone: '11933330004' })).statusCode).toBe(400)
     })
 
     it('sem login, 401', async () => expect((await req('POST', '/api/clientes', undefined, base)).statusCode).toBe(401))

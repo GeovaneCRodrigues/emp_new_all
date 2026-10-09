@@ -3,13 +3,14 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ErroApi, type ClienteApi, type SalvoCliente } from '@/api/clientes'
 import { investidoApi, type AparelhoApi } from '@/api/estoque'
-import { clientesApi, estoqueApi, indicadoresApi, vendasApi } from '@/api/recursos'
+import { clientesApi, estoqueApi, indicadoresApi, propostasApi, vendasApi } from '@/api/recursos'
 import type { EntradaVenda, FormaPagamentoApi, JurosApi, VendaApi } from '@/api/vendas'
 import ClienteForm from '@/components/ClienteForm.vue'
 import Icon from '@/components/Icon.vue'
 import MiniFone from '@/components/MiniFone.vue'
 import MoneyInput from '@/components/MoneyInput.vue'
 import { useApp } from '@/composables/useApp'
+import { useToast } from '@/composables/useToast'
 import { somaMes } from '@/domain/datas'
 import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
 import { mascaraFone } from '@/domain/documentos'
@@ -18,6 +19,9 @@ import { simularVenda } from '@/domain/calc'
 const route = useRoute()
 const router = useRouter()
 const { sessao, hoje } = useApp()
+const { mostrar } = useToast()
+/** a proposta de um indicador que esta venda vai atender (cliente e indicador já vêm preenchidos) */
+const propostaId = ref(0)
 
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
 const PASSOS = ['Aparelho', 'Cliente', 'Pagamento']
@@ -65,6 +69,11 @@ async function iniciar() {
   venda.value = null; erro.value = ''; passo.value = 1; aparelho.value = null; cliente.value = null; buscaAparelho.value = ''; buscaCliente.value = ''
   Object.assign(f, { preco: 0, entrada: 0, forma: 'PIX', temTroca: false, n: juros.value.maxParcelas, dia: 10, indicadorId: '', troca: { modelo: '', gb: 128, cor: '', bateria: '80', valor: 0 } })
   const q = route.query
+  // vindo de uma proposta de indicador: cliente e indicador já preenchidos
+  propostaId.value = Number(q.proposta) > 0 ? Number(q.proposta) : 0
+  const cid = Number(q.cliente)
+  if (ehAdmin.value && cid) cliente.value = (await clientesApi.obter(sessao.value, cid).catch(() => null)) ?? null
+  if (ehAdmin.value && Number(q.indicador) > 0) f.indicadorId = String(Number(q.indicador))
   const id = Number(q.bem)
   if (id) {
     const ap = aparelhos.value.find((a) => a.id === id) ?? (await estoqueApi.obter(sessao.value, id).catch(() => null))
@@ -140,6 +149,7 @@ async function confirmar() {
   try {
     venda.value = await vendasApi.criar(sessao.value, e)
     passo.value = 4
+    await ligarProposta(venda.value.id)
   } catch (err) {
     erro.value = err instanceof ErroApi ? err.message : 'Algo deu errado. Tente de novo.'
     // o aparelho pode ter sido vendido por outra pessoa neste meio-tempo: atualiza a lista
@@ -147,6 +157,15 @@ async function confirmar() {
   } finally {
     enviando.value = false
   }
+}
+
+/** A venda saiu de uma proposta: liga uma à outra. Se não der, a venda continua valendo e a proposta fica pendente para tentar de novo. */
+async function ligarProposta(vendaId: number) {
+  const pid = propostaId.value
+  if (!pid) return
+  propostaId.value = 0
+  try { await propostasApi.aceitar(sessao.value, pid, { vendaId }); mostrar('Proposta aceita e ligada a esta venda.') }
+  catch (e) { mostrar(`A venda foi feita, mas não consegui ligar a proposta: ${e instanceof ErroApi ? e.message : 'tente em Equipe.'}`) }
 }
 
 const verOperacao = () => router.push(ehAdmin.value ? `/operacoes?venda=${venda.value!.id}` : `/vendas?venda=${venda.value!.id}`)

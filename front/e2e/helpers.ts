@@ -58,3 +58,15 @@ export async function sair(page: Page) {
   else await page.getByRole('button', { name: 'Minha conta' }).click()
   await page.getByRole('button', { name: 'Sair do sistema' }).click()
 }
+
+/** Troca de perfil pela barra "Ver como" (mantém os dados da demonstração, que se perdem num novo login). */
+export async function verComo(page: Page, perfil: 'Admin' | 'Indicador' | 'Cobrador' | 'Vendedor') {
+  await page.locator('.barra-dev').getByRole('button', { name: perfil, exact: true }).click()
+  await expect(page.locator('h1')).toBeVisible()
+}
+
+/** Vai para outra tela SEM recarregar a página (um `goto` recarrega e apaga os dados da demonstração, que ficam só na memória). */
+export async function navegar(page: Page, caminho: string) {
+  await page.evaluate((p) => { window.history.pushState(null, '', p); window.dispatchEvent(new PopStateEvent('popstate')) }, caminho)
+  await expect(page.locator('h1')).toBeVisible()
+}

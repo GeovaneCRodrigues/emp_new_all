@@ -12,7 +12,7 @@ export function criarClientesFake(): ClientesApi {
   let proximoId = 1000
   const lista: Required<ClienteApi>[] = seed.clientes.map((c) => ({
     id: c.id, nome: c.nome, fone: normalizarFone(c.fone) ?? soDigitos(c.fone), desde: c.desde,
-    cpf: null, rg: null, endereco: null, origem: null, responsavelId: c.responsavelId,
+    cpf: null, rg: null, endereco: null, origem: null, responsavelId: c.responsavelId, indicadorId: null,
   }))
 
   const indicados = (indicadorId: number) =>
@@ -20,7 +20,8 @@ export function criarClientesFake(): ClientesApi {
 
   const noEscopo = (s: Sessao) => {
     if (s.perfil === 'ADMIN') return lista
-    if (s.perfil === 'INDICADOR') { const ids = indicados(s.indicadorId ?? -1); return lista.filter((c) => ids.has(c.id)) }
+    // os que ele mesmo cadastrou, mais os que têm venda ou empréstimo com ele
+    if (s.perfil === 'INDICADOR') { const ids = indicados(s.indicadorId ?? -1); return lista.filter((c) => c.indicadorId === s.indicadorId || ids.has(c.id)) }
     return lista.filter((c) => c.responsavelId === s.usuarioId)
   }
   const visao = (c: Required<ClienteApi>, s: Sessao): ClienteApi =>
@@ -53,6 +54,9 @@ export function criarClientesFake(): ClientesApi {
     const aviso = outro && (noEscopo(s).includes(outro) ? `Já existe um cliente com esse telefone: ${outro.nome}` : 'Já existe um cliente com esse telefone, em outra carteira')
     return { cliente: visao(c, s), avisos: aviso ? [aviso] : [] }
   }
+  const podeCriar = (s: Sessao) => {
+    if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw new ErroApi(403, 'Você não pode cadastrar clientes', 'SEM_PERMISSAO')
+  }
   const podeEditar = (s: Sessao) => {
     if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Só o administrador e o vendedor cadastram clientes', 'SEM_PERMISSAO')
   }
@@ -74,12 +78,16 @@ export function criarClientesFake(): ClientesApi {
       return visao(c, s)
     },
     async criar(s, e) {
-      podeEditar(s)
+      podeCriar(s)
       const d = validar(e, false) as Required<EntradaCliente>
+      // o indicador entrega a ficha com CPF (é o que evita cadastro repetido)
+      if (s.perfil === 'INDICADOR' && !d.cpf) throw new ErroApi(400, 'Informe o CPF do cliente')
       if (d.cpf && lista.some((c) => c.cpf === d.cpf)) throw new ErroApi(409, 'Já existe um cliente com esse CPF', 'CPF_DUPLICADO')
       const novo: Required<ClienteApi> = {
         id: ++proximoId, nome: d.nome, fone: d.fone, cpf: d.cpf ?? null, rg: d.rg ?? null, endereco: d.endereco ?? null, origem: d.origem ?? null,
-        responsavelId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : (e.responsavelId ?? null), desde: seed.hoje,
+        // vendedor: na própria carteira; indicador: sem carteira e já vinculado a ele (a loja distribui); admin escolhe
+        responsavelId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : s.perfil === 'INDICADOR' ? null : (e.responsavelId ?? null),
+        indicadorId: s.perfil === 'INDICADOR' ? (s.indicadorId ?? null) : null, desde: seed.hoje,
       }
       const r = salvar(s, novo)
       lista.push(novo)

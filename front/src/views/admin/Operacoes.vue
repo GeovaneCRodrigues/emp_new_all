@@ -68,6 +68,10 @@ watch(filtro, () => carregar())
 function abrirNovoEmprestimo() {
   if (route.query.novo !== 'emprestimo' || !ehAdmin.value) return
   aba.value = 'emp'
+  // vindo de uma proposta de indicador (Equipe › Aceitar e lançar): o formulário abre com o que ele pediu
+  const q = route.query
+  const n = (v: unknown) => (Number(v) > 0 ? Number(v) : undefined)
+  inicialEmp.value = n(q.proposta) ? { propostaId: n(q.proposta), clienteId: n(q.cliente), indicadorId: n(q.indicador), capital: n(q.capital), n: n(q.n) } : null
   formEmp.value = true
   router.replace({ path: route.path, query: {} })
 }
@@ -92,6 +96,7 @@ const carregandoEmp = ref(false)
 const erroEmp = ref('')
 const fichaEmp = ref<EmprestimoApi | null>(null)
 const formEmp = ref(false)
+const inicialEmp = ref<{ propostaId?: number; clienteId?: number; indicadorId?: number; capital?: number; n?: number } | null>(null)
 let pedidoEmp = 0
 async function carregarEmp(mais = false) {
   const meu = ++pedidoEmp
@@ -111,7 +116,7 @@ async function carregarEmp(mais = false) {
 async function carregarResumoEmp() { try { resumoEmp.value = await emprestimosApi.resumo(sessao.value) } catch { /* os números ficam em branco */ } }
 watch(filtroEmp, () => carregarEmp())
 watch(aba, (a) => { if (a === 'emp' && ehAdmin.value && !emps.value.length && !carregandoEmp.value) { carregarEmp(); carregarResumoEmp() } })
-async function aoSalvarEmp(e: EmprestimoApi) { formEmp.value = false; filtroEmp.value = 'ATIVA'; await Promise.all([carregarEmp(), carregarResumoEmp()]); fichaEmp.value = e }
+async function aoSalvarEmp(e: EmprestimoApi) { formEmp.value = false; inicialEmp.value = null; filtroEmp.value = 'ATIVA'; await Promise.all([carregarEmp(), carregarResumoEmp()]); fichaEmp.value = e }
 const filtrosEmp = [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', label: 'Com atraso' }, { id: 'QUITADA', label: 'Quitados' }]
 
 // só o admin tem empréstimos; o vendedor só vê as vendas dele
@@ -160,6 +165,6 @@ const abas = computed(() => [
 
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
   <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
-  <EmprestimoForm :aberto="formEmp" @fechar="formEmp = false" @salvo="aoSalvarEmp" />
+  <EmprestimoForm :aberto="formEmp" :inicial="inicialEmp" @fechar="formEmp = false; inicialEmp = null" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

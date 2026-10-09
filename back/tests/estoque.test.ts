@@ -67,11 +67,42 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
   afterAll(async () => { await app?.close(); await db?.destroy() })
 
   describe('permissões', () => {
-    it('cobrador e indicador não têm acesso ao estoque (403); sem login, 401', async () => {
-      for (const papel of ['cobrador', 'indicador']) {
-        for (const url of ['/api/aparelhos', '/api/aparelhos/resumo', '/api/aparelhos/1']) expect((await req('GET', url, papel)).statusCode).toBe(403)
-      }
+    it('cobrador não tem acesso ao estoque (403); sem login, 401', async () => {
+      for (const url of ['/api/aparelhos', '/api/aparelhos/resumo', '/api/aparelhos/1']) expect((await req('GET', url, 'cobrador')).statusCode).toBe(403)
       expect((await req('GET', '/api/aparelhos')).statusCode).toBe(401)
+    })
+    /** Um aparelho em cada estado, direto no banco (a lista de cadastro só vem depois). */
+    async function umDeCada() {
+      const ids: Record<string, number> = {}
+      for (const [estado, modelo] of [['DISPONIVEL', 'iPhone Disp'], ['ENCOMENDADO', 'iPhone Enc'], ['VENDIDO', 'iPhone Vend']] as const) {
+        const [b] = await db!('bens').insert({ modelo, gb: 128, cor: 'Preto', preco_venda: 3000, valor_compra: 2000, custos_extras: 100, data_compra: '2026-09-01', estado, observacoes: 'segredo' }).returning('id')
+        ids[estado] = b.id
+      }
+      return ids
+    }
+    it('indicador consulta só o que está disponível, sem custo, extras, observações nem para quem é; não vê o resumo nem mexe (403)', async () => {
+      const ids = await umDeCada()
+      const r = await req('GET', '/api/aparelhos', 'indicador')
+      expect(r.statusCode).toBe(200)
+      const itens = r.json().itens as Record<string, unknown>[]
+      expect(itens.map((a) => a.id)).toContain(ids.DISPONIVEL)
+      expect(itens.map((a) => a.id)).not.toContain(ids.ENCOMENDADO)
+      expect(itens.map((a) => a.id)).not.toContain(ids.VENDIDO)
+      for (const a of itens) {
+        expect(a.estado).toBe('DISPONIVEL')
+        for (const campo of ['custo', 'extras', 'observacoes']) expect(campo in a, campo).toBe(false)
+        expect(a.paraCliente).toBeNull()
+      }
+      expect(JSON.stringify(r.json())).not.toMatch(/"custo"|"extras"|segredo/)
+      expect((await req('GET', `/api/aparelhos/${ids.DISPONIVEL}`, 'indicador')).statusCode).toBe(200)
+      expect((await req('GET', '/api/aparelhos/resumo', 'indicador')).statusCode).toBe(403)
+      expect((await req('POST', '/api/aparelhos', 'indicador', aparelho())).statusCode).toBe(403)
+      expect((await req('PATCH', `/api/aparelhos/${ids.DISPONIVEL}`, 'indicador', { preco: 1 })).statusCode).toBe(403)
+    })
+    it('indicador não abre aparelho vendido nem encomendado (404, igual a inexistente)', async () => {
+      const ids = await umDeCada()
+      for (const estado of ['ENCOMENDADO', 'VENDIDO']) expect((await req('GET', `/api/aparelhos/${ids[estado]}`, 'indicador')).statusCode).toBe(404)
+      expect((await req('GET', '/api/aparelhos/999999', 'indicador')).statusCode).toBe(404)
     })
     it('vendedor não cadastra nem edita aparelho (403)', async () => {
       expect((await req('POST', '/api/aparelhos', 'vendedorA', aparelho())).statusCode).toBe(403)

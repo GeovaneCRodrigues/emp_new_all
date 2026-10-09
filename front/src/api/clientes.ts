@@ -13,6 +13,8 @@ export interface ClienteApi {
   endereco?: string | null
   origem?: string | null
   responsavelId?: number | null
+  /** o indicador que cadastrou o cliente (só o administrador vê) */
+  indicadorId?: number | null
 }
 
 export interface ListaClientes { itens: ClienteApi[]; total: number; pagina: number; limite: number }

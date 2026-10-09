@@ -105,11 +105,17 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
     },
 
     async criar(s, entrada) {
-      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw semPermissao('Só o administrador e o vendedor cadastram clientes')
+      if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw semPermissao('Você não pode cadastrar clientes')
       const d = validar(entrada, false) as DadosCliente
-      // vendedor cadastra sempre na própria carteira; o admin escolhe (ou fica sem responsável)
-      if (s.perfil === 'VENDEDOR') d.responsavelId = s.usuarioId
-      else d.responsavelId = entrada.responsavelId == null ? null : await checarResponsavel(entrada.responsavelId)
+      d.indicadorId = null
+      if (s.perfil === 'INDICADOR') {
+        // ficha completa (o CPF é o que evita cadastro repetido); o cliente já nasce vinculado a ele e sem carteira (a loja distribui)
+        if (!d.cpf) throw requisicaoInvalida('Informe o CPF do cliente')
+        if (s.indicadorId == null) throw semPermissao('Seu acesso de indicador não está completo')
+        d.responsavelId = null
+        d.indicadorId = s.indicadorId
+      } else if (s.perfil === 'VENDEDOR') d.responsavelId = s.usuarioId // vendedor cadastra sempre na própria carteira
+      else d.responsavelId = entrada.responsavelId == null ? null : await checarResponsavel(entrada.responsavelId) // o admin escolhe (ou fica sem responsável)
 
       if (d.cpf && (await repo.buscarPorCpf(d.cpf))) throw CPF_DUPLICADO
       const avisos = await avisosDeFone(s, d.fone)
