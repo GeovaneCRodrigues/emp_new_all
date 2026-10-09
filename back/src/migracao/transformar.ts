@@ -74,9 +74,11 @@ export function converterCliente(a: ClienteAntigo): Convertido<ClienteNovo> {
   const t1 = limpo(a.telefone1), t2 = limpo(a.telefone2)
   const n1 = t1 ? normalizarFone(t1) : null
   const n2 = t2 ? normalizarFone(t2) : null
+  // telefone que o sistema novo não reconhece nunca se perde: vai anotado nas observações (o campo de telefone fica vazio)
+  const anotacoes: string[] = []
   if (n1) fone = n1
-  else if (n2) { fone = n2; avisos.push('telefone_do_segundo_campo') }
-  else if (t1 || t2) avisos.push('telefone_invalido')
+  else if (n2) { fone = n2; avisos.push('telefone_do_segundo_campo'); if (t1) anotacoes.push(`Telefone no sistema antigo (não reconhecido): ${t1}`) }
+  else if (t1 || t2) { avisos.push('telefone_invalido'); anotacoes.push(`Telefone no sistema antigo (não reconhecido): ${[t1, t2].filter(Boolean).join(' / ')}`) }
   else avisos.push('sem_telefone')
 
   let email: string | null = null
@@ -85,7 +87,7 @@ export function converterCliente(a: ClienteAntigo): Convertido<ClienteNovo> {
 
   const rg = vazioParaNull(cortar(limpo(a.rg), 20, 'rg_cortado', avisos))
   const endereco = vazioParaNull(cortar(montarEndereco(a), 500, 'endereco_cortado', avisos))
-  const obs = typeof a.obs === 'string' ? a.obs.trim() : ''
+  const obs = [typeof a.obs === 'string' ? a.obs.trim() : '', ...anotacoes].filter(Boolean).join('\n')
   const observacoes = vazioParaNull(cortar(obs, 2000, 'observacao_cortada', avisos))
   if (String(a.status).toUpperCase() !== 'ATIVO') avisos.push('cliente_inativo')
 

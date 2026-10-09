@@ -80,6 +80,24 @@ describe('converter cliente: telefone', () => {
     const r = converterCliente(cliente({ telefone1: '1234', telefone2: 'abc' }))
     expect(r.novo?.fone).toBe(''); expect(r.avisos).toContain('telefone_invalido'); expect(r.avisos).not.toContain('sem_telefone')
   })
+  it('o telefone que não presta NUNCA se perde: vai anotado nas observações (o caso real: "(55) 12345-6789")', () => {
+    const r = converterCliente(cliente({ telefone1: '(55) 12345-6789', obs: 'paga no dia 10' }))
+    expect(r.novo?.fone).toBe('')
+    expect(r.novo?.observacoes).toBe('paga no dia 10\nTelefone no sistema antigo (não reconhecido): (55) 12345-6789')
+  })
+  it('os dois tortos: os dois vão anotados; sem observação antes, só a anotação', () => {
+    const r = converterCliente(cliente({ telefone1: '1234', telefone2: 'abc' }))
+    expect(r.novo?.observacoes).toBe('Telefone no sistema antigo (não reconhecido): 1234 / abc')
+  })
+  it('1º torto e 2º bom: usa o 2º e anota o 1º', () => {
+    const r = converterCliente(cliente({ telefone1: '1234', telefone2: '11988124410' }))
+    expect(r.novo?.fone).toBe('11988124410')
+    expect(r.novo?.observacoes).toBe('Telefone no sistema antigo (não reconhecido): 1234')
+  })
+  it('telefone bom ou ausente: nada é anotado', () => {
+    expect(converterCliente(cliente()).novo?.observacoes).toBeNull()
+    expect(converterCliente(cliente({ telefone1: null })).novo?.observacoes).toBeNull()
+  })
 })
 
 describe('converter cliente: endereço, e-mail, observação, indicador e datas', () => {
