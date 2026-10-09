@@ -11,6 +11,7 @@ import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
 import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, falta, vencPadraoResto, type RestoPagamento } from '@/domain/recebimento'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
+import DateField from './DateField.vue'
 
 const props = defineProps<{ alvo: { tipo: AlvoApi; operacaoId: number; parcela: number } | null }>()
 const emit = defineEmits<{ fechar: []; registrado: [r: RegistradoApi] }>()
@@ -131,7 +132,7 @@ async function confirmar() {
           <label>Quando recebeu?</label>
           <div class="pills">
             <button v-for="o in opcoesData" :key="o.valor" type="button" class="pill" :class="{ on: f.data === o.valor }" @click="f.data = o.valor">{{ o.rotulo }}</button>
-            <div class="inp" style="height: 36px; flex: 1; min-width: 150px"><input id="rData" v-model="f.data" type="date" :min="venda.data" :max="hoje" style="font-size: 14px" aria-label="Data do recebimento" /></div>
+            <DateField id="rData" v-model="f.data" :min="venda.data" :max="hoje" rotulo="Data do recebimento" style="height: 36px; flex: 1; min-width: 150px" />
           </div>
         </div>
         <div class="field">
@@ -149,7 +150,7 @@ async function confirmar() {
             <label>Quando ele paga o que falta?</label>
             <div class="pills">
               <button v-for="o in opcoesNovaData" :key="o.valor" type="button" class="pill" :class="{ on: f.novoVenc === o.valor }" @click="f.novoVenc = o.valor">{{ o.rotulo }}</button>
-              <div class="inp" style="height: 36px; flex: 1; min-width: 150px"><input v-model="f.novoVenc" type="date" :min="hoje" style="font-size: 14px" aria-label="Nova data do restante" /></div>
+              <DateField id="rNovoVenc" v-model="f.novoVenc" :min="hoje" rotulo="Nova data do restante" style="height: 36px; flex: 1; min-width: 150px" />
             </div>
             <div class="small">{{ f.novoVenc === parcela.vencimento ? 'O vencimento continua o mesmo.' : `A ${parcela.numero}ª passa a vencer ${dmyA(f.novoVenc || hoje)}${parcela.vencimento < hoje ? ' e sai dos atrasados' : ''}.` }}</div>
           </div>

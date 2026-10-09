@@ -11,6 +11,7 @@ import { arred2, dmy, fmt } from '@/domain/format'
 import Icon from './Icon.vue'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
+import DateField from './DateField.vue'
 
 /**
  * Novo empréstimo em 3 passos (plano de 09/10):
@@ -160,7 +161,7 @@ async function salvar() {
           </template>
         </div>
         <div class="field"><label for="eCapital">Quanto vai emprestar?</label><MoneyInput id="eCapital" v-model="f.capital" /></div>
-        <div class="field"><label for="eData">Data do empréstimo</label><div class="inp"><input id="eData" v-model="f.data" type="date" :max="hoje" min="2020-01-01" /></div></div>
+        <div class="field"><label for="eData">Data do empréstimo</label><DateField id="eData" v-model="f.data" :max="hoje" min="2020-01-01" /></div>
         <div class="field"><label for="eInd">Indicador (opcional)</label>
           <div class="inp"><select id="eInd" v-model.number="f.indicadorId"><option :value="0">Sem indicador</option><option v-for="i in indicadores" :key="i.id" :value="i.id">{{ i.nome }}</option></select></div>
         </div>
@@ -209,7 +210,7 @@ async function salvar() {
       <!-- 3. datas e confirmar -->
       <template v-else>
         <div class="field"><label for="ePrimeira">1º vencimento</label>
-          <div class="inp"><input id="ePrimeira" v-model="f.primeira" type="date" :min="f.data" @input="primeiraEditada = true" /></div>
+          <DateField id="ePrimeira" v-model="f.primeira" :min="f.data" @update:model-value="primeiraEditada = true" />
           <div class="small">{{ diaria ? 'Se cair no domingo, vai para a segunda.' : `Sugerido: ${dmy(primeiroVenc(f.data, f.freq))}.` }}</div>
         </div>
         <div v-if="plano.length" class="card list" data-testid="lista-parcelas" style="max-height: 260px; overflow: auto">
