@@ -200,4 +200,32 @@ describe.skipIf(!db)('o indicador lê só o que é dele (Postgres de verdade)', 
       expect((await req('GET', '/api/cobrancas', 'vendedor')).statusCode).toBe(403)
     })
   })
+
+  describe('o próprio cadastro, o nível e a tabela de níveis', () => {
+    it('lê o próprio cadastro e nível; o de outro indicador é 404 (igual a um que não existe)', async () => {
+      const r = await req('GET', `/api/indicadores/${id.roberto}`, 'indicador')
+      expect(r.statusCode).toBe(200)
+      expect(r.json()).toMatchObject({ id: id.roberto, nome: 'Roberto', pct: 0.5 })
+      expect(r.json().nivel).toBeTruthy()
+      expect((await req('GET', `/api/indicadores/${id.carla}`, 'indicador')).statusCode).toBe(404)
+      expect((await req('GET', '/api/indicadores/999999', 'indicador')).statusCode).toBe(404)
+    })
+    it('lê a tabela de níveis, mas não a edita; a lista de todos os indicadores continua fechada', async () => {
+      const r = await req('GET', '/api/niveis', 'indicador')
+      expect(r.statusCode).toBe(200)
+      expect(r.json().niveis.length).toBeGreaterThan(0)
+      expect((await req('POST', '/api/niveis', 'indicador', {})).statusCode).not.toBe(200)
+      expect((await app.inject({ method: 'PUT', url: '/api/niveis', payload: r.json(), headers: { authorization: `Bearer ${t.indicador}` } })).statusCode).toBe(403)
+      expect((await req('GET', '/api/indicadores', 'indicador')).statusCode).toBe(403)
+      expect((await app.inject({ method: 'PATCH', url: `/api/indicadores/${id.roberto}`, payload: { pct: 1 }, headers: { authorization: `Bearer ${t.indicador}` } })).statusCode).toBe(403)
+      expect((await req('POST', `/api/indicadores/${id.roberto}/acesso`, 'indicador', { email: 'x@y.com' })).statusCode).toBe(403)
+      expect((await req('GET', '/api/indicadores/opcoes', 'indicador')).statusCode).toBe(403)
+    })
+    it('vendedor e cobrador continuam sem ler níveis nem cadastro de indicador (403)', async () => {
+      for (const papel of ['vendedor', 'cobrador']) {
+        expect((await req('GET', '/api/niveis', papel)).statusCode).toBe(403)
+        expect((await req('GET', `/api/indicadores/${id.roberto}`, papel)).statusCode).toBe(403)
+      }
+    })
+  })
 })

@@ -127,6 +127,17 @@ describe.skipIf(!db)('repasse do indicador (Postgres de verdade)', () => {
       expect((await req('GET', '/api/indicadores/999999/repasse', 'admin')).statusCode).toBe(404)
       expect((await pagar(999999)).statusCode).toBe(404)
     })
+    it('o repasse do indicador nunca traz o capital da loja (custo do aparelho, valor emprestado), mas o do admin traz', async () => {
+      const v = await venda(); await receber(v, 1)
+      await emprestimo()
+      const dele = await detalhe(id.roberto, 'indicador')
+      expect(dele.operacoes).toHaveLength(2)
+      for (const o of dele.operacoes) expect('investido' in o).toBe(false)
+      expect(JSON.stringify(dele)).not.toMatch(/investido/)
+      expect(dele.operacoes.every((o: { capitalVoltou: boolean; parte: number }) => typeof o.capitalVoltou === 'boolean' && o.parte > 0)).toBe(true)
+      const doAdmin = await detalhe(id.roberto, 'admin')
+      expect(doAdmin.operacoes.every((o: { investido: number }) => o.investido > 0)).toBe(true)
+    })
     it('os detalhes de um indicador nunca trazem operação de outro', async () => {
       await venda(id.roberto); await venda(id.carla)
       const r = await detalhe(id.roberto, 'indicador')
