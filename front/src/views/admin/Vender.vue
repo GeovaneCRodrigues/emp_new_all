@@ -12,7 +12,7 @@ import MoneyInput from '@/components/MoneyInput.vue'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { somaMes } from '@/domain/datas'
-import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
+import { dmy, fmt, fmt0, gbTxt, iniciais } from '@/domain/format'
 import { exibirFone, mascaraFone } from '@/domain/documentos'
 import { simularVenda } from '@/domain/calc'
 
@@ -178,7 +178,7 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
   <div v-if="passo === 4 && venda" class="card ok-big" data-testid="venda-feita">
     <span class="ring"><Icon name="check" /></span>
     <h2 style="margin: 0; font-size: 20px; color: var(--strong)">Venda feita!</h2>
-    <div class="small">{{ venda.cliente.nome }} · {{ venda.aparelho.modelo }} {{ venda.aparelho.gb }} GB</div>
+    <div class="small">{{ venda.cliente.nome }} · {{ venda.aparelho.modelo }} {{ gbTxt(venda.aparelho.gb) }}</div>
     <div class="val num" style="font-size: 22px">{{ venda.nParcelas ? `${venda.nParcelas}x de ${fmt(venda.valorParcela)}` : 'Pago à vista' }}</div>
     <div v-if="venda.parcelas.length" class="small">A primeira vence em {{ dmy(venda.parcelas[0].vencimento) }}. Total do cliente: {{ fmt(venda.total) }}.</div>
     <div v-if="venda.seuLucro !== undefined" class="small">Seu lucro previsto: <b style="color: var(--ok)">{{ fmt(venda.seuLucro) }}</b></div>
@@ -202,7 +202,7 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
             <button v-for="a in aparelhosFiltrados" :key="a.id" class="card fone" :data-aparelho="a.id" @click="escolherAparelho(a)">
               <MiniFone :cor="a.cor" />
               <span class="info">
-                <span class="nome"><span>{{ a.modelo }} · {{ a.gb }} GB</span><span v-if="a.estado === 'ENCOMENDADO'" class="chip c-gold">encomenda</span></span>
+                <span class="nome"><span>{{ [a.modelo, gbTxt(a.gb)].filter(Boolean).join(' · ') }}</span><span v-if="a.estado === 'ENCOMENDADO'" class="chip c-gold">encomenda</span></span>
                 <span class="specs"><span>{{ a.cor }}</span><span>{{ a.condicao }}</span><span>{{ a.bateria }}%</span><span v-if="a.paraCliente">para {{ a.paraCliente.nome }}</span></span>
                 <span class="precos"><b class="num" style="color: var(--strong); font-size: 16px">{{ fmt0(a.preco) }}</b></span>
               </span>
@@ -229,7 +229,7 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
         <template v-else-if="passo === 3 && aparelho && cliente">
           <div class="card pad row" style="gap: 12px">
             <MiniFone :cor="aparelho.cor" />
-            <div style="flex: 1; min-width: 0"><div class="val">{{ aparelho.modelo }} · {{ aparelho.gb }} GB</div><div class="small">para {{ cliente.nome }}</div></div>
+            <div style="flex: 1; min-width: 0"><div class="val">{{ [aparelho.modelo, gbTxt(aparelho.gb)].filter(Boolean).join(' · ') }}</div><div class="small">para {{ cliente.nome }}</div></div>
             <button class="btn b-ghost b-sm" @click="passo = 1">Trocar</button>
           </div>
 

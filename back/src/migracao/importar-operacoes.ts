@@ -17,6 +17,12 @@ export interface RelatorioOperacoes {
   conferencias: string[]
 }
 
+/** A sequência dos recibos não volta atrás num rollback (simulações deixam ela fora do lugar): antes de numerar, alinha com o maior número já usado. */
+export async function alinharSequenciaDeRecibos(trx: Knex.Transaction): Promise<void> {
+  await trx.raw(`select setval('recibo_numero_seq', m.max_n) from (select max(numero_recibo) as max_n from transacoes_recebimento) m
+                 where m.max_n is not null and m.max_n > (select last_value from recibo_numero_seq)`)
+}
+
 class Divergencia extends Error {}
 const r2 = (v: number) => Math.round(v * 100) / 100
 const soma = (xs: number[]) => r2(xs.reduce((a, b) => a + b, 0))
@@ -97,6 +103,7 @@ export async function importarOperacoes(db: Knex, estado: EstadoAntigo, opcoes: 
 
     // recibos numerados em ordem de data (e depois do id antigo): o número só cresce com o tempo
     recibos.sort((a, b) => a.data.localeCompare(b.data) || a.legacyId - b.legacyId)
+    await alinharSequenciaDeRecibos(trx)
     for (const r of recibos) {
       const pg = r.pagamento
       if (await trx('transacoes_recebimento').where({ legacy_id: pg.legacyId }).first('id')) { conta('recibo_ja_existia'); continue }

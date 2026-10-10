@@ -1,12 +1,13 @@
 import mysql from 'mysql2/promise'
 import type { ClienteAntigo, FonteAntiga, IndicadorAntigo } from './tipos.js'
 import type { EstadoAntigo } from './antigo/tipos.js'
+import type { EstadoVendasAntigo } from './antigo/tipos-vendas.js'
 
 /**
  * Lê o MySQL do sistema antigo. SÓ LEITURA: a sessão é aberta como READ ONLY e só há SELECT aqui.
  * A URL vem de OLD_MYSQL_URL (ex.: mysql://usuario:senha@127.0.0.1:3307/emp, por um túnel SSH); nunca fica em arquivo.
  */
-export async function abrirFonteMysql(url: string): Promise<FonteAntiga & { estadoOperacoes(): Promise<EstadoAntigo>; fechar(): Promise<void> }> {
+export async function abrirFonteMysql(url: string): Promise<FonteAntiga & { estadoOperacoes(): Promise<EstadoAntigo>; estadoVendas(): Promise<EstadoVendasAntigo>; fechar(): Promise<void> }> {
   const con = await mysql.createConnection({ uri: url, dateStrings: ['DATE'], decimalNumbers: false })
   await con.query('SET SESSION TRANSACTION READ ONLY')
   const ler = async <T>(sql: string): Promise<T[]> => (await con.query(sql))[0] as T[]
@@ -64,6 +65,32 @@ export async function abrirFonteMysql(url: string): Promise<FonteAntiga & { esta
         repassesPagamentos: pags.map((b) => ({ id: b.id, indicadorId: b.indicador_id, valor: n(b.valor), dataPagamento: String(b.data_pagamento), obs: txt(b.obs) })),
         transferencias: trfs.map((b) => ({ id: b.id, indicadorId: b.indicador_id, valor: n(b.valor), dataTransferencia: String(b.data_transferencia), obs: txt(b.obs) })),
         movimentacoesCaixa: cx.map((m) => ({ id: m.id, tipo: m.tipo, valor: n(m.valor), data: String(m.data), obs: txt(m.obs) })),
+      }
+    },
+    /** Estoque e vendas de iPhones do sistema antigo (só SELECT; sem nome de cliente). */
+    async estadoVendas(): Promise<EstadoVendasAntigo> {
+      type L = Record<string, any>
+      const n = (v: unknown) => (v == null ? 0 : Number(v))
+      const iso = (v: unknown) => (v == null ? null : v instanceof Date ? v.toISOString() : String(v))
+      const txt = (v: unknown) => (v == null ? null : String(v))
+      const [bens, vendas, parcelas, recs, ajustes, repasses] = await Promise.all([
+        ler<L>(`SELECT id, categoria, descricao, estado, origem, identificador, valor_compra, custos_extras, preco_venda_sugerido, data_compra, cliente_encomenda_id, dados, observacoes FROM bens ORDER BY id`),
+        ler<L>(`SELECT id, bem_id, cliente_id, parceiro_id, percentual_parceiro, data_venda, valor_investido, entrada, troca_valor, troca_bem_id, valor_total, status, observacoes, created_at FROM vendas ORDER BY id`),
+        ler<L>(`SELECT id, venda_id, numero, vencimento, valor, vencimento_original FROM venda_parcelas ORDER BY venda_id, numero`),
+        ler<L>(`SELECT id, venda_id, parcela_id, tipo, valor, desconto, data_recebimento, created_at FROM venda_recebimentos ORDER BY id`),
+        ler<L>(`SELECT id, venda_id, tipo, created_at FROM venda_ajustes ORDER BY id`),
+        ler<L>(`SELECT id, venda_id, parceiro_id, valor, data_repasse, obs FROM venda_repasses ORDER BY id`),
+      ])
+      const json = (v: unknown): Record<string, unknown> | null => { if (v == null) return null; if (typeof v === 'string') { try { return JSON.parse(v) } catch { return null } } return v as Record<string, unknown> }
+      return {
+        bens: bens.map((b) => ({ id: b.id, categoria: b.categoria, descricao: String(b.descricao), estado: b.estado, origem: b.origem, identificador: txt(b.identificador), valorCompra: n(b.valor_compra), custosExtras: n(b.custos_extras),
+          precoVendaSugerido: b.preco_venda_sugerido == null ? null : n(b.preco_venda_sugerido), dataCompra: String(b.data_compra), clienteEncomendaId: b.cliente_encomenda_id ?? null, dados: json(b.dados), observacoes: txt(b.observacoes) })),
+        vendas: vendas.map((v) => ({ id: v.id, bemId: v.bem_id, clienteId: v.cliente_id, indicadorId: v.parceiro_id ?? null, percentualParceiro: n(v.percentual_parceiro), dataVenda: String(v.data_venda), valorInvestido: n(v.valor_investido),
+          entrada: n(v.entrada), trocaValor: n(v.troca_valor), trocaBemId: v.troca_bem_id ?? null, valorTotal: n(v.valor_total), status: String(v.status), observacoes: txt(v.observacoes), criadoEm: iso(v.created_at) })),
+        parcelas: parcelas.map((p) => ({ id: p.id, vendaId: p.venda_id, numero: n(p.numero), vencimento: String(p.vencimento), valor: n(p.valor), vencimentoOriginal: p.vencimento_original == null ? null : String(p.vencimento_original) })),
+        recebimentos: recs.map((r) => ({ id: r.id, vendaId: r.venda_id, parcelaId: r.parcela_id ?? null, tipo: r.tipo, valor: n(r.valor), desconto: n(r.desconto), dataRecebimento: String(r.data_recebimento), criadoEm: iso(r.created_at) })),
+        ajustes: ajustes.map((a) => ({ id: a.id, vendaId: a.venda_id, tipo: String(a.tipo), criadoEm: iso(a.created_at) })),
+        repasses: repasses.map((r) => ({ id: r.id, vendaId: r.venda_id, indicadorId: r.parceiro_id ?? null, valor: n(r.valor), dataRepasse: String(r.data_repasse), obs: txt(r.obs) })),
       }
     },
     async fechar() { await con.end() },

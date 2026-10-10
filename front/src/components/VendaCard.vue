@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { VendaApi } from '@/api/vendas'
-import { dmy, fmt0 } from '@/domain/format'
+import { dmy, fmt0, gbTxt } from '@/domain/format'
 import MiniFone from './MiniFone.vue'
 
 const props = defineProps<{ v: VendaApi }>()
@@ -16,7 +16,7 @@ const chip = computed(() => {
   if (v.contrato === 'AGUARDANDO') return { cls: 'c-warn', txt: 'contrato pendente' }
   return { cls: 'c-pri', txt: 'em dia' }
 })
-const resumo = computed(() => `${props.v.aparelho.modelo} ${props.v.aparelho.gb} GB · ${props.v.nParcelas ? `${props.v.nParcelas}x ${fmt0(props.v.valorParcela)}` : 'à vista'}`)
+const resumo = computed(() => `${props.v.aparelho.modelo} ${gbTxt(props.v.aparelho.gb)} · ${props.v.nParcelas ? `${props.v.nParcelas}x ${fmt0(props.v.valorParcela)}` : 'à vista'}`)
 </script>
 
 <template>

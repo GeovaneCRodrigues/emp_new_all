@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useApp } from '@/composables/useApp'
 import type { Contas } from '@/domain/calc'
-import { dmy, fmt0 } from '@/domain/format'
+import { dmy, fmt0, gbTxt } from '@/domain/format'
 import type { Operacao } from '@/domain/types'
 import Icon from './Icon.vue'
 import MiniFone from './MiniFone.vue'
@@ -23,7 +23,7 @@ const resumo = computed(() => {
   const v = fmt0(o.parcelas[0].valor)
   return o.tipo === 'EMP'
     ? `${MOD[o.mod]} · ${fmt0(o.capital)} a ${o.taxa}%${o.mod === 'DIARIA' ? '' : ' ao mês'} · ${n}x ${v}`
-    : `${bem.value!.modelo} ${bem.value!.gb} GB · ${n}x ${v}`
+    : `${bem.value!.modelo} ${gbTxt(bem.value!.gb)} · ${n}x ${v}`
 })
 const chip = computed(() => {
   if (atrasada.value) return { cls: 'c-bad', txt: `${props.k.atrasadas.length} atrasada${props.k.atrasadas.length > 1 ? 's' : ''}` }

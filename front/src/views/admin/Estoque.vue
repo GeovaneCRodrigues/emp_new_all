@@ -13,7 +13,7 @@ import Sheet from '@/components/Sheet.vue'
 import { CORES } from '@/data/cores'
 import { useApp } from '@/composables/useApp'
 import { diasEntre } from '@/domain/datas'
-import { dmyA, fmt, fmt0 } from '@/domain/format'
+import { dmyA, fmt, fmt0, gbTxt } from '@/domain/format'
 
 const router = useRouter()
 const { sessao, hoje } = useApp()
@@ -113,7 +113,7 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
       <span class="pic"><Icon name="smartphone" /><span class="cor" :style="{ background: CORES[b.cor] || '#999' }"></span></span>
       <span class="info">
         <span class="nome">
-          <span>{{ b.modelo }} · {{ b.gb }} GB</span>
+          <span>{{ [b.modelo, gbTxt(b.gb)].filter(Boolean).join(' · ') }}</span>
           <span v-if="b.estado === 'DISPONIVEL'" class="chip" :class="dias(b) > 30 ? 'c-warn' : 'c-neu'">{{ dias(b) }}d</span>
           <span v-else-if="b.estado === 'ENCOMENDADO'" class="chip c-gold">encomenda</span>
           <span v-else class="chip c-neu">vendido</span>
@@ -138,7 +138,7 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
 
   <Sheet :aberto="ficha !== null" @fechar="ficha = null">
     <template v-if="ficha">
-      <h3>{{ ficha.modelo }} · {{ ficha.gb }} GB</h3>
+      <h3>{{ [ficha.modelo, gbTxt(ficha.gb)].filter(Boolean).join(' · ') }}</h3>
       <div class="small">{{ ficha.cor }} · {{ ficha.condicao }}<template v-if="ficha.estado === 'ENCOMENDADO'"> · encomendado</template><template v-else-if="ficha.estado === 'VENDIDO'"> · vendido</template></div>
       <div class="dl card pad" style="margin-top: 12px">
         <div><div class="lbl">Preço de venda</div><div class="val num">{{ fmt(ficha.preco) }}</div></div>

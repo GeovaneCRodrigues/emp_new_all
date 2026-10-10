@@ -11,7 +11,7 @@ import type { JurosApi } from '@/api/vendas'
 import type { AparelhoApi } from '@/api/estoque'
 import { investidoApi } from '@/api/estoque'
 import { planoParc } from '@/domain/calc'
-import { fmt, fmt0 } from '@/domain/format'
+import { fmt, fmt0, gbTxt } from '@/domain/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,7 +61,7 @@ const sel = computed(() => linhas.value.find((l) => l.n === s.n) ?? linhas.value
 const dobro = computed(() => juros.value.pct * juros.value.maxParcelas === 100)
 
 const mensagem = computed(() => {
-  const nome = bem.value ? `${bem.value.modelo} ${bem.value.gb} GB` : 'iPhone'
+  const nome = bem.value ? `${bem.value.modelo} ${gbTxt(bem.value.gb)}` : 'iPhone'
   const ns = [...new Set([1, 3, 5, 6, 8, 10].filter((n) => n <= juros.value.maxParcelas).concat(s.n))].sort((a, b) => a - b)
   const corpo = ns.map((n) => { const l = linhas.value[n - 1]; return `${n}x de ${fmt(l.parc)}${n === s.n ? '  ⭐' : ''}` }).join('\n')
   return `*${nome}* · ${fmt(s.preco)}\n${entrada.value ? `Entrada: ${fmt(entrada.value)}\n` : ''}\n${corpo}\n\nQualquer dúvida me chama aqui!`
@@ -90,7 +90,7 @@ async function copiar() {
         <div class="inp">
           <select id="simBem" style="font-size: 15px" :value="s.bemId ?? ''" @change="escolherBem(Number(($event.target as HTMLSelectElement).value) || null)">
             <option value="">Digitar o preço</option>
-            <option v-for="b in disponiveis" :key="b.id" :value="b.id">{{ b.modelo }} {{ b.gb }} GB {{ b.cor }} · {{ fmt0(b.preco) }}</option>
+            <option v-for="b in disponiveis" :key="b.id" :value="b.id">{{ b.modelo }} {{ gbTxt(b.gb) }} {{ b.cor }} · {{ fmt0(b.preco) }}</option>
           </select>
         </div>
       </div>

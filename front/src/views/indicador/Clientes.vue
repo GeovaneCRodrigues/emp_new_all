@@ -11,7 +11,7 @@ import Seg from '@/components/Seg.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
 import { exibirFone } from '@/domain/documentos'
-import { fmt, fmt0, iniciais } from '@/domain/format'
+import { fmt, fmt0, gbTxt, iniciais } from '@/domain/format'
 
 /** Os clientes do indicador (os que ele cadastrou e os que têm venda ou empréstimo com ele), com o que cada um deve e a parte dele. */
 const { sessao } = useApp()
@@ -74,7 +74,7 @@ const resumoLinha = (l: Linha) => {
 }
 const linhaDe = (c: ClienteApi) => linhas.value.find((l) => l.c.id === c.id)
 const opsDe = (c: ClienteApi) => [
-  ...vendas.value.filter((v) => v.cliente.id === c.id).map((v) => ({ chave: 'V' + v.id, titulo: `${v.aparelho.modelo} ${v.aparelho.gb} GB`, status: v.status, atrasadas: v.atrasadas, falta: v.falta, suaParte: v.suaParte ?? 0 })),
+  ...vendas.value.filter((v) => v.cliente.id === c.id).map((v) => ({ chave: 'V' + v.id, titulo: `${v.aparelho.modelo} ${gbTxt(v.aparelho.gb)}`, status: v.status, atrasadas: v.atrasadas, falta: v.falta, suaParte: v.suaParte ?? 0 })),
   ...emps.value.filter((e) => e.cliente.id === c.id).map((e) => ({ chave: 'E' + e.id, titulo: e.modalidade === 'JUROS' ? 'Empréstimo só juros' : e.modalidade === 'DIARIA' ? 'Empréstimo diário' : 'Empréstimo parcelado', status: e.status, atrasadas: e.atrasadas, falta: e.falta, suaParte: e.suaParte ?? 0 })),
 ]
 const rotuloOp = (o: { status: string; atrasadas: number }) => (o.status === 'QUITADA' ? 'quitada' : o.status === 'RETOMADA' ? 'retomada' : o.status === 'CANCELADA' ? 'cancelada' : o.atrasadas > 0 ? `${o.atrasadas} atrasada${o.atrasadas > 1 ? 's' : ''}` : 'em dia')
