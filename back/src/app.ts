@@ -38,6 +38,8 @@ import type { FechamentosService } from './modules/fechamentos/services/fechamen
 import { equipeRoutes } from './modules/equipe/routes.js'
 import type { EquipeService } from './modules/equipe/services/equipe.service.js'
 import { caixaRoutes } from './modules/caixa/routes.js'
+import { relatoriosRoutes } from './modules/relatorios/routes.js'
+import type { RelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import type { CaixaService } from './modules/caixa/services/caixa.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
@@ -57,6 +59,7 @@ export type Deps = {
   repasses?: RepassesService
   propostas?: PropostasService
   caixa?: CaixaService
+  relatorios?: RelatoriosService
   config: ConfigService
   recebimentos: RecebimentosService
   aprovacoes: AprovacoesService
@@ -106,6 +109,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })
   await app.register(aprovacoesRoutes(deps.aprovacoes, exigir), { prefix: '/api' })
   if (deps.caixa) await app.register(caixaRoutes(deps.caixa, exigir), { prefix: '/api' })
+  if (deps.relatorios) await app.register(relatoriosRoutes(deps.relatorios, exigir), { prefix: '/api' })
   await app.register(fechamentosRoutes(deps.fechamentos, exigir), { prefix: '/api' })
   await app.register(equipeRoutes(deps.equipe, exigir), { prefix: '/api' })
   await app.register(recebimentosRoutes(deps.recebimentos, exigir, deps.limites?.recebimentosPorMinuto), { prefix: '/api' })
