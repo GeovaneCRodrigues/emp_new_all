@@ -29,6 +29,8 @@ import { createAprovacoesService } from './modules/aprovacoes/services/aprovacoe
 import { createFechamentosRepository } from './modules/fechamentos/models/repository.js'
 import { createCaixaRepository } from './modules/caixa/models/repository.js'
 import { createCaixaService } from './modules/caixa/services/caixa.service.js'
+import { createRelatoriosRepository } from './modules/relatorios/models/repository.js'
+import { createRelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import { createFechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
 import { createEquipeRepository } from './modules/equipe/models/repository.js'
 import { createEquipeService } from './modules/equipe/services/equipe.service.js'
@@ -78,7 +80,11 @@ const fechamentos = createFechamentosService({ repo: createFechamentosRepository
 const caixa = createCaixaService({ repo: createCaixaRepository(db.knex), auditoria: aud })
 const equipe = createEquipeService({ repo: createEquipeRepository(db.knex), auditoria: aud })
 
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, caixa, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const relatorios = createRelatoriosService({
+  repo: createRelatoriosRepository(db.knex), vendas: createVendasRepository(db.knex), emprestimos: createEmprestimosRepository(db.knex), caixa: createCaixaRepository(db.knex),
+  indicadores: createIndicadoresRepository(db.knex), repasses,
+})
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, caixa, relatorios, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

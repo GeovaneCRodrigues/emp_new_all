@@ -1,0 +1,391 @@
+{
+ "ops": [
+  {
+   "tipo": "VENDA",
+   "id": 10,
+   "data": "2026-10-02",
+   "status": "ATIVA",
+   "indicadorId": null,
+   "pct": 0,
+   "investido": 2000,
+   "total": 3000,
+   "recebido": 2500,
+   "falta": 500,
+   "lucroTotal": 1000,
+   "capitalDeVolta": 2000,
+   "jurosRecebidos": null,
+   "modelo": "IPHONE 15",
+   "diasParado": 20,
+   "parcelas": [
+    {
+     "vencimento": "2026-10-20",
+     "valor": 500,
+     "desconto": 0,
+     "pago": 0
+    }
+   ],
+   "entradas": [
+    {
+     "data": "2026-10-02",
+     "valor": 2500
+    }
+   ]
+  },
+  {
+   "tipo": "EMPRESTIMO",
+   "id": 20,
+   "data": "2026-08-15",
+   "status": "ATIVA",
+   "indicadorId": 7,
+   "pct": 0.5,
+   "investido": 1000,
+   "total": 1500,
+   "recebido": 1400,
+   "falta": 100,
+   "lucroTotal": 500,
+   "capitalDeVolta": 1000,
+   "jurosRecebidos": null,
+   "modelo": null,
+   "diasParado": null,
+   "parcelas": [
+    {
+     "vencimento": "2026-09-15",
+     "valor": 1400,
+     "desconto": 0,
+     "pago": 1400
+    },
+    {
+     "vencimento": "2026-10-05",
+     "valor": 100,
+     "desconto": 0,
+     "pago": 0
+    }
+   ],
+   "entradas": [
+    {
+     "data": "2026-09-15",
+     "valor": 1400
+    }
+   ]
+  },
+  {
+   "tipo": "EMPRESTIMO",
+   "id": 30,
+   "data": "2026-10-03",
+   "status": "ATIVA",
+   "indicadorId": 7,
+   "pct": 0.5,
+   "investido": 1000,
+   "total": 1350,
+   "recebido": 150,
+   "falta": 1200,
+   "lucroTotal": 350,
+   "capitalDeVolta": 150,
+   "jurosRecebidos": 100,
+   "modelo": null,
+   "diasParado": null,
+   "parcelas": [
+    {
+     "vencimento": "2026-10-10",
+     "valor": 100,
+     "desconto": 0,
+     "pago": 100
+    },
+    {
+     "vencimento": "2026-11-10",
+     "valor": 100,
+     "desconto": 0,
+     "pago": 0
+    }
+   ],
+   "entradas": [
+    {
+     "data": "2026-10-10",
+     "valor": 100
+    },
+    {
+     "data": "2026-10-10",
+     "valor": 50
+    }
+   ]
+  },
+  {
+   "tipo": "VENDA",
+   "id": 40,
+   "data": "2026-07-01",
+   "status": "ATIVA",
+   "indicadorId": null,
+   "pct": 0,
+   "investido": 1500,
+   "total": 1200,
+   "recebido": 800,
+   "falta": 400,
+   "lucroTotal": -300,
+   "capitalDeVolta": 800,
+   "jurosRecebidos": null,
+   "modelo": "IPHONE 12",
+   "diasParado": null,
+   "parcelas": [
+    {
+     "vencimento": "2026-09-01",
+     "valor": 400,
+     "desconto": 0,
+     "pago": 0
+    }
+   ],
+   "entradas": [
+    {
+     "data": "2026-07-01",
+     "valor": 800
+    }
+   ]
+  },
+  {
+   "tipo": "EMPRESTIMO",
+   "id": 50,
+   "data": "2026-06-01",
+   "status": "QUITADA",
+   "indicadorId": 8,
+   "pct": 0.3,
+   "investido": 1000,
+   "total": 1700,
+   "recebido": 1700,
+   "falta": 0,
+   "lucroTotal": 700,
+   "capitalDeVolta": 1000,
+   "jurosRecebidos": null,
+   "modelo": null,
+   "diasParado": null,
+   "parcelas": [],
+   "entradas": [
+    {
+     "data": "2026-07-05",
+     "valor": 700
+    },
+    {
+     "data": "2026-06-10",
+     "valor": 600
+    },
+    {
+     "data": "2026-08-05",
+     "valor": 400
+    }
+   ]
+  }
+ ],
+ "extras": {
+  "hoje": "2026-10-10",
+  "caixa": 5000,
+  "estoque": 3000,
+  "aportes": 8000,
+  "repassesAPagar": 100,
+  "repassesFuturos": 50,
+  "indicadores": [
+   {
+    "id": 7,
+    "nome": "Roberto"
+   },
+   {
+    "id": 8,
+    "nome": "Ana"
+   },
+   {
+    "id": 9,
+    "nome": "Sem operação"
+   }
+  ]
+ },
+ "esperado": {
+  "hoje": "2026-10-10",
+  "resumo": {
+   "meses": [
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+   ],
+   "lucroPorMes": [
+    0,
+    0,
+    210,
+    280,
+    200,
+    550
+   ],
+   "lucroIphones": 500,
+   "lucroEmprestimos": 740,
+   "modelos": [
+    {
+     "modelo": "IPHONE 15",
+     "vendas": 1,
+     "lucroMedio": 1000,
+     "diasParado": 20
+    },
+    {
+     "modelo": "IPHONE 12",
+     "vendas": 1,
+     "lucroMedio": -300,
+     "diasParado": null
+    }
+   ]
+  },
+  "investimentoELucro": {
+   "meses": [
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+   ],
+   "investido": [
+    0,
+    1000,
+    1500,
+    1000,
+    0,
+    3000
+   ],
+   "recebido": [
+    0,
+    600,
+    1500,
+    400,
+    1400,
+    2650
+   ],
+   "lucro": [
+    0,
+    0,
+    210,
+    280,
+    200,
+    550
+   ],
+   "iphones": {
+    "investido": 3500,
+    "recebido": 3300,
+    "lucroNoBolso": 500,
+    "lucroPorVir": 500,
+    "retorno": 0.2857
+   },
+   "emprestimos": {
+    "investido": 3000,
+    "recebido": 3250,
+    "lucroNoBolso": 740,
+    "lucroPorVir": 175,
+    "retorno": 0.305
+   }
+  },
+  "capital": {
+   "emCaixa": 5000,
+   "noEstoque": 3000,
+   "vendasNaRua": 700,
+   "emprestimosNaRua": 850,
+   "total": 9550,
+   "meses": [
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10"
+   ],
+   "colocadoPorMes": [
+    0,
+    1000,
+    1500,
+    1000,
+    0,
+    3000
+   ]
+  },
+  "porIndicador": [
+   {
+    "indicadorId": null,
+    "nome": "Direto",
+    "operacoes": 2,
+    "capitalNaRua": 700,
+    "lucroTotal": 1000,
+    "parteDele": 0,
+    "suaParte": 1000
+   },
+   {
+    "indicadorId": 7,
+    "nome": "Roberto",
+    "operacoes": 2,
+    "capitalNaRua": 850,
+    "lucroTotal": 850,
+    "parteDele": 425,
+    "suaParte": 425
+   },
+   {
+    "indicadorId": 8,
+    "nome": "Ana",
+    "operacoes": 1,
+    "capitalNaRua": 0,
+    "lucroTotal": 700,
+    "parteDele": 210,
+    "suaParte": 490
+   }
+  ],
+  "controleMensal": [
+   {
+    "mes": "2026-07",
+    "previsto": 0,
+    "recebido": 0,
+    "emAtraso": 0
+   },
+   {
+    "mes": "2026-08",
+    "previsto": 0,
+    "recebido": 0,
+    "emAtraso": 0
+   },
+   {
+    "mes": "2026-09",
+    "previsto": 1800,
+    "recebido": 1400,
+    "emAtraso": 400
+   },
+   {
+    "mes": "2026-10",
+    "previsto": 700,
+    "recebido": 100,
+    "emAtraso": 100
+   },
+   {
+    "mes": "2026-11",
+    "previsto": 100,
+    "recebido": 0,
+    "emAtraso": 0
+   },
+   {
+    "mes": "2026-12",
+    "previsto": 0,
+    "recebido": 0,
+    "emAtraso": 0
+   },
+   {
+    "mes": "2027-01",
+    "previsto": 0,
+    "recebido": 0,
+    "emAtraso": 0
+   }
+  ],
+  "balancete": {
+   "caixa": 5000,
+   "estoque": 3000,
+   "aReceberVendas": 900,
+   "aReceberEmprestimos": 1300,
+   "ativo": 10200,
+   "repassesAPagar": 100,
+   "parteFuturaIndicadores": 50,
+   "passivo": 150,
+   "patrimonio": 10050,
+   "aportes": 8000
+  }
+ }
+}
