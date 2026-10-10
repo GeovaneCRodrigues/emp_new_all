@@ -37,6 +37,8 @@ import { fechamentosRoutes } from './modules/fechamentos/routes.js'
 import type { FechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
 import { equipeRoutes } from './modules/equipe/routes.js'
 import type { EquipeService } from './modules/equipe/services/equipe.service.js'
+import { caixaRoutes } from './modules/caixa/routes.js'
+import type { CaixaService } from './modules/caixa/services/caixa.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
 /** Tudo o que o app precisa vem de fora (injeção), assim os testes trocam o banco por um falso. */
@@ -54,6 +56,7 @@ export type Deps = {
   acordos?: AcordosService
   repasses?: RepassesService
   propostas?: PropostasService
+  caixa?: CaixaService
   config: ConfigService
   recebimentos: RecebimentosService
   aprovacoes: AprovacoesService
@@ -102,6 +105,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   if (deps.emprestimos) await app.register(emprestimosRoutes(deps.emprestimos, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })
   await app.register(aprovacoesRoutes(deps.aprovacoes, exigir), { prefix: '/api' })
+  if (deps.caixa) await app.register(caixaRoutes(deps.caixa, exigir), { prefix: '/api' })
   await app.register(fechamentosRoutes(deps.fechamentos, exigir), { prefix: '/api' })
   await app.register(equipeRoutes(deps.equipe, exigir), { prefix: '/api' })
   await app.register(recebimentosRoutes(deps.recebimentos, exigir, deps.limites?.recebimentosPorMinuto), { prefix: '/api' })
