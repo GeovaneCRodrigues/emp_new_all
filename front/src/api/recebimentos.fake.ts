@@ -100,6 +100,28 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
   const podeDesfazer = (s: Sessao, t: Transacao) => t.tipo === 'PARCELA' && !t.desfeita && ehUltima(t) && (s.perfil === 'ADMIN' || (t.recebidoPorId === s.usuarioId && t.data === hoje))
   const capitalAberto = (r: RegistroEmprestimo) => arred2(r.capital - r.amortizado)
 
+  /** Todas as parcelas das operações no escopo de quem pergunta (as mesmas linhas das cobranças). */
+  const parcelasDoEscopo = (s: Sessao, tipo?: AlvoApi): CobrancaApi[] => {
+    const ops: Op[] = [
+      ...(tipo === 'EMPRESTIMO' ? [] : vendas._interno.noEscopo(s).filter((r) => r.status !== 'RETOMADA' && r.status !== 'CANCELADA').map(comoOp)),
+      ...(tipo === 'VENDA' || !emprestimos ? [] : emprestimos._interno.noEscopo(s).filter((r) => r.status !== 'CANCELADA').map(comoOpEmp)),
+    ]
+    const ultimaDe = (o: Op, numero: number) => transacoes.filter((t) => t.alvo === o.alvo && t.operacaoId === o.id && t.tipo === 'PARCELA' && !t.desfeita && t.itens.some((i) => i.numero === numero)).sort((a, b) => b.id - a.id)[0]
+    const todas: CobrancaApi[] = ops.flatMap((o) =>
+      o.parcelas.map((p) => {
+        const u = ultimaDe(o, p.numero)
+        const f = falta(p)
+        return {
+          tipo: o.alvo, operacaoId: o.id, parcela: p.numero, nParcelas: o.parcelas.length, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, pago: p.pago, falta: f,
+          atrasoDias: f > 0.009 && p.vencimento < hoje ? Math.round((Date.parse(hoje) - Date.parse(p.vencimento)) / 864e5) : 0,
+          cliente: { id: o.cliente.id, nome: o.cliente.nome, fone: foneDe(o.cliente.id) }, aparelho: o.descricao, ultimaTransacaoId: u?.id ?? null, ultimoRecebimentoEm: u?.data ?? null,
+          baixaPendente: (() => { const b = vendas._interno.pedidos.find((x) => x.tipo === 'BAIXA' && x.status === 'PENDENTE' && x.alvo === o.alvo && x.operacaoId === o.id && x.parcela === p.numero); return b ? { id: b.id, valor: b.valor, por: b.solicitanteNome } : null })(),
+        }
+      }),
+    )
+    return todas
+  }
+
   const registrarCom = async (s: Sessao, quem: { id: number; nome: string } | undefined, alvo: AlvoApi, operacaoId: number, e: EntradaRecebimento, baixaId?: number): Promise<RegistradoApi> => {
       permitido(s)
       const o = doEscopo(s, alvo, operacaoId)
@@ -243,23 +265,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       const pagina = Math.max(q.pagina ?? 1, 1)
       const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       const busca = q.busca ? semAcento(q.busca).trim() : ''
-      const ops: Op[] = [
-        ...(q.tipo === 'EMPRESTIMO' ? [] : vendas._interno.noEscopo(s).filter((r) => r.status !== 'RETOMADA' && r.status !== 'CANCELADA').map(comoOp)),
-        ...(q.tipo === 'VENDA' || !emprestimos ? [] : emprestimos._interno.noEscopo(s).filter((r) => r.status !== 'CANCELADA').map(comoOpEmp)),
-      ]
-      const ultimaDe = (o: Op, numero: number) => transacoes.filter((t) => t.alvo === o.alvo && t.operacaoId === o.id && t.tipo === 'PARCELA' && !t.desfeita && t.itens.some((i) => i.numero === numero)).sort((a, b) => b.id - a.id)[0]
-      const todas: CobrancaApi[] = ops.flatMap((o) =>
-        o.parcelas.map((p) => {
-          const u = ultimaDe(o, p.numero)
-          const f = falta(p)
-          return {
-            tipo: o.alvo, operacaoId: o.id, parcela: p.numero, nParcelas: o.parcelas.length, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, pago: p.pago, falta: f,
-            atrasoDias: f > 0.009 && p.vencimento < hoje ? Math.round((Date.parse(hoje) - Date.parse(p.vencimento)) / 864e5) : 0,
-            cliente: { id: o.cliente.id, nome: o.cliente.nome, fone: foneDe(o.cliente.id) }, aparelho: o.descricao, ultimaTransacaoId: u?.id ?? null, ultimoRecebimentoEm: u?.data ?? null,
-            baixaPendente: (() => { const b = vendas._interno.pedidos.find((x) => x.tipo === 'BAIXA' && x.status === 'PENDENTE' && x.alvo === o.alvo && x.operacaoId === o.id && x.parcela === p.numero); return b ? { id: b.id, valor: b.valor, por: b.solicitanteNome } : null })(),
-          }
-        }),
-      )
+      const todas = parcelasDoEscopo(s, q.tipo)
       const aberta = (c: CobrancaApi) => c.falta > 0.009
       const daBusca = (c: CobrancaApi) => !busca || semAcento(c.cliente.nome).includes(busca)
       const daAba: Record<AbaCobranca, (c: CobrancaApi) => boolean> = {
@@ -274,6 +280,19 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         valorTotal: arred2(filtradas.reduce((x, c) => x + (aba === 'recebidas' ? c.pago : c.falta), 0)), pagina, limite,
         contagens: { atrasadas: todas.filter(daAba.atrasadas).length, hoje: todas.filter(daAba.hoje).length, proximas: todas.filter(daAba.proximas).length },
       }
+    },
+    async cronograma(s, q) {
+      if (s.perfil !== 'INDICADOR') permitido(s)
+      const mes = q.mes ?? hoje.slice(0, 7)
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new ErroApi(400, 'mes deve ser AAAA-MM')
+      if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')
+      if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
+      const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      const busca = q.busca ? semAcento(q.busca).trim() : ''
+      const itens = parcelasDoEscopo(s, q.tipo)
+        .filter((c) => c.vencimento.slice(0, 7) === mes && (!busca || semAcento(c.cliente.nome).includes(busca)))
+        .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.cliente.nome.localeCompare(b.cliente.nome) || a.tipo.localeCompare(b.tipo) || a.operacaoId - b.operacaoId || a.parcela - b.parcela)
+      return { mes, hoje, itens: itens.slice(0, 1500), cortado: itens.length > 1500 }
     },
   }
 }

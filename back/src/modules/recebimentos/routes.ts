@@ -15,5 +15,6 @@ export function recebimentosRoutes(service: RecebimentosService, auth: preHandle
     app.get('/recibos/:id', p, c.recibo)
     app.post('/recebimentos/:id/desfazer', { ...p, ...limite }, c.desfazer)
     app.get('/cobrancas', p, c.cobrancas)
+    app.get('/cronograma', p, c.cronograma)
   }
 }

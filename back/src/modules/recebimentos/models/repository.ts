@@ -43,6 +43,8 @@ export interface RecebimentosRepository {
   operacaoNoEscopo(alvo: Alvo, id: number, escopo: EscopoRecebimentos): Promise<{ id: number } | null>
   pagamentosDaOperacao(alvo: Alvo, id: number): Promise<PagamentoDaOperacao[]>
   cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; busca?: string; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
+  /** As parcelas (pagas e em aberto) que vencem entre `de` e `ate`, para o calendário; `cortado` avisa que passou do limite. */
+  cronograma(escopo: EscopoRecebimentos, f: { de: string; ate: string; tipo?: Alvo; busca?: string; limite: number }): Promise<{ itens: LinhaCobranca[]; cortado: boolean }>
   empresa(): Promise<{ nome: string; cnpj: string | null }>
 }
 
@@ -63,6 +65,14 @@ const T = {
 /** Quanto já entrou na parcela `p`: recebimentos de transações que não foram desfeitas. */
 const pagoSql = (alvo: Alvo) => `coalesce((select sum(r.valor) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${T[alvo].fk} = p.id and t.desfeita_em is null), 0)`
 
+/** Uma parcela como vem da consulta de cobranças (tudo texto/numérico do banco). */
+type LinhaBruta = { tipo: Alvo; operacao_id: number; numero: number; n_parcelas: string; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; pago: string; falta: string; cliente_id: number; cliente_nome: string; cliente_fone: string; descricao: string; baixa: { id: number; valor: number; por: string } | null; ultima: number | null; ultima_data: Date | string | null }
+const paraLinha = (l: LinhaBruta): LinhaCobranca => ({
+    tipo: l.tipo, operacaoId: l.operacao_id, numero: l.numero, nParcelas: Number(l.n_parcelas), vencimento: dia(l.vencimento)!, vencimentoOriginal: dia(l.vencimento_original), valor: Number(l.valor),
+    pago: Number(l.pago), falta: Number(l.falta), cliente: { id: l.cliente_id, nome: l.cliente_nome, fone: l.cliente_fone }, descricao: l.descricao, ultimaTransacaoId: l.ultima, ultimoRecebimentoEm: dia(l.ultima_data),
+    baixaPendente: l.baixa ? { id: l.baixa.id, valor: Number(l.baixa.valor), por: l.baixa.por } : null,
+})
+
 export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
   // o indicador só LÊ (a lista de cobranças das operações dele); os registros de dinheiro continuam só do admin e do cobrador
   const escopoSql = (q: Knex.QueryBuilder, e: EscopoRecebimentos) => {
@@ -70,6 +80,25 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
     else if (e.tipo === 'INDICADOR') q.where('o.indicador_id', e.indicadorId)
     return q
   }
+
+  // uma consulta por tipo de operação, com as mesmas colunas; depois as duas são unidas
+  const linhasDeCobranca = (alvo: Alvo, escopo: EscopoRecebimentos) => {
+      const t = T[alvo]
+      const q = db(`${t.parcela} as p`).join(`${t.op} as o`, 'o.id', `p.${t.opFk}`).join('clientes as c', 'c.id', 'o.cliente_id')
+      if (alvo === 'VENDA') q.join('bens as b', 'b.id', 'o.bem_id').whereNotIn('o.status', ['RETOMADA', 'CANCELADA'])
+      else q.whereNot('o.status', 'CANCELADA')
+      escopoSql(q, escopo)
+      return q.select(
+        db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone',
+        db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : `${NOME_EMPRESTIMO_SQL.replace(/\be\./g, 'o.')} as descricao`),
+        db.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n_parcelas`),
+        db.raw(`${pagoSql(alvo)} as pago`),
+        db.raw(`(p.valor - ${pagoSql(alvo)} - p.desconto) as falta`),
+        db.raw(`(select max(t.id) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima`),
+        db.raw(`(select max(t.data_recebimento) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima_data`),
+        db.raw(`(select json_build_object('id', a.id, 'valor', a.valor, 'por', u.nome) from aprovacoes a join users u on u.id = a.solicitado_por where a.${t.fk} = p.id and a.tipo = 'BAIXA' and a.status = 'PENDENTE' limit 1) as baixa`),
+      )
+    }
 
   return {
     async emTransacao(fn) {
@@ -209,24 +238,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
     },
 
     async cobrancas(escopo, f) {
-      // uma consulta por tipo de operação, com as mesmas colunas; depois as duas são unidas
-      const linhas = (alvo: Alvo) => {
-        const t = T[alvo]
-        const q = db(`${t.parcela} as p`).join(`${t.op} as o`, 'o.id', `p.${t.opFk}`).join('clientes as c', 'c.id', 'o.cliente_id')
-        if (alvo === 'VENDA') q.join('bens as b', 'b.id', 'o.bem_id').whereNotIn('o.status', ['RETOMADA', 'CANCELADA'])
-        else q.whereNot('o.status', 'CANCELADA')
-        escopoSql(q, escopo)
-        return q.select(
-          db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone',
-          db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : `${NOME_EMPRESTIMO_SQL.replace(/\be\./g, 'o.')} as descricao`),
-          db.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n_parcelas`),
-          db.raw(`${pagoSql(alvo)} as pago`),
-          db.raw(`(p.valor - ${pagoSql(alvo)} - p.desconto) as falta`),
-          db.raw(`(select max(t.id) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima`),
-          db.raw(`(select max(t.data_recebimento) from recebimentos r join transacoes_recebimento t on t.id = r.transacao_id where r.${t.fk} = p.id and t.desfeita_em is null) as ultima_data`),
-          db.raw(`(select json_build_object('id', a.id, 'valor', a.valor, 'por', u.nome) from aprovacoes a join users u on u.id = a.solicitado_por where a.${t.fk} = p.id and a.tipo = 'BAIXA' and a.status = 'PENDENTE' limit 1) as baixa`),
-        )
-      }
+      const linhas = (alvo: Alvo) => linhasDeCobranca(alvo, escopo)
       const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
       const h = f.hoje, mais7 = addDia(h, 7), mais8 = addDia(h, 8), mais45 = addDia(h, 45), menos30 = addDia(h, -30)
       const filtroAba = (q: Knex.QueryBuilder) => {
@@ -241,19 +253,24 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const fonte = () => db.from(db.raw('(' + tipos.map((a) => `(${linhas(a).toQuery()})`).join(' union all ') + ') as u'))
       const [soma] = await filtroAba(fonte()).select<{ n: string; total: string }[]>(db.raw('count(*) as n'), db.raw(f.aba === 'recebidas' ? 'coalesce(sum(u.pago), 0) as total' : 'coalesce(sum(u.falta), 0) as total'))
       const ordem = f.aba === 'recebidas' ? 'u.ultima_data desc, u.operacao_id desc, u.numero desc' : 'u.vencimento asc, u.tipo asc, u.operacao_id asc, u.numero asc'
-      const ls = await filtroAba(fonte()).select<{ tipo: Alvo; operacao_id: number; numero: number; n_parcelas: string; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; pago: string; falta: string; cliente_id: number; cliente_nome: string; cliente_fone: string; descricao: string; baixa: { id: number; valor: number; por: string } | null; ultima: number | null; ultima_data: Date | string | null }[]>('u.*')
+      const ls = await filtroAba(fonte()).select<LinhaBruta[]>('u.*')
         .orderByRaw(ordem).limit(f.limite).offset(f.offset)
       const [c] = await fonte().select<{ atrasadas: string; hoje: string; proximas: string }[]>(
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento < ?) as atrasadas', [h]),
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento between ? and ?) as hoje', [h, mais7]),
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento between ? and ?) as proximas', [mais8, mais45]),
       )
-      const itens: LinhaCobranca[] = ls.map((l) => ({
-        tipo: l.tipo, operacaoId: l.operacao_id, numero: l.numero, nParcelas: Number(l.n_parcelas), vencimento: dia(l.vencimento)!, vencimentoOriginal: dia(l.vencimento_original), valor: Number(l.valor),
-        pago: Number(l.pago), falta: Number(l.falta), cliente: { id: l.cliente_id, nome: l.cliente_nome, fone: l.cliente_fone }, descricao: l.descricao, ultimaTransacaoId: l.ultima, ultimoRecebimentoEm: dia(l.ultima_data),
-        baixaPendente: l.baixa ? { id: l.baixa.id, valor: Number(l.baixa.valor), por: l.baixa.por } : null,
-      }))
+      const itens = ls.map(paraLinha)
       return { itens, total: Number(soma.n), valorTotal: Number(soma.total), contagens: { atrasadas: Number(c.atrasadas), hoje: Number(c.hoje), proximas: Number(c.proximas) } }
+    },
+
+    async cronograma(escopo, f) {
+      const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
+      const q = db.from(db.raw('(' + tipos.map((a) => `(${linhasDeCobranca(a, escopo).toQuery()})`).join(' union all ') + ') as u')).whereRaw('u.vencimento between ? and ?', [f.de, f.ate])
+      // busca pelo nome do cliente, sem acento e sem maiúscula (a busca já chega normalizada)
+      if (f.busca) q.whereRaw("translate(lower(u.cliente_nome), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') like ? escape '\\'", [`%${f.busca.replace(/[\\%_]/g, '\\$&')}%`])
+      const ls = await q.select<LinhaBruta[]>('u.*').orderByRaw('u.vencimento asc, u.cliente_nome asc, u.tipo asc, u.operacao_id asc, u.numero asc').limit(f.limite + 1)
+      return { itens: ls.slice(0, f.limite).map(paraLinha), cortado: ls.length > f.limite }
     },
 
     async empresa() {

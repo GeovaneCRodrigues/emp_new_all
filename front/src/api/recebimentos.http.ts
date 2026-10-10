@@ -30,5 +30,6 @@ export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): 
     pagamentos: (_s, alvo, id) => chamar(`/${CAMINHO[alvo]}/${id}/pagamentos`),
     desfazer: (_s, id) => chamar(`/recebimentos/${id}/desfazer`, { method: 'POST' }),
     cobrancas: (_s, q) => chamar('/cobrancas' + qs(q)),
+    cronograma: (_s, q) => chamar('/cronograma' + qs(q)),
   }
 }

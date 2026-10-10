@@ -5,6 +5,7 @@ import type { AbaCobranca, AlvoApi, CobrancaApi, ListaCobrancasApi } from '@/api
 import { recebimentosApi } from '@/api/recursos'
 import AvisarRecebiForm from '@/components/AvisarRecebiForm.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
+import CronogramaCalendario from '@/components/CronogramaCalendario.vue'
 import Seg from '@/components/Seg.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
@@ -14,6 +15,9 @@ import { fmt } from '@/domain/format'
 const { sessao } = useApp()
 const { atualizar } = useAtrasadas()
 
+/** Lista (por situação) ou Calendário (mês a mês) */
+const vista = ref<'lista' | 'calendario'>('lista')
+const vistas = [{ id: 'lista', label: 'Lista' }, { id: 'calendario', label: 'Calendário' }]
 const aba = ref<AbaCobranca>('atrasadas')
 const tipo = ref<'' | AlvoApi>('')
 const itens = ref<CobrancaApi[]>([])
@@ -55,20 +59,24 @@ const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { i
 </script>
 
 <template>
-  <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
-  <Seg v-model="aba as string" :itens="abas" />
-  <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
-  <div class="card">
-    <div class="totbar">
-      <span class="small">{{ total }} {{ total === 1 ? 'parcela' : 'parcelas' }} {{ legenda }}</span>
-      <b class="num" data-testid="cobrancas-total" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(valorTotal) }}</b>
+  <Seg v-model="vista as string" :itens="vistas" data-testid="vista-cobranca" />
+  <CronogramaCalendario v-if="vista === 'calendario'" indicador />
+  <template v-else>
+    <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
+    <Seg v-model="aba as string" :itens="abas" />
+    <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
+    <div class="card">
+      <div class="totbar">
+        <span class="small">{{ total }} {{ total === 1 ? 'parcela' : 'parcelas' }} {{ legenda }}</span>
+        <b class="num" data-testid="cobrancas-total" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(valorTotal) }}</b>
+      </div>
+      <div class="list">
+        <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" indicador @avisar="aviso?.abrir($event)" />
+        <div v-if="!itens.length && !carregando && !erro" class="empty">Nada aqui.</div>
+        <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
+      </div>
     </div>
-    <div class="list">
-      <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" indicador @avisar="aviso?.abrir($event)" />
-      <div v-if="!itens.length && !carregando && !erro" class="empty">Nada aqui.</div>
-      <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
-    </div>
-  </div>
-  <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
-  <AvisarRecebiForm ref="aviso" @enviado="carregar()" />
+    <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+    <AvisarRecebiForm ref="aviso" @enviado="carregar()" />
+  </template>
 </template>
