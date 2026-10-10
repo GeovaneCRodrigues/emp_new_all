@@ -36,6 +36,8 @@ export interface PagamentoNovo {
   valorTotal: number
   /** o indicador que cobrou direto do cliente (o dinheiro não passou pela mão da loja) */
   cobradoPorIndicadorLegacyId: number | null
+  /** o sistema antigo quase nunca registrou a forma; null = não sabemos (o recibo sai como Pix e fica marcado como estimado) */
+  forma: 'PIX' | 'DINHEIRO' | null
   itens: ItemPagamentoNovo[]
   resumo: ResumoReciboNovo
   criadoEm: string | null
@@ -220,7 +222,7 @@ export function transformarOperacao(op: OperacaoAntiga, estado: EstadoAntigo, ho
     const em = abertas().sort((a, b) => a.numero - b.numero)
     const primeiro = parcelas.find((p) => p.numero === itens[0].numeroParcela)!
     pagamentos.push({
-      legacyId: r.id, data: r.dataPagamento, valorTotal: arred(itens.reduce((x, i) => x + i.valor, 0)), cobradoPorIndicadorLegacyId: r.cobradoPor === 'INDICADOR' ? op.indicadorId : null, itens, criadoEm: r.criadoEm,
+      legacyId: r.id, data: r.dataPagamento, valorTotal: arred(itens.reduce((x, i) => x + i.valor, 0)), cobradoPorIndicadorLegacyId: r.cobradoPor === 'INDICADOR' ? op.indicadorId : null, forma: r.forma ?? null, itens, criadoEm: r.criadoEm,
       resumo: {
         tipo: 'PARCELAS', referencia: referencia(itens.map((i) => i.numeroParcela), parcelas.length),
         faltaDepois: arred(parcelas.reduce((x, p) => x + Math.max(0, faltaDe(p)), 0)),
