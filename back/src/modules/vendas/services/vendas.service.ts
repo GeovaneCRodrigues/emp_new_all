@@ -1,3 +1,4 @@
+import { termoBusca } from '../../../shared/busca.js'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import { imeiValido, soDigitos } from '../../../shared/documentos.js'
 import type { Sessao } from '../../../shared/perfis.js'
@@ -11,7 +12,7 @@ import { contas } from './contas.js'
 
 export type Entrada = Record<string, unknown>
 export type VendaCalculada = { venda: Venda } & ReturnType<typeof contas>
-export type FiltroVendas = { status?: string; pagina?: number; limite?: number }
+export type FiltroVendas = { status?: string; busca?: string; pagina?: number; limite?: number }
 export type ResultadoLista = { itens: VendaCalculada[]; total: number; pagina: number; limite: number }
 export type ResumoVendas = { aReceber: number; capitalNaRua: number; lucroPorVir: number }
 
@@ -201,7 +202,7 @@ export function createVendasService(d: Dependencias): VendasService {
       const limite = Math.min(Math.max(Math.trunc(f.limite ?? 20) || 20, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(f.pagina ?? 1) || 1, 1)
       if (f.status && !['ATIVA', 'ATRASO', 'QUITADA', 'RETOMADA'].includes(f.status)) throw requisicaoInvalida('status inválido')
-      const todas = (await d.vendas.listar(escopoDe(s))).map(calcular)
+      const todas = (await d.vendas.listar(escopoDe(s), termoBusca(f.busca))).map(calcular)
       const filtradas = todas.filter((c) => {
         if (!f.status) return true
         if (f.status === 'ATRASO') return c.status === 'ATIVA' && c.atrasadas > 0

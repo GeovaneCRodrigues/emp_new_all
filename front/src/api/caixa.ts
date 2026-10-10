@@ -39,7 +39,7 @@ export interface EntradaLancamento { tipo: TipoLancamento; valor: number; /** pa
 
 export interface CaixaApi {
   /** O caixa da loja (só o administrador). */
-  ver(s: Sessao, q?: { pagina?: number; limite?: number }): Promise<CaixaLojaApi>
+  ver(s: Sessao, q?: { pagina?: number; limite?: number; busca?: string }): Promise<CaixaLojaApi>
   lancar(s: Sessao, e: EntradaLancamento): Promise<LancamentoApi>
   editar(s: Sessao, id: number, e: Partial<EntradaLancamento>): Promise<LancamentoApi>
   excluir(s: Sessao, id: number): Promise<void>

@@ -192,3 +192,31 @@ describe('caixa da loja (demonstração)', () => {
     })
   })
 })
+
+describe('busca no extrato (mesmas regras do backend)', () => {
+  it('acha pela descrição do lançamento, sem acento nem maiúscula', async () => {
+    await lanc({ tipo: 'DESPESA', valor: 80, obs: 'Conta de LUZ da Loja' })
+    const r = await api.ver(ADMIN, { busca: 'luz loja', limite: 100 })
+    expect(r.itens.map((m) => m.titulo)).toEqual(['Conta de LUZ da Loja'])
+    expect(r.total).toBe(1)
+  })
+  it('busca em branco traz o extrato inteiro; sem resultado fica vazio', async () => {
+    const todo = (await api.ver(ADMIN, { limite: 100 })).total
+    expect((await api.ver(ADMIN, { busca: '  ', limite: 100 })).total).toBe(todo)
+    expect(await api.ver(ADMIN, { busca: 'zzzxyz', limite: 100 })).toMatchObject({ itens: [], total: 0 })
+  })
+  it('o saldo e o resumo do mês não mudam com a busca (ela só filtra o extrato)', async () => {
+    await lanc({ tipo: 'DESPESA', valor: 80, obs: 'Conta de luz' })
+    const todo = await api.ver(ADMIN, { limite: 100 })
+    const achou = await api.ver(ADMIN, { busca: 'luz', limite: 100 })
+    expect(achou).toMatchObject({ saldo: todo.saldo, entrouMes: todo.entrouMes, saiuMes: todo.saiuMes })
+    expect(achou.total).toBeLessThan(todo.total)
+  })
+  it('acha pelo cliente de um recebimento/venda', async () => {
+    await venda(3)
+    const todo = await api.ver(ADMIN, { limite: 100 })
+    const cliente = todo.itens.find((m) => m.categoria === 'ENTRADA_VENDA')!.titulo.replace('Entrada · ', '').split(' ')[0]
+    const r = await api.ver(ADMIN, { busca: cliente, limite: 100 })
+    expect(r.itens.some((m) => m.categoria === 'ENTRADA_VENDA')).toBe(true)
+  })
+})

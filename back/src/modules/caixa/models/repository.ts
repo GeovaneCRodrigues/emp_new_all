@@ -1,10 +1,11 @@
 import type { Knex } from 'knex'
+import { filtrarPorTexto } from '../../../shared/busca.js'
 import { NOME_EMPRESTIMO_SQL } from '../../../shared/sql.js'
 import type { LancamentoManual, Movimento, NovoLancamento, ResumoCaixa, TipoManual } from './types.js'
 
 export interface CaixaRepository {
   resumo(f: { hoje: string; mesIni: string; mesFim: string }): Promise<ResumoCaixa>
-  extrato(f: { hoje: string; limite: number; offset: number }): Promise<{ itens: Movimento[]; total: number }>
+  extrato(f: { hoje: string; limite: number; offset: number; busca?: string }): Promise<{ itens: Movimento[]; total: number }>
   buscarManual(id: number): Promise<LancamentoManual | null>
   criarManual(d: NovoLancamento): Promise<LancamentoManual>
   atualizarManual(id: number, d: { tipo: TipoManual; valor: number; data: string; obs: string | null }): Promise<LancamentoManual>
@@ -80,8 +81,9 @@ export function createCaixaRepository(db: Knex): CaixaRepository {
 
     async extrato(f) {
       const marcoZero = await marco()
-      const [{ n }] = await contados(f.hoje, marcoZero).select<{ n: string }[]>(db.raw('count(*) as n'))
-      const ls = await contados(f.hoje, marcoZero).select<{ chave: string; data: Date | string; valor: string; entrada: boolean; categoria: Movimento['categoria']; titulo: string; sub: string; manual_id: number | null }[]>('m.*')
+      const achados = () => filtrarPorTexto(contados(f.hoje, marcoZero), ['m.titulo', 'm.sub'], f.busca)
+      const [{ n }] = await achados().select<{ n: string }[]>(db.raw('count(*) as n'))
+      const ls = await achados().select<{ chave: string; data: Date | string; valor: string; entrada: boolean; categoria: Movimento['categoria']; titulo: string; sub: string; manual_id: number | null }[]>('m.*')
         .orderByRaw('m.data desc, m.chave desc').limit(f.limite).offset(f.offset)
       return {
         total: Number(n),

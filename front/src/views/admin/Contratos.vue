@@ -4,10 +4,12 @@ import { ErroApi } from '@/api/clientes'
 import type { ContratoItemApi, EmpresaApi, ListaContratosApi, ModeloApi, PreviaApi } from '@/api/contratos'
 import { contratosApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
+import CampoBusca from '@/components/CampoBusca.vue'
 import ContratoFicha from '@/components/ContratoFicha.vue'
 import Icon from '@/components/Icon.vue'
 import Seg from '@/components/Seg.vue'
 import { useApp } from '@/composables/useApp'
+import { casaBusca } from '@/domain/busca'
 import { dmy, moneyBR, numBR } from '@/domain/format'
 
 /** Contratos das vendas de iPhone: a lista com o status, o texto do modelo e os dados da empresa (só o administrador). */
@@ -18,6 +20,7 @@ const lista = ref<ListaContratosApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 const filtro = ref('TODOS')
+const busca = ref('') // a lista vem inteira: a busca só esconde linhas (os números do topo seguem sendo os de todos)
 const aberto = ref<number | null>(null)
 
 let pedido = 0
@@ -34,7 +37,7 @@ const ABAS = computed(() => [
   { id: 'empresa', label: 'Empresa e taxas', icon: 'landmark' },
 ])
 const FILTROS = computed(() => [{ id: 'TODOS', label: 'Todos' }, { id: 'ESPERANDO', label: `Esperando · ${lista.value?.resumo.esperando ?? 0}` }, { id: 'ASSINADO', label: 'Assinados' }])
-const visiveis = computed(() => (lista.value?.itens ?? []).filter((c) => (filtro.value === 'ASSINADO' ? c.status === 'ASSINADO' : filtro.value === 'ESPERANDO' ? c.status !== 'ASSINADO' && c.vendaStatus !== 'RETOMADA' && c.vendaStatus !== 'CANCELADA' : true)))
+const visiveis = computed(() => (lista.value?.itens ?? []).filter((c) => (filtro.value === 'ASSINADO' ? c.status === 'ASSINADO' : filtro.value === 'ESPERANDO' ? c.status !== 'ASSINADO' && c.vendaStatus !== 'RETOMADA' && c.vendaStatus !== 'CANCELADA' : true)).filter((c) => casaBusca([c.clienteNome, c.aparelho, c.numero], busca.value)))
 const statusChip = (c: ContratoItemApi) => (c.status === 'ASSINADO' ? { cls: 'c-ok', txt: 'assinado' } : c.vendaStatus === 'RETOMADA' ? { cls: 'c-neu', txt: 'venda retomada' } : { cls: 'c-warn', txt: 'esperando assinatura' })
 
 // ---------- modelo ----------
@@ -115,6 +118,7 @@ watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo(); if (a ==
         <div><div class="lbl">Esperando</div><div class="val num" :style="lista.resumo.esperando ? 'color: var(--warn)' : ''" data-testid="ct-esperando">{{ lista.resumo.esperando }}</div></div>
         <div><div class="lbl">Com seguro</div><div class="val num" data-testid="ct-seguro">{{ lista.resumo.comSeguro }}</div></div>
       </div>
+      <CampoBusca v-model="busca" placeholder="Cliente, aparelho ou número" rotulo="Buscar contrato" />
       <Seg v-model="filtro" :itens="FILTROS" data-testid="ct-filtro" />
       <div class="card list" data-testid="ct-lista">
         <button v-for="c in visiveis" :key="c.id" class="li" :data-contrato="c.id" :data-status="c.status" @click="aberto = c.id">
@@ -122,7 +126,7 @@ watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo(); if (a ==
           <span class="mid"><span class="t" style="display: block">{{ c.clienteNome }}</span><span class="s" style="display: block">Nº {{ c.numero }} · {{ c.aparelho }} · {{ dmy(c.dataVenda) }}{{ c.seguro ? ' · com seguro' : '' }}</span></span>
           <span class="chip" :class="statusChip(c).cls">{{ statusChip(c).txt }}</span>
         </button>
-        <div v-if="!visiveis.length" class="empty" data-testid="ct-vazio">{{ lista.itens.length ? 'Nada aqui.' : 'Nenhum contrato ainda. Cada venda nova gera o seu.' }}</div>
+        <div v-if="!visiveis.length" class="empty" data-testid="ct-vazio">{{ busca.trim() ? 'Nenhum contrato com essa busca.' : lista.itens.length ? 'Nada aqui.' : 'Nenhum contrato ainda. Cada venda nova gera o seu.' }}</div>
       </div>
       <div class="small">As vendas antigas, trazidas do sistema anterior, não tinham contrato e não aparecem aqui.</div>
     </template>

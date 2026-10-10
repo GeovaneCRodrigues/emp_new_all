@@ -83,7 +83,7 @@ export interface JurosApi { pct: number; maxParcelas: number }
 
 export interface VendasApi {
   criar(s: Sessao, e: EntradaVenda): Promise<VendaApi>
-  listar(s: Sessao, q: { status?: string; pagina?: number; limite?: number }): Promise<ListaVendas>
+  listar(s: Sessao, q: { status?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaVendas>
   obter(s: Sessao, id: number): Promise<VendaApi>
   resumo(s: Sessao): Promise<ResumoVendasApi>
   juros(s: Sessao): Promise<JurosApi>

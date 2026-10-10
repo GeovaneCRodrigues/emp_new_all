@@ -5,6 +5,7 @@ import type { AbaCobranca, AlvoApi, CobrancaApi, ListaCobrancasApi } from '@/api
 import type { EmprestimoApi } from '@/api/emprestimos'
 import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
+import CampoBusca from '@/components/CampoBusca.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
@@ -12,6 +13,7 @@ import Seg from '@/components/Seg.vue'
 import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
+import { useBusca } from '@/composables/useBusca'
 import { fmt } from '@/domain/format'
 
 const { sessao } = useApp()
@@ -20,6 +22,7 @@ const { atualizar } = useAtrasadas()
 const aba = ref<AbaCobranca>('atrasadas')
 /** '' = tudo (iPhones e empréstimos juntos) */
 const tipo = ref<'' | AlvoApi>('')
+const { busca } = useBusca(() => carregar())
 const itens = ref<CobrancaApi[]>([])
 const total = ref(0)
 const valorTotal = ref(0)
@@ -38,7 +41,7 @@ async function carregar(mais = false) {
   erro.value = ''
   try {
     const p = mais ? pagina.value + 1 : 1
-    const r = await recebimentosApi.cobrancas(sessao.value, { aba: aba.value, ...(tipo.value ? { tipo: tipo.value } : {}), pagina: p, limite: 20 })
+    const r = await recebimentosApi.cobrancas(sessao.value, { aba: aba.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(busca.value.trim() ? { busca: busca.value.trim() } : {}), pagina: p, limite: 20 })
     if (meu !== pedido) return
     itens.value = mais ? [...itens.value, ...r.itens] : r.itens
     total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens; pagina.value = p
@@ -75,6 +78,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
 </script>
 
 <template>
+  <CampoBusca v-model="busca" placeholder="Buscar cliente" />
   <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
   <Seg v-model="aba as string" :itens="abas" />
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
@@ -85,7 +89,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
     </div>
     <div class="list">
       <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" />
-      <div v-if="!itens.length && !carregando && !erro" class="empty">Nada aqui.</div>
+      <div v-if="!itens.length && !carregando && !erro" class="empty">{{ busca.trim() ? 'Ninguém com esse nome nesta lista.' : 'Nada aqui.' }}</div>
       <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
     </div>
   </div>

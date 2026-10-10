@@ -102,3 +102,28 @@ describe('ler e escopo', () => {
     expect(Object.keys(await api.resumo(COBR))).toEqual(['aReceber'])
   })
 })
+
+describe('busca (mesmas regras do backend)', () => {
+  it('sem busca traz tudo; acha pelo cliente (sem acento/maiúscula) e pelo indicador', async () => {
+    await emprestar(ADMIN)
+    await emprestar(ADMIN, { clienteId: 4 })
+    const tudo = (await api.listar(ADMIN, { limite: 100 })).total
+    expect(tudo).toBeGreaterThanOrEqual(2)
+    expect((await api.listar(ADMIN, { busca: '  ', limite: 100 })).total).toBe(tudo)
+    const alvo = (await api.listar(ADMIN, { limite: 100 })).itens[0]
+    const palavra = alvo.cliente.nome.split(' ')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    const r = await api.listar(ADMIN, { busca: palavra, limite: 100 })
+    expect(r.itens.some((e) => e.id === alvo.id)).toBe(true)
+    expect(r.total).toBeLessThanOrEqual(tudo)
+  })
+  it('todas as palavras têm de aparecer; nada achado = lista vazia', async () => {
+    await emprestar(ADMIN)
+    expect(await api.listar(ADMIN, { busca: 'zzzxyz qwerty', limite: 100 })).toMatchObject({ itens: [], total: 0 })
+  })
+  it('combina com o status e o total acompanha', async () => {
+    const e = await emprestar(ADMIN)
+    const nome = e.cliente.nome.split(' ')[0]
+    expect((await api.listar(ADMIN, { busca: nome, status: 'ATIVA', limite: 100 })).itens.some((x) => x.id === e.id)).toBe(true)
+    expect((await api.listar(ADMIN, { busca: nome, status: 'QUITADA', limite: 100 })).itens.some((x) => x.id === e.id)).toBe(false)
+  })
+})
