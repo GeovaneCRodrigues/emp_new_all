@@ -6,7 +6,7 @@ import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import { contas } from '../../vendas/services/contas.js'
 import type { EmprestimosRepository } from '../models/repository.js'
-import type { Emprestimo, EscopoEmprestimos, ModalidadeEmprestimo, Periodicidade } from '../models/types.js'
+import type { Emprestimo, EscopoEmprestimos, ModalidadeEmprestimo, ModoDivisao, Periodicidade } from '../models/types.js'
 import { planoEmprestimo, primeiroVencimentoPadrao, totalDoPlano } from './calculo.js'
 
 export type Entrada = Record<string, unknown>
@@ -93,6 +93,12 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         primeira = e.primeiroVencimento
       }
       const indicadorId = e.indicadorId === undefined || e.indicadorId === null ? null : inteiro(e.indicadorId, 'indicadorId', 1, 2 ** 31 - 1)
+      let modoDivisao: ModoDivisao = 'CAPITAL_PRIMEIRO'
+      if (e.modoDivisao !== undefined && e.modoDivisao !== null) {
+        if (e.modoDivisao !== 'CAPITAL_PRIMEIRO' && e.modoDivisao !== 'JUROS_MENSAL') throw requisicaoInvalida('modoDivisao deve ser CAPITAL_PRIMEIRO ou JUROS_MENSAL')
+        if (e.modoDivisao === 'JUROS_MENSAL' && (modalidade !== 'JUROS' || indicadorId === null)) throw requisicaoInvalida('Dividir a cada pagamento só vale para empréstimo só juros com indicador')
+        modoDivisao = e.modoDivisao
+      }
       let observacoes: string | null = null
       if (e.observacoes !== undefined && e.observacoes !== null && e.observacoes !== '') {
         if (typeof e.observacoes !== 'string' || e.observacoes.trim().length > 500) throw requisicaoInvalida('observações: no máximo 500 letras')
@@ -111,7 +117,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         const id = await tx.criar({
           clienteId: cliente.id, indicadorId: indicador?.id ?? null,
           // o % do indicador fica congelado neste empréstimo
-          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, observacoes,
+          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, observacoes, modoDivisao,
         })
         await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa, n, data, periodicidade, primeira }).map((p, i) => ({ numero: i + 1, ...p })))
         return id
@@ -121,7 +127,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const calc = calcular(emp)
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'EMPRESTIMO_CRIADO', entidade: 'emprestimo', entidadeId: id,
-        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, periodicidade, dataEmprestimo: data, primeiroVencimento: emp.parcelas[0]?.vencimento ?? null, parcelas: emp.parcelas.length, total: calc.total },
+        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, periodicidade, dataEmprestimo: data, modoDivisao, primeiroVencimento: emp.parcelas[0]?.vencimento ?? null, parcelas: emp.parcelas.length, total: calc.total },
       })
       await d.sincronizarNiveis?.().catch((err) => d.log?.('Falha ao sincronizar os níveis dos indicadores', err))
       return calc

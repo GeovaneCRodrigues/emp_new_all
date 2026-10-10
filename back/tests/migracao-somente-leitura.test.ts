@@ -26,9 +26,9 @@ describe('o leitor do sistema antigo é somente leitura', () => {
     enviadas.length = 0
     const { abrirFonteMysql } = await import('../src/migracao/fonte-mysql.js')
     const f = await abrirFonteMysql('mysql://x:y@127.0.0.1:3307/emp')
-    await f.indicadores(); await f.clientes()
+    await f.indicadores(); await f.clientes(); await f.estadoOperacoes()
     await f.fechar()
-    expect(enviadas.length).toBeGreaterThanOrEqual(4)
+    expect(enviadas.length).toBeGreaterThanOrEqual(15)
     for (const sql of enviadas.slice(1)) {
       expect(sql, sql).toMatch(/^select\b/i)
       expect(sql, sql).not.toMatch(PROIBIDAS)
@@ -40,7 +40,7 @@ describe('o leitor do sistema antigo é somente leitura', () => {
     const { readFileSync } = await import('node:fs')
     const fonte = readFileSync(new URL('../src/migracao/fonte-mysql.ts', import.meta.url), 'utf8')
     const sqls = [...fonte.matchAll(/(?:ler<[^>]*>|query)\(\s*[`'"]([^`'"]+)/g)].map((m) => m[1].trim())
-    expect(sqls.length).toBeGreaterThanOrEqual(3)
+    expect(sqls.length).toBeGreaterThanOrEqual(14)
     for (const sql of sqls) expect(sql, sql).toMatch(/^(select|set session transaction read only)/i)
   })
 

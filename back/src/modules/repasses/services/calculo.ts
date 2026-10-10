@@ -18,6 +18,11 @@ export type OperacaoRepasse = {
   total: number
   descontos: number
   recebido: number
+  /**
+   * Só no modo JUROS_MENSAL do só juros: quanto do que entrou foi JURO. Aí o indicador recebe o % dele sobre os juros a cada
+   * pagamento, sem esperar o capital voltar. Sem isto (null), vale a regra normal: depois que o capital voltou.
+   */
+  jurosRecebidos?: number | null
 }
 
 export type OperacaoComRepasse = OperacaoRepasse & {
@@ -36,10 +41,10 @@ export type OperacaoComRepasse = OperacaoRepasse & {
 }
 
 /** A parte do indicador numa operação: a prevista (se tudo for pago) e a já liberada (o que passou do capital). */
-export function partesDoIndicador(o: { total: number; descontos: number; recebido: number; investido: number; pct: number }) {
+export function partesDoIndicador(o: { total: number; descontos: number; recebido: number; investido: number; pct: number; jurosRecebidos?: number | null }) {
   return {
     parte: arred2(Math.max(0, o.total - o.descontos - o.investido) * o.pct),
-    liberado: arred2(Math.max(0, o.recebido - o.investido) * o.pct),
+    liberado: arred2(Math.max(0, o.jurosRecebidos ?? o.recebido - o.investido) * o.pct),
   }
 }
 
