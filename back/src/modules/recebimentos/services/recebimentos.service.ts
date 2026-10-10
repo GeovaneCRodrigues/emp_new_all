@@ -35,6 +35,7 @@ export type Recibo = {
 
 export type Registrado = { recibo: Recibo; efeitos: EfeitoRecebimento[]; quitada: boolean; pedidoDescontoId: number | null }
 export type PagamentoView = { transacaoId: number; numero: string; data: string; forma: FormaPagamento; valor: number; recebidoPor: string; referencia: string; tipo: 'ENTRADA' | 'PARCELA'; desfeita: boolean; podeDesfazer: boolean }
+export type ResultadoCronograma = { mes: string; hoje: string; itens: (LinhaCobranca & { atrasoDias: number })[]; cortado: boolean }
 export type ListaCobrancas = { itens: (LinhaCobranca & { atrasoDias: number })[]; total: number; valorTotal: number; pagina: number; limite: number; contagens: { atrasadas: number; hoje: number; proximas: number } }
 
 export type RecebimentosService = {
@@ -45,12 +46,16 @@ export type RecebimentosService = {
   pagamentos(s: Sessao, alvo: Alvo, operacaoId: number): Promise<PagamentoView[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
   cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
+  /** O calendário do mês: as parcelas (pagas e em aberto) que vencem no mês, no escopo de quem pergunta. */
+  cronograma(s: Sessao, q: { mes?: string; tipo?: string; busca?: string }): Promise<ResultadoCronograma>
 }
 
 const FORMAS: FormaPagamento[] = ['PIX', 'DINHEIRO', 'CARTAO']
 const NOME_FORMA: Record<FormaPagamento, string> = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' }
 const ABAS: Aba[] = ['atrasadas', 'hoje', 'proximas', 'recebidas']
 const LIMITE_MAX = 100
+/** Um mês inteiro cabe numa chamada; passou disso, a resposta avisa que foi cortada. */
+const LIMITE_CRONOGRAMA = 1500
 const DINHEIRO_MAX = 100_000_000
 const DATA = /^\d{4}-\d{2}-\d{2}$/
 
@@ -299,6 +304,21 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         return { valor: t.valorTotal, parcelas: recs.map((r) => r.numero) }
       })
       await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'RECEBIMENTO_DESFEITO', entidade: op.alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: op.id, antes: { transacaoId, ...feito } })
+    },
+
+    async cronograma(s, q) {
+      const escopo = escopoLeitura(s)
+      const dia = hoje()
+      const mes = q.mes ?? dia.slice(0, 7)
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw requisicaoInvalida('mes deve ser AAAA-MM')
+      if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw requisicaoInvalida('tipo deve ser VENDA ou EMPRESTIMO')
+      if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw requisicaoInvalida('busca: no máximo 80 letras')
+      const busca = q.busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim() || undefined
+      const [ano, m] = mes.split('-').map(Number)
+      const ultimo = new Date(Date.UTC(ano, m, 0)).getUTCDate()
+      const r = await dep.repo.cronograma(escopo, { de: `${mes}-01`, ate: `${mes}-${String(ultimo).padStart(2, '0')}`, tipo: q.tipo as Alvo | undefined, busca, limite: LIMITE_CRONOGRAMA })
+      const atraso = (l: LinhaCobranca) => (l.falta > 0.009 && l.vencimento < dia ? Math.round((Date.parse(dia) - Date.parse(l.vencimento)) / 864e5) : 0)
+      return { mes, hoje: dia, itens: r.itens.map((l) => ({ ...l, atrasoDias: atraso(l) })), cortado: r.cortado }
     },
 
     async cobrancas(s, q) {
