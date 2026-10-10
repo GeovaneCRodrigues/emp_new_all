@@ -4,15 +4,17 @@ import { createDb } from '../db/connection.js'
 import { abrirFonteMysql } from './fonte-mysql.js'
 import { formatarRelatorio, importar } from './importar.js'
 import { formatarRelatorioOperacoes, importarOperacoes } from './importar-operacoes.js'
+import { formatarRelatorioVendas, importarVendas } from './importar-vendas.js'
 
 /**
- * Traz dados do sistema antigo. Sem flag: indicadores e clientes (etapa 1). Com --operacoes: empréstimos, recebimentos, acordos, repasses e caixa (etapa 2; exige a etapa 1 já feita).
+ * Traz dados do sistema antigo. Sem flag: indicadores e clientes (etapa 1). Com --operacoes: empréstimos, recebimentos, acordos, repasses e caixa (etapa 2). Com --vendas: estoque e vendas de iPhones (etapa 3). Ambas exigem a etapa 1 já feita.
  *   OLD_MYSQL_URL=mysql://usuario:senha@127.0.0.1:3307/emp npm run migrar:legado             → só SIMULA (não grava nada)
  *   OLD_MYSQL_URL=... npm run migrar:legado -- --aplicar --confirmo=<nome do banco de destino>  → grava
  * Para gravar é preciso repetir o nome do banco de destino, para não gravar no lugar errado por engano.
  */
 const aplicar = process.argv.includes('--aplicar')
 const operacoes = process.argv.includes('--operacoes')
+const vendas = process.argv.includes('--vendas')
 const confirmo = process.argv.find((a) => a.startsWith('--confirmo='))?.slice('--confirmo='.length)
 const urlAntigo = process.env.OLD_MYSQL_URL
 if (!urlAntigo) { console.error('Informe OLD_MYSQL_URL (túnel SSH para o MySQL do sistema antigo).'); process.exit(1) }
@@ -25,6 +27,7 @@ try {
   const banco: string = rows[0].nome
   console.log(`Destino: banco "${banco}".`)
   if (aplicar && confirmo !== banco) { console.error(`Para gravar, repita o nome do banco: --confirmo=${banco}`); process.exitCode = 1 }
+  else if (vendas) console.log(formatarRelatorioVendas(await importarVendas(db.knex, await fonte.estadoVendas(), { aplicar })))
   else if (operacoes) console.log(formatarRelatorioOperacoes(await importarOperacoes(db.knex, await fonte.estadoOperacoes(), { aplicar })))
   else console.log(formatarRelatorio(await importar(db.knex, fonte, { aplicar })))
 } finally {

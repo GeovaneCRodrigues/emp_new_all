@@ -6,7 +6,7 @@ import type { PagamentoApi } from '@/api/recebimentos'
 import type { VendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { dmy, dmyA, fmt, fmt0 } from '@/domain/format'
+import { dmy, dmyA, fmt, fmt0, gbTxt } from '@/domain/format'
 import AcordoForm from './AcordoForm.vue'
 import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
@@ -70,7 +70,7 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
   <Sheet :aberto="venda !== null" @fechar="$emit('fechar')">
     <template v-if="venda">
       <h3>{{ venda.cliente.nome }}</h3>
-      <div class="small">{{ venda.aparelho.modelo }} · {{ venda.aparelho.gb }} GB · {{ venda.aparelho.cor }} · vendido em {{ dmyA(venda.dataVenda) }}</div>
+      <div class="small">{{ [venda.aparelho.modelo, gbTxt(venda.aparelho.gb)].filter(Boolean).join(' · ') }} · {{ venda.aparelho.cor }} · vendido em {{ dmyA(venda.dataVenda) }}</div>
 
       <div class="card pad" style="margin-top: 12px">
         <div class="between small"><span><b class="num" style="color: var(--strong)">{{ fmt(venda.recebido) }}</b> recebido de {{ fmt(venda.total) }}</span><span class="num">{{ pct }}%</span></div>

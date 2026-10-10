@@ -15,7 +15,7 @@ import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
 import { diasEntre } from '@/domain/datas'
-import { fmt, fmt0 } from '@/domain/format'
+import { fmt, fmt0, gbTxt } from '@/domain/format'
 
 /** O Início do administrador, com os números de verdade: o que cobrar hoje, o mês, o que espera por ele e o estoque parado. */
 const router = useRouter()
@@ -130,7 +130,7 @@ const custoDe = (a: AparelhoApi) => (a.custo ?? 0) + (a.extras ?? 0)
       <div class="card list" data-testid="parados">
         <button v-for="{ a, dias } in parados" :key="a.id" class="li" @click="router.push('/estoque')">
           <MiniFone :cor="a.cor" />
-          <div class="mid"><div class="t">{{ a.modelo }} {{ a.gb }} GB</div><div class="s">{{ dias === 0 ? 'chegou hoje' : dias === 1 ? 'há 1 dia' : `há ${dias} dias` }} · custo {{ fmt0(custoDe(a)) }}</div></div>
+          <div class="mid"><div class="t">{{ a.modelo }} {{ gbTxt(a.gb) }}</div><div class="s">{{ dias === 0 ? 'chegou hoje' : dias === 1 ? 'há 1 dia' : `há ${dias} dias` }} · custo {{ fmt0(custoDe(a)) }}</div></div>
           <b class="num">{{ fmt0(a.preco) }}</b>
         </button>
         <div v-if="!parados.length && !carregando" class="empty">Nenhum aparelho disponível.</div>

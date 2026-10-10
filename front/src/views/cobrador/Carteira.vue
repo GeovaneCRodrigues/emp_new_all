@@ -11,7 +11,7 @@ import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
 import { montarCarteira, noFiltro, semAcento, type ClienteCarteira, type FiltroCarteira, type OperacaoCarteira } from '@/domain/carteira'
 import { nomeEmprestimo } from '@/domain/emprestimo'
-import { fmt, fmt0, iniciais } from '@/domain/format'
+import { fmt, fmt0, gbTxt, iniciais } from '@/domain/format'
 
 /** Os clientes do cobrador, com o que cada um deve. A ficha do cliente leva às operações dele (Recebi e pedidos). */
 const { sessao } = useApp()
@@ -33,7 +33,7 @@ async function carregar() {
       todas((p) => emprestimosApi.listar(sessao.value, { pagina: p, limite: 100 })),
     ])
     const ops: OperacaoCarteira[] = [
-      ...vendas.map((v) => ({ tipo: 'VENDA' as const, id: v.id, clienteId: v.cliente.id, descricao: `${v.aparelho.modelo} ${v.aparelho.gb} GB`, status: v.status, falta: v.falta, atrasadas: v.atrasadas })),
+      ...vendas.map((v) => ({ tipo: 'VENDA' as const, id: v.id, clienteId: v.cliente.id, descricao: `${v.aparelho.modelo} ${gbTxt(v.aparelho.gb)}`, status: v.status, falta: v.falta, atrasadas: v.atrasadas })),
       ...emprestimos.map((e) => ({ tipo: 'EMPRESTIMO' as const, id: e.id, clienteId: e.cliente.id, descricao: nomeEmprestimo(e.modalidade, e.periodicidade), status: e.status, falta: e.falta, atrasadas: e.atrasadas })),
     ]
     carteira.value = montarCarteira(clientes, ops)
