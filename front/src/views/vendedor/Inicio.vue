@@ -32,7 +32,7 @@ onMounted(carregar)
 
 const doMes = computed(() => vendas.value.filter((v) => v.status !== 'CANCELADA' && v.dataVenda.slice(0, 7) === hoje.value.slice(0, 7)))
 const totalMes = computed(() => doMes.value.reduce((s, v) => s + v.total, 0))
-const semContrato = computed(() => vendas.value.filter((v) => v.status === 'ATIVA' && v.contrato !== 'ASSINADO'))
+const semContrato = computed(() => vendas.value.filter((v) => v.status === 'ATIVA' && v.contrato !== 'ASSINADO' && v.contrato !== 'SEM_CONTRATO'))
 const comAtraso = computed(() => {
   const por = new Map<number, { id: number; nome: string; parcelas: number }>()
   for (const v of vendas.value) {

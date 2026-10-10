@@ -29,6 +29,8 @@ import { createAprovacoesService } from './modules/aprovacoes/services/aprovacoe
 import { createFechamentosRepository } from './modules/fechamentos/models/repository.js'
 import { createCaixaRepository } from './modules/caixa/models/repository.js'
 import { createCaixaService } from './modules/caixa/services/caixa.service.js'
+import { createContratosRepository } from './modules/contratos/models/repository.js'
+import { createContratosService } from './modules/contratos/services/contratos.service.js'
 import { createRelatoriosRepository } from './modules/relatorios/models/repository.js'
 import { createRelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import { createFechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
@@ -53,8 +55,9 @@ const indicadores = createIndicadoresService(createIndicadoresRepository(db.knex
 const estoque = createEstoqueService(createEstoqueRepository(db.knex), createAuditoriaRepository(db.knex))
 
 const configRepo = createConfigRepository(db.knex)
+const contratos = createContratosService({ repo: createContratosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex), log: (msg, err) => console.error(msg, err) })
 const vendas = createVendasService({
-  vendas: createVendasRepository(db.knex), config: configRepo, auditoria: createAuditoriaRepository(db.knex),
+  vendas: createVendasRepository(db.knex), config: configRepo, auditoria: createAuditoriaRepository(db.knex), gerarContrato: (id, u) => contratos.gerarDaVenda(id, u),
   sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),
 })
 
@@ -84,7 +87,7 @@ const relatorios = createRelatoriosService({
   repo: createRelatoriosRepository(db.knex), vendas: createVendasRepository(db.knex), emprestimos: createEmprestimosRepository(db.knex), caixa: createCaixaRepository(db.knex),
   indicadores: createIndicadoresRepository(db.knex), repasses,
 })
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, caixa, relatorios, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, caixa, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

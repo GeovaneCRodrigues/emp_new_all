@@ -5,7 +5,7 @@ export type StatusOp = 'ATIVA' | 'QUITADA' | 'RETOMADA'
 export type ModalidadeEmp = 'PARCELADO' | 'JUROS' | 'DIARIA'
 /** De quanto em quanto tempo o cliente paga. A diária cobra todo dia menos domingo. */
 export type Periodicidade = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
-export type StatusContrato = 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO'
+export type StatusContrato = 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO' | 'SEM_CONTRATO'
 
 /** Data ISO `YYYY-MM-DD`. */
 export type Iso = string

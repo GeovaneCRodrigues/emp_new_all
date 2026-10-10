@@ -35,7 +35,8 @@ export interface VendaApi {
   falta: number
   atrasadas: number
   status: StatusVenda
-  contrato: 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO'
+  /** SEM_CONTRATO: venda antiga (migrada do sistema anterior), que não tinha contrato */
+  contrato: 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO' | 'SEM_CONTRATO'
   /** quando e por quê o aparelho foi retomado (só em venda RETOMADA) */
   retomada: { em: string; motivo: string | null } | null
   parcelas: ParcelaVendaApi[]

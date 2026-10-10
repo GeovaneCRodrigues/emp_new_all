@@ -1,5 +1,6 @@
 export type StatusVenda = 'ATIVA' | 'QUITADA' | 'RETOMADA' | 'CANCELADA'
-export type StatusContrato = 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO'
+/** SEM_CONTRATO: venda antiga (migrada do sistema anterior), que não tinha contrato */
+export type StatusContrato = 'AGUARDANDO' | 'ENVIADO' | 'ASSINADO' | 'SEM_CONTRATO'
 export type FormaPagamento = 'PIX' | 'DINHEIRO' | 'CARTAO'
 
 export type ParcelaVenda = {

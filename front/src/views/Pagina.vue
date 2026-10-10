@@ -7,6 +7,7 @@ import Inicio from './admin/Inicio.vue'
 import Cobrancas from './admin/Cobrancas.vue'
 import Caixa from './admin/Caixa.vue'
 import Relatorios from './admin/Relatorios.vue'
+import Contratos from './admin/Contratos.vue'
 import Cronograma from './admin/Cronograma.vue'
 import Operacoes from './admin/Operacoes.vue'
 import Estoque from './admin/Estoque.vue'
@@ -35,7 +36,7 @@ const { sessao, pronto } = useApp()
 
 // telas já prontas, por perfil; o que não está aqui mostra "Em breve"
 const TELAS: Record<string, Record<string, unknown>> = {
-  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, cronograma: Cronograma, caixa: Caixa, relatorios: Relatorios, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe },
+  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, cronograma: Cronograma, caixa: Caixa, relatorios: Relatorios, contratos: Contratos, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe },
   COBRADOR: { hoje: CobradorHoje, carteira: CobradorCarteira, recebi: CobradorRecebi, caixa: CobradorCaixa, pedidos: CobradorPedidos },
   // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil
   INDICADOR: { inicio: IndicadorInicio, indicar: Indicar, clientes: IndicadorClientes, cobranca: IndicadorCobranca, repasse: IndicadorRepasse, niveis: IndicadorNiveis, vendas: IndicadorVendas, estoque: Estoque, simulador: Simulador },

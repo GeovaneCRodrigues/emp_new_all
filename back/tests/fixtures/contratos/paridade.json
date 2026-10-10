@@ -1,0 +1,1344 @@
+{
+ "variaveis": [
+  {
+   "chave": "contrato_numero",
+   "rotulo": "Número do contrato",
+   "grupo": "Contrato"
+  },
+  {
+   "chave": "data_venda",
+   "rotulo": "Data da venda",
+   "grupo": "Contrato"
+  },
+  {
+   "chave": "data_fim",
+   "rotulo": "Fim previsto",
+   "grupo": "Contrato"
+  },
+  {
+   "chave": "atendente",
+   "rotulo": "Atendente",
+   "grupo": "Contrato"
+  },
+  {
+   "chave": "cliente_nome",
+   "rotulo": "Nome",
+   "grupo": "Cliente"
+  },
+  {
+   "chave": "cliente_cpf",
+   "rotulo": "CPF",
+   "grupo": "Cliente"
+  },
+  {
+   "chave": "cliente_telefone",
+   "rotulo": "Telefone",
+   "grupo": "Cliente"
+  },
+  {
+   "chave": "cliente_endereco",
+   "rotulo": "Endereço",
+   "grupo": "Cliente"
+  },
+  {
+   "chave": "aparelho_modelo",
+   "rotulo": "Modelo",
+   "grupo": "Aparelho"
+  },
+  {
+   "chave": "aparelho_capacidade",
+   "rotulo": "Capacidade",
+   "grupo": "Aparelho"
+  },
+  {
+   "chave": "aparelho_cor",
+   "rotulo": "Cor",
+   "grupo": "Aparelho"
+  },
+  {
+   "chave": "aparelho_estado",
+   "rotulo": "Estado",
+   "grupo": "Aparelho"
+  },
+  {
+   "chave": "aparelho_imei",
+   "rotulo": "IMEI",
+   "grupo": "Aparelho"
+  },
+  {
+   "chave": "entrada_valor",
+   "rotulo": "Entrada (caução)",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "entrada_composicao",
+   "rotulo": "Como foi a entrada",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "parcelas_qtd",
+   "rotulo": "Nº de parcelas",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "parcela_valor",
+   "rotulo": "Valor da parcela",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "primeiro_vencimento",
+   "rotulo": "1º vencimento",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "valor_total",
+   "rotulo": "Valor total",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "seguro_texto",
+   "rotulo": "Seguro",
+   "grupo": "Pagamento"
+  },
+  {
+   "chave": "empresa_nome",
+   "rotulo": "Razão social",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "empresa_cnpj",
+   "rotulo": "CNPJ",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "empresa_endereco",
+   "rotulo": "Endereço",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "empresa_email",
+   "rotulo": "E-mail",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "taxa_avaria",
+   "rotulo": "Taxa de avaria",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "taxa_reposicao",
+   "rotulo": "Reposição (perda/roubo)",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "taxa_cancelamento",
+   "rotulo": "Multa de cancelamento",
+   "grupo": "Empresa e taxas"
+  },
+  {
+   "chave": "taxa_recuperacao",
+   "rotulo": "Taxa de recuperação",
+   "grupo": "Empresa e taxas"
+  }
+ ],
+ "casos": [
+  {
+   "nome": "completo",
+   "dados": {
+    "vendaId": 92,
+    "vendaStatus": "ATIVA",
+    "numero": "2026-0092",
+    "dataVenda": "2026-10-05",
+    "cliente": {
+     "nome": "ANA SOUZA",
+     "cpf": "52998224725",
+     "fone": "11988124410",
+     "endereco": "RUA A, 10"
+    },
+    "aparelho": {
+     "modelo": "IPHONE 15",
+     "gb": 128,
+     "cor": "PRETO",
+     "condicao": "Seminovo",
+     "imei": "356938035643809"
+    },
+    "entrada": 1000,
+    "troca": 0,
+    "parcelas": [
+     {
+      "valor": 500,
+      "vencimento": "2026-11-10"
+     },
+     {
+      "valor": 500,
+      "vencimento": "2026-12-10"
+     }
+    ],
+    "seguro": false
+   },
+   "empresa": {
+    "nome": "Mundo dos iPhones LTDA",
+    "cnpj": "11.222.333/0001-81",
+    "endereco": "Rua X, 1",
+    "email": "a@b.com",
+    "atendente": "Geovane",
+    "avaria": 350,
+    "reposicao": 1500,
+    "seguro": 39.9,
+    "cancelamentoPct": 12.5,
+    "recuperacao": 250
+   },
+   "esperado": {
+    "trechos": [
+     {
+      "tipo": "txt",
+      "v": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº "
+     },
+     {
+      "tipo": "ok",
+      "v": "2026-0092"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nINÍCIO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "05/10/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "   FIM PREVISTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/12/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nATENDENTE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Geovane"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nLOCADORA: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Mundo dos iPhones LTDA"
+     },
+     {
+      "tipo": "txt",
+      "v": ", CNPJ "
+     },
+     {
+      "tipo": "ok",
+      "v": "11.222.333/0001-81"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n"
+     },
+     {
+      "tipo": "ok",
+      "v": "Rua X, 1"
+     },
+     {
+      "tipo": "txt",
+      "v": " · "
+     },
+     {
+      "tipo": "ok",
+      "v": "a@b.com"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCLIENTE (LOCATÁRIO): "
+     },
+     {
+      "tipo": "ok",
+      "v": "ANA SOUZA"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nCPF: "
+     },
+     {
+      "tipo": "ok",
+      "v": "529.982.247-25"
+     },
+     {
+      "tipo": "txt",
+      "v": "   TELEFONE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "11988124410"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nENDEREÇO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "RUA A, 10"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nAPARELHO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "IPHONE 15"
+     },
+     {
+      "tipo": "txt",
+      "v": " "
+     },
+     {
+      "tipo": "ok",
+      "v": "128 GB"
+     },
+     {
+      "tipo": "txt",
+      "v": ", "
+     },
+     {
+      "tipo": "ok",
+      "v": "PRETO"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nESTADO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Seminovo"
+     },
+     {
+      "tipo": "txt",
+      "v": "   IMEI: "
+     },
+     {
+      "tipo": "ok",
+      "v": "356938035643809"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCAUÇÃO (ENTRADA): "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", composta por "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.000,00 em dinheiro"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\nPAGAMENTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "2"
+     },
+     {
+      "tipo": "txt",
+      "v": "x de "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", 1º vencimento em "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/11/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": " e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nSEGURO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "não contratado pelo cliente"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 350,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.2. Reposição em caso de perda, furto ou roubo: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.3. Cancelamento antes do fim: multa de "
+     },
+     {
+      "tipo": "ok",
+      "v": "12,5%"
+     },
+     {
+      "tipo": "txt",
+      "v": " sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 250,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+     }
+    ],
+    "faltam": [],
+    "texto": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº 2026-0092\nINÍCIO: 05/10/2026   FIM PREVISTO: 10/12/2026\nATENDENTE: Geovane\n\nLOCADORA: Mundo dos iPhones LTDA, CNPJ 11.222.333/0001-81\nRua X, 1 · a@b.com\n\nCLIENTE (LOCATÁRIO): ANA SOUZA\nCPF: 529.982.247-25   TELEFONE: 11988124410\nENDEREÇO: RUA A, 10\n\nAPARELHO: IPHONE 15 128 GB, PRETO\nESTADO: Seminovo   IMEI: 356938035643809\n\nCAUÇÃO (ENTRADA): R$ 1.000,00, composta por R$ 1.000,00 em dinheiro.\nPAGAMENTO: 2x de R$ 500,00, 1º vencimento em 10/11/2026 e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: R$ 2.000,00\nSEGURO: não contratado pelo cliente.\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: R$ 350,00.\n2.2. Reposição em caso de perda, furto ou roubo: R$ 1.500,00.\n2.3. Cancelamento antes do fim: multa de 12,5% sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: R$ 250,00.\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+   }
+  },
+  {
+   "nome": "com seguro, entrada e troca",
+   "dados": {
+    "vendaId": 92,
+    "vendaStatus": "ATIVA",
+    "numero": "2026-0092",
+    "dataVenda": "2026-10-05",
+    "cliente": {
+     "nome": "ANA SOUZA",
+     "cpf": "52998224725",
+     "fone": "11988124410",
+     "endereco": "RUA A, 10"
+    },
+    "aparelho": {
+     "modelo": "IPHONE 15",
+     "gb": 128,
+     "cor": "PRETO",
+     "condicao": "Seminovo",
+     "imei": "356938035643809"
+    },
+    "entrada": 500,
+    "troca": 800,
+    "parcelas": [
+     {
+      "valor": 500,
+      "vencimento": "2026-11-10"
+     },
+     {
+      "valor": 500,
+      "vencimento": "2026-12-10"
+     }
+    ],
+    "seguro": true
+   },
+   "empresa": {
+    "nome": "Mundo dos iPhones LTDA",
+    "cnpj": "11.222.333/0001-81",
+    "endereco": "Rua X, 1",
+    "email": "a@b.com",
+    "atendente": "Geovane",
+    "avaria": 350,
+    "reposicao": 1500,
+    "seguro": 39.9,
+    "cancelamentoPct": 12.5,
+    "recuperacao": 250
+   },
+   "esperado": {
+    "trechos": [
+     {
+      "tipo": "txt",
+      "v": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº "
+     },
+     {
+      "tipo": "ok",
+      "v": "2026-0092"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nINÍCIO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "05/10/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "   FIM PREVISTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/12/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nATENDENTE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Geovane"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nLOCADORA: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Mundo dos iPhones LTDA"
+     },
+     {
+      "tipo": "txt",
+      "v": ", CNPJ "
+     },
+     {
+      "tipo": "ok",
+      "v": "11.222.333/0001-81"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n"
+     },
+     {
+      "tipo": "ok",
+      "v": "Rua X, 1"
+     },
+     {
+      "tipo": "txt",
+      "v": " · "
+     },
+     {
+      "tipo": "ok",
+      "v": "a@b.com"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCLIENTE (LOCATÁRIO): "
+     },
+     {
+      "tipo": "ok",
+      "v": "ANA SOUZA"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nCPF: "
+     },
+     {
+      "tipo": "ok",
+      "v": "529.982.247-25"
+     },
+     {
+      "tipo": "txt",
+      "v": "   TELEFONE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "11988124410"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nENDEREÇO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "RUA A, 10"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nAPARELHO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "IPHONE 15"
+     },
+     {
+      "tipo": "txt",
+      "v": " "
+     },
+     {
+      "tipo": "ok",
+      "v": "128 GB"
+     },
+     {
+      "tipo": "txt",
+      "v": ", "
+     },
+     {
+      "tipo": "ok",
+      "v": "PRETO"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nESTADO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Seminovo"
+     },
+     {
+      "tipo": "txt",
+      "v": "   IMEI: "
+     },
+     {
+      "tipo": "ok",
+      "v": "356938035643809"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCAUÇÃO (ENTRADA): "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.300,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", composta por "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 500,00 em dinheiro e um aparelho na troca, avaliado em R$ 800,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\nPAGAMENTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "2"
+     },
+     {
+      "tipo": "txt",
+      "v": "x de "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", 1º vencimento em "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/11/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": " e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.300,00"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nSEGURO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "contratado, R$ 39,90 por mês junto da parcela"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 350,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.2. Reposição em caso de perda, furto ou roubo: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.3. Cancelamento antes do fim: multa de "
+     },
+     {
+      "tipo": "ok",
+      "v": "12,5%"
+     },
+     {
+      "tipo": "txt",
+      "v": " sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 250,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+     }
+    ],
+    "faltam": [],
+    "texto": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº 2026-0092\nINÍCIO: 05/10/2026   FIM PREVISTO: 10/12/2026\nATENDENTE: Geovane\n\nLOCADORA: Mundo dos iPhones LTDA, CNPJ 11.222.333/0001-81\nRua X, 1 · a@b.com\n\nCLIENTE (LOCATÁRIO): ANA SOUZA\nCPF: 529.982.247-25   TELEFONE: 11988124410\nENDEREÇO: RUA A, 10\n\nAPARELHO: IPHONE 15 128 GB, PRETO\nESTADO: Seminovo   IMEI: 356938035643809\n\nCAUÇÃO (ENTRADA): R$ 1.300,00, composta por R$ 500,00 em dinheiro e um aparelho na troca, avaliado em R$ 800,00.\nPAGAMENTO: 2x de R$ 500,00, 1º vencimento em 10/11/2026 e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: R$ 2.300,00\nSEGURO: contratado, R$ 39,90 por mês junto da parcela.\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: R$ 350,00.\n2.2. Reposição em caso de perda, furto ou roubo: R$ 1.500,00.\n2.3. Cancelamento antes do fim: multa de 12,5% sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: R$ 250,00.\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+   }
+  },
+  {
+   "nome": "à vista, migrado, sem cadastro",
+   "dados": {
+    "vendaId": 92,
+    "vendaStatus": "ATIVA",
+    "numero": "2026-0092",
+    "dataVenda": "2026-10-05",
+    "cliente": {
+     "nome": "ANA SOUZA",
+     "cpf": null,
+     "fone": "11988124410",
+     "endereco": ""
+    },
+    "aparelho": {
+     "modelo": "IPHONE 15",
+     "gb": 0,
+     "cor": "A DEFINIR",
+     "condicao": "Seminovo",
+     "imei": null
+    },
+    "entrada": 2000,
+    "troca": 0,
+    "parcelas": [],
+    "seguro": false
+   },
+   "empresa": {
+    "nome": "Mundo dos iPhones LTDA",
+    "cnpj": null,
+    "endereco": "Rua X, 1",
+    "email": "a@b.com",
+    "atendente": "Geovane",
+    "avaria": null,
+    "reposicao": 1500,
+    "seguro": 39.9,
+    "cancelamentoPct": 12.5,
+    "recuperacao": 250
+   },
+   "esperado": {
+    "trechos": [
+     {
+      "tipo": "txt",
+      "v": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº "
+     },
+     {
+      "tipo": "ok",
+      "v": "2026-0092"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nINÍCIO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "05/10/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "   FIM PREVISTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "05/10/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nATENDENTE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Geovane"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nLOCADORA: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Mundo dos iPhones LTDA"
+     },
+     {
+      "tipo": "txt",
+      "v": ", CNPJ "
+     },
+     {
+      "tipo": "falta",
+      "v": "CNPJ não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n"
+     },
+     {
+      "tipo": "ok",
+      "v": "Rua X, 1"
+     },
+     {
+      "tipo": "txt",
+      "v": " · "
+     },
+     {
+      "tipo": "ok",
+      "v": "a@b.com"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCLIENTE (LOCATÁRIO): "
+     },
+     {
+      "tipo": "ok",
+      "v": "ANA SOUZA"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nCPF: "
+     },
+     {
+      "tipo": "falta",
+      "v": "CPF não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": "   TELEFONE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "11988124410"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nENDEREÇO: "
+     },
+     {
+      "tipo": "falta",
+      "v": "Endereço não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nAPARELHO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "IPHONE 15"
+     },
+     {
+      "tipo": "txt",
+      "v": " "
+     },
+     {
+      "tipo": "falta",
+      "v": "Capacidade não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": ", "
+     },
+     {
+      "tipo": "falta",
+      "v": "Cor não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nESTADO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Seminovo"
+     },
+     {
+      "tipo": "txt",
+      "v": "   IMEI: "
+     },
+     {
+      "tipo": "falta",
+      "v": "IMEI não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCAUÇÃO (ENTRADA): "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", composta por "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.000,00 em dinheiro"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\nPAGAMENTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "0"
+     },
+     {
+      "tipo": "txt",
+      "v": "x de "
+     },
+     {
+      "tipo": "ok",
+      "v": "não há parcelas"
+     },
+     {
+      "tipo": "txt",
+      "v": ", 1º vencimento em "
+     },
+     {
+      "tipo": "ok",
+      "v": "não há parcelas"
+     },
+     {
+      "tipo": "txt",
+      "v": " e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nSEGURO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "não contratado pelo cliente"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: "
+     },
+     {
+      "tipo": "falta",
+      "v": "Taxa de avaria não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.2. Reposição em caso de perda, furto ou roubo: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.3. Cancelamento antes do fim: multa de "
+     },
+     {
+      "tipo": "ok",
+      "v": "12,5%"
+     },
+     {
+      "tipo": "txt",
+      "v": " sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 250,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+     }
+    ],
+    "faltam": [
+     "CNPJ",
+     "CPF",
+     "Endereço",
+     "Capacidade",
+     "Cor",
+     "IMEI",
+     "Taxa de avaria"
+    ],
+    "texto": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº 2026-0092\nINÍCIO: 05/10/2026   FIM PREVISTO: 05/10/2026\nATENDENTE: Geovane\n\nLOCADORA: Mundo dos iPhones LTDA, CNPJ \nRua X, 1 · a@b.com\n\nCLIENTE (LOCATÁRIO): ANA SOUZA\nCPF:    TELEFONE: 11988124410\nENDEREÇO: \n\nAPARELHO: IPHONE 15 , \nESTADO: Seminovo   IMEI: \n\nCAUÇÃO (ENTRADA): R$ 2.000,00, composta por R$ 2.000,00 em dinheiro.\nPAGAMENTO: 0x de não há parcelas, 1º vencimento em não há parcelas e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: R$ 2.000,00\nSEGURO: não contratado pelo cliente.\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: .\n2.2. Reposição em caso de perda, furto ou roubo: R$ 1.500,00.\n2.3. Cancelamento antes do fim: multa de 12,5% sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: R$ 250,00.\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+   }
+  },
+  {
+   "nome": "seguro sem valor",
+   "dados": {
+    "vendaId": 92,
+    "vendaStatus": "ATIVA",
+    "numero": "2026-0092",
+    "dataVenda": "2026-10-05",
+    "cliente": {
+     "nome": "ANA SOUZA",
+     "cpf": "52998224725",
+     "fone": "11988124410",
+     "endereco": "RUA A, 10"
+    },
+    "aparelho": {
+     "modelo": "IPHONE 15",
+     "gb": 128,
+     "cor": "PRETO",
+     "condicao": "Seminovo",
+     "imei": "356938035643809"
+    },
+    "entrada": 1000,
+    "troca": 0,
+    "parcelas": [
+     {
+      "valor": 500,
+      "vencimento": "2026-11-10"
+     },
+     {
+      "valor": 500,
+      "vencimento": "2026-12-10"
+     }
+    ],
+    "seguro": true
+   },
+   "empresa": {
+    "nome": "Mundo dos iPhones LTDA",
+    "cnpj": "11.222.333/0001-81",
+    "endereco": "Rua X, 1",
+    "email": "a@b.com",
+    "atendente": "Geovane",
+    "avaria": 350,
+    "reposicao": 1500,
+    "seguro": null,
+    "cancelamentoPct": 12.5,
+    "recuperacao": 250
+   },
+   "esperado": {
+    "trechos": [
+     {
+      "tipo": "txt",
+      "v": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº "
+     },
+     {
+      "tipo": "ok",
+      "v": "2026-0092"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nINÍCIO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "05/10/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "   FIM PREVISTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/12/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nATENDENTE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Geovane"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nLOCADORA: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Mundo dos iPhones LTDA"
+     },
+     {
+      "tipo": "txt",
+      "v": ", CNPJ "
+     },
+     {
+      "tipo": "ok",
+      "v": "11.222.333/0001-81"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n"
+     },
+     {
+      "tipo": "ok",
+      "v": "Rua X, 1"
+     },
+     {
+      "tipo": "txt",
+      "v": " · "
+     },
+     {
+      "tipo": "ok",
+      "v": "a@b.com"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCLIENTE (LOCATÁRIO): "
+     },
+     {
+      "tipo": "ok",
+      "v": "ANA SOUZA"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nCPF: "
+     },
+     {
+      "tipo": "ok",
+      "v": "529.982.247-25"
+     },
+     {
+      "tipo": "txt",
+      "v": "   TELEFONE: "
+     },
+     {
+      "tipo": "ok",
+      "v": "11988124410"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nENDEREÇO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "RUA A, 10"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nAPARELHO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "IPHONE 15"
+     },
+     {
+      "tipo": "txt",
+      "v": " "
+     },
+     {
+      "tipo": "ok",
+      "v": "128 GB"
+     },
+     {
+      "tipo": "txt",
+      "v": ", "
+     },
+     {
+      "tipo": "ok",
+      "v": "PRETO"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nESTADO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "Seminovo"
+     },
+     {
+      "tipo": "txt",
+      "v": "   IMEI: "
+     },
+     {
+      "tipo": "ok",
+      "v": "356938035643809"
+     },
+     {
+      "tipo": "txt",
+      "v": "\n\nCAUÇÃO (ENTRADA): "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", composta por "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.000,00 em dinheiro"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\nPAGAMENTO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "2"
+     },
+     {
+      "tipo": "txt",
+      "v": "x de "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ", 1º vencimento em "
+     },
+     {
+      "tipo": "ok",
+      "v": "10/11/2026"
+     },
+     {
+      "tipo": "txt",
+      "v": " e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 2.000,00"
+     },
+     {
+      "tipo": "txt",
+      "v": "\nSEGURO: "
+     },
+     {
+      "tipo": "falta",
+      "v": "Seguro não cadastrado"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 350,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.2. Reposição em caso de perda, furto ou roubo: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 1.500,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n2.3. Cancelamento antes do fim: multa de "
+     },
+     {
+      "tipo": "ok",
+      "v": "12,5%"
+     },
+     {
+      "tipo": "txt",
+      "v": " sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: "
+     },
+     {
+      "tipo": "ok",
+      "v": "R$ 250,00"
+     },
+     {
+      "tipo": "txt",
+      "v": ".\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+     }
+    ],
+    "faltam": [
+     "Seguro"
+    ],
+    "texto": "CONTRATO DE LOCAÇÃO DE APARELHO CELULAR COM OPÇÃO DE COMPRA\n\nCONTRATO Nº 2026-0092\nINÍCIO: 05/10/2026   FIM PREVISTO: 10/12/2026\nATENDENTE: Geovane\n\nLOCADORA: Mundo dos iPhones LTDA, CNPJ 11.222.333/0001-81\nRua X, 1 · a@b.com\n\nCLIENTE (LOCATÁRIO): ANA SOUZA\nCPF: 529.982.247-25   TELEFONE: 11988124410\nENDEREÇO: RUA A, 10\n\nAPARELHO: IPHONE 15 128 GB, PRETO\nESTADO: Seminovo   IMEI: 356938035643809\n\nCAUÇÃO (ENTRADA): R$ 1.000,00, composta por R$ 1.000,00 em dinheiro.\nPAGAMENTO: 2x de R$ 500,00, 1º vencimento em 10/11/2026 e as demais no mesmo dia dos meses seguintes.\nVALOR TOTAL DO CONTRATO: R$ 2.000,00\nSEGURO: .\n\nCLÁUSULA PRIMEIRA: DO OBJETO\n1.1. Locação do aparelho acima por prazo determinado. Pagas todas as parcelas, o aparelho passa a ser do LOCATÁRIO.\n\nCLÁUSULA SEGUNDA: DAS TAXAS\n2.1. Avaria do aparelho: R$ 350,00.\n2.2. Reposição em caso de perda, furto ou roubo: R$ 1.500,00.\n2.3. Cancelamento antes do fim: multa de 12,5% sobre o saldo em aberto.\n2.4. Recuperação do aparelho por falta de pagamento: R$ 250,00.\n\nCLÁUSULA TERCEIRA: DO ATRASO\n3.1. Com parcela em atraso, a LOCADORA pode bloquear e recuperar o aparelho, abatendo do saldo o que já foi pago, descontadas as taxas acima.\n\nE, por estarem de acordo, as partes assinam eletronicamente."
+   }
+  }
+ ],
+ "extra": {
+  "texto": "A {{ cliente_nome }} {{nao_existe}} fim",
+  "dados": {
+   "vendaId": 92,
+   "vendaStatus": "ATIVA",
+   "numero": "2026-0092",
+   "dataVenda": "2026-10-05",
+   "cliente": {
+    "nome": "ANA SOUZA",
+    "cpf": "52998224725",
+    "fone": "11988124410",
+    "endereco": "RUA A, 10"
+   },
+   "aparelho": {
+    "modelo": "IPHONE 15",
+    "gb": 128,
+    "cor": "PRETO",
+    "condicao": "Seminovo",
+    "imei": "356938035643809"
+   },
+   "entrada": 1000,
+   "troca": 0,
+   "parcelas": [
+    {
+     "valor": 500,
+     "vencimento": "2026-11-10"
+    },
+    {
+     "valor": 500,
+     "vencimento": "2026-12-10"
+    }
+   ],
+   "seguro": false
+  },
+  "empresa": {
+   "nome": "Mundo dos iPhones LTDA",
+   "cnpj": "11.222.333/0001-81",
+   "endereco": "Rua X, 1",
+   "email": "a@b.com",
+   "atendente": "Geovane",
+   "avaria": 350,
+   "reposicao": 1500,
+   "seguro": 39.9,
+   "cancelamentoPct": 12.5,
+   "recuperacao": 250
+  },
+  "esperado": {
+   "trechos": [
+    {
+     "tipo": "txt",
+     "v": "A "
+    },
+    {
+     "tipo": "ok",
+     "v": "ANA SOUZA"
+    },
+    {
+     "tipo": "txt",
+     "v": " "
+    },
+    {
+     "tipo": "desconhecido",
+     "v": "{{nao_existe}}"
+    },
+    {
+     "tipo": "txt",
+     "v": " fim"
+    }
+   ],
+   "faltam": [],
+   "texto": "A ANA SOUZA {{nao_existe}} fim"
+  }
+ }
+}

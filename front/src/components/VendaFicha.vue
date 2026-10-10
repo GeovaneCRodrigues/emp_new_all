@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
-import { aprovacoesApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import { aprovacoesApi, contratosApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { PagamentoApi } from '@/api/recebimentos'
 import type { VendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { dmy, dmyA, fmt, fmt0, gbTxt } from '@/domain/format'
 import AcordoForm from './AcordoForm.vue'
+import ContratoFicha from './ContratoFicha.vue'
 import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
 
@@ -16,6 +17,18 @@ const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: 
 const { hoje, sessao } = useApp()
 
 const { mostrar } = useToast()
+// o contrato da venda: abre a ficha (ou gera, se a venda antiga ainda não tem). Só o administrador.
+const contratoAberto = ref<number | null>(null)
+const podeContrato = computed(() => sessao.value.perfil === 'ADMIN' && props.venda?.status !== 'RETOMADA' && props.venda?.status !== 'CANCELADA')
+async function abrirContrato() {
+  if (!props.venda) return
+  try {
+    const gerando = props.venda.contrato === 'SEM_CONTRATO'
+    const d = gerando ? await contratosApi.gerar(sessao.value, props.venda.id) : await contratosApi.porVenda(sessao.value, props.venda.id)
+    contratoAberto.value = d.contrato.id
+    if (gerando) emit('mudou')
+  } catch (e) { mostrar(e instanceof ErroApi ? e.message : 'Não consegui abrir o contrato.') }
+}
 // retomar o aparelho: só o administrador, venda em andamento com parcela atrasada
 const podeRetomar = computed(() => (sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR') && props.venda?.status === 'ATIVA' && (props.venda?.atrasadas ?? 0) > 0)
 // acordo: só o administrador, venda em andamento com saldo
@@ -63,7 +76,7 @@ const pct = computed(() => (props.venda && props.venda.total > 0 ? Math.round((p
 const capPct = computed(() => (props.venda?.custoNoDia ? Math.round(((props.venda.capitalDeVolta ?? 0) / props.venda.custoNoDia) * 100) : 0))
 const situacao = (p: VendaApi['parcelas'][number]) => (p.acordo === 'ENCERRADA' ? 'acordo' : p.falta <= 0.009 ? 'paga' : p.vencimento < hoje.value ? 'atrasada' : 'aberta')
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
-const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando assinatura', ASSINADO: 'assinado' } as const
+const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando assinatura', ASSINADO: 'assinado', SEM_CONTRATO: 'sem contrato (venda antiga)' } as const
 </script>
 
 <template>
@@ -90,7 +103,11 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
         <div v-if="venda.troca"><div class="lbl">Troca</div><div class="val num">{{ fmt(venda.troca) }}</div></div>
         <div><div class="lbl">Parcelas</div><div class="val num">{{ venda.nParcelas ? `${venda.nParcelas}x ${fmt(venda.valorParcela)}` : 'à vista' }}</div><div v-if="venda.nParcelas" class="small">{{ venda.jurosPct }}% por parcela</div></div>
         <div><div class="lbl">Indicador</div><div class="val">{{ venda.indicador?.nome ?? '—' }}</div></div>
-        <div><div class="lbl">Contrato</div><div class="val">{{ CONTRATO[venda.contrato] }}</div></div>
+        <div>
+          <div class="lbl">Contrato</div>
+          <button v-if="podeContrato" class="val" type="button" style="display: flex; align-items: center; gap: 4px" data-testid="venda-contrato" @click="abrirContrato">{{ CONTRATO[venda.contrato] }}<span class="small" style="color: var(--primary)">{{ venda.contrato === 'SEM_CONTRATO' ? '· gerar' : '· abrir' }}</span></button>
+          <div v-else class="val">{{ CONTRATO[venda.contrato] }}</div>
+        </div>
       </div>
 
       <div v-if="venda.custoNoDia !== undefined" class="dl card pad" style="margin-top: 10px">
@@ -127,6 +144,7 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
     </template>
   </Sheet>
 
+  <ContratoFicha :contrato-id="contratoAberto" @fechar="contratoAberto = null" @mudou="emit('mudou')" />
   <PedirDescontoForm :aberto="descontando !== null" alvo="VENDA" :operacao="venda ? { id: venda.id, cliente: venda.cliente.nome, descricao: venda.aparelho.modelo } : null" :parcela="descontando" @fechar="descontando = null" @feito="aoPedirDesconto" />
   <AcordoForm :aberto="acordando" alvo="VENDA" :operacao="venda ? { id: venda.id, cliente: venda.cliente.nome, descricao: venda.aparelho.modelo, saldo: venda.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 
