@@ -38,6 +38,7 @@ export interface RecebimentoAntigo {
   dataPagamento: string
   obs: string | null
   cobradoPor: 'OWNER' | 'INDICADOR'
+  forma?: 'PIX' | 'DINHEIRO' | null
   criadoEm: string | null
 }
 
