@@ -1,4 +1,5 @@
 import { addDia } from '../../../shared/datas.js'
+import { termoBusca } from '../../../shared/busca.js'
 import { naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
@@ -11,7 +12,7 @@ import { planoEmprestimo, primeiroVencimentoPadrao, totalDoPlano } from './calcu
 
 export type Entrada = Record<string, unknown>
 export type EmprestimoCalculado = { emprestimo: Emprestimo } & ReturnType<typeof contas>
-export type FiltroEmprestimos = { status?: string; pagina?: number; limite?: number }
+export type FiltroEmprestimos = { status?: string; busca?: string; pagina?: number; limite?: number }
 export type ResultadoLista = { itens: EmprestimoCalculado[]; total: number; pagina: number; limite: number }
 export type ResumoEmprestimos = { aReceber: number; capitalNaRua: number; lucroPorVir: number }
 
@@ -138,7 +139,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const limite = Math.min(Math.max(Math.trunc(f.limite ?? 20) || 20, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(f.pagina ?? 1) || 1, 1)
       if (f.status && !['ATIVA', 'ATRASO', 'QUITADA'].includes(f.status)) throw requisicaoInvalida('status inválido')
-      const filtradas = (await d.emprestimos.listar(escopo)).map(calcular).filter((c) => {
+      const filtradas = (await d.emprestimos.listar(escopo, termoBusca(f.busca))).map(calcular).filter((c) => {
         if (!f.status) return true
         if (f.status === 'ATRASO') return c.status === 'ATIVA' && c.atrasadas > 0
         return c.status === f.status

@@ -1,3 +1,4 @@
+import { casaBusca } from '@/domain/busca'
 import { criarSeed } from '@/data/seed'
 import { planoEmprestimo } from '@/domain/calc'
 import { addDia } from '@/domain/datas'
@@ -139,6 +140,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       const pagina = Math.max(q.pagina ?? 1, 1)
       const todos = noEscopo(s).map((r) => calcular(r, s.perfil)).sort((a, b) => b.dataEmprestimo.localeCompare(a.dataEmprestimo) || b.id - a.id)
         .filter((c) => !q.status || (q.status === 'ATRASO' ? c.status === 'ATIVA' && c.atrasadas > 0 : c.status === q.status))
+        .filter((c) => casaBusca([c.cliente.nome, c.indicador?.nome], q.busca))
       return { itens: todos.slice((pagina - 1) * limite, pagina * limite), total: todos.length, pagina, limite }
     },
 

@@ -16,7 +16,7 @@ export function criarCaixaHttp(baseUrl: string, requisicao: Requisicao): CaixaAp
     if (!r.ok) throw new ErroApi(r.status, corpo.erro ?? 'Algo deu errado. Tente de novo.', corpo.codigo)
     return corpo as T
   }
-  const qs = (q: Record<string, number | undefined>) => {
+  const qs = (q: Record<string, string | number | undefined>) => {
     const p = new URLSearchParams()
     for (const [k, v] of Object.entries(q)) if (v !== undefined) p.set(k, String(v))
     const s = p.toString()

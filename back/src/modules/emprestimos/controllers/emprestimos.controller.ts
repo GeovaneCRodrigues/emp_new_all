@@ -17,7 +17,7 @@ export function createEmprestimosController(service: EmprestimosService) {
     async listar(req: FastifyRequest) {
       const s = sessaoOuErro(req)
       const q = req.query as Record<string, unknown>
-      return listaView(await service.listar(s, { status: typeof q.status === 'string' ? q.status : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }), s.perfil)
+      return listaView(await service.listar(s, { status: typeof q.status === 'string' ? q.status : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }), s.perfil)
     },
     async resumo(req: FastifyRequest) { const s = sessaoOuErro(req); return resumoView(await service.resumo(s), s.perfil) },
     async obter(req: FastifyRequest) { const s = sessaoOuErro(req); return emprestimoView(await service.obter(s, idDaRota(req)), s.perfil) },

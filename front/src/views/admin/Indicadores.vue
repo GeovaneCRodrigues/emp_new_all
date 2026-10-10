@@ -5,6 +5,7 @@ import type { AcessoCriado, IndicadorApi, TabelaNiveis } from '@/api/indicadores
 import type { DetalheRepasseApi, RepasseApi, ResumoDoIndicadorApi } from '@/api/repasses'
 import { indicadoresApi, repassesApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
+import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
 import IndicadorForm from '@/components/IndicadorForm.vue'
 import PagarRepasseForm from '@/components/PagarRepasseForm.vue'
@@ -13,6 +14,7 @@ import SeloNivel from '@/components/SeloNivel.vue'
 import Sheet from '@/components/Sheet.vue'
 import { modoDemo } from '@/composables/useAuth'
 import { useApp } from '@/composables/useApp'
+import { casaBusca } from '@/domain/busca'
 import { mascaraFone } from '@/domain/documentos'
 import { dmyA, fmt, iniciais } from '@/domain/format'
 import { validarNiveis } from '@/domain/repasse'
@@ -28,6 +30,9 @@ const abas = [
 ]
 
 const lista = ref<IndicadorApi[]>([])
+// as listas vêm inteiras: a busca só esconde cartões (os totais seguem sendo os de todos)
+const busca = ref('')
+const listaVisivel = computed(() => lista.value.filter((i) => casaBusca([i.nome], busca.value)))
 const carregando = ref(true)
 const erro = ref('')
 const aviso = ref('')
@@ -48,6 +53,7 @@ onMounted(() => { carregar(); carregarNiveis(); carregarRepasses() })
 // ---- repasses ----
 const repasses = ref<{ item: ResumoDoIndicadorApi; detalhe: DetalheRepasseApi }[]>([])
 const pagos = ref<RepasseApi[]>([])
+const repassesVisiveis = computed(() => repasses.value.filter((r) => casaBusca([r.item.indicador.nome], busca.value)))
 const filtroPagos = ref('todos')
 const carregandoRep = ref(true)
 const erroRep = ref('')
@@ -186,7 +192,9 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
       <div><div class="lbl">Já pago</div><div class="val num">{{ fmt(totais.pago) }}</div></div>
       <div><div class="lbl">Vai liberar</div><div class="val num">{{ fmt(totais.vaiLiberar) }}</div></div>
     </div>
-    <div v-for="{ item, detalhe } in repasses" :key="item.indicador.id" class="card rep" :data-repasse="item.indicador.id" :style="{ opacity: item.indicador.ativo ? 1 : 0.7 }">
+    <CampoBusca v-model="busca" placeholder="Buscar indicador" />
+    <div v-if="busca.trim() && !repassesVisiveis.length" class="card empty">Nenhum indicador com esse nome.</div>
+    <div v-for="{ item, detalhe } in repassesVisiveis" :key="item.indicador.id" class="card rep" :data-repasse="item.indicador.id" :style="{ opacity: item.indicador.ativo ? 1 : 0.7 }">
       <div class="row rep-topo">
         <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(item.indicador.nome) }}</span>
         <div style="flex: 1; min-width: 0">
@@ -230,8 +238,10 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
       <div><div class="lbl">Operações trazidas</div><div class="val num">{{ lista.reduce((s, i) => s + i.operacoes, 0) }}</div></div>
       <div><div class="lbl">Com acesso</div><div class="val num">{{ lista.filter((i) => i.temAcesso).length }}</div></div>
     </div>
+    <CampoBusca v-model="busca" placeholder="Buscar indicador" />
+    <div v-if="busca.trim() && !listaVisivel.length" class="card empty">Nenhum indicador com esse nome.</div>
     <div class="fones">
-      <button v-for="i in lista" :key="i.id" class="card pad" style="text-align: left; display: flex; flex-direction: column; gap: 12px" :style="{ opacity: i.ativo ? 1 : 0.6 }" @click="ficha = i">
+      <button v-for="i in listaVisivel" :key="i.id" class="card pad" style="text-align: left; display: flex; flex-direction: column; gap: 12px" :style="{ opacity: i.ativo ? 1 : 0.6 }" @click="ficha = i">
         <div class="row">
           <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(i.nome) }}</span>
           <div style="flex: 1; min-width: 0"><div class="val">{{ i.nome }}</div><div class="small">{{ i.whatsapp ? mascaraFone(i.whatsapp) : 'sem WhatsApp' }}</div></div>
