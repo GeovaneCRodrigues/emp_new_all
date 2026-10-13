@@ -455,6 +455,28 @@ test.describe('acordo', () => {
     await expect(page.locator('[data-parcela]').filter({ hasText: 'acordo' }).first()).toBeVisible()
   })
 
+  test('empréstimo: "Dinheiro novo emprestado" soma no capital; em venda de iPhone o campo não aparece', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/operacoes')
+    await page.getByRole('button', { name: /^iPhones/ }).click()
+    await page.locator('.fones button.card').first().click()
+    await page.locator('[data-acordo]').click()
+    await expect(page.getByRole('heading', { name: 'Fazer acordo' })).toBeVisible()
+    await expect(page.locator('#aNovo')).toHaveCount(0)
+    await page.keyboard.press('Escape'); await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: /^Empréstimos/ }).click()
+    await page.locator('[data-emprestimo]').first().click()
+    const capital = async () => (await page.getByText('Capital emprestado').locator('xpath=..').innerText()).replace(/\s+/g, ' ')
+    const antes = await capital()
+    await page.locator('[data-acordo]').click()
+    await expect(page.getByTestId('acordo-novo-ajuda')).toBeVisible()
+    await page.locator('#aNovo').fill('150000')
+    await page.getByRole('button', { name: '2x', exact: true }).click()
+    await page.getByRole('button', { name: 'Fazer acordo', exact: true }).last().click()
+    await expect(page.getByText('Acordo feito.')).toBeVisible()
+    expect(await capital()).not.toBe(antes)
+  })
+
   test('o vendedor nunca vê o botão de acordo', async ({ page }) => {
     await entrar(page, 'vendedor')
     await page.goto('/vendas')

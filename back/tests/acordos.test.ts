@@ -1,3 +1,4 @@
+import { createCaixaRepository } from '../src/modules/caixa/models/repository.js'
 import type { FastifyInstance } from 'fastify'
 import type { Knex } from 'knex'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -331,6 +332,46 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
       const c = await emprestimo()
       await db!('emprestimos').where({ id: c }).update({ status: 'CANCELADA' })
       expect((await acordoE('admin', c)).json().codigo).toBe('VENDA_ENCERRADA')
+    })
+    it('dinheiro novo no acordo: soma no capital, entra no histórico e a ficha mostra o lucro certo', async () => {
+      const e = await emprestimo()
+      const antes = await fichaE(e)
+      const r = await acordoE('admin', e, { valorTotal: 4600, capitalAdicional: 1500 })
+      expect(r.statusCode).toBe(201)
+      expect(r.json()).toMatchObject({ capitalAdicional: 1500, valorTotal: 4600 })
+      const f = await fichaE(e)
+      expect(f.capital).toBe(antes.capital + 1500)
+      expect(f.lucroTotal).toBeCloseTo(f.recebido + f.falta - f.capital, 2)
+      const h = (await req('GET', `/api/emprestimos/${e}/acordos`, 'admin')).json()
+      expect(h[0]).toMatchObject({ capitalAdicional: 1500, valorTotal: 4600 })
+      expect((await db!('emprestimos').where({ id: e }).first()).capital).toBe(String((antes.capital + 1500).toFixed(2)))
+    })
+    it('sem dinheiro novo o capital não muda e o histórico mostra zero; novo acordo soma de novo', async () => {
+      const e = await emprestimo()
+      await acordoE('admin', e)
+      expect((await req('GET', `/api/emprestimos/${e}/acordos`, 'admin')).json()[0].capitalAdicional).toBe(0)
+      expect((await fichaE(e)).capital).toBe(3000)
+      await acordoE('admin', e, { capitalAdicional: 500 })
+      await acordoE('admin', e, { capitalAdicional: 200 })
+      expect((await fichaE(e)).capital).toBe(3700)
+    })
+    it('dinheiro novo inválido → 400 (negativo, texto, enorme) e não grava nada; em venda → 400', async () => {
+      const e = await emprestimo()
+      for (const capitalAdicional of [-1, '1500', 1e9]) expect((await acordoE('admin', e, { capitalAdicional })).statusCode, String(capitalAdicional)).toBe(400)
+      expect((await fichaE(e)).capital).toBe(3000)
+      expect(await db!('acordos').where({ emprestimo_id: e })).toHaveLength(0)
+      const v = await vendaComSaldo()
+      expect((await acordoV('admin', v, { capitalAdicional: 100 })).statusCode).toBe(400)
+      expect((await acordoV('admin', v, { capitalAdicional: 0 })).statusCode).toBe(201)
+    })
+    it('Caixa: o dinheiro novo sai na data do acordo e o empréstimo continua com o capital original na data dele', async () => {
+      const e = await emprestimo()
+      await acordoE('admin', e, { valorTotal: 4600, capitalAdicional: 1500 })
+      const c = await createCaixaRepository(db!).extrato({ hoje: '2026-12-31', limite: 500, offset: 0 })
+      const orig = c.itens.find((i) => i.chave === `E${e}`)
+      const novo = c.itens.find((i) => i.chave.startsWith('D') && i.titulo.startsWith('Dinheiro novo no acordo'))
+      expect(orig).toMatchObject({ valor: 3000, data: '2026-10-08', entrada: false })
+      expect(novo).toMatchObject({ valor: 1500, data: hoje, entrada: false })
     })
     it('histórico do empréstimo: cobrador da carteira vê; outra carteira não', async () => {
       const e = await emprestimo()

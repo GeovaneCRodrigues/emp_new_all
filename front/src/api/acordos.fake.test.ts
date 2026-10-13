@@ -103,6 +103,24 @@ describe('administrador faz o acordo (venda)', () => {
   })
 })
 
+describe('dinheiro novo no acordo (empréstimo)', () => {
+  it('soma no capital do empréstimo e aparece no histórico; sem ele o capital não muda', async () => {
+    const e = await jurosEmp()
+    const r = await acordos.fazer(ADMIN, 'EMPRESTIMO', e, { valorTotal: 4600, parcelas: 3, primeiraParcela: PRIMEIRA, capitalAdicional: 1500 })
+    expect(r.capitalAdicional).toBe(1500)
+    expect((await emp.obter(ADMIN, e)).capital).toBe(4500)
+    expect((await acordos.listar(ADMIN, 'EMPRESTIMO', e))[0].capitalAdicional).toBe(1500)
+    await acordos.fazer(ADMIN, 'EMPRESTIMO', e, { valorTotal: 3000, parcelas: 2, primeiraParcela: PRIMEIRA })
+    expect((await emp.obter(ADMIN, e)).capital).toBe(4500)
+  })
+  it('inválido → 400 e não mexe no capital; em venda → 400', async () => {
+    const e = await jurosEmp()
+    for (const capitalAdicional of [-1, '10', Number.POSITIVE_INFINITY, 1e9]) expect((await falha(acordos.fazer(ADMIN, 'EMPRESTIMO', e, { valorTotal: 3600, parcelas: 3, primeiraParcela: PRIMEIRA, capitalAdicional } as never)))?.status, String(capitalAdicional)).toBe(400)
+    expect((await emp.obter(ADMIN, e)).capital).toBe(3000)
+    expect((await falha(fazer(ADMIN, carlos, { capitalAdicional: 100 })))?.status).toBe(400)
+  })
+})
+
 describe('depois do acordo', () => {
   it('recebe as parcelas novas; as encerradas dão PARCELA_PAGA; quitar o acordo fecha a venda', async () => {
     await fazer(ADMIN, carlos, { valorTotal: 1000, parcelas: 2 })

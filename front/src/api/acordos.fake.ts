@@ -12,7 +12,7 @@ interface Reg extends AcordoApi { alvo: AlvoApi; operacaoId: number }
 export interface AcordosFake extends AcordosApi {
   _interno: {
     /** A regra única do acordo (a mesma no caminho direto e na aprovação do pedido do cobrador). */
-    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number }): ResultadoAcordoApi
+    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number }): ResultadoAcordoApi
   }
 }
 
@@ -45,6 +45,11 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     if (d.saldoEsperado !== undefined && Math.abs(saldo - d.saldoEsperado) > 0.009) {
       throw new ErroApi(409, `O que falta mudou desde o pedido (era ${d.saldoEsperado.toFixed(2).replace('.', ',')}, agora ${saldo.toFixed(2).replace('.', ',')}). Recuse o pedido e peça de novo.`, 'PEDIDO_DESATUALIZADO')
     }
+    const capitalAdicional = d.capitalAdicional ?? 0
+    if (capitalAdicional > 0 && d.alvo === 'EMPRESTIMO') {
+      const reg = emprestimos._interno.registros.find((x) => x.id === d.operacaoId)
+      if (reg) reg.capital = arred2(reg.capital + capitalAdicional)
+    }
     const anterior = acordos.find((a) => a.alvo === d.alvo && a.operacaoId === d.operacaoId && a.status === 'ATIVO')
     if (anterior) anterior.status = 'SUBSTITUIDO'
     const id = ++seq
@@ -58,8 +63,8 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
         p.status = 'RECUSADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`; p.resposta = 'Acordo feito'
       }
     }
-    acordos.push({ id, alvo: d.alvo, operacaoId: d.operacaoId, dataAcordo: hoje, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, motivo: d.motivo, status: 'ATIVO', feitoPor: d.usuarioNome, aprovacaoId: d.aprovacaoId ?? null })
-    return { acordoId: id, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null }
+    acordos.push({ id, alvo: d.alvo, operacaoId: d.operacaoId, dataAcordo: hoje, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, motivo: d.motivo, capitalAdicional, status: 'ATIVO', feitoPor: d.usuarioNome, aprovacaoId: d.aprovacaoId ?? null })
+    return { acordoId: id, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
   }
 
   return {
@@ -68,6 +73,8 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     async fazer(s, alvo, operacaoId, e) {
       if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador faz o acordo (o cobrador pede o acordo)', 'SEM_PERMISSAO')
       if (typeof e.valorTotal !== 'number' || typeof e.parcelas !== 'number' || typeof e.primeiraParcela !== 'string') throw new ErroApi(400, 'Informe o valor, as parcelas e a data da 1ª parcela')
+      if (e.capitalAdicional !== undefined && (typeof e.capitalAdicional !== 'number' || !Number.isFinite(e.capitalAdicional))) throw new ErroApi(400, 'Dinheiro novo: informe um valor válido (zero ou mais)')
+      if ((e.capitalAdicional ?? 0) > 0 && alvo !== 'EMPRESTIMO') throw new ErroApi(400, 'Dinheiro novo só vale em empréstimo')
       const problema = problemaDoAcordo(e, hoje)
       if (problema) throw new ErroApi(400, problema)
       let motivo: string | null = null
@@ -75,7 +82,7 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw new ErroApi(400, 'motivo: no máximo 500 letras')
         motivo = e.motivo.trim() || null
       }
-      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo })
+      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo, capitalAdicional: arred2(e.capitalAdicional ?? 0) })
     },
 
     async listar(s, alvo, operacaoId) {

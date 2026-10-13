@@ -5,7 +5,7 @@ import { PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '../../../shared/s
 import { arred2 } from '../../vendas/services/calculo.js'
 
 export type AlvoAcordo = 'VENDA' | 'EMPRESTIMO'
-export type ResultadoAcordo = { acordoId: number; alvo: AlvoAcordo; operacaoId: number; saldoAntes: number; valorTotal: number; nParcelas: number; primeiraParcela: string; parcelasEncerradas: number; substituiuAcordoId: number | null }
+export type ResultadoAcordo = { acordoId: number; alvo: AlvoAcordo; operacaoId: number; saldoAntes: number; valorTotal: number; nParcelas: number; primeiraParcela: string; parcelasEncerradas: number; substituiuAcordoId: number | null; capitalAdicional: number }
 
 const T = {
   VENDA: { op: 'vendas', parcela: 'venda_parcelas', opFk: 'venda_id', pago: PAGO_PARCELA_SQL },
@@ -21,6 +21,14 @@ export function distribuir(total: number, n: number): number[] {
   const valores = Array.from({ length: n - 1 }, () => base)
   valores.push(arred2(total - base * (n - 1)))
   return valores
+}
+
+/** O dinheiro novo emprestado no acordo (opcional, só empréstimo): número de 0 a 100 milhões. */
+export function validarCapitalAdicional(v: unknown, alvo: AlvoAcordo): number {
+  if (v === undefined || v === null || v === 0) return 0
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DINHEIRO_MAX) throw requisicaoInvalida('Dinheiro novo: informe um valor válido (zero ou mais)')
+  if (alvo !== 'EMPRESTIMO' && v > 0) throw requisicaoInvalida('Dinheiro novo só vale em empréstimo')
+  return arred2(v)
 }
 
 /** Valida a proposta (a mesma para o administrador direto e para o pedido do cobrador). */
@@ -45,7 +53,7 @@ export function validarProposta(e: { valorTotal: unknown; parcelas: unknown; pri
  *  - pedidos de desconto e de acordo que esperavam sobre a operação são recusados ("Acordo feito").
  */
 export async function fazerAcordo(trx: Knex.Transaction, d: {
-  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number
+  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number
 }): Promise<ResultadoAcordo> {
   const t = T[d.alvo]
   const op = await trx(t.op).where({ id: d.operacaoId }).first<{ id: number; status: string } | undefined>('id', 'status')
@@ -62,12 +70,16 @@ export async function fazerAcordo(trx: Knex.Transaction, d: {
     throw new HttpError(409, `O que falta mudou desde o pedido (era ${d.saldoEsperado.toFixed(2).replace('.', ',')}, agora ${saldo.toFixed(2).replace('.', ',')}). Recuse o pedido e peça de novo.`, 'PEDIDO_DESATUALIZADO')
   }
 
+  // dinheiro novo: soma no capital do empréstimo (o Caixa mostra a saída na data do acordo)
+  const capitalAdicional = d.capitalAdicional ?? 0
+  if (capitalAdicional > 0) await trx('emprestimos').where({ id: d.operacaoId }).update({ capital: trx.raw('capital + ?', [capitalAdicional]), updated_at: trx.fn.now() })
+
   // o acordo que estava de pé sai de cena (as parcelas abertas dele são justamente as que estamos encerrando)
   const anterior = await trx('acordos').where({ [t.opFk]: d.operacaoId, status: 'ATIVO' }).first<{ id: number } | undefined>('id')
   if (anterior) await trx('acordos').where({ id: anterior.id }).update({ status: 'SUBSTITUIDO', updated_at: trx.fn.now() })
 
   const [{ id: acordoId }] = await trx('acordos').insert({
-    [t.opFk]: d.operacaoId, criado_por: d.usuarioId, aprovacao_id: d.aprovacaoId ?? null, data_acordo: d.dia, saldo_antes: saldo, valor_total: d.valorTotal, n_parcelas: d.n,
+    [t.opFk]: d.operacaoId, criado_por: d.usuarioId, aprovacao_id: d.aprovacaoId ?? null, data_acordo: d.dia, saldo_antes: saldo, valor_total: d.valorTotal, capital_adicional: capitalAdicional, n_parcelas: d.n,
     primeira_parcela: d.primeira, motivo: d.motivo,
     parcelas_antes: JSON.stringify(abertas.map((p) => ({ numero: p.numero, valor: Number(p.valor), desconto: Number(p.desconto), pago: Number(p.pago), falta: p.falta, vencimento: dia(p.vencimento), vencimentoOriginal: dia(p.vencimento_original) }))),
   }).returning('id')
@@ -84,5 +96,5 @@ export async function fazerAcordo(trx: Knex.Transaction, d: {
 
   await trx('aprovacoes').where({ [t.opFk]: d.operacaoId, status: 'PENDENTE' }).whereIn('tipo', ['DESCONTO', 'ACORDO']).whereNot('id', d.aprovacaoId ?? -1)
     .update({ status: 'RECUSADO', respondido_por: d.usuarioId, respondido_em: trx.fn.now(), resposta: 'Acordo feito', updated_at: trx.fn.now() })
-  return { acordoId, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null }
+  return { acordoId, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
 }
