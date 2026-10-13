@@ -200,6 +200,7 @@ test.describe('operações', () => {
   test('filtra por atraso e quitadas', async ({ page }) => {
     await entrar(page)
     await page.goto('/operacoes')
+    await page.getByRole('button', { name: /^iPhones/ }).click()
     await page.getByRole('button', { name: 'Com atraso' }).click()
     await expect(page.locator('.fones .card').first()).toContainText('atrasada')
     await page.getByRole('button', { name: 'Quitadas' }).click()
@@ -332,6 +333,7 @@ test.describe('retomada do aparelho', () => {
   const abrirCarlos = async (page: Page) => {
     await entrar(page)
     await page.goto('/operacoes')
+    await page.getByRole('button', { name: /^iPhones/ }).click()
     await page.locator('.seg').getByRole('button', { name: 'Com atraso' }).click()
     await page.locator('.card', { hasText: 'Carlos Henrique' }).first().click()
   }
@@ -353,6 +355,7 @@ test.describe('retomada do aparelho', () => {
   test('só aparece "Retomar aparelho" quando há parcela atrasada', async ({ page }) => {
     await entrar(page)
     await page.goto('/operacoes')
+    await page.getByRole('button', { name: /^iPhones/ }).click()
     await page.locator('.seg').getByRole('button', { name: 'Quitadas' }).click()
     const quitada = page.locator('.fones button.card').first()
     await expect(quitada).toBeVisible()

@@ -147,6 +147,7 @@ test.describe('ficha da venda', () => {
   test('quitar tudo fecha a venda: sai de "em andamento" e vai para "quitadas"', async ({ page }) => {
     await entrar(page)
     await page.goto('/operacoes')
+    await page.getByRole('button', { name: /^iPhones/ }).click()
     await page.locator('.fones .card', { hasText: 'Patrícia Gomes' }).first().click()
     await page.getByRole('dialog').locator('[data-receber]').first().click()
     await page.fill('#rValor', '300000') // 10 × 300 = 3.000: quita tudo

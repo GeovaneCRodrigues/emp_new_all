@@ -20,13 +20,14 @@ import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
 import { useBusca } from '@/composables/useBusca'
 import { fmt0 } from '@/domain/format'
+import { misturarOperacoes, somarResumos } from '@/domain/operacoes'
 
 const route = useRoute()
 const router = useRouter()
 const { sessao } = useApp()
 
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
-const aba = ref<'iphone' | 'emp'>('iphone')
+const aba = ref<'todos' | 'iphone' | 'emp'>(ehAdmin.value ? 'todos' : 'iphone') // o vendedor só tem iPhones
 const filtro = ref('ATIVA')
 const { busca } = useBusca(() => carregar())
 
@@ -80,6 +81,7 @@ watch(() => route.query.novo, abrirNovoEmprestimo)
 onMounted(async () => {
   carregar(); carregarResumo()
   abrirNovoEmprestimo()
+  if (ehAdmin.value && aba.value === 'todos') { carregarEmp(); carregarResumoEmp() }
   // /operacoes?venda=ID abre a ficha (é para onde a "venda feita" manda)
   const id = Number(route.query.venda)
   if (id) ficha.value = await vendasApi.obter(sessao.value, id).catch(() => null)
@@ -113,12 +115,27 @@ async function carregarEmp() {
 }
 async function carregarResumoEmp() { try { resumoEmp.value = await emprestimosApi.resumo(sessao.value) } catch { /* os números ficam em branco */ } }
 watch(filtroEmp, () => carregarEmp())
-watch(aba, (a) => { if (a === 'emp' && ehAdmin.value && !emps.value.length && !carregandoEmp.value) { carregarEmp(); carregarResumoEmp() } })
+// ---- Todos: as duas listas juntas, com uma busca e um filtro só (valem para as duas) ----
+const buscaTodos = computed({ get: () => busca.value, set: (t: string) => { busca.value = t; buscaEmp.value = t } })
+const filtroTodos = computed({ get: () => filtro.value, set: (f: string) => { filtro.value = f; filtroEmp.value = f } })
+const todos = computed(() => misturarOperacoes(vendas.value, emps.value))
+const resumoTodos = computed(() => somarResumos(resumo.value, resumoEmp.value))
+const carregandoTodos = computed(() => carregando.value || carregandoEmp.value)
+watch(aba, (a) => {
+  if (!ehAdmin.value || a === 'iphone') return
+  if (a === 'todos') { // "Retomadas" só existe em iPhone; o resto das duas abas passa a ser o mesmo
+    if (filtro.value === 'RETOMADA') filtro.value = 'ATIVA'
+    filtroEmp.value = filtro.value
+    buscaEmp.value = busca.value
+  }
+  if (!emps.value.length && !carregandoEmp.value) { carregarEmp(); carregarResumoEmp() }
+})
 async function aoSalvarEmp(e: EmprestimoApi) { formEmp.value = false; inicialEmp.value = null; filtroEmp.value = 'ATIVA'; await Promise.all([carregarEmp(), carregarResumoEmp()]); fichaEmp.value = e }
 const filtrosEmp = [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', label: 'Com atraso' }, { id: 'QUITADA', label: 'Quitados' }]
 
 // só o admin tem empréstimos; o vendedor só vê as vendas dele
 const abas = computed(() => [
+  ...(ehAdmin.value ? [{ id: 'todos', label: 'Todos', icon: 'layers' }] : []),
   { id: 'iphone', label: 'iPhones', icon: 'smartphone', n: resumo.value ? undefined : undefined },
   ...(ehAdmin.value ? [{ id: 'emp', label: 'Empréstimos', icon: 'landmark' }] : []),
 ])
@@ -127,7 +144,28 @@ const abas = computed(() => [
 <template>
   <Abas v-if="ehAdmin" v-model="aba" :itens="abas" />
 
-  <template v-if="aba === 'iphone'">
+  <template v-if="ehAdmin && aba === 'todos'">
+    <div class="resumo3" data-testid="resumo-todos">
+      <div><div class="lbl">A receber</div><div class="val num">{{ resumoTodos ? fmt0(resumoTodos.aReceber) : '—' }}</div></div>
+      <div><div class="lbl">Capital na rua</div><div class="val num">{{ resumoTodos ? fmt0(resumoTodos.capitalNaRua) : '—' }}</div></div>
+      <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ resumoTodos ? fmt0(resumoTodos.lucroPorVir) : '—' }}</div></div>
+    </div>
+    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><CampoBusca v-model="buscaTodos" placeholder="Cliente, aparelho ou indicador" rotulo="Buscar operação" /></div><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <Seg v-model="filtroTodos" :itens="filtrosEmp" />
+    <div v-if="erro || erroEmp" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro || erroEmp }}</span><button class="btn b-ghost b-sm" @click="aposMudar()">Tentar de novo</button></div>
+    <div class="fones" data-testid="lista-todos">
+      <template v-for="i in todos" :key="i.chave">
+        <VendaCard v-if="i.tipo === 'venda'" :v="i.v" @abrir="ficha = $event" />
+        <EmprestimoCard v-else :e="i.e" @abrir="fichaEmp = $event" />
+      </template>
+      <div v-if="!todos.length && !carregandoTodos && !erro && !erroEmp" class="card empty">{{ busca.trim() ? 'Nada encontrado nesta lista.' : 'Nada por aqui.' }}</div>
+      <div v-if="carregandoTodos && !todos.length" class="card empty">Carregando…</div>
+    </div>
+    <RestanteDaLista :mostrados="vendas.length" :total="total" :carregando="carregando" :parado="!!erro" />
+    <RestanteDaLista :mostrados="emps.length" :total="totalEmp" :carregando="carregandoEmp" :parado="!!erroEmp" />
+  </template>
+
+  <template v-else-if="aba === 'iphone'">
     <div class="resumo3">
       <div><div class="lbl">A receber</div><div class="val num">{{ resumo ? fmt0(resumo.aReceber) : '—' }}</div></div>
       <template v-if="ehAdmin">

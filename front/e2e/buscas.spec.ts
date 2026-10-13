@@ -9,7 +9,7 @@ const vendas = (page: Page) => page.locator('.fones .card.pad')
 const emps = (page: Page) => page.locator('[data-emprestimo]')
 
 test.describe('busca em Operações (administrador)', () => {
-  test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/operacoes') })
+  test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/operacoes'); await page.getByRole('button', { name: /^iPhones/ }).click() })
 
   test('iPhones: acha pelo nome sem acento nem maiúscula, e mostra só quem casa', async ({ page }) => {
     const todas = await vendas(page).count()
