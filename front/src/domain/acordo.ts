@@ -16,6 +16,9 @@ export function distribuirAcordo(total: number, n: number): number[] {
 /** Mensal, no dia da 1ª parcela (limitado ao fim do mês). */
 export const vencimentosAcordo = (primeira: Iso, n: number): Iso[] => Array.from({ length: n }, (_, i) => somaMes(primeira, i, Number(primeira.slice(8, 10))))
 
+/** O valor sugerido do acordo: o que ele devia + o dinheiro novo emprestado + o juro cobrado sobre esse dinheiro (tudo em reais). */
+export const valorSugeridoAcordo = (saldo: number, dinheiroNovo: number, jurosDoNovo: number): number => arred2(saldo + Math.max(0, dinheiroNovo) + Math.max(0, jurosDoNovo))
+
 /** Valida a proposta do acordo (a mesma regra do backend). Devolve a mensagem do problema, ou '' se está tudo certo. */
 export function problemaDoAcordo(a: { valorTotal: number; parcelas: number; primeiraParcela: Iso; capitalAdicional?: number }, hoje: Iso): string {
   if (a.capitalAdicional !== undefined && (!Number.isFinite(a.capitalAdicional) || a.capitalAdicional < 0 || a.capitalAdicional > 1e8)) return 'Dinheiro novo: informe um valor válido (zero ou mais).'

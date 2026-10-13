@@ -5,7 +5,7 @@ import type { AlvoApi } from '@/api/recebimentos'
 import { acordosApi, aprovacoesApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { distribuirAcordo, problemaDoAcordo, vencimentosAcordo } from '@/domain/acordo'
+import { distribuirAcordo, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from '@/domain/acordo'
 import { addDia } from '@/domain/datas'
 import { arred2, dmy, fmt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
@@ -23,7 +23,7 @@ const { mostrar } = useToast()
 
 const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
 const ATALHOS = [1, 2, 3, 4, 6, 10, 12]
-const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0 })
+const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0, jurosNovo: 0 })
 /** dinheiro novo emprestado junto: só o administrador, só em empréstimo */
 const podeDinheiroNovo = computed(() => !ehCobrador.value && props.alvo === 'EMPRESTIMO')
 const erro = ref('')
@@ -31,7 +31,7 @@ const enviando = ref(false)
 
 watch(() => props.aberto, (a) => {
   if (!a || !props.operacao) return
-  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0 })
+  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0, jurosNovo: 0 })
   erro.value = ''
 })
 
@@ -40,7 +40,10 @@ const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= 120 ? vencimentos
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
 const novo = computed(() => (podeDinheiroNovo.value ? arred2(f.novo) : 0))
 /** o que passa do que ele devia + o dinheiro novo é juros; abaixo disso é desconto */
-const diferenca = computed(() => arred2(f.valor - (props.operacao?.saldo ?? 0) - novo.value))
+const jurosNovo = computed(() => (novo.value > 0 ? arred2(f.jurosNovo) : 0))
+/** mexeu no dinheiro novo ou no juro dele: o valor do acordo já vira a soma (dá para ajustar depois) */
+watch([novo, jurosNovo], () => { if (props.operacao && podeDinheiroNovo.value) f.valor = valorSugeridoAcordo(props.operacao.saldo, novo.value, jurosNovo.value) })
+const diferenca = computed(() => arred2(f.valor - valorSugeridoAcordo(props.operacao?.saldo ?? 0, novo.value, jurosNovo.value)))
 const problema = computed(() => {
   const p = problemaDoAcordo({ valorTotal: f.valor, parcelas: f.n, primeiraParcela: f.primeira, capitalAdicional: novo.value }, hoje.value)
   if (p) return p
@@ -78,10 +81,12 @@ async function confirmar() {
 
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">
         <div v-if="podeDinheiroNovo" class="field"><label for="aNovo">Dinheiro novo emprestado (opcional)</label><MoneyInput id="aNovo" v-model="f.novo" />
-          <div class="small" data-testid="acordo-novo-ajuda">Se você mandou mais dinheiro para ele junto com o acordo. Soma no capital do empréstimo e sai do Caixa hoje. Coloque também no valor do acordo, com os juros.</div>
+          <div class="small" data-testid="acordo-novo-ajuda">Se você mandou mais dinheiro para ele junto com o acordo. Soma no capital do empréstimo e sai do Caixa hoje.</div>
         </div>
+        <div v-if="podeDinheiroNovo && novo > 0" class="field"><label for="aJurosNovo">Juros cobrados sobre o dinheiro novo</label><MoneyInput id="aJurosNovo" v-model="f.jurosNovo" /></div>
         <div class="field"><label for="aValor">Valor do acordo</label><MoneyInput id="aValor" v-model="f.valor" />
-          <div v-if="f.valor > 0 && diferenca !== 0" class="small" data-testid="acordo-diferenca">{{ diferenca < 0 ? `Desconto de ${fmt(-diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo' : ''}` : `Juros do acordo de ${fmt(diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo' : ''}` }}</div>
+          <div v-if="novo > 0" class="small" data-testid="acordo-conta">Ele devia {{ fmt(operacao.saldo) }} + dinheiro novo {{ fmt(novo) }} + juros {{ fmt(jurosNovo) }} = {{ fmt(valorSugeridoAcordo(operacao.saldo, novo, jurosNovo)) }}</div>
+          <div v-if="f.valor > 0 && diferenca !== 0" class="small" data-testid="acordo-diferenca">{{ diferenca < 0 ? `Desconto de ${fmt(-diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo e o juro' : ''}` : `Juros do acordo de ${fmt(diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo e o juro' : ''}` }}</div>
         </div>
         <div class="field"><label for="aParcelas">Em quantas parcelas?</label>
           <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
