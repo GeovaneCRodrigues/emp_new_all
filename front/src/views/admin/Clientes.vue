@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
+import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi, type ClienteApi, type Responsavel, type SalvoCliente } from '@/api/clientes'
 import { clientesApi } from '@/api/recursos'
 import ClienteForm from '@/components/ClienteForm.vue'
@@ -18,7 +20,6 @@ const veDocumentos = computed(() => sessao.value.perfil !== 'INDICADOR')
 
 const itens = ref<ClienteApi[]>([])
 const total = ref(0)
-const pagina = ref(1)
 const busca = ref('')
 const carregando = ref(false)
 const erro = ref('')
@@ -31,22 +32,18 @@ const editando = ref<ClienteApi | null>(null)
 
 // uma busca nova vale mais que uma resposta antiga que chegou atrasada
 let pedido = 0
-async function carregar(mais = false) {
+async function carregar() {
   const meu = ++pedido
   carregando.value = true
   erro.value = ''
-  try {
-    const p = mais ? pagina.value + 1 : 1
-    const r = await clientesApi.listar(sessao.value, { busca: busca.value.trim() || undefined, pagina: p, limite: 20 })
-    if (meu !== pedido) return
-    itens.value = mais ? [...itens.value, ...r.itens] : r.itens
-    total.value = r.total
-    pagina.value = p
-  } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os clientes.'
-  } finally {
-    if (meu === pedido) carregando.value = false
-  }
+  // a primeira página aparece logo; o resto chega em segundo plano, sem botão
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => clientesApi.listar(sessao.value, { busca: busca.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    ativo: () => meu === pedido, mostrados: () => itens.value.length,
+    aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total },
+  })
+  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os clientes.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  await primeira.catch(() => undefined)
 }
 
 let espera: ReturnType<typeof setTimeout> | undefined
@@ -59,7 +56,6 @@ onMounted(async () => {
 })
 
 const nomeResponsavel = (id?: number | null) => responsaveis.value.find((u) => u.id === id)?.nome ?? null
-const temMais = computed(() => itens.value.length < total.value)
 
 function novo() { editando.value = null; formAberto.value = true }
 function editar(c: ClienteApi) { editando.value = c; ficha.value = null; formAberto.value = true }
@@ -100,7 +96,7 @@ const linkZap = (fone: string) => `https://wa.me/55${fone}`
     <div v-if="!itens.length && !carregando && !erro" class="empty">{{ busca.trim() ? 'Ninguém encontrado.' : 'Nenhum cliente por aqui ainda.' }}</div>
     <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
   </div>
-  <button v-if="temMais" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+  <RestanteDaLista :mostrados="itens.length" :total="total" :carregando="carregando" :parado="!!erro" />
 
   <Sheet :aberto="ficha !== null" @fechar="ficha = null">
     <template v-if="ficha">

@@ -5,15 +5,9 @@ import { entrar, navegar } from './helpers'
 /** "R$ 1.234,50" → 1234.5; "−R$ 5,00" → -5 (o menos do sistema é o sinal de menos tipográfico). */
 const numero = (t: string) => (/^[−-]/.test(t.trim()) ? -1 : 1) * Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 const saldo = async (page: Page) => numero((await page.getByTestId('caixa-saldo').textContent()) ?? '')
-/** O lançamento pode estar mais abaixo no extrato (o mais antigo fica no fim): carrega mais até ele aparecer. */
+/** O extrato carrega inteiro, então o lançamento já está na lista (sem botão de "mais"). */
 async function achar(page: Page, texto: string) {
-  const alvo = page.locator('[data-categoria="APORTE"]', { hasText: texto })
-  for (let i = 0; i < 20 && !(await alvo.count()); i++) {
-    const mais = page.getByTestId('caixa-mais')
-    if (!(await mais.count())) break
-    await mais.click(); await page.waitForTimeout(150)
-  }
-  return alvo
+  return page.locator('[data-categoria="APORTE"]', { hasText: texto })
 }
 const abrirLancar = async (page: Page) => { await page.getByTestId('caixa-lancar').click(); await expect(page.getByTestId('lanc-salvar')).toBeVisible() }
 
@@ -32,15 +26,13 @@ test.describe('caixa da loja (administrador)', () => {
     await expect(extrato.locator('[data-categoria="EMPRESTIMO"], [data-categoria="COMPRA"]').first()).toContainText('−')
   })
 
-  test('"Mostrar mais" acrescenta o resto do extrato', async ({ page }) => {
+  test('o extrato vem inteiro, sem botão de "mostrar mais"', async ({ page }) => {
     const itens = page.getByTestId('caixa-extrato').locator('[data-movimento]')
-    const antes = await itens.count()
-    expect(antes).toBeLessThanOrEqual(25)
-    const mais = page.getByTestId('caixa-mais')
-    if (await mais.count()) {
-      await mais.click()
-      await expect.poll(async () => itens.count()).toBeGreaterThan(antes)
-    }
+    await expect(itens.first()).toBeVisible()
+    await expect(page.getByTestId('lista-carregando')).toHaveCount(0) // terminou de carregar
+    await expect(page.getByTestId('lista-cortada')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /mostrar mais|carregar mais/i })).toHaveCount(0)
+    expect(await itens.count()).toBeGreaterThan(25) // antes parava em 25
   })
 
   test('lançar um aporte soma no saldo e aparece no topo do extrato', async ({ page }) => {

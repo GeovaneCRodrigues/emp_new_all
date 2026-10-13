@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
+import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { useRouter } from 'vue-router'
 import { ErroApi } from '@/api/clientes'
 import type { AparelhoApi, EstadoAparelho, ResumoEstoqueApi } from '@/api/estoque'
@@ -22,7 +24,6 @@ const filtro = ref<EstadoAparelho>('DISPONIVEL')
 const busca = ref('')
 const itens = ref<AparelhoApi[]>([])
 const total = ref(0)
-const pagina = ref(1)
 const resumo = ref<ResumoEstoqueApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
@@ -31,22 +32,17 @@ const formAberto = ref(false)
 const editando = ref<AparelhoApi | null>(null)
 
 let pedido = 0
-async function carregar(mais = false) {
+async function carregar() {
   const meu = ++pedido
   carregando.value = true
   erro.value = ''
-  try {
-    const p = mais ? pagina.value + 1 : 1
-    const r = await estoqueApi.listar(sessao.value, { busca: busca.value.trim() || undefined, estado: filtro.value, pagina: p, limite: 20 })
-    if (meu !== pedido) return
-    itens.value = mais ? [...itens.value, ...r.itens] : r.itens
-    total.value = r.total
-    pagina.value = p
-  } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o estoque.'
-  } finally {
-    if (meu === pedido) carregando.value = false
-  }
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => estoqueApi.listar(sessao.value, { busca: busca.value.trim() || undefined, estado: filtro.value, pagina: p, limite: PAGINA_CHEIA }),
+    ativo: () => meu === pedido, mostrados: () => itens.value.length,
+    aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total },
+  })
+  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o estoque.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  await primeira.catch(() => undefined)
 }
 async function carregarResumo() {
   try { resumo.value = await estoqueApi.resumo(sessao.value) } catch { /* os números ficam em branco */ }
@@ -121,7 +117,7 @@ const simular = (a: AparelhoApi) => { ficha.value = null; router.push('/simulado
     <div v-if="!itens.length && !carregando && !erro" class="card empty">{{ busca.trim() ? 'Nada encontrado.' : 'Nada por aqui.' }}</div>
     <div v-if="carregando && !itens.length" class="card empty">Carregando…</div>
   </div>
-  <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+  <RestanteDaLista :mostrados="itens.length" :total="total" :carregando="carregando" :parado="!!erro" />
 
   <Sheet :aberto="ficha !== null" @fechar="ficha = null">
     <template v-if="ficha">
