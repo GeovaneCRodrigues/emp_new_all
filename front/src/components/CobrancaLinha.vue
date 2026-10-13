@@ -31,8 +31,9 @@ const linkWhatsApp = computed(() => {
     <button class="mid" style="flex: 1; min-width: 0; text-align: left" @click="$emit('abrir', c)">
       <div class="t" style="font-weight: 600; color: var(--strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.cliente.nome }}</div>
       <div class="s" style="font-size: 12.5px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
-        {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}<template v-if="c.vencimentoOriginal && aberta"> · remarcada (era {{ dmy(c.vencimentoOriginal) }})</template>
+        {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}
       </div>
+      <div v-if="c.vencimentoOriginal && aberta" class="s" style="margin-top: 2px" data-remarcada><span class="chip c-warn">Data alterada · remarcada (era {{ dmy(c.vencimentoOriginal) }})</span></div>
       <div v-if="c.indicador" class="s" style="font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap" data-indicador>indicado por {{ c.indicador }}</div>
       <div class="s" style="font-size: 12px; font-weight: 600">
         <span v-if="recebida" style="color: var(--ok)" data-situacao="recebida">recebido {{ c.ultimoRecebimentoEm ? dmy(c.ultimoRecebimentoEm) : '' }}</span>
