@@ -1,6 +1,8 @@
 export type ModalidadeEmprestimo = 'PARCELADO' | 'JUROS' | 'DIARIA'
 export type Periodicidade = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
 export type StatusEmprestimo = 'ATIVA' | 'QUITADA' | 'CANCELADA'
+/** Como o indicador participa. CAPITAL_PRIMEIRO: só depois que o capital voltou. JUROS_MENSAL (só juros): a cada pagamento, o % dele sobre os JUROS recebidos. */
+export type ModoDivisao = 'CAPITAL_PRIMEIRO' | 'JUROS_MENSAL'
 
 export type ParcelaEmprestimo = {
   id: number
@@ -31,6 +33,7 @@ export type Emprestimo = {
   periodicidade: Periodicidade
   status: StatusEmprestimo
   observacoes: string | null
+  modoDivisao: ModoDivisao
   /** só juros: quanto do capital já foi pago adiantado (excedente dos recebimentos). Conta como dinheiro recebido. */
   amortizado: number
   parcelas: ParcelaEmprestimo[]
@@ -49,4 +52,5 @@ export type NovoEmprestimo = {
   taxa: number
   periodicidade: Periodicidade
   observacoes: string | null
+  modoDivisao: ModoDivisao
 }

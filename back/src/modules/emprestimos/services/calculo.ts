@@ -47,3 +47,21 @@ export function planoEmprestimo(a: EntradaPlano): ItemPlano[] {
 }
 
 export const totalDoPlano = (p: ItemPlano[]) => arred2(p.reduce((s, x) => s + x.valor, 0))
+
+/**
+ * Só juros no modo JUROS_MENSAL: quanto do que já entrou foi JURO (o capital emprestado fica com a loja).
+ * Capital que voltou = o que foi amortizado adiantado + o que passou do juro na última parcela (a que leva o capital).
+ * Devolve null quando o modo não vale: outra modalidade, modo CAPITAL_PRIMEIRO, ou depois de um acordo (aí vale capital primeiro).
+ */
+export function jurosRecebidosSoJuros(e: { modalidade: ModalidadeEmprestimo; modoDivisao: string; capital: number; amortizado: number; parcelas: { numero: number; valor: number; pago: number; acordo: string | null }[] }): number | null {
+  if (e.modalidade !== 'JUROS' || e.modoDivisao !== 'JUROS_MENSAL') return null
+  if (e.parcelas.some((p) => p.acordo !== null)) return null
+  const parcelas = [...e.parcelas].sort((a, b) => a.numero - b.numero)
+  const pago = parcelas.reduce((x, p) => x + p.pago, 0)
+  const ultima = parcelas[parcelas.length - 1]
+  const capitalAberto = Math.max(0, e.capital - e.amortizado)
+  // a última parcela leva o capital que ainda estava em aberto; o que passou do juro dela é capital que voltou
+  const jurosDaUltima = ultima ? Math.max(0, ultima.valor - capitalAberto) : 0
+  const capitalNaUltima = ultima ? Math.min(capitalAberto, Math.max(0, ultima.pago - jurosDaUltima)) : 0
+  return arred2(Math.max(0, pago - capitalNaUltima))
+}

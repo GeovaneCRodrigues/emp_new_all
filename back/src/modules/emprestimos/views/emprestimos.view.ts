@@ -1,5 +1,6 @@
 import type { Perfil } from '../../../shared/perfis.js'
 import { partesDoIndicador } from '../../repasses/services/calculo.js'
+import { jurosRecebidosSoJuros } from '../services/calculo.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { EmprestimoCalculado, ResultadoLista, ResumoEmprestimos } from '../services/emprestimos.service.js'
 
@@ -21,13 +22,13 @@ export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
   // o indicador acompanha o empréstimo dele: a parte dele (prevista e já liberada), nunca capital, taxa nem lucro da loja
   if (perfil === 'INDICADOR') {
     const descontos = arred2(e.parcelas.reduce((x, p) => x + p.desconto, 0))
-    const { parte, liberado } = partesDoIndicador({ total: c.total, descontos, recebido: c.recebido, investido: e.capital, pct: e.pct })
+    const { parte, liberado } = partesDoIndicador({ total: c.total, descontos, recebido: c.recebido, investido: e.capital, pct: e.pct, jurosRecebidos: jurosRecebidosSoJuros(e) })
     return { ...base, percentualIndicador: e.pct, suaParte: parte, jaLiberado: liberado }
   }
   if (perfil !== 'ADMIN') return base
   return {
     ...base,
-    indicador: e.indicador, capital: e.capital, taxa: e.taxa,
+    indicador: e.indicador, capital: e.capital, taxa: e.taxa, modoDivisao: e.modoDivisao,
     // só juros: o capital que ainda não foi amortizado (a prévia do recebimento precisa dele)
     capitalAberto: arred2(e.capital - e.amortizado),
     lucroTotal: c.lucroTotal, seuLucro: c.seuLucro, lucroRealizado: c.lucroRealizado, capitalDeVolta: c.capitalDeVolta,

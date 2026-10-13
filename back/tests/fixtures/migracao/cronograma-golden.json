@@ -1,0 +1,1802 @@
+[
+ {
+  "nome": "parcelado mensal: 4 parcelas, 2 pagas e 1 parcial",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 500,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 4,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 500,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 500,
+     "tipo": "integral",
+     "dataPagamento": "2026-06-10"
+    },
+    {
+     "id": 3,
+     "parcelaId": "1-3",
+     "operacaoId": 1,
+     "valor": 200,
+     "tipo": "integral",
+     "dataPagamento": "2026-07-10"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 500,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 500,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PARCIAL",
+    "valorPago": 200,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-08-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "parcelado mensal dia 31: fim de mês (fev e abr)",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-01-15",
+     "diaVencimento": 31,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 500,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 5,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-01-31",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-02-28",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-03-31",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-04-30",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-5",
+    "operacaoId": 1,
+    "numero": 5,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-05-31",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "parcelado semanal",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "SEMANAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 250,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 4,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 250,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-05"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-05-05",
+    "vencimentoOriginalIso": null,
+    "valor": 250,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 250,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-05-12",
+    "vencimentoOriginalIso": null,
+    "valor": 250,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 250,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-05-19",
+    "vencimentoOriginalIso": null,
+    "valor": 250,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 250,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-05-26",
+    "vencimentoOriginalIso": null,
+    "valor": 250,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 250,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "parcelado quinzenal",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "QUINZENAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 300,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 3,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-05-05",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-05-19",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-06-02",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "diária: um dia de cada vez (inclui domingo)",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-09-01",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "DIARIA",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 100,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 6,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 100,
+     "tipo": "integral",
+     "dataPagamento": "2026-09-01"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 100,
+     "tipo": "integral",
+     "dataPagamento": "2026-09-02"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-01",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 100,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-02",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 100,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-03",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 100,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-04",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 100,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-5",
+    "operacaoId": 1,
+    "numero": 5,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-05",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 100,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-6",
+    "operacaoId": 1,
+    "numero": 6,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-06",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 100,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "só juros mensal: pagamentos, data remarcada e ajuste",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "JUROS",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 3000,
+     "valorRecebimentoMensal": 300,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 0,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 300,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 300,
+     "tipo": "integral",
+     "dataPagamento": "2026-06-10"
+    },
+    {
+     "id": 3,
+     "parcelaId": "1-3",
+     "operacaoId": 1,
+     "valor": 300,
+     "tipo": "integral",
+     "dataPagamento": "2026-07-10"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {
+    "1-5": {
+     "valorAjustado": 150,
+     "proporcional": true
+    }
+   },
+   "quitacoes": [],
+   "parcelaVencimentos": {
+    "1-4": {
+     "vencimentoIso": "2026-12-20",
+     "vencimentoBr": "20/12/2026"
+    }
+   },
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 300,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 300,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 300,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-12-20",
+    "vencimentoOriginalIso": "2026-08-10",
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-5",
+    "operacaoId": 1,
+    "numero": 5,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-09-10",
+    "vencimentoOriginalIso": null,
+    "valor": 150,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 150,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-6",
+    "operacaoId": 1,
+    "numero": 6,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-10-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-7",
+    "operacaoId": 1,
+    "numero": 7,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-11-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-8",
+    "operacaoId": 1,
+    "numero": 8,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-12-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-9",
+    "operacaoId": 1,
+    "numero": 9,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-01-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-10",
+    "operacaoId": 1,
+    "numero": 10,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-02-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-11",
+    "operacaoId": 1,
+    "numero": 11,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-03-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-12",
+    "operacaoId": 1,
+    "numero": 12,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-04-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-13",
+    "operacaoId": 1,
+    "numero": 13,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-14",
+    "operacaoId": 1,
+    "numero": 14,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-15",
+    "operacaoId": 1,
+    "numero": 15,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-16",
+    "operacaoId": 1,
+    "numero": 16,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-08-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-17",
+    "operacaoId": 1,
+    "numero": 17,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-09-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-18",
+    "operacaoId": 1,
+    "numero": 18,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-10-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-19",
+    "operacaoId": 1,
+    "numero": 19,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-11-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-20",
+    "operacaoId": 1,
+    "numero": 20,
+    "totalParcelas": 24,
+    "vencimentoIso": "2027-12-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-21",
+    "operacaoId": 1,
+    "numero": 21,
+    "totalParcelas": 24,
+    "vencimentoIso": "2028-01-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-22",
+    "operacaoId": 1,
+    "numero": 22,
+    "totalParcelas": 24,
+    "vencimentoIso": "2028-02-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-23",
+    "operacaoId": 1,
+    "numero": 23,
+    "totalParcelas": 24,
+    "vencimentoIso": "2028-03-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-24",
+    "operacaoId": 1,
+    "numero": 24,
+    "totalParcelas": 24,
+    "vencimentoIso": "2028-04-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "JUROS",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "só juros quinzenal com quitação na parcela 3",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "JUROS",
+     "periodicidade": "QUINZENAL",
+     "valorOriginal": 2000,
+     "valorRecebimentoMensal": 400,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 0,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 400,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-05"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 400,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-19"
+    },
+    {
+     "id": 3,
+     "parcelaId": "1-3",
+     "operacaoId": 1,
+     "valor": 2400,
+     "tipo": "quitacao",
+     "dataPagamento": "2026-06-02"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [
+    {
+     "id": 1,
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-3",
+     "valor": 2400,
+     "dataPagamento": "2026-06-02"
+    }
+   ],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 52,
+    "vencimentoIso": "2026-05-05",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 400,
+    "valorFalta": 0,
+    "quitacaoOperacao": false
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 52,
+    "vencimentoIso": "2026-05-19",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 400,
+    "valorFalta": 0,
+    "quitacaoOperacao": false
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 52,
+    "vencimentoIso": "2026-06-02",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 2400,
+    "valorFalta": 0,
+    "quitacaoOperacao": true
+   }
+  ]
+ },
+ {
+  "nome": "parcelado com acordo: some o que não foi pago, ficam as pagas, a parcial e as do acordo",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 500,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 6,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 500,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 500,
+     "tipo": "integral",
+     "dataPagamento": "2026-06-10"
+    },
+    {
+     "id": 3,
+     "parcelaId": "1-3",
+     "operacaoId": 1,
+     "valor": 200,
+     "tipo": "integral",
+     "dataPagamento": "2026-07-10"
+    },
+    {
+     "id": 4,
+     "parcelaId": "acordo-1-1",
+     "operacaoId": 1,
+     "valor": 400,
+     "tipo": "integral",
+     "dataPagamento": "2026-08-15"
+    }
+   ],
+   "parcelasExtras": [
+    {
+     "id": "acordo-1-1",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 1,
+     "totalParcelas": 3,
+     "vencimentoIso": "2026-08-15",
+     "vencimentoBr": "",
+     "valor": 400,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    },
+    {
+     "id": "acordo-1-2",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 2,
+     "totalParcelas": 3,
+     "vencimentoIso": "2026-09-15",
+     "vencimentoBr": "",
+     "valor": 400,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    },
+    {
+     "id": "acordo-1-3",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 3,
+     "totalParcelas": 3,
+     "vencimentoIso": "2026-10-15",
+     "vencimentoBr": "",
+     "valor": 400,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    }
+   ],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": [
+    {
+     "id": 1,
+     "operacaoId": 1,
+     "periodicidade": "MENSAL"
+    }
+   ]
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 500,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 500,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "PARCIAL",
+    "valorPago": 200,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-08-15",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "ACORDO",
+    "status": "PAGO",
+    "valorPago": 400,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-09-15",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "ACORDO",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-10-15",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "ACORDO",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "investimento/sociedade: 3 de recuperação + 3 de lucro",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "INVESTIMENTO/SOCIEDADE",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 400,
+     "qtdeParcelasRecuperacao": 3,
+     "qtdeParcelasLucro": 3,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 400,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "RECUPERAÇÃO CAPITAL",
+    "status": "PAGO",
+    "valorPago": 400,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "RECUPERAÇÃO CAPITAL",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "RECUPERAÇÃO CAPITAL",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-08-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "LUCRO/SOCIEDADE",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-5",
+    "operacaoId": 1,
+    "numero": 5,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-09-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "LUCRO/SOCIEDADE",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-6",
+    "operacaoId": 1,
+    "numero": 6,
+    "totalParcelas": 6,
+    "vencimentoIso": "2026-10-10",
+    "vencimentoOriginalIso": null,
+    "valor": 400,
+    "fase": "LUCRO/SOCIEDADE",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 400,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "baixa parcial: a parcela é ajustada e o saldo vira outra parcela",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 500,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 3,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 200,
+     "tipo": "parcial",
+     "dataPagamento": "2026-05-10"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-1-spl-1",
+     "operacaoId": 1,
+     "valor": 300,
+     "tipo": "integral",
+     "dataPagamento": "2026-06-20"
+    }
+   ],
+   "parcelasExtras": [
+    {
+     "id": "1-1-spl-1",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 1,
+     "totalParcelas": 3,
+     "vencimentoIso": "2026-06-20",
+     "vencimentoBr": "",
+     "valor": 300,
+     "fase": "SALDO PROPORCIONAL",
+     "modalidade": "PARCELADO"
+    }
+   ],
+   "parcelaAjustes": {
+    "1-1": {
+     "valorAjustado": 200,
+     "proporcional": true
+    }
+   },
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 200,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 200,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-07-10",
+    "vencimentoOriginalIso": null,
+    "valor": 500,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 500,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-1-spl-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 3,
+    "vencimentoIso": "2026-06-20",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "SALDO PROPORCIONAL",
+    "status": "PAGO",
+    "valorPago": 300,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "diária com acordo diário",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-09-01",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "DIARIA",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 100,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 5,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 100,
+     "tipo": "integral",
+     "dataPagamento": "2026-09-01"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 100,
+     "tipo": "integral",
+     "dataPagamento": "2026-09-02"
+    },
+    {
+     "id": 3,
+     "parcelaId": "acordo-1-1",
+     "operacaoId": 1,
+     "valor": 50,
+     "tipo": "integral",
+     "dataPagamento": "2026-09-10"
+    }
+   ],
+   "parcelasExtras": [
+    {
+     "id": "acordo-1-1",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 1,
+     "totalParcelas": 4,
+     "vencimentoIso": "2026-09-10",
+     "vencimentoBr": "",
+     "valor": 50,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    },
+    {
+     "id": "acordo-1-2",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 2,
+     "totalParcelas": 4,
+     "vencimentoIso": "2026-09-11",
+     "vencimentoBr": "",
+     "valor": 50,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    },
+    {
+     "id": "acordo-1-3",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 3,
+     "totalParcelas": 4,
+     "vencimentoIso": "2026-09-12",
+     "vencimentoBr": "",
+     "valor": 50,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    },
+    {
+     "id": "acordo-1-4",
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-1",
+     "clienteNome": "FICTICIO",
+     "parcelaNumero": 4,
+     "totalParcelas": 4,
+     "vencimentoIso": "2026-09-13",
+     "vencimentoBr": "",
+     "valor": 50,
+     "fase": "ACORDO",
+     "modalidade": "PARCELADO"
+    }
+   ],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": [
+    {
+     "id": 1,
+     "operacaoId": 1,
+     "periodicidade": "DIARIA"
+    }
+   ]
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-09-01",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 100,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 5,
+    "vencimentoIso": "2026-09-02",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 100,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-09-10",
+    "vencimentoOriginalIso": null,
+    "valor": 50,
+    "fase": "ACORDO",
+    "status": "PAGO",
+    "valorPago": 50,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-09-11",
+    "vencimentoOriginalIso": null,
+    "valor": 50,
+    "fase": "ACORDO",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 50,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-3",
+    "operacaoId": 1,
+    "numero": 3,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-09-12",
+    "vencimentoOriginalIso": null,
+    "valor": 50,
+    "fase": "ACORDO",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 50,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "acordo-1-4",
+    "operacaoId": 1,
+    "numero": 4,
+    "totalParcelas": 4,
+    "vencimentoIso": "2026-09-13",
+    "vencimentoOriginalIso": null,
+    "valor": 50,
+    "fase": "ACORDO",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 50,
+    "quitacaoOperacao": null
+   }
+  ]
+ },
+ {
+  "nome": "operação sem valor de parcela não gera nada",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 0,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 4,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": []
+ },
+ {
+  "nome": "duas operações juntas: a quitação de uma não mexe na outra",
+  "entrada": {
+   "operacoes": [
+    {
+     "id": 1,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "JUROS",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 100,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 0,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    },
+    {
+     "id": 2,
+     "clienteNome": "FICTICIO",
+     "dataInicio": "2026-05-05",
+     "diaVencimento": 10,
+     "modalidade": "PARCELADO",
+     "periodicidade": "MENSAL",
+     "valorOriginal": 1000,
+     "valorRecebimentoMensal": 300,
+     "qtdeParcelasRecuperacao": 0,
+     "qtdeParcelasLucro": 2,
+     "indicadorId": null,
+     "parceiroSocio": ""
+    }
+   ],
+   "recebimentos": [
+    {
+     "id": 1,
+     "parcelaId": "1-1",
+     "operacaoId": 1,
+     "valor": 100,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    },
+    {
+     "id": 2,
+     "parcelaId": "1-2",
+     "operacaoId": 1,
+     "valor": 1100,
+     "tipo": "quitacao",
+     "dataPagamento": "2026-06-10"
+    },
+    {
+     "id": 3,
+     "parcelaId": "2-1",
+     "operacaoId": 2,
+     "valor": 300,
+     "tipo": "integral",
+     "dataPagamento": "2026-05-10"
+    }
+   ],
+   "parcelasExtras": [],
+   "parcelaAjustes": {},
+   "quitacoes": [
+    {
+     "id": 1,
+     "operacaoId": 1,
+     "parcelaOrigemId": "1-2",
+     "valor": 1100,
+     "dataPagamento": "2026-06-10"
+    }
+   ],
+   "parcelaVencimentos": {},
+   "acordos": []
+  },
+  "esperado": [
+   {
+    "id": "1-1",
+    "operacaoId": 1,
+    "numero": 1,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 100,
+    "valorFalta": 0,
+    "quitacaoOperacao": false
+   },
+   {
+    "id": "1-2",
+    "operacaoId": 1,
+    "numero": 2,
+    "totalParcelas": 24,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 100,
+    "fase": "JUROS",
+    "status": "PAGO",
+    "valorPago": 1100,
+    "valorFalta": 0,
+    "quitacaoOperacao": true
+   },
+   {
+    "id": "2-1",
+    "operacaoId": 2,
+    "numero": 1,
+    "totalParcelas": 2,
+    "vencimentoIso": "2026-05-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "PARCELA",
+    "status": "PAGO",
+    "valorPago": 300,
+    "valorFalta": 0,
+    "quitacaoOperacao": null
+   },
+   {
+    "id": "2-2",
+    "operacaoId": 2,
+    "numero": 2,
+    "totalParcelas": 2,
+    "vencimentoIso": "2026-06-10",
+    "vencimentoOriginalIso": null,
+    "valor": 300,
+    "fase": "PARCELA",
+    "status": "ABERTO",
+    "valorPago": 0,
+    "valorFalta": 300,
+    "quitacaoOperacao": null
+   }
+  ]
+ }
+]
