@@ -52,7 +52,7 @@ const chave = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
 
 <template>
   <div class="small">Quem acabou de pagar? Procure pelo nome e toque em <b>Recebi</b>.</div>
-  <label class="busca"><Icon name="search" small /><input v-model="busca" placeholder="Nome do cliente" aria-label="Buscar cliente" /></label>
+  <label class="busca"><Icon name="search" small /><input v-model="busca" placeholder="Cliente ou indicador" aria-label="Buscar cliente ou indicador" /></label>
   <Seg v-model="aba as string" :itens="abas" />
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
   <div class="card list">

@@ -94,7 +94,7 @@ async function aposMudar() {
 
 <template>
   <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
-  <label class="busca"><Icon name="search" small /><input v-model="busca" placeholder="Buscar cliente pelo nome" aria-label="Buscar cliente" data-testid="cron-busca" /></label>
+  <label class="busca"><Icon name="search" small /><input v-model="busca" :placeholder="indicador ? 'Buscar cliente pelo nome' : 'Buscar cliente ou indicador'" aria-label="Buscar cliente" data-testid="cron-busca" /></label>
 
   <div class="between" style="gap: 8px">
     <div class="row" style="gap: 6px">

@@ -33,6 +33,7 @@ const linkWhatsApp = computed(() => {
       <div class="s" style="font-size: 12.5px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
         {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}<template v-if="c.vencimentoOriginal && aberta"> · remarcada (era {{ dmy(c.vencimentoOriginal) }})</template>
       </div>
+      <div v-if="c.indicador" class="s" style="font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap" data-indicador>indicado por {{ c.indicador }}</div>
       <div class="s" style="font-size: 12px; font-weight: 600">
         <span v-if="recebida" style="color: var(--ok)" data-situacao="recebida">recebido {{ c.ultimoRecebimentoEm ? dmy(c.ultimoRecebimentoEm) : '' }}</span>
         <span v-else-if="c.atrasoDias" style="color: var(--bad)" data-situacao="atrasada">venceu {{ dmy(c.vencimento) }} · {{ c.atrasoDias }} {{ c.atrasoDias === 1 ? 'dia' : 'dias' }}</span>

@@ -6,7 +6,7 @@ const HOJE = '2026-10-15'
 let n = 0
 const c = (vencimento: string, valor: number, pago = 0, o: Partial<CobrancaApi> = {}): CobrancaApi => ({
   tipo: 'VENDA', operacaoId: ++n, parcela: 1, nParcelas: 4, vencimento, vencimentoOriginal: null, valor, pago, falta: Math.max(0, Math.round((valor - pago) * 100) / 100), atrasoDias: 0,
-  cliente: { id: 1, nome: 'ANA', fone: '' }, aparelho: 'iPhone', ultimaTransacaoId: null, ultimoRecebimentoEm: null, baixaPendente: null, ...o,
+  cliente: { id: 1, nome: 'ANA', fone: '' }, aparelho: 'iPhone', indicador: null, ultimaTransacaoId: null, ultimoRecebimentoEm: null, baixaPendente: null, ...o,
 })
 
 describe('rótulos e valores curtos', () => {

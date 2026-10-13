@@ -7,7 +7,7 @@ export const pagamentosView = (ps: PagamentoView[]) => ps
 type ItemCobranca = ListaCobrancas['itens'][number]
 const itemCobrancaView = (x: ItemCobranca) => ({
   tipo: x.tipo, operacaoId: x.operacaoId, parcela: x.numero, nParcelas: x.nParcelas, vencimento: x.vencimento, vencimentoOriginal: x.vencimentoOriginal, valor: x.valor, pago: x.pago, falta: x.falta,
-  atrasoDias: x.atrasoDias, cliente: x.cliente, aparelho: x.descricao, ultimaTransacaoId: x.ultimaTransacaoId, ultimoRecebimentoEm: x.ultimoRecebimentoEm, baixaPendente: x.baixaPendente,
+  atrasoDias: x.atrasoDias, cliente: x.cliente, aparelho: x.descricao, indicador: x.indicador, ultimaTransacaoId: x.ultimaTransacaoId, ultimoRecebimentoEm: x.ultimoRecebimentoEm, baixaPendente: x.baixaPendente,
 })
 
 export const cobrancasView = (l: ListaCobrancas) => ({
