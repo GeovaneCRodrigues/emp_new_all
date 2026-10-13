@@ -89,7 +89,7 @@ export async function importarVendas(db: Knex, estado: EstadoVendasAntigo, opcoe
         bem_id: bemId, cliente_id: clienteId, vendedor_id: null, indicador_id: indicadorId, percentual_indicador: v.pct, data_venda: v.dataVenda, entrada: v.entrada, troca_valor: v.troca, troca_bem_id: trocaBemId,
         valor_investido: v.investido, valor_total: v.total,
         // o antigo não guardava o preço sem juros nem o % de juros: o preço fica igual ao total pago (sem juros separado)
-        preco_acordado: v.total, juros_pct: 0, status: v.status, observacoes: v.observacoes, legacy_id: v.legacyId, created_at: quando, updated_at: quando,
+        preco_acordado: v.total, juros_pct: 0, status: v.status, contrato_status: 'SEM_CONTRATO', observacoes: v.observacoes, legacy_id: v.legacyId, created_at: quando, updated_at: quando,
       }).returning('id')
       const parcelaId = new Map<number, number>()
       for (const p of v.parcelas) {

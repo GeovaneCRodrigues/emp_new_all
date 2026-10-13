@@ -54,6 +54,8 @@ export type Dependencias = {
   auditoria: AuditoriaRepository
   /** Depois de vender, o indicador pode ter subido de nível (o % dos automáticos acompanha). */
   sincronizarNiveis: () => Promise<void>
+  /** Depois de vender, gera o contrato da venda (se falhar, a venda já está salva e o contrato se gera depois). */
+  gerarContrato?: (vendaId: number, usuarioId: number) => Promise<void>
   /** Para os testes fixarem o dia. */
   hoje?: () => string
   log?: (msg: string, err: unknown) => void
@@ -189,7 +191,9 @@ export function createVendasService(d: Dependencias): VendasService {
       })
       // o contador de operações do indicador andou: o % dos automáticos acompanha o nível (se falhar, a venda já está salva)
       await d.sincronizarNiveis().catch((err) => d.log?.('Falha ao sincronizar os níveis dos indicadores', err))
-      return calc
+      await d.gerarContrato?.(vendaId, s.usuarioId).catch((err) => d.log?.('Falha ao gerar o contrato da venda', err))
+      // o contrato mexe no status da venda: devolve a venda já com ele
+      return calcular((await d.vendas.buscar(vendaId, { tipo: 'TODOS' }))!)
     },
 
     async listar(s, f) {
