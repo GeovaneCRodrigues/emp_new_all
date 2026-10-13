@@ -3,7 +3,7 @@ import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { AlvoAcordo, ResultadoAcordo } from '../models/acordo.js'
-import { validarProposta } from '../models/acordo.js'
+import { validarCapitalAdicional, validarProposta } from '../models/acordo.js'
 import type { AcordoRegistro, AcordosRepository } from '../models/repository.js'
 
 export type Entrada = Record<string, unknown>
@@ -22,15 +22,16 @@ export function createAcordosService(d: { repo: AcordosRepository; auditoria: Au
       if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador faz o acordo (o cobrador pede o acordo)')
       const dia = hoje()
       const p = validarProposta({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, dia)
+      const capitalAdicional = validarCapitalAdicional(e.capitalAdicional, alvo)
       let motivo: string | null = null
       if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('motivo: no máximo 500 letras')
         motivo = e.motivo.trim() || null
       }
-      const r = await d.repo.fazer({ alvo, operacaoId, usuarioId: s.usuarioId, valorTotal: p.valorTotal, n: p.n, primeira: p.primeira, motivo, dia })
+      const r = await d.repo.fazer({ alvo, operacaoId, usuarioId: s.usuarioId, valorTotal: p.valorTotal, n: p.n, primeira: p.primeira, motivo, dia, capitalAdicional })
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'ACORDO_FEITO', entidade: alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: operacaoId,
-        antes: { saldo: r.saldoAntes, parcelasEncerradas: r.parcelasEncerradas }, depois: { acordoId: r.acordoId, valorTotal: r.valorTotal, parcelas: r.nParcelas, primeiraParcela: r.primeiraParcela, substituiuAcordoId: r.substituiuAcordoId, motivo },
+        antes: { saldo: r.saldoAntes, parcelasEncerradas: r.parcelasEncerradas }, depois: { acordoId: r.acordoId, valorTotal: r.valorTotal, parcelas: r.nParcelas, primeiraParcela: r.primeiraParcela, capitalAdicional: r.capitalAdicional, substituiuAcordoId: r.substituiuAcordoId, motivo },
       })
       return r
     },

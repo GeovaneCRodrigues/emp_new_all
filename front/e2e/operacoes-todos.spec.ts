@@ -65,6 +65,6 @@ test('vendedor: só iPhones, sem aba Todos', async ({ page }) => {
 
 test('as abas não mostram barra de rolagem', async ({ page }) => {
   await entrar(page, 'admin'); await navegar(page, '/operacoes')
-  const sobra = await page.locator('.abas').evaluate((e) => e.offsetWidth - e.clientWidth)
+  const sobra = await page.locator('.abas').evaluate((e) => (e as HTMLElement).offsetWidth - e.clientWidth)
   expect(sobra).toBe(0)
 })

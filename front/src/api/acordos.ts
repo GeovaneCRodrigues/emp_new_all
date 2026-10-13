@@ -12,6 +12,8 @@ export interface ResultadoAcordoApi {
   primeiraParcela: string
   parcelasEncerradas: number
   substituiuAcordoId: number | null
+  /** dinheiro novo emprestado junto (já somado no capital do empréstimo) */
+  capitalAdicional: number
 }
 
 export interface AcordoApi {
@@ -22,6 +24,8 @@ export interface AcordoApi {
   nParcelas: number
   primeiraParcela: string
   motivo: string | null
+  /** dinheiro novo emprestado junto com o acordo (já somado no capital do empréstimo) */
+  capitalAdicional: number
   status: 'ATIVO' | 'SUBSTITUIDO'
   feitoPor: string | null
   /** o pedido do cobrador que originou o acordo, se foi o caso */
@@ -34,6 +38,8 @@ export interface EntradaAcordo {
   /** AAAA-MM-DD; as outras vencem mês a mês no mesmo dia */
   primeiraParcela: string
   motivo?: string
+  /** só empréstimo: dinheiro novo emprestado junto; soma no capital e sai do Caixa na data do acordo */
+  capitalAdicional?: number
 }
 
 export interface AcordosApi {

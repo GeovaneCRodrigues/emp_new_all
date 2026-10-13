@@ -23,22 +23,26 @@ const { mostrar } = useToast()
 
 const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
 const ATALHOS = [1, 2, 3, 4, 6, 10, 12]
-const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '' })
+const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0 })
+/** dinheiro novo emprestado junto: só o administrador, só em empréstimo */
+const podeDinheiroNovo = computed(() => !ehCobrador.value && props.alvo === 'EMPRESTIMO')
 const erro = ref('')
 const enviando = ref(false)
 
 watch(() => props.aberto, (a) => {
   if (!a || !props.operacao) return
-  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '' })
+  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0 })
   erro.value = ''
 })
 
 const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n))
 const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= 120 ? vencimentosAcordo(f.primeira, f.n) : []))
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
-const diferenca = computed(() => arred2(f.valor - (props.operacao?.saldo ?? 0)))
+const novo = computed(() => (podeDinheiroNovo.value ? arred2(f.novo) : 0))
+/** o que passa do que ele devia + o dinheiro novo é juros; abaixo disso é desconto */
+const diferenca = computed(() => arred2(f.valor - (props.operacao?.saldo ?? 0) - novo.value))
 const problema = computed(() => {
-  const p = problemaDoAcordo({ valorTotal: f.valor, parcelas: f.n, primeiraParcela: f.primeira }, hoje.value)
+  const p = problemaDoAcordo({ valorTotal: f.valor, parcelas: f.n, primeiraParcela: f.primeira, capitalAdicional: novo.value }, hoje.value)
   if (p) return p
   if (ehCobrador.value && (f.motivo.trim().length < 3 || f.motivo.trim().length > 500)) return 'Explique o motivo do pedido (de 3 a 500 letras).'
   return ''
@@ -53,7 +57,7 @@ async function confirmar() {
       await aprovacoesApi.pedirAcordo(sessao.value, { alvo: props.alvo, operacaoId: props.operacao.id, ...base, motivo: f.motivo.trim() })
       mostrar('Pedido de acordo enviado. O administrador vai responder.')
     } else {
-      await acordosApi.fazer(sessao.value, props.alvo, props.operacao.id, { ...base, ...(f.motivo.trim() ? { motivo: f.motivo.trim() } : {}) })
+      await acordosApi.fazer(sessao.value, props.alvo, props.operacao.id, { ...base, ...(f.motivo.trim() ? { motivo: f.motivo.trim() } : {}), ...(novo.value > 0 ? { capitalAdicional: novo.value } : {}) })
       mostrar('Acordo feito.')
     }
     emit('feito')
@@ -73,8 +77,11 @@ async function confirmar() {
       <div class="card pad" style="margin-top: 12px; background: var(--elevated)" data-testid="acordo-saldo"><div class="lbl">O cliente deve hoje</div><div class="val num">{{ fmt(operacao.saldo) }}</div></div>
 
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">
+        <div v-if="podeDinheiroNovo" class="field"><label for="aNovo">Dinheiro novo emprestado (opcional)</label><MoneyInput id="aNovo" v-model="f.novo" />
+          <div class="small" data-testid="acordo-novo-ajuda">Se você mandou mais dinheiro para ele junto com o acordo. Soma no capital do empréstimo e sai do Caixa hoje. Coloque também no valor do acordo, com os juros.</div>
+        </div>
         <div class="field"><label for="aValor">Valor do acordo</label><MoneyInput id="aValor" v-model="f.valor" />
-          <div v-if="f.valor > 0 && diferenca !== 0" class="small" data-testid="acordo-diferenca">{{ diferenca < 0 ? `Desconto de ${fmt(-diferenca)} sobre o que ele deve` : `Juros do acordo de ${fmt(diferenca)} sobre o que ele deve` }}</div>
+          <div v-if="f.valor > 0 && diferenca !== 0" class="small" data-testid="acordo-diferenca">{{ diferenca < 0 ? `Desconto de ${fmt(-diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo' : ''}` : `Juros do acordo de ${fmt(diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo' : ''}` }}</div>
         </div>
         <div class="field"><label for="aParcelas">Em quantas parcelas?</label>
           <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
