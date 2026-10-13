@@ -1,3 +1,4 @@
+import { casaBusca } from '@/domain/busca'
 import { criarSeed } from '@/data/seed'
 import { imeiValido, soDigitos } from '@/domain/documentos'
 import { arred2, ceilCent } from '@/domain/format'
@@ -288,6 +289,7 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
       const pagina = Math.max(q.pagina ?? 1, 1)
       const todas = noEscopo(s).slice().sort((a, b) => b.dataVenda.localeCompare(a.dataVenda) || b.id - a.id).map((r) => calcular(r, s.perfil))
       const filtradas = todas.filter((v) => !q.status || (q.status === 'ATRASO' ? v.status === 'ATIVA' && v.atrasadas > 0 : v.status === q.status))
+        .filter((v) => casaBusca([v.cliente.nome, v.aparelho.modelo, v.aparelho.cor, v.aparelho.gb ? `${v.aparelho.gb}gb` : null, v.indicador?.nome], q.busca))
       return { itens: filtradas.slice((pagina - 1) * limite, pagina * limite), total: filtradas.length, pagina, limite }
     },
 

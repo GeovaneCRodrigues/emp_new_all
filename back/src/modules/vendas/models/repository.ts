@@ -1,4 +1,5 @@
 import type { Knex } from 'knex'
+import { filtrarPorTexto } from '../../../shared/busca.js'
 import { naoEncontrado } from '../../../shared/errors.js'
 import { retomarVenda, type ResultadoRetomada } from './retomada.js'
 import type { AparelhoTravado, EscopoVendas, FormaPagamento, NovaTroca, NovaVenda, ParcelaVenda, Venda } from './types.js'
@@ -19,8 +20,8 @@ export interface VendasTx {
 
 export interface VendasRepository {
   emTransacao<T>(fn: (tx: VendasTx) => Promise<T>): Promise<T>
-  /** Todas as vendas do escopo (com parcelas e quanto já foi pago), da mais nova para a mais antiga. */
-  listar(escopo: EscopoVendas): Promise<Venda[]>
+  /** Todas as vendas do escopo (com parcelas e quanto já foi pago), da mais nova para a mais antiga. `busca` (já normalizada): cliente, aparelho, IMEI ou indicador. */
+  listar(escopo: EscopoVendas, busca?: string): Promise<Venda[]>
   buscar(id: number, escopo: EscopoVendas): Promise<Venda | null>
   /** Retoma o aparelho (venda travada, regra única em `retomarVenda`). */
   retomar(d: { vendaId: number; usuarioId: number; motivo: string | null; dia: string }): Promise<ResultadoRetomada>
@@ -77,8 +78,8 @@ export function createVendasRepository(db: Knex): VendasRepository {
   }
 
   return {
-    async listar(escopo) {
-      return montar(await consulta(escopo).orderBy([{ column: 'v.data_venda', order: 'desc' }, { column: 'v.id', order: 'desc' }]))
+    async listar(escopo, busca) {
+      return montar(await filtrarPorTexto(consulta(escopo), ['c.nome', 'b.modelo', 'b.cor', 'b.imei', 'i.nome', "b.gb || 'gb'"], busca).orderBy([{ column: 'v.data_venda', order: 'desc' }, { column: 'v.id', order: 'desc' }]))
     },
     async buscar(id, escopo) {
       const l = await consulta(escopo).where('v.id', id).first()

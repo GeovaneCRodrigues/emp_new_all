@@ -6,6 +6,7 @@ import type { EmprestimoApi, ResumoEmprestimosApi } from '@/api/emprestimos'
 import { emprestimosApi, vendasApi } from '@/api/recursos'
 import type { ResumoVendasApi, VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
+import CampoBusca from '@/components/CampoBusca.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
 import EmprestimoCard from '@/components/EmprestimoCard.vue'
 import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
@@ -15,6 +16,7 @@ import Seg from '@/components/Seg.vue'
 import VendaCard from '@/components/VendaCard.vue'
 import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
+import { useBusca } from '@/composables/useBusca'
 import { fmt0 } from '@/domain/format'
 
 const route = useRoute()
@@ -24,6 +26,7 @@ const { sessao } = useApp()
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
 const aba = ref<'iphone' | 'emp'>('iphone')
 const filtro = ref('ATIVA')
+const { busca } = useBusca(() => carregar())
 
 // ---- iPhones: vem da API ----
 const vendas = ref<VendaApi[]>([])
@@ -49,7 +52,7 @@ async function carregar(mais = false) {
   erro.value = ''
   try {
     const p = mais ? pagina.value + 1 : 1
-    const r = await vendasApi.listar(sessao.value, { status: filtro.value, pagina: p, limite: 20 })
+    const r = await vendasApi.listar(sessao.value, { status: filtro.value, busca: busca.value.trim() || undefined, pagina: p, limite: 20 })
     if (meu !== pedido) return
     vendas.value = mais ? [...vendas.value, ...r.itens] : r.itens
     total.value = r.total
@@ -88,6 +91,7 @@ const filtrosIphone = [{ id: 'ATIVA', label: 'Em andamento' }, { id: 'ATRASO', l
 
 // ---- Empréstimos: vem da API ----
 const filtroEmp = ref('ATIVA')
+const { busca: buscaEmp } = useBusca(() => carregarEmp())
 const emps = ref<EmprestimoApi[]>([])
 const totalEmp = ref(0)
 const paginaEmp = ref(1)
@@ -103,7 +107,7 @@ async function carregarEmp(mais = false) {
   carregandoEmp.value = true; erroEmp.value = ''
   try {
     const p = mais ? paginaEmp.value + 1 : 1
-    const r = await emprestimosApi.listar(sessao.value, { status: filtroEmp.value, pagina: p, limite: 20 })
+    const r = await emprestimosApi.listar(sessao.value, { status: filtroEmp.value, busca: buscaEmp.value.trim() || undefined, pagina: p, limite: 20 })
     if (meu !== pedidoEmp) return
     emps.value = mais ? [...emps.value, ...r.itens] : r.itens
     totalEmp.value = r.total; paginaEmp.value = p
@@ -137,11 +141,12 @@ const abas = computed(() => [
         <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ resumo ? fmt0(resumo.lucroPorVir ?? 0) : '—' }}</div></div>
       </template>
     </div>
+    <CampoBusca v-model="busca" placeholder="Cliente, aparelho ou indicador" rotulo="Buscar venda" />
     <Seg v-model="filtro" :itens="filtrosIphone" />
     <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
     <div class="fones">
       <VendaCard v-for="v in vendas" :key="v.id" :v="v" @abrir="ficha = $event" />
-      <div v-if="!vendas.length && !carregando && !erro" class="card empty">Nenhuma venda aqui.</div>
+      <div v-if="!vendas.length && !carregando && !erro" class="card empty">{{ busca.trim() ? 'Nada encontrado nesta lista.' : 'Nenhuma venda aqui.' }}</div>
       <div v-if="carregando && !vendas.length" class="card empty">Carregando…</div>
     </div>
     <button v-if="vendas.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
@@ -153,11 +158,12 @@ const abas = computed(() => [
       <div><div class="lbl">Capital na rua</div><div class="val num">{{ resumoEmp ? fmt0(resumoEmp.capitalNaRua ?? 0) : '—' }}</div></div>
       <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ resumoEmp ? fmt0(resumoEmp.lucroPorVir ?? 0) : '—' }}</div></div>
     </div>
-    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><Seg v-model="filtroEmp" :itens="filtrosEmp" /></div><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><CampoBusca v-model="buscaEmp" placeholder="Cliente ou indicador" rotulo="Buscar empréstimo" /></div><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <Seg v-model="filtroEmp" :itens="filtrosEmp" />
     <div v-if="erroEmp" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erroEmp }}</span><button class="btn b-ghost b-sm" @click="carregarEmp()">Tentar de novo</button></div>
     <div class="fones">
       <EmprestimoCard v-for="e in emps" :key="e.id" :e="e" @abrir="fichaEmp = $event" />
-      <div v-if="!emps.length && !carregandoEmp && !erroEmp" class="card empty">Nenhum empréstimo aqui.</div>
+      <div v-if="!emps.length && !carregandoEmp && !erroEmp" class="card empty">{{ buscaEmp.trim() ? 'Nada encontrado nesta lista.' : 'Nenhum empréstimo aqui.' }}</div>
       <div v-if="carregandoEmp && !emps.length" class="card empty">Carregando…</div>
     </div>
     <button v-if="emps.length < totalEmp" class="btn b-out" :disabled="carregandoEmp" @click="carregarEmp(true)">{{ carregandoEmp ? 'Carregando…' : 'Carregar mais' }}</button>

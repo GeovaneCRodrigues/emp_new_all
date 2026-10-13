@@ -3,9 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { CaixaLojaApi, CategoriaMovimentoApi, LancamentoApi, MovimentoApi } from '@/api/caixa'
 import { caixaApi } from '@/api/recursos'
+import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
 import LancamentoCaixaForm from '@/components/LancamentoCaixaForm.vue'
 import { useApp } from '@/composables/useApp'
+import { useBusca } from '@/composables/useBusca'
 import { mesNome } from '@/domain/cronograma'
 import { dmy, dmyA, fmt, fmt0 } from '@/domain/format'
 
@@ -14,6 +16,7 @@ const { sessao } = useApp()
 
 const caixa = ref<CaixaLojaApi | null>(null)
 const itens = ref<MovimentoApi[]>([])
+const { busca } = useBusca(() => carregar())
 const pagina = ref(1)
 const carregando = ref(true)
 const erro = ref('')
@@ -27,7 +30,7 @@ async function carregar(mais = false) {
   carregando.value = true; erro.value = ''
   try {
     const p = mais ? pagina.value + 1 : 1
-    const r = await caixaApi.ver(sessao.value, { pagina: p, limite: 25 })
+    const r = await caixaApi.ver(sessao.value, { pagina: p, limite: 25, busca: busca.value.trim() || undefined })
     if (meu !== pedido) return
     caixa.value = r; itens.value = mais ? [...itens.value, ...r.itens] : r.itens; pagina.value = p
   } catch (e) {
@@ -72,6 +75,7 @@ async function aposSalvar() { formAberto.value = false; await carregar() }
     <div v-if="caixa.marcoZero" class="small" data-testid="caixa-marco">Contando a partir de {{ dmyA(caixa.marcoZero) }}, o primeiro aporte ou retirada lançado. O que veio antes não entra na conta.</div>
     <div v-else class="small" data-testid="caixa-sem-marco">Ainda não há aporte nem retirada: o saldo soma tudo. Lance o seu saldo de abertura como um aporte para começar a contar dali.</div>
 
+    <CampoBusca v-model="busca" placeholder="Buscar no extrato (cliente, despesa, aparelho)" rotulo="Buscar no extrato" />
     <div class="card list" data-testid="caixa-extrato">
       <component
         :is="m.manualId !== null ? 'button' : 'div'" v-for="m in itens" :key="m.chave" class="li" :data-movimento="m.chave" :data-categoria="m.categoria" :type="m.manualId !== null ? 'button' : undefined"
@@ -81,7 +85,7 @@ async function aposSalvar() { formAberto.value = false; await carregar() }
         <span class="mid"><span class="t" style="display: block">{{ m.titulo }}</span><span class="s" style="display: block">{{ dmy(m.data) }}{{ m.sub ? ` · ${m.sub}` : '' }}</span></span>
         <b class="num" style="white-space: nowrap" :style="{ color: m.entrada ? 'var(--ok)' : 'var(--bad)' }">{{ m.entrada ? '+' : '−' }} {{ fmt(m.valor) }}</b>
       </component>
-      <div v-if="!itens.length && !carregando" class="empty">Nada no caixa ainda.</div>
+      <div v-if="!itens.length && !carregando" class="empty">{{ busca.trim() ? 'Nada no extrato com essa busca.' : 'Nada no caixa ainda.' }}</div>
     </div>
     <button v-if="restantes > 0" class="btn b-sub b-block" :disabled="carregando" data-testid="caixa-mais" @click="carregar(true)">{{ carregando ? 'Carregando…' : `Mostrar mais (${restantes})` }}</button>
   </template>

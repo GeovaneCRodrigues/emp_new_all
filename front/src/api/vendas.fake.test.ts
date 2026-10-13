@@ -170,3 +170,37 @@ describe('lista, ficha e resumo', () => {
     expect((await falha(api.juros(COBR)))?.status).toBe(403)
   })
 })
+
+describe('busca (mesmas regras do backend)', () => {
+  const todas = () => api.listar(ADMIN, { limite: 100 })
+  it('sem busca ou com busca em branco traz tudo', async () => {
+    const tudo = (await todas()).total
+    expect(tudo).toBeGreaterThan(2)
+    expect((await api.listar(ADMIN, { busca: '', limite: 100 })).total).toBe(tudo)
+    expect((await api.listar(ADMIN, { busca: '   ', limite: 100 })).total).toBe(tudo)
+  })
+  it('acha pelo nome do cliente, sem acento nem maiúscula, e só traz quem tem aquela palavra', async () => {
+    const alvo = (await todas()).itens[0].cliente.nome
+    const palavra = alvo.split(' ')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    const r = await api.listar(ADMIN, { busca: palavra, limite: 100 })
+    expect(r.total).toBeGreaterThan(0)
+    expect(r.itens.every((v) => v.cliente.nome.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().includes(palavra))).toBe(true)
+  })
+  it('acha pelo aparelho (modelo e capacidade) e junta com o status', async () => {
+    const v = (await todas()).itens[0]
+    const r = await api.listar(ADMIN, { busca: `${v.aparelho.modelo} ${v.aparelho.gb}gb`, limite: 100 })
+    expect(r.itens.some((x) => x.id === v.id)).toBe(true)
+    const so = await api.listar(ADMIN, { busca: v.aparelho.modelo, status: v.status === 'QUITADA' ? 'ATIVA' : 'QUITADA', limite: 100 })
+    expect(so.itens.every((x) => x.status !== v.status)).toBe(true)
+  })
+  it('todas as palavras têm de aparecer; sem resultado devolve lista vazia com total 0', async () => {
+    const r = await api.listar(ADMIN, { busca: 'zzzxyz qwerty', limite: 100 })
+    expect(r).toMatchObject({ itens: [], total: 0 })
+  })
+  it('a busca respeita o escopo: o vendedor não acha cliente de fora da carteira dele', async () => {
+    const dele = new Set((await api.listar(VEND, { limite: 100 })).itens.map((v) => v.id))
+    const fora = (await todas()).itens.find((v) => !dele.has(v.id))!
+    const r = await api.listar(VEND, { busca: fora.cliente.nome, limite: 100 })
+    expect(r.itens.some((v) => v.id === fora.id)).toBe(false)
+  })
+})

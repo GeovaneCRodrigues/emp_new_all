@@ -16,7 +16,7 @@ export function createCaixaController(service: CaixaService) {
   return {
     async ver(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
-      return caixaView(await service.ver(sessaoOuErro(req), { pagina: numero(q.pagina), limite: numero(q.limite) }))
+      return caixaView(await service.ver(sessaoOuErro(req), { pagina: numero(q.pagina), limite: numero(q.limite), busca: typeof q.busca === 'string' ? q.busca : undefined }))
     },
     async lancar(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(lancamentoView(await service.lancar(sessaoOuErro(req), corpo(req)))) },
     async editar(req: FastifyRequest) { return lancamentoView(await service.editar(sessaoOuErro(req), idDaRota(req), corpo(req))) },

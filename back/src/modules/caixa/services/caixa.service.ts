@@ -1,3 +1,4 @@
+import { termoBusca } from '../../../shared/busca.js'
 import { naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
@@ -9,7 +10,7 @@ export type ResultadoCaixa = ResumoCaixa & { hoje: string; mes: string; itens: M
 
 export type CaixaService = {
   /** O caixa da loja: saldo, o que entrou e saiu no mês e o extrato. */
-  ver(s: Sessao, q: { pagina?: number; limite?: number }): Promise<ResultadoCaixa>
+  ver(s: Sessao, q: { pagina?: number; limite?: number; busca?: string }): Promise<ResultadoCaixa>
   lancar(s: Sessao, corpo: Record<string, unknown>): Promise<LancamentoManual>
   editar(s: Sessao, id: number, corpo: Record<string, unknown>): Promise<LancamentoManual>
   excluir(s: Sessao, id: number): Promise<void>
@@ -57,7 +58,7 @@ export function createCaixaService(dep: { repo: CaixaRepository; auditoria: Audi
       const mes = dia.slice(0, 7)
       const [ano, m] = mes.split('-').map(Number)
       const mesFim = `${mes}-${String(new Date(Date.UTC(ano, m, 0)).getUTCDate()).padStart(2, '0')}`
-      const [resumo, extrato] = await Promise.all([dep.repo.resumo({ hoje: dia, mesIni: `${mes}-01`, mesFim }), dep.repo.extrato({ hoje: dia, limite, offset: (pagina - 1) * limite })])
+      const [resumo, extrato] = await Promise.all([dep.repo.resumo({ hoje: dia, mesIni: `${mes}-01`, mesFim }), dep.repo.extrato({ hoje: dia, limite, offset: (pagina - 1) * limite, busca: termoBusca(q.busca) })])
       return { ...resumo, saldo: arred(resumo.saldo), entrouMes: arred(resumo.entrouMes), saiuMes: arred(resumo.saiuMes), hoje: dia, mes, ...extrato, pagina, limite }
     },
 

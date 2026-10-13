@@ -6,9 +6,11 @@ import { todasAsPaginas } from '@/api/paginar'
 import { emprestimosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
+import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { useApp } from '@/composables/useApp'
+import { casaBusca } from '@/domain/busca'
 import { fmt, fmt0, gbTxt } from '@/domain/format'
 
 /** As vendas e empréstimos que o indicador trouxe: só leitura (quem cadastra é a loja). Mostra a parte dele, nunca custo nem lucro. */
@@ -33,6 +35,9 @@ onMounted(async () => {
 
 const ativo = (o: { status: string }) => o.status === 'ATIVA'
 const lista = computed(() => (aba.value === 'iphone' ? vendas.value : emps.value))
+// a lista já vem inteira: a busca só esconde cartões (os totais de cima continuam os de tudo)
+const busca = ref('')
+const visiveis = computed(() => lista.value.filter((o) => casaBusca([o.cliente.nome, 'aparelho' in o ? `${o.aparelho.modelo} ${o.aparelho.cor}` : nomeEmp(o)], busca.value)))
 const abas = computed(() => [{ id: 'iphone', label: 'iPhones', icon: 'smartphone', n: vendas.value.length }, { id: 'emp', label: 'Empréstimos', icon: 'landmark', n: emps.value.length }])
 const resumo = computed(() => ({
   aReceber: Math.round(lista.value.filter((o) => ativo(o)).reduce((x, o) => x + o.falta, 0) * 100) / 100,
@@ -59,8 +64,9 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
     <div><div class="lbl">Já recebido</div><div class="val num">{{ fmt0(resumo.recebido) }}</div></div>
     <div><div class="lbl">Ativas</div><div class="val num">{{ resumo.ativas }}</div></div>
   </div>
+  <CampoBusca v-if="lista.length" v-model="busca" placeholder="Buscar cliente ou aparelho" style="margin-top: 14px" />
   <div class="fones" style="margin-top: 14px" data-testid="minhas-vendas">
-    <div v-for="o in lista" :key="o.id" class="card pad" style="display: flex; flex-direction: column; gap: 10px" :data-venda="o.id">
+    <div v-for="o in visiveis" :key="o.id" class="card pad" style="display: flex; flex-direction: column; gap: 10px" :data-venda="o.id">
       <div class="row" style="justify-content: space-between; gap: 8px">
         <div style="min-width: 0"><div class="val">{{ o.cliente.nome }}</div><div class="small">{{ 'aparelho' in o ? `${o.aparelho.modelo} ${gbTxt(o.aparelho.gb)} · ${o.aparelho.cor}` : nomeEmp(o) }}</div></div>
         <span class="chip" :class="chip(o)" data-status>{{ rotulo(o) }}</span>
@@ -69,6 +75,7 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
       <div class="row small" style="justify-content: space-between"><span class="num">{{ fmt0(o.recebido) }} de {{ fmt0(o.total) }}</span><span>{{ pagas(o) }}/{{ o.nParcelas }} parcelas</span></div>
       <div class="small" style="color: var(--primary); font-weight: 600" data-sua-parte>sua parte {{ fmt(o.suaParte ?? 0) }}<template v-if="(o.jaLiberado ?? 0) > 0"> · já liberou {{ fmt(o.jaLiberado ?? 0) }}</template></div>
     </div>
+    <div v-if="lista.length && !visiveis.length" class="card empty">Nada encontrado nesta lista.</div>
     <div v-if="!lista.length && !carregando && !erro" class="card empty">{{ aba === 'iphone' ? 'Nenhuma venda sua ainda.' : 'Nenhum empréstimo seu ainda.' }}</div>
   </div>
   <IndicarFluxo ref="fluxo" />

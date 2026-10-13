@@ -1,4 +1,5 @@
 import type { Knex } from 'knex'
+import { filtrarPorTexto } from '../../../shared/busca.js'
 import { PAGO_PARCELA_EMPRESTIMO_SQL } from '../../../shared/sql.js'
 import type { Emprestimo, EscopoEmprestimos, NovoEmprestimo, ParcelaEmprestimo } from './types.js'
 
@@ -13,7 +14,7 @@ export interface EmprestimosTx {
 export interface EmprestimosRepository {
   emTransacao<T>(fn: (tx: EmprestimosTx) => Promise<T>): Promise<T>
   /** Todos os empréstimos do escopo (com parcelas e quanto já foi pago), do mais novo para o mais antigo. */
-  listar(escopo: EscopoEmprestimos): Promise<Emprestimo[]>
+  listar(escopo: EscopoEmprestimos, busca?: string): Promise<Emprestimo[]>
   buscar(id: number, escopo: EscopoEmprestimos): Promise<Emprestimo | null>
 }
 
@@ -62,8 +63,8 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
   }
 
   return {
-    async listar(escopo) {
-      return montar(await consulta(escopo).orderBy([{ column: 'e.data_emprestimo', order: 'desc' }, { column: 'e.id', order: 'desc' }]))
+    async listar(escopo, busca) {
+      return montar(await filtrarPorTexto(consulta(escopo), ['c.nome', 'i.nome'], busca).orderBy([{ column: 'e.data_emprestimo', order: 'desc' }, { column: 'e.id', order: 'desc' }]))
     },
     async buscar(id, escopo) {
       const l = await consulta(escopo).where('e.id', id).first()

@@ -63,7 +63,7 @@ export const MODALIDADES_LIBERADAS: ModalidadeApi[] = ['PARCELADO', 'JUROS', 'DI
 
 export interface EmprestimosApi {
   criar(s: Sessao, e: EntradaEmprestimo): Promise<EmprestimoApi>
-  listar(s: Sessao, q: { status?: string; pagina?: number; limite?: number }): Promise<ListaEmprestimos>
+  listar(s: Sessao, q: { status?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaEmprestimos>
   obter(s: Sessao, id: number): Promise<EmprestimoApi>
   resumo(s: Sessao): Promise<ResumoEmprestimosApi>
 }

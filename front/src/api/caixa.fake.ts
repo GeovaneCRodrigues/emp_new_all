@@ -1,3 +1,4 @@
+import { casaBusca } from '@/domain/busca'
 import { nomeEmprestimo } from '@/domain/emprestimo'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
@@ -88,13 +89,16 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
       exigirAdmin(s)
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 25) || 25, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
-      const { lista, marcoZero } = await movimentos()
+      const { lista: todos, marcoZero } = await movimentos()
+      // o saldo e o resumo do mês são sempre os de tudo; a busca só filtra o extrato
+      const lista = todos
+      const achados = todos.filter((x) => casaBusca([x.titulo, x.sub], q.busca))
       const mes = hoje.slice(0, 7)
       const doMes = lista.filter((x) => x.data.slice(0, 7) === mes)
       const soma = (xs: MovimentoApi[]) => arred2(xs.reduce((t, x) => t + x.valor, 0))
       return {
         saldo: arred2(lista.reduce((t, x) => t + (x.entrada ? x.valor : -x.valor), 0)), marcoZero, entrouMes: soma(doMes.filter((x) => x.entrada)), saiuMes: soma(doMes.filter((x) => !x.entrada)),
-        hoje, mes, itens: lista.slice((pagina - 1) * limite, pagina * limite), total: lista.length, pagina, limite,
+        hoje, mes, itens: achados.slice((pagina - 1) * limite, pagina * limite), total: achados.length, pagina, limite,
       }
     },
     async lancar(s, e) {
