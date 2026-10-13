@@ -62,3 +62,9 @@ test('vendedor: só iPhones, sem aba Todos', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^Todos/ })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Empréstimos/ })).toHaveCount(0)
 })
+
+test('as abas não mostram barra de rolagem', async ({ page }) => {
+  await entrar(page, 'admin'); await navegar(page, '/operacoes')
+  const sobra = await page.locator('.abas').evaluate((e) => e.offsetWidth - e.clientWidth)
+  expect(sobra).toBe(0)
+})
