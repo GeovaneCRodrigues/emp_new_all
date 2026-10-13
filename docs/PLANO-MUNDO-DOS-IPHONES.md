@@ -100,7 +100,7 @@ O Geovane quer começar um front novo do zero, em outro repositório, a partir d
 | **Admin** | Tudo | Tudo, inclusive aprovar pedidos e conferir o fechamento do dia | — |
 | **Vendedor** | Estoque com **preço de venda**, os clientes dele, as vendas dele, Simulador | Vender, mandar contrato, cadastrar cliente | Ver **custo e lucro** em qualquer tela; mexer em caixa ou repasse |
 | **Cobrador** | Só a **carteira dele** (clientes com `responsável = ele`) | Dar baixa no que recebeu, mandar recibo, chamar no WhatsApp, fechar o dia | Dar desconto, acordo ou retomada sem aprovação; ver lucro, caixa da loja ou estoque |
-| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles, o estoque (preço de venda) e os repasses dele | **Cobrar** os clientes dele e **avisar que recebeu**, mandar indicação (cliente ou venda), simular | **Cadastrar venda** (quem cadastra é a loja). **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
+| **Indicador** | Só os **clientes dele** (que indicou ou vendeu), as parcelas deles e os repasses dele (**não vê o estoque**: a proposta descreve o aparelho em texto) | **Cobrar** os clientes dele e **avisar que recebeu**, mandar indicação (cliente ou venda), simular | **Cadastrar venda** (quem cadastra é a loja). **Dar baixa sozinho**: o "Recebi" dele vira um pedido de **Baixa** que a loja confirma ("só nós aqui damos baixa"). Ver custo, lucro da loja, caixa ou cliente de outro indicador |
 
 - O cobrador **pede** desconto, acordo ou retomada, e o pedido vai para a fila "Esperando sua aprovação" do admin (tela Equipe). A parcela só muda quando o admin aprova.
 - **Fechamento do dia do cobrador:** ele vê quanto recebeu em dinheiro e em Pix e toca em "Fechar o dia". Isso vai pro admin marcar como conferido.
@@ -187,7 +187,7 @@ Layout geral:
 
 ### Indicador
 O indicador **cobra** os clientes dele, **vê as vendas dele** e continua com repasse e níveis. Pedido do Geovane (09/10). **Quem cadastra a venda é sempre a loja (admin)**: ele vê as vendas dele, mas não cria venda.
-- **Barra de baixo:** Início, Cobrança, **Novo** (central), Clientes, Repasse. Minhas vendas, Estoque, Simulador e Níveis ficam na lateral no computador, e no fim do Início no celular.
+- **Barra de baixo:** Início, Cobrança, **Novo** (central), Clientes, Repasse. Operações, Simulador e Níveis ficam na lateral no computador, e no fim do Início no celular.
 - **Novo:** Recebi de um cliente, Indicar cliente ou venda (a loja cadastra a venda no nome dele), Só simular.
 - **Início:** atalhos Indicar / Recebi / Simular, "Pra cobrar hoje", quanto tem pra receber, quanto já recebeu e vai ganhar, e o nível.
 - **Sem tela de venda:** fechou com um cliente, ele manda como **indicação com o aparelho** e a loja cadastra a venda com ele como indicador (o % dele).
@@ -199,7 +199,7 @@ O indicador **cobra** os clientes dele, **vê as vendas dele** e continua com re
   - Desconto vira pedido de **Desconto** pro admin, igual ao cobrador.
   - No admin, a cobrança mostra "Roberto avisou R$ X" na parcela.
 - **Clientes:** cada cliente com o que já pagou, o que falta e a sua parte, com Recebi nas parcelas abertas.
-- **Minhas vendas:** as vendas com ele como indicador, com status. Só leitura, com o botão Indicar cliente.
+- **Operações:** as vendas e os empréstimos com ele como indicador, com status. Só leitura, com o botão Indicar cliente.
 - **Repasse:** valor por cliente e repasses recebidos.
 - **Indicar:** manda o nome e o telefone, e o pedido aparece pro admin como "Indicações esperando". O admin aceita e a pessoa vira cliente.
 - Ele vê **vendas e empréstimos** que indicou.

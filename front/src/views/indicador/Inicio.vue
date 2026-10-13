@@ -62,7 +62,7 @@ const progressoNivel = computed(() => {
   return Math.max(0, Math.min(100, Math.round(((n.operacoes - base) / (n.proximoNivel.minOperacoes - base)) * 100)))
 })
 const MAIS = [
-  { id: 'vendas', label: 'Minhas vendas', icon: 'badge-dollar-sign' },
+  { id: 'vendas', label: 'Operações', icon: 'layers' },
   { id: 'simulador', label: 'Simulador', icon: 'calculator' }, { id: 'niveis', label: 'Níveis', icon: 'award' },
 ]
 const chave = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
