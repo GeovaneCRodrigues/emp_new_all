@@ -365,3 +365,9 @@ input,select{font:inherit;color:var(--strong)}
 
 /* cadastro em letras maiúsculas: o campo já mostra assim enquanto digita (quem padroniza de verdade é o servidor) */
 .inp.maiusc input{text-transform:uppercase}
+.passos.andamento>div .dot{margin-top:2px}
+.passos.andamento>div.atrasada .dot{border-color:var(--bad);background:var(--bad-soft)}
+.passos.andamento>div.hoje .dot,.passos.andamento>div.parcial .dot{border-color:var(--warn);background:var(--warn-soft)}
+.passos.andamento>div.encerrada{opacity:.6}
+.passos.andamento>div.paga,.passos.andamento>div.atrasada,.passos.andamento>div.hoje,.passos.andamento>div.parcial{color:var(--strong)}
+.passos.andamento>div.paga .dot{background:var(--ok);border-color:var(--ok);color:#fff}
