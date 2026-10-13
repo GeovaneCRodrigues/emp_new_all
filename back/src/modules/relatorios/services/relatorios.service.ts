@@ -35,9 +35,9 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
     async ver(s) {
       if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os relatórios')
       const dia = hoje()
-      const [vendas, emprestimos, entradas, estoque, aportes, compras, indicadores, repasses, linhasDeRepasse, caixa] = await Promise.all([
+      const [vendas, emprestimos, entradas, estoque, aportes, compras, indicadores, visaoRepasses, caixa] = await Promise.all([
         d.vendas.listar(tudo), d.emprestimos.listar(tudo), d.repo.entradas(), d.repo.estoque(), d.repo.aportes(dia), d.repo.compraDoAparelho(),
-        d.indicadores.listar(), d.repasses.resumo(s), d.repasses.operacoes(s), d.caixa.resumo({ hoje: dia, mesIni: `${dia.slice(0, 7)}-01`, mesFim: dia }),
+        d.indicadores.listar(), d.repasses.visaoGeral(s), d.caixa.resumo({ hoje: dia, mesIni: `${dia.slice(0, 7)}-01`, mesFim: dia }),
       ])
       const doDia = (alvo: 'VENDA' | 'EMPRESTIMO', id: number) => entradas.filter((e) => e.alvo === alvo && e.operacaoId === id).map((e) => ({ data: e.data, valor: e.valor }))
       const parcelas = (ps: { vencimento: string; valor: number; desconto: number; pago: number }[]) => ps.map((p) => ({ vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago }))
@@ -56,6 +56,7 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
           entradas: [...(v.entrada + v.troca > 0 ? [{ data: v.dataVenda, valor: arred2(v.entrada + v.troca) }] : []), ...doDia('VENDA', v.id)],
         })
       }
+      const { resumos: repasses, operacoes: linhasDeRepasse } = visaoRepasses
       const linhasRepasse = new Map(linhasDeRepasse.filter((o) => o.tipo === 'EMPRESTIMO').map((o) => [o.id, o] as const))
       for (const e of emprestimos) {
         const c = contas({ entrada: e.amortizado, troca: 0, investido: e.capital, pct: e.pct, statusGravado: e.status, parcelas: parcelas(e.parcelas) }, dia)

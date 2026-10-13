@@ -49,7 +49,7 @@ export function criarRelatoriosFake(dep: { vendas: VendasFake; emprestimos: Empr
       for (const r of dep.emprestimos._interno.registros) {
         const c = dep.emprestimos._interno.calcular(r, 'ADMIN')
         if (c.status !== 'ATIVA' && c.status !== 'QUITADA') continue
-        const parcelasComAcordo = r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago, acordo: p.acordoId || p.encerradaId ? 'ACORDO' : null }))
+        const parcelasComAcordo = r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, acordo: p.acordoId || p.encerradaId ? 'ACORDO' : null }))
         const porVencer = c.status === 'ATIVA' ? jurosPorVencerSoJuros({ modalidade: r.modalidade, capital: r.capital, amortizado: r.amortizado, parcelas: parcelasComAcordo }, hoje) : 0
         const linha = linhasDeRepasse.find((o) => o.id === r.id)
         ops.push({

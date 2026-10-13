@@ -64,7 +64,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
 
   return {
     async listar(escopo, busca) {
-      return montar(await filtrarPorTexto(consulta(escopo), ['c.nome', 'i.nome'], busca).orderBy([{ column: 'e.data_emprestimo', order: 'desc' }, { column: 'e.id', order: 'desc' }]))
+      return montar(await filtrarPorTexto(consulta(escopo), escopo.tipo === 'INDICADOR' ? ['c.nome'] : ['c.nome', 'i.nome'], busca).orderBy([{ column: 'e.data_emprestimo', order: 'desc' }, { column: 'e.id', order: 'desc' }]))
     },
     async buscar(id, escopo) {
       const l = await consulta(escopo).where('e.id', id).first()

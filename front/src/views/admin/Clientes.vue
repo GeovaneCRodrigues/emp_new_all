@@ -37,8 +37,10 @@ async function carregar() {
   carregando.value = true
   erro.value = ''
   // a primeira página aparece logo; o resto chega em segundo plano, sem botão
+  const termo = busca.value.trim() || undefined // fixa o filtro desta carga: as páginas seguintes não podem usar um filtro que mudou no meio
+  const s = sessao.value
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => clientesApi.listar(sessao.value, { busca: busca.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => clientesApi.listar(s, { busca: termo, pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total },
   })
@@ -48,7 +50,7 @@ async function carregar() {
 
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(() => carregar(), 300) })
-onBeforeUnmount(() => clearTimeout(espera))
+onBeforeUnmount(() => { clearTimeout(espera); pedido++ }) // sair da tela cancela o que ainda está chegando
 
 onMounted(async () => {
   carregar()

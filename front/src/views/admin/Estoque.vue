@@ -36,8 +36,11 @@ async function carregar() {
   const meu = ++pedido
   carregando.value = true
   erro.value = ''
+  const termo = busca.value.trim() || undefined // fixa o filtro desta carga: as páginas seguintes não podem usar um filtro que mudou no meio
+  const estado = filtro.value
+  const s = sessao.value
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => estoqueApi.listar(sessao.value, { busca: busca.value.trim() || undefined, estado: filtro.value, pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => estoqueApi.listar(s, { busca: termo, estado, pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total },
   })
@@ -51,7 +54,7 @@ async function carregarResumo() {
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(() => carregar(), 300) })
 watch(filtro, () => carregar())
-onBeforeUnmount(() => clearTimeout(espera))
+onBeforeUnmount(() => { clearTimeout(espera); pedido++ }) // sair da tela cancela o que ainda está chegando
 onMounted(() => { carregar(); carregarResumo() })
 
 const filtros = computed(() => {

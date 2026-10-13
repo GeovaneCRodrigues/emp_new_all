@@ -135,12 +135,16 @@ test.describe('portal do indicador (demonstração)', () => {
     await alvo.focus(); await page.keyboard.press('Enter')
     const folha = page.locator('[role="dialog"]')
     await expect(folha).toBeVisible()
+    await expect.poll(async () => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true) // o foco vai para a folha
     if (await comAtraso.count()) {
       await expect(folha.locator('[data-estado="atrasada"]').first()).toBeVisible()
       await expect(folha.locator('[data-andamento-atrasado]')).toContainText('R$')
       await expect(folha.locator('[data-andamento-proxima]')).toContainText(/venceu/)
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(folha).toHaveCount(0)
+    await expect(alvo).toBeFocused() // ao fechar, o foco volta para o card
   })
 
   test('Repasse: pra receber, já recebi e vai liberar; por cliente sem o capital da loja', async ({ page }) => {

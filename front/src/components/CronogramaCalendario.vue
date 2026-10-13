@@ -59,7 +59,7 @@ async function carregar() {
 }
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(carregar, 300) })
-watch([mes, tipo], () => { dia.value = null; carregar() })
+watch([mes, tipo], () => { dia.value = null; itens.value = []; cortado.value = false; carregar() }) // o mês anterior não fica na tela enquanto o novo carrega
 onMounted(() => { carregar(); if (!props.indicador) atualizar(sessao.value) })
 onBeforeUnmount(() => clearTimeout(espera))
 

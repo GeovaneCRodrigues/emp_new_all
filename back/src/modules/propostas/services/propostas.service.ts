@@ -39,6 +39,8 @@ function texto(e: Entrada, campo: string, max: number): string | null {
   return t || null
 }
 
+const semAparelho = <T extends { aparelho: unknown }>(p: T): T => ({ ...p, aparelho: null })
+
 export function createPropostasService(d: { repo: PropostasRepository; auditoria: AuditoriaRepository }): PropostasService {
   const escopoDe = (s: Sessao): EscopoPropostas => {
     if (s.perfil === 'ADMIN') return { tipo: 'TODOS' }
@@ -79,13 +81,14 @@ export function createPropostasService(d: { repo: PropostasRepository; auditoria
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 20) || 20, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
       const r = await d.repo.listar(escopo, { status: q.status as StatusProposta | undefined, indicadorId: s.perfil === 'ADMIN' ? q.indicadorId : undefined, limite, offset: (pagina - 1) * limite })
-      return { ...r, pagina, limite }
+      // o indicador não vê o estoque: propostas antigas (feitas quando ele escolhia do estoque) mostram só o texto do interesse
+      return { ...r, itens: s.perfil === 'INDICADOR' ? r.itens.map(semAparelho) : r.itens, pagina, limite }
     },
 
     async obter(s, id) {
       const p = await d.repo.buscar(id, escopoDe(s))
       if (!p) throw naoEncontrado('Proposta não encontrada')
-      return p
+      return s.perfil === 'INDICADOR' ? semAparelho(p) : p
     },
 
     async aceitar(s, id, e) {

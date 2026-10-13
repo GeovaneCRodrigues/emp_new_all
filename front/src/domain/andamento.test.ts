@@ -25,6 +25,19 @@ describe('estado de cada parcela', () => {
   })
 })
 
+describe('operação encerrada (venda retomada, empréstimo cancelado)', () => {
+  it('o que faltava deixa de ser atraso e a vencer: vira encerrada; o que foi pago continua pago', () => {
+    expect(estadoParcela(p(1, '2026-10-01', 100), HOJE, false)).toBe('encerrada')
+    expect(estadoParcela(p(1, '2026-11-01', 100, 40), HOJE, false)).toBe('encerrada')
+    expect(estadoParcela(p(1, '2026-10-01', 100, 100), HOJE, false)).toBe('paga')
+  })
+  it('resumo sem atraso e sem próxima parcela', () => {
+    const r = resumoAndamento([p(1, '2026-09-01', 100, 100), p(2, '2026-10-01', 100), p(3, '2026-11-01', 100)], HOJE, false)
+    expect(r).toMatchObject({ pagas: 1, total: 3, atrasadas: 0, valorAtrasado: 0, proxima: null })
+    expect(resumoAndamento([p(2, '2026-10-01', 100)], HOJE, true).atrasadas).toBe(1) // ativa: continua atraso
+  })
+})
+
 describe('próxima parcela e resumo', () => {
   const ps = [p(1, '2026-09-15', 100, 100), p(2, '2026-10-10', 100), p(3, '2026-10-20', 100), p(4, '2026-11-20', 100)]
   it('é a de vencimento mais antigo entre as que faltam (a atrasada vem primeiro)', () => {

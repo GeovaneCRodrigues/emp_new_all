@@ -93,7 +93,7 @@ test.describe('relatórios (administrador)', () => {
 
   test('Previsão: o devido fecha com o "a receber" do Balancete e a conta fecha com o número grande', async ({ page }) => {
     await aba(page, 'Balancete').click()
-    const aReceber = (await txt(page, 'rel-b-areceber-emp')) + numero(((await page.getByTestId('rel-ativo').textContent()) ?? '')) * 0 // só para ler o ativo depois
+    const aReceber = await txt(page, 'rel-b-areceber-emp')
     const ativo = await txt(page, 'rel-ativo'), caixa = await txt(page, 'rel-b-caixa')
     await aba(page, 'Previsão').click()
     await expect(page.getByTestId('rel-previsao')).toBeVisible()
@@ -123,23 +123,33 @@ test.describe('relatórios (administrador)', () => {
     await expect.poll(async () => txt(page, 'prev-namao')).toBe(antes)
   })
 
-  test('Previsão: perda zerada recebe tudo; perda de 100% no a vencer e no atraso deixa só o caixa menos os repasses', async ({ page }) => {
+  test('Previsão: perda de 100% em tudo não espera receber nada; perda zero espera receber o devido', async ({ page }) => {
     await aba(page, 'Previsão').click()
+    const devido = async (g: string) => numero(((await page.locator(`[data-grupo="${g}"] td`).nth(2).textContent()) ?? ''))
     for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) await page.getByTestId(`prev-perda-${g}`).fill('100')
-    // realista com 100% de perda: o pessimista não pode ser pior que isso, e o otimista (metade) ainda recebe parte
+    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) expect(await txt(page, `prev-esperado-${g}`), g).toBe(0)
     const rea = await numeroDe(page, '[data-cenario="realista"] .val'), pess = await numeroDe(page, '[data-cenario="pessimista"] .val'), otim = await numeroDe(page, '[data-cenario="otimista"] .val')
-    expect(pess).toBe(rea); expect(otim).toBeGreaterThan(rea)
-    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) expect(await txt(page, `prev-esperado-${g}`)).toBe(0)
+    expect(pess).toBe(rea); expect(otim).toBeGreaterThan(rea) // o pessimista não passa de 100%; o otimista (metade) ainda recebe parte
+    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) await page.getByTestId(`prev-perda-${g}`).fill('0')
+    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) expect(Math.abs((await txt(page, `prev-esperado-${g}`)) - (await devido(g))), g).toBeLessThanOrEqual(1)
   })
 
-  test('Previsão: valor fora de 0 a 100 é limitado (900 vira 100%, −5 vira 0%)', async ({ page }) => {
+  test('Previsão: valor fora de 0 a 100 é limitado e o campo mostra o que a conta usa; vazio volta ao padrão; decimal é mantido', async ({ page }) => {
     await aba(page, 'Previsão').click()
-    await page.getByTestId('prev-perda-ate7').fill('900')
-    await expect(page.getByTestId('prev-namao')).toHaveText(/R\$/)
-    expect(await txt(page, 'prev-esperado-ate7')).toBe(0)
+    const campo = page.getByTestId('prev-perda-ate7')
     const devido = numero(((await page.locator('[data-grupo="ate7"] td').nth(2).textContent()) ?? ''))
-    await page.getByTestId('prev-perda-ate7').fill('-5')
-    expect(await txt(page, 'prev-esperado-ate7')).toBe(devido)
+    await campo.fill('900'); await campo.blur()
+    await expect(campo).toHaveValue('100')
+    await expect.poll(async () => txt(page, 'prev-esperado-ate7')).toBe(0)
+    await campo.fill('-5'); await campo.blur()
+    await expect(campo).toHaveValue('0')
+    await expect.poll(async () => txt(page, 'prev-esperado-ate7')).toBe(devido)
+    await campo.fill(''); await campo.blur() // vazio não vira 0% (o mais otimista): volta ao padrão do grupo
+    await expect(campo).toHaveValue('10')
+    await campo.fill('2.5'); await campo.blur()
+    await expect(campo).toHaveValue('2.5')
+    await page.reload(); await expect(page.getByTestId('rel-abas')).toBeVisible(); await aba(page, 'Previsão').click()
+    await expect(page.getByTestId('prev-perda-ate7')).toHaveValue('2.5') // não arredonda para 3 ao recarregar
   })
 
   test('um aporte lançado no Caixa aparece no balancete (patrimônio e "Você colocou")', async ({ page }) => {

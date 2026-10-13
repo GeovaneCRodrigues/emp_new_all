@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
 import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
@@ -29,8 +29,9 @@ let pedido = 0
 async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
+  const [termo, s] = [busca.value.trim() || undefined, sessao.value] // fixa o filtro desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => caixaApi.ver(sessao.value, { pagina: p, limite: PAGINA_CHEIA, busca: busca.value.trim() || undefined }),
+    buscar: (p) => caixaApi.ver(s, { pagina: p, limite: PAGINA_CHEIA, busca: termo }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     // o resumo e o saldo vêm em toda página e são os mesmos; o extrato vai se juntando
     aplicar: (r, p) => { caixa.value = r; itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens] },
@@ -39,6 +40,7 @@ async function carregar() {
   await primeira.catch(() => undefined)
 }
 onMounted(() => carregar())
+onBeforeUnmount(() => { pedido++ }) // sair da tela cancela o que ainda está chegando
 
 const ICONE: Record<CategoriaMovimentoApi, string> = {
   RECEBIMENTO: 'arrow-down-left', ENTRADA_VENDA: 'arrow-down-left', TRANSFERENCIA: 'arrow-down-left', APORTE: 'arrow-down-left',

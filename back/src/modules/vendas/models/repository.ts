@@ -77,9 +77,12 @@ export function createVendasRepository(db: Knex): VendasRepository {
     }))
   }
 
+  // o indicador só busca pelo que vê na resposta (nada de IMEI nem o próprio nome)
+  const colunasDeBusca = (e: EscopoVendas) => (e.tipo === 'INDICADOR' ? ['c.nome', 'b.modelo', 'b.cor', "b.gb || 'gb'"] : ['c.nome', 'b.modelo', 'b.cor', 'b.imei', 'i.nome', "b.gb || 'gb'"])
+
   return {
     async listar(escopo, busca) {
-      return montar(await filtrarPorTexto(consulta(escopo), ['c.nome', 'b.modelo', 'b.cor', 'b.imei', 'i.nome', "b.gb || 'gb'"], busca).orderBy([{ column: 'v.data_venda', order: 'desc' }, { column: 'v.id', order: 'desc' }]))
+      return montar(await filtrarPorTexto(consulta(escopo), colunasDeBusca(escopo), busca).orderBy([{ column: 'v.data_venda', order: 'desc' }, { column: 'v.id', order: 'desc' }]))
     },
     async buscar(id, escopo) {
       const l = await consulta(escopo).where('v.id', id).first()

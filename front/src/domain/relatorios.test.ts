@@ -39,6 +39,12 @@ describe('relatórios (cópia do cálculo do backend)', () => {
     expect(jurosPorVencerSoJuros({ ...e, modalidade: 'PARCELADO' as never }, '2026-10-15')).toBe(0)
     expect(jurosPorVencerSoJuros({ ...e, parcelas: [...plano.slice(0, 3), p(5, '2027-02-10', 500, { acordo: 'NOVA' })] }, '2026-10-15')).toBe(0)
   })
+  it('jurosPorVencerSoJuros: parcela remarcada (pagou parte) segue vencida pela data original', () => {
+    const p = (numero: number, vencimento: string, valor: number, o = {}) => ({ numero, vencimento, valor, desconto: 0, pago: 0, acordo: null, ...o })
+    const e = { modalidade: 'JUROS' as const, capital: 2000, amortizado: 0, parcelas: [p(1, '2026-09-10', 200, { pago: 200 }), p(2, '2026-10-22', 200, { pago: 0.01, vencimentoOriginal: '2026-10-10' }), p(3, '2026-11-10', 200), p(4, '2026-12-10', 2200)] }
+    expect(jurosPorVencerSoJuros(e, '2026-10-15')).toBe(400)
+    expect(jurosPorVencerSoJuros({ ...e, parcelas: e.parcelas.map((x) => ({ ...x, vencimentoOriginal: undefined })) }, '2026-10-15')).toBeGreaterThan(400)
+  })
   it('vaiLiberarSemJurosPorVencer: tira o juro por vencer antes do %, abate o liberado e nunca fica negativo', () => {
     const b = { total: 2800, descontos: 0, investido: 2000, pct: 0.5, liberado: 0 }
     expect(vaiLiberarSemJurosPorVencer(b, 600)).toBe(100); expect(vaiLiberarSemJurosPorVencer({ ...b, liberado: 80 }, 600)).toBe(20); expect(vaiLiberarSemJurosPorVencer({ ...b, liberado: 500 }, 600)).toBe(0)

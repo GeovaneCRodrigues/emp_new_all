@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
 import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -51,8 +51,9 @@ async function carregar() {
   const meu = ++pedido
   carregando.value = true
   erro.value = ''
+  const [status, termo, s] = [filtro.value, busca.value.trim() || undefined, sessao.value] // fixa os filtros desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => vendasApi.listar(sessao.value, { status: filtro.value, busca: busca.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => vendasApi.listar(s, { status, busca: termo, pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => vendas.value.length,
     aplicar: (r, p) => { vendas.value = p === 1 ? r.itens : [...vendas.value, ...r.itens]; total.value = r.total },
   })
@@ -63,6 +64,7 @@ async function carregarResumo() {
   try { resumo.value = await vendasApi.resumo(sessao.value) } catch { /* os números ficam em branco */ }
 }
 watch(filtro, () => carregar())
+onBeforeUnmount(() => { pedido++; pedidoEmp++ }) // sair da tela cancela o que ainda está chegando
 /** /operacoes?novo=emprestimo (vindo do botão "Novo"): abre a aba de empréstimos já com o formulário. */
 function abrirNovoEmprestimo() {
   if (route.query.novo !== 'emprestimo' || !ehAdmin.value) return
@@ -100,8 +102,9 @@ let pedidoEmp = 0
 async function carregarEmp() {
   const meu = ++pedidoEmp
   carregandoEmp.value = true; erroEmp.value = ''
+  const [status, termo, s] = [filtroEmp.value, buscaEmp.value.trim() || undefined, sessao.value] // fixa os filtros desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => emprestimosApi.listar(sessao.value, { status: filtroEmp.value, busca: buscaEmp.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => emprestimosApi.listar(s, { status, busca: termo, pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedidoEmp, mostrados: () => emps.value.length,
     aplicar: (r, p) => { emps.value = p === 1 ? r.itens : [...emps.value, ...r.itens]; totalEmp.value = r.total },
   })

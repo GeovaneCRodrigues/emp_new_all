@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
 import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
@@ -34,8 +34,9 @@ let pedido = 0
 async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
+  const [a, t, s] = [aba.value, tipo.value, sessao.value] // fixa os filtros desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => recebimentosApi.cobrancas(sessao.value, { aba: aba.value, ...(tipo.value ? { tipo: tipo.value } : {}), pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => recebimentosApi.cobrancas(s, { aba: a, ...(t ? { tipo: t } : {}), pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens },
   })
@@ -44,6 +45,7 @@ async function carregar() {
 }
 watch([aba, tipo], () => carregar())
 onMounted(() => { carregar(); atualizar(sessao.value) })
+onBeforeUnmount(() => { pedido++ }) // sair da tela cancela o que ainda está chegando
 
 const abas = computed(() => [
   { id: 'atrasadas', label: 'Atrasadas' + (contagens.value.atrasadas ? ` · ${contagens.value.atrasadas}` : '') },

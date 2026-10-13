@@ -33,7 +33,7 @@ export function criarEstoqueFake(): EstoqueFake {
 
   const ver = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso ao estoque', 'SEM_PERMISSAO') }
   const admin = (s: Sessao) => { if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador cadastra e edita aparelhos', 'SEM_PERMISSAO') }
-  // o indicador só consulta o que está disponível (sem custo) para saber o que indicar
+  // o indicador não vê o estoque (403); o vendedor vê só o que está à venda, sem custo
   const visivel = (s: Sessao, r: Registro) => s.perfil === 'ADMIN' || r.estado !== 'VENDIDO'
   const naCarteira = (s: Sessao, clienteId: number | null) => !!clienteId && seed.clientes.some((c) => c.id === clienteId && c.responsavelId === s.usuarioId)
 
