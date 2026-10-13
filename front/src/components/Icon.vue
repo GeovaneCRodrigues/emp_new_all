@@ -3,10 +3,11 @@ import { computed } from 'vue'
 import {
   Award, BatteryMedium, CalendarRange, Calculator, ChartNoAxesCombined, ChevronLeft, CircleHelp, ClipboardList, Copy,
   FileSignature, HandCoins, House, Landmark, Layers, LogOut, Menu, Send, KeyRound, Check, UserPlus, MessageCircle, Plus, ReceiptText, Search, Settings, Share2,
-  Smartphone, UserCog, Users, Wallet, X, ChevronRight, CalendarDays, Handshake, Inbox, BadgeDollarSign,
+  Smartphone, UserCog, Users, Wallet, X, ChevronRight, CalendarDays, Handshake, Inbox, BadgeDollarSign, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-vue-next'
 
 const ICONES = {
+  'arrow-down-left': ArrowDownLeft, 'arrow-up-right': ArrowUpRight,
   'badge-dollar-sign': BadgeDollarSign,
   'award': Award, 'battery-medium': BatteryMedium, 'calendar-range': CalendarRange, 'calculator': Calculator,
   'chart-no-axes-combined': ChartNoAxesCombined, 'chevron-left': ChevronLeft, 'clipboard-list': ClipboardList, 'copy': Copy,

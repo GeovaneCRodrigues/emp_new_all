@@ -5,6 +5,9 @@ import { criarEmprestimosFake } from './emprestimos.fake'
 import { criarEmprestimosHttp } from './emprestimos.http'
 import type { EstoqueApi } from './estoque'
 import { criarEstoqueFake } from './estoque.fake'
+import type { CaixaApi } from './caixa'
+import { criarCaixaFake } from './caixa.fake'
+import { criarCaixaHttp } from './caixa.http'
 import type { AcordosApi } from './acordos'
 import { criarAcordosFake } from './acordos.fake'
 import { criarAcordosHttp } from './acordos.http'
@@ -60,3 +63,4 @@ export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(
 export const repassesApi: RepassesApi = vendasFake ? criarRepassesFake({ vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarRepassesHttp(URL_API, requisicao)
 export const propostasApi: PropostasApi = vendasFake ? criarPropostasFake({ clientes: clientesApi, estoque: estoqueApi, vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarPropostasHttp(URL_API, requisicao)
 export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : criarEquipeHttp(URL_API, requisicao)
+export const caixaApi: CaixaApi = vendasFake ? criarCaixaFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, repasses: repassesApi }) : criarCaixaHttp(URL_API, requisicao)
