@@ -5,7 +5,7 @@ import { janela, lucroPorMesTodos, lucroRealizado, lucroRealizadoAte, montarRela
 const HOJE = '2026-10-10'
 const op = (o: Partial<OpRelatorio> = {}): OpRelatorio => ({
   tipo: 'EMPRESTIMO', id: 1, data: '2026-09-01', status: 'ATIVA', indicadorId: null, pct: 0, investido: 1000, total: 1500, recebido: 0, falta: 1500, lucroTotal: 500, capitalDeVolta: 0,
-  jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
+  jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, aCobrar: [], modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
 })
 const extras = (e: Partial<DadosExtras> = {}): DadosExtras => ({ hoje: HOJE, caixa: 0, estoque: 0, aportes: 0, repassesAPagar: 0, repassesFuturos: 0, indicadores: [], ...e })
 
@@ -110,6 +110,21 @@ describe('relatórios montados', () => {
   it('balancete: operação quitada não tira nada, e a parte futura nunca fica negativa', () => {
     const q = op({ status: 'QUITADA', falta: 0, jurosPorVencer: 300, parteFuturaAbatida: 150 })
     expect(montarRelatorios([q], extras({ repassesFuturos: 0 })).balancete).toMatchObject({ aReceberEmprestimos: 0, jurosPorVencer: 0, parteFuturaIndicadores: 0 })
+  })
+  it('previsão: atraso por faixa de dias, a vencer por mês (do mês de hoje até o último), quitada e cancelada fora', () => {
+    const a = op({ aCobrar: [{ vencimento: '2026-10-09', falta: 100 }, { vencimento: '2026-10-03', falta: 50 }, { vencimento: '2026-09-10', falta: 200 }, { vencimento: '2026-08-01', falta: 300 }, { vencimento: HOJE, falta: 40 }, { vencimento: '2026-10-25', falta: 60 }, { vencimento: '2026-12-05', falta: 70 }] })
+    const quitada = op({ id: 2, status: 'QUITADA', aCobrar: [{ vencimento: '2026-11-01', falta: 999 }] })
+    const p = montarRelatorios([a, quitada], extras({ caixa: 1000, repassesAPagar: 30, repassesFuturos: 80, estoque: 500 })).previsao
+    expect(p.atraso).toEqual({ ate7: { n: 2, valor: 150 }, de8a30: { n: 1, valor: 200 }, mais30: { n: 1, valor: 300 } }) // 1 e 7 dias: 100 e 50; 30 dias: 200; 70 dias: 300
+    expect(p.aVencer).toEqual({ n: 3, valor: 170 }) // vence hoje já é a vencer
+    expect(p.porMes).toEqual([{ mes: '2026-10', valor: 100 }, { mes: '2026-11', valor: 0 }, { mes: '2026-12', valor: 70 }])
+    expect(p).toMatchObject({ caixa: 1000, estoque: 500, repassesAPagar: 30, parteIndicadores: 80 })
+  })
+  it('previsão: o limite das faixas (7, 8, 30 e 31 dias) e sem nada em aberto', () => {
+    const dia = (n: number) => { const d = new Date('2026-10-10T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10) }
+    const p = montarRelatorios([op({ aCobrar: [7, 8, 30, 31].map((n) => ({ vencimento: dia(n), falta: n })) })], extras()).previsao
+    expect(p.atraso).toEqual({ ate7: { n: 1, valor: 7 }, de8a30: { n: 2, valor: 38 }, mais30: { n: 1, valor: 31 } })
+    expect(montarRelatorios([], extras()).previsao).toMatchObject({ atraso: { ate7: { n: 0, valor: 0 } }, aVencer: { n: 0, valor: 0 }, porMes: [{ mes: '2026-10', valor: 0 }] })
   })
   it('saldo de caixa negativo não entra no capital, mas aparece no balancete', () => {
     const n = montarRelatorios([], extras({ caixa: -300 }))

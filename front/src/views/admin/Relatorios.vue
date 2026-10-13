@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { RelatoriosDados } from '@/api/relatorios'
 import { relatoriosApi } from '@/api/recursos'
@@ -8,8 +8,9 @@ import RelBarras from '@/components/RelBarras.vue'
 import { useApp } from '@/composables/useApp'
 import { mesLabel } from '@/domain/cronograma'
 import { fmt, fmt0 } from '@/domain/format'
+import { cenario, CENARIOS, lerPerdas, PERDAS_PADRAO, type Perdas } from '@/domain/previsao'
 
-/** Relatórios da loja: seis visões do mesmo dinheiro (só o administrador). */
+/** Relatórios da loja: sete visões do mesmo dinheiro (só o administrador). */
 const { sessao } = useApp()
 
 const ABAS = [
@@ -18,6 +19,7 @@ const ABAS = [
   { id: 'capital', label: 'Capital', icon: 'wallet' },
   { id: 'indicador', label: 'Por indicador', icon: 'users' },
   { id: 'mensal', label: 'Controle mensal', icon: 'calendar-days' },
+  { id: 'previsao', label: 'Previsão', icon: 'chart-no-axes-combined' },
   { id: 'balancete', label: 'Balancete', icon: 'landmark' },
 ]
 const aba = ref(lerAba())
@@ -32,6 +34,24 @@ async function carregar() {
   try { r.value = await relatoriosApi.ver(sessao.value) } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os relatórios.' } finally { carregando.value = false }
 }
 onMounted(carregar)
+
+// Previsão: as perdas esperadas são suposição sua; ficam salvas neste navegador e dá para voltar ao padrão.
+const CHAVE_PERDAS = 'relPerdas'
+function perdasSalvas(): Perdas { try { return lerPerdas(JSON.parse(localStorage.getItem(CHAVE_PERDAS) ?? 'null')) } catch { return { ...PERDAS_PADRAO } } }
+const inteiro = (v: number) => Math.round(v * 100)
+const perdasPct = reactive((() => { const p = perdasSalvas(); return { aVencer: inteiro(p.aVencer), ate7: inteiro(p.ate7), de8a30: inteiro(p.de8a30), mais30: inteiro(p.mais30) } })())
+// o que for digitado fora de 0 a 100 (ou vazio) é limitado a esse intervalo
+const limitar = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v / 100)) : 0)
+const perdas = computed<Perdas>(() => ({ aVencer: limitar(perdasPct.aVencer), ate7: limitar(perdasPct.ate7), de8a30: limitar(perdasPct.de8a30), mais30: limitar(perdasPct.mais30) }))
+watch(perdas, (p) => { try { localStorage.setItem(CHAVE_PERDAS, JSON.stringify(p)) } catch { /* sem armazenamento: só não lembra */ } })
+function voltarAoPadrao() { perdasPct.aVencer = inteiro(PERDAS_PADRAO.aVencer); perdasPct.ate7 = inteiro(PERDAS_PADRAO.ate7); perdasPct.de8a30 = inteiro(PERDAS_PADRAO.de8a30); perdasPct.mais30 = inteiro(PERDAS_PADRAO.mais30) }
+const cenarios = computed(() => (r.value ? CENARIOS.map((c) => ({ ...c, ...cenario(r.value!.previsao, perdas.value, c.fator) })) : []))
+const realista = computed(() => cenarios.value.find((c) => c.id === 'realista'))
+const GRUPOS = [
+  { id: 'ate7', rotulo: 'Atrasado até 7 dias' }, { id: 'de8a30', rotulo: 'Atrasado de 8 a 30 dias' }, { id: 'mais30', rotulo: 'Atrasado há mais de 30 dias' }, { id: 'aVencer', rotulo: 'Ainda a vencer' },
+] as const
+const grupoDaPrevisao = (id: (typeof GRUPOS)[number]['id']) => (id === 'aVencer' ? r.value!.previsao.aVencer : r.value!.previsao.atraso[id])
+const esperadoDoGrupo = (id: (typeof GRUPOS)[number]['id']) => Math.round(grupoDaPrevisao(id).valor * (1 - perdas.value[id]) * 100) / 100
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 const totalLucro = computed(() => (r.value ? r.value.resumo.lucroIphones + r.value.resumo.lucroEmprestimos : 0))
@@ -156,6 +176,51 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
       </div>
     </template>
 
+    <!-- Previsão -->
+    <template v-else-if="aba === 'previsao' && realista">
+      <div class="hero" style="gap: 6px" data-testid="rel-previsao">
+        <div class="lbl">Estimativa realista na sua mão</div>
+        <div class="big disp num" data-testid="prev-namao" :style="realista.naMao < 0 ? 'color: #ffd6cf' : ''">{{ fmt(realista.naMao) }}</div>
+        <div class="lbl">de {{ fmt0(cenarios[0].naMao) }} (pessimista) a {{ fmt0(cenarios[2].naMao) }} (otimista), já descontados os indicadores</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px" data-testid="prev-cenarios">
+        <div v-for="c in cenarios" :key="c.id" class="card pad" :data-cenario="c.id">
+          <div class="lbl">{{ c.rotulo }}</div><div class="val num" style="font-size: 17px" :style="c.id === 'realista' ? 'color: var(--ok)' : ''">{{ fmt0(c.naMao) }}</div><div class="small">perde {{ fmt0(c.perdido) }} de {{ fmt0(c.devido) }}</div>
+        </div>
+      </div>
+      <div class="card" data-testid="prev-grupos">
+        <div class="totbar"><b style="color: var(--strong)">O que ainda vai entrar</b><button class="btn b-ghost b-sm" data-testid="prev-padrao" @click="voltarAoPadrao">Voltar ao padrão</button></div>
+        <div class="tab-x">
+          <table class="tb">
+            <thead><tr><th /><th class="r">Parcelas</th><th class="r">Devido</th><th class="r">Perda</th><th class="r">Esperado</th></tr></thead>
+            <tbody>
+              <tr v-for="g in GRUPOS" :key="g.id" :data-grupo="g.id">
+                <td><b>{{ g.rotulo }}</b></td><td class="r num">{{ grupoDaPrevisao(g.id).n }}</td><td class="r num">{{ fmt0(grupoDaPrevisao(g.id).valor) }}</td>
+                <td class="r"><span class="inp" style="display: inline-flex; width: 74px; height: 32px"><input v-model.number="perdasPct[g.id]" type="number" min="0" max="100" step="1" inputmode="numeric" :aria-label="`Perda esperada: ${g.rotulo}, em %`" :data-testid="`prev-perda-${g.id}`" style="text-align: right" /></span> %</td>
+                <td class="r num" :data-testid="`prev-esperado-${g.id}`">{{ fmt0(esperadoDoGrupo(g.id)) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card pad" data-testid="prev-meses">
+        <div class="between"><h2 style="margin: 0; font-size: 14px; color: var(--strong)">O que vence por mês</h2><span class="small">devido e esperado</span></div>
+        <RelBarras :meses="r.previsao.porMes.map((m) => m.mes)" :hoje="r.hoje" :alt="110" :series="[{ l: 'Devido', v: realista.porMes.map((m) => m.valor), c: 'var(--dim)' }, { l: 'Esperado', v: realista.porMes.map((m) => m.esperado), c: 'var(--primary)' }]" />
+      </div>
+      <div class="card" data-testid="prev-conta">
+        <div class="totbar"><b style="color: var(--strong)">Como chega nesse número (realista)</b></div>
+        <div class="list">
+          <div class="li" style="padding: 9px 14px"><span class="mid t">Caixa de hoje</span><b class="num">{{ fmt(r.previsao.caixa) }}</b></div>
+          <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">+ Atraso que deve voltar</span><span class="s" style="display: block">já sem a perda</span></span><b class="num">{{ fmt(realista.recuperadoAtraso) }}</b></div>
+          <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">+ O que vai vencer</span><span class="s" style="display: block">já sem a perda</span></span><b class="num">{{ fmt(realista.recuperadoAVencer) }}</b></div>
+          <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">− Parte dos indicadores</span><span class="s" style="display: block">cai junto com a perda</span></span><b class="num" style="color: var(--bad)">{{ fmt(realista.indicadores) }}</b></div>
+          <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">− Repasses a pagar</span><span class="s" style="display: block">já liberados</span></span><b class="num" style="color: var(--bad)">{{ fmt(r.previsao.repassesAPagar) }}</b></div>
+          <div class="li" style="padding: 9px 14px; opacity: 0.75"><span class="mid"><span class="t" style="display: block">Estoque (fora da conta)</span><span class="s" style="display: block">pelo custo; vira dinheiro quando vender</span></span><b class="num">{{ fmt(r.previsao.estoque) }}</b></div>
+        </div>
+      </div>
+      <p class="small" style="margin: 0">As perdas são suposições suas (começam em 5% a vencer, 10%, 30% e 70% no atraso); o pessimista dobra e o otimista corta pela metade. Só juros conta o capital, não os juros que ainda não venceram. A parte dos indicadores é estimada na mesma proporção do que entra.</p>
+    </template>
+
     <!-- Balancete -->
     <template v-else>
       <div class="duo" data-testid="rel-balancete">
@@ -182,7 +247,7 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
         <div class="big disp num" data-testid="rel-patrimonio" :style="r.balancete.patrimonio < 0 ? 'color: #ffd6cf' : ''">{{ fmt(r.balancete.patrimonio) }}</div>
         <div class="lbl" data-testid="rel-aportes">Você colocou {{ fmt0(r.balancete.aportes) }} · <template v-if="r.balancete.patrimonio >= r.balancete.aportes">cresceu <b style="color: #d8f5c0">{{ fmt0(r.balancete.patrimonio - r.balancete.aportes) }}</b></template><template v-else>está <b style="color: #ffd6cf">{{ fmt0(r.balancete.aportes - r.balancete.patrimonio) }}</b> abaixo</template></div>
       </div>
-      <p class="small" style="margin: 0">"A receber" soma tudo que as parcelas ainda vão render, juros incluídos; num só juros isso inclui os meses futuros.</p>
+      <p class="small" style="margin: 0">"A receber" soma o que as parcelas ainda vão render, juros incluídos; num só juros entram o capital e os juros já vencidos, e os juros dos meses futuros ficam à parte.</p>
     </template>
   </template>
 </template>

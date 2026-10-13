@@ -6,6 +6,7 @@ import { entrar, navegar } from './helpers'
 const numero = (t: string) => (/^[−-]/.test(t.trim()) ? -1 : 1) * Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 const txt = async (page: Page, id: string) => numero((await page.getByTestId(id).textContent()) ?? '')
 const aba = (page: Page, nome: string | RegExp) => page.getByTestId('rel-abas').getByRole('button', { name: nome })
+const numeroDe = async (page: Page, seletor: string) => numero((await page.locator(seletor).first().textContent()) ?? '')
 const semRolagemLateral = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
 
 test.describe('relatórios (administrador)', () => {
@@ -90,6 +91,57 @@ test.describe('relatórios (administrador)', () => {
     expect(aReceber).toBeLessThan(emOperacoes)
   })
 
+  test('Previsão: o devido fecha com o "a receber" do Balancete e a conta fecha com o número grande', async ({ page }) => {
+    await aba(page, 'Balancete').click()
+    const aReceber = (await txt(page, 'rel-b-areceber-emp')) + numero(((await page.getByTestId('rel-ativo').textContent()) ?? '')) * 0 // só para ler o ativo depois
+    const ativo = await txt(page, 'rel-ativo'), caixa = await txt(page, 'rel-b-caixa')
+    await aba(page, 'Previsão').click()
+    await expect(page.getByTestId('rel-previsao')).toBeVisible()
+    const devido = async () => { let t = 0; for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) t += numero(((await page.locator(`[data-grupo="${g}"] td`).nth(2).textContent()) ?? '')); return t }
+    // devido (atraso + a vencer) = a receber de vendas + de empréstimos = ativo − caixa − estoque; o estoque aparece na própria aba
+    const estoque = numero(((await page.getByTestId('prev-conta').locator('.li').last().locator('.num').textContent()) ?? ''))
+    expect(Math.abs((await devido()) - (ativo - caixa - estoque))).toBeLessThanOrEqual(4) // as linhas são arredondadas ao real
+    expect(aReceber).toBeGreaterThan(0)
+    // os três cenários andam na ordem certa
+    const [pess, rea, otim] = [await numeroDe(page, '[data-cenario="pessimista"] .val'), await numeroDe(page, '[data-cenario="realista"] .val'), await numeroDe(page, '[data-cenario="otimista"] .val')]
+    expect(pess).toBeLessThan(rea); expect(rea).toBeLessThan(otim)
+    expect(Math.abs((await txt(page, 'prev-namao')) - rea)).toBeLessThanOrEqual(1)
+  })
+
+  test('Previsão: mudar a perda muda o esperado e o número grande, fica salvo no navegador e "Voltar ao padrão" desfaz', async ({ page }) => {
+    await aba(page, 'Previsão').click()
+    const antes = await txt(page, 'prev-namao')
+    const avencer = await txt(page, 'prev-esperado-aVencer')
+    await page.getByTestId('prev-perda-aVencer').fill('50')
+    await expect.poll(async () => txt(page, 'prev-esperado-aVencer')).toBeLessThan(avencer)
+    expect(await txt(page, 'prev-namao')).toBeLessThan(antes)
+    // recarrega a página: o valor continua
+    await page.reload(); await expect(page.getByTestId('rel-abas')).toBeVisible(); await aba(page, 'Previsão').click()
+    await expect(page.getByTestId('prev-perda-aVencer')).toHaveValue('50')
+    await page.getByTestId('prev-padrao').click()
+    await expect(page.getByTestId('prev-perda-aVencer')).toHaveValue('5')
+    await expect.poll(async () => txt(page, 'prev-namao')).toBe(antes)
+  })
+
+  test('Previsão: perda zerada recebe tudo; perda de 100% no a vencer e no atraso deixa só o caixa menos os repasses', async ({ page }) => {
+    await aba(page, 'Previsão').click()
+    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) await page.getByTestId(`prev-perda-${g}`).fill('100')
+    // realista com 100% de perda: o pessimista não pode ser pior que isso, e o otimista (metade) ainda recebe parte
+    const rea = await numeroDe(page, '[data-cenario="realista"] .val'), pess = await numeroDe(page, '[data-cenario="pessimista"] .val'), otim = await numeroDe(page, '[data-cenario="otimista"] .val')
+    expect(pess).toBe(rea); expect(otim).toBeGreaterThan(rea)
+    for (const g of ['ate7', 'de8a30', 'mais30', 'aVencer']) expect(await txt(page, `prev-esperado-${g}`)).toBe(0)
+  })
+
+  test('Previsão: valor fora de 0 a 100 é limitado (900 vira 100%, −5 vira 0%)', async ({ page }) => {
+    await aba(page, 'Previsão').click()
+    await page.getByTestId('prev-perda-ate7').fill('900')
+    await expect(page.getByTestId('prev-namao')).toHaveText(/R\$/)
+    expect(await txt(page, 'prev-esperado-ate7')).toBe(0)
+    const devido = numero(((await page.locator('[data-grupo="ate7"] td').nth(2).textContent()) ?? ''))
+    await page.getByTestId('prev-perda-ate7').fill('-5')
+    expect(await txt(page, 'prev-esperado-ate7')).toBe(devido)
+  })
+
   test('um aporte lançado no Caixa aparece no balancete (patrimônio e "Você colocou")', async ({ page }) => {
     await aba(page, 'Balancete').click()
     const antes = await txt(page, 'rel-patrimonio')
@@ -109,8 +161,8 @@ test.describe('relatórios (administrador)', () => {
     await expect(page.getByTestId('rel-capital')).toBeVisible()
   })
 
-  test('as seis abas abrem sem rolagem lateral na página (as tabelas rolam por dentro)', async ({ page }) => {
-    for (const nome of ['Resumo', 'Investimento e lucro', 'Capital', 'Por indicador', 'Controle mensal', 'Balancete']) {
+  test('as sete abas abrem sem rolagem lateral na página (as tabelas rolam por dentro)', async ({ page }) => {
+    for (const nome of ['Resumo', 'Investimento e lucro', 'Capital', 'Por indicador', 'Controle mensal', 'Previsão', 'Balancete']) {
       await aba(page, nome).click()
       expect(await semRolagemLateral(page), nome).toBe(true)
     }

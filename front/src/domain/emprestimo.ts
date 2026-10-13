@@ -51,3 +51,20 @@ export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmp; capital: n
   const capitalNaUltima = ultima.vencimento > hoje ? Math.min(Math.max(0, e.capital - e.amortizado), falta(ultima)) : 0
   return Math.round(Math.max(0, futuras.reduce((x, p) => x + falta(p), 0) - capitalNaUltima) * 100) / 100
 }
+
+/**
+ * O que o cliente deve de fato, parcela a parcela. No só juros sem acordo, o juro que ainda não venceu não entra: das parcelas
+ * futuras sobra só o capital em aberto, na última. Cópia de faltaExigivel do backend.
+ */
+export function faltaExigivel(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): { vencimento: string; falta: number }[] {
+  const arred = (v: number) => Math.round(v * 100) / 100
+  const falta = (p: { valor: number; desconto: number; pago: number }) => Math.max(0, arred(p.valor - p.desconto - p.pago))
+  const soJuros = e.modalidade === 'JUROS' && !e.parcelas.some((p) => p.acordo !== null)
+  const ordenadas = [...e.parcelas].sort((a, b) => a.numero - b.numero)
+  const ultima = ordenadas[ordenadas.length - 1]
+  return ordenadas.map((p) => {
+    const f = falta(p)
+    if (!soJuros || p.vencimento <= hoje) return { vencimento: p.vencimento, falta: f }
+    return { vencimento: p.vencimento, falta: p === ultima ? Math.min(f, Math.max(0, arred(e.capital - e.amortizado))) : 0 }
+  }).filter((x) => x.falta > 0)
+}

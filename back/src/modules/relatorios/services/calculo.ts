@@ -26,6 +26,8 @@ export type OpRelatorio = {
   jurosPorVencer: number
   /** quanto da parte futura dos indicadores sai do balancete por causa desse juro por vencer */
   parteFuturaAbatida: number
+  /** o que o cliente deve de fato, parcela a parcela (sem o juro futuro do só juros). Base da previsão */
+  aCobrar: { vencimento: string; falta: number }[]
   /** só vendas */
   modelo: string | null
   diasParado: number | null
@@ -33,6 +35,8 @@ export type OpRelatorio = {
   /** cada vez que entrou dinheiro (entrada e troca na data da venda, pagamentos, amortização) */
   entradas: { data: string; valor: number }[]
 }
+
+const diasEntre = (a: string, b: string) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86_400_000)
 
 export type Janela = string[]
 export const mesDe = (d: string) => d.slice(0, 7)
@@ -154,8 +158,24 @@ export function montarRelatorios(ops: OpRelatorio[], x: DadosExtras) {
   const ativo = arred2(x.caixa + estoque + aReceberVendas + aReceberEmprestimos)
   const passivo = arred2(x.repassesAPagar + parteFutura)
 
+  // Previsão: o que está em aberto e é devido, separado em atraso (por faixa) e a vencer (mês a mês). Os percentuais de perda ficam com a tela.
+  const abertas = ops.filter((o) => o.status === 'ATIVA').flatMap((o) => o.aCobrar)
+  const faixa = (xs: typeof abertas) => ({ n: xs.length, valor: somar(xs.map((a) => a.falta)) })
+  const atrasadas = abertas.filter((a) => a.vencimento < x.hoje)
+  const doAtraso = (de: number, ate: number) => faixa(atrasadas.filter((a) => { const d = diasEntre(a.vencimento, x.hoje); return d >= de && d <= ate }))
+  const aVencer = abertas.filter((a) => a.vencimento >= x.hoje)
+  const ultimoMes = aVencer.reduce((m, a) => (mesDe(a.vencimento) > m ? mesDe(a.vencimento) : m), mesDe(x.hoje))
+  const mesesAVencer: string[] = []
+  for (let m = mesDe(x.hoje); m <= ultimoMes; m = somaMes(m, 1)) mesesAVencer.push(m)
+
   return {
     hoje: x.hoje,
+    previsao: {
+      caixa: x.caixa, estoque, repassesAPagar: x.repassesAPagar, parteIndicadores: parteFutura,
+      atraso: { ate7: doAtraso(1, 7), de8a30: doAtraso(8, 30), mais30: doAtraso(31, Infinity) },
+      aVencer: faixa(aVencer),
+      porMes: mesesAVencer.map((mes) => ({ mes, valor: somar(aVencer.filter((a) => mesDe(a.vencimento) === mes).map((a) => a.falta)) })),
+    },
     resumo: {
       meses: m6, lucroPorMes: serie(m6, (mes) => lucroMes.get(mes) ?? 0),
       lucroIphones: iphones.lucroNoBolso, lucroEmprestimos: emprestimos.lucroNoBolso, modelos,
