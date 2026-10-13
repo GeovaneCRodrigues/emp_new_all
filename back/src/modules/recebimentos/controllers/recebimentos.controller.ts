@@ -23,7 +23,7 @@ export function createRecebimentosController(service: RecebimentosService) {
     async desfazer(req: FastifyRequest, reply: FastifyReply) { await service.desfazer(sessaoOuErro(req), idDaRota(req)); return reply.code(204).send() },
     async cronograma(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
-      return cronogramaView(await service.cronograma(sessaoOuErro(req), { mes: typeof q.mes === 'string' ? q.mes : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined }))
+      return cronogramaView(await service.cronograma(sessaoOuErro(req), { mes: typeof q.mes === 'string' ? q.mes : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined, indicador: typeof q.indicador === 'string' ? q.indicador : undefined, modalidade: typeof q.modalidade === 'string' ? q.modalidade : undefined, situacao: typeof q.situacao === 'string' ? q.situacao : undefined }))
     },
     async cobrancas(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>

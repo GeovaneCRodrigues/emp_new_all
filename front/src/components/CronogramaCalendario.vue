@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AlvoApi, CobrancaApi } from '@/api/recebimentos'
 import type { EmprestimoApi } from '@/api/emprestimos'
-import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import type { IndicadorApi } from '@/api/indicadores'
+import { emprestimosApi, indicadoresApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
 import AvisarRecebiForm from '@/components/AvisarRecebiForm.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
@@ -28,6 +29,22 @@ const { atualizar } = useAtrasadas()
 const mes = ref(hoje.value.slice(0, 7))
 const tipo = ref<'' | AlvoApi>('')
 const busca = ref('')
+/** Filtros do administrador: de qual indicador ('' = todos, 'SEM' = sem indicador, ou o id) e qual modalidade de empréstimo. */
+const filtroIndicador = ref('')
+type Modalidade = 'PARCELADO' | 'JUROS' | 'DIARIA'
+/** Vários ao mesmo tempo (multisseleção); nenhum marcado = todas. */
+const filtroModalidade = ref<Modalidade[]>([])
+/** O que falta receber, o que já foi recebido, ou tudo ('' ). */
+const filtroSituacao = ref<'' | 'ABERTAS' | 'RECEBIDAS'>('')
+const situacoes = [{ id: '', label: 'Todas' }, { id: 'ABERTAS', label: 'A receber' }, { id: 'RECEBIDAS', label: 'Recebidas' }]
+const indicadores = ref<IndicadorApi[]>([])
+const podeFiltrar = computed(() => !props.indicador && sessao.value.perfil === 'ADMIN')
+const modalidades: { id: Modalidade; label: string }[] = [{ id: 'PARCELADO', label: 'Parcelado' }, { id: 'JUROS', label: 'Só juros' }, { id: 'DIARIA', label: 'Diária' }]
+const alternarModalidade = (m: Modalidade) => { filtroModalidade.value = filtroModalidade.value.includes(m) ? filtroModalidade.value.filter((x) => x !== m) : [...filtroModalidade.value, m] }
+/** Modalidade só existe em empréstimo: na aba iPhones o filtro some (e não vale). */
+const mostraModalidade = computed(() => podeFiltrar.value && tipo.value !== 'VENDA')
+const comFiltro = computed(() => podeFiltrar.value && (filtroIndicador.value !== '' || filtroSituacao.value !== '' || (mostraModalidade.value && filtroModalidade.value.length > 0)))
+function limparFiltros() { filtroIndicador.value = ''; filtroModalidade.value = []; filtroSituacao.value = '' }
 /** O dia escolhido no calendário; sem dia (null) a lista de baixo traz o mês inteiro. */
 const dia = ref<string | null>(null)
 const itens = ref<CobrancaApi[]>([])
@@ -48,7 +65,7 @@ async function carregar() {
   carregando.value = true; erro.value = ''
   try {
     const termo = busca.value.trim()
-    const r = await recebimentosApi.cronograma(sessao.value, { mes: mes.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(termo ? { busca: termo } : {}) })
+    const r = await recebimentosApi.cronograma(sessao.value, { mes: mes.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(termo ? { busca: termo } : {}), ...(podeFiltrar.value && filtroIndicador.value ? { indicador: filtroIndicador.value === 'SEM' ? ('SEM' as const) : Number(filtroIndicador.value) } : {}), ...(podeFiltrar.value && filtroSituacao.value ? { situacao: filtroSituacao.value } : {}), ...(mostraModalidade.value && filtroModalidade.value.length ? { modalidade: [...filtroModalidade.value] } : {}) })
     if (meu !== pedido) return
     itens.value = r.itens; cortado.value = r.cortado; buscaDosItens.value = termo
   } catch (e) {
@@ -59,8 +76,11 @@ async function carregar() {
 }
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(carregar, 300) })
-watch([mes, tipo], () => { dia.value = null; itens.value = []; cortado.value = false; carregar() }) // o mês anterior não fica na tela enquanto o novo carrega
-onMounted(() => { carregar(); if (!props.indicador) atualizar(sessao.value) })
+watch([mes, tipo, filtroIndicador, filtroModalidade, filtroSituacao], () => { dia.value = null; itens.value = []; cortado.value = false; carregar() }) // o mês anterior não fica na tela enquanto o novo carrega
+onMounted(() => {
+  carregar(); if (!props.indicador) atualizar(sessao.value)
+  if (podeFiltrar.value) indicadoresApi.listar(sessao.value).then((l) => { indicadores.value = l }).catch(() => undefined) // sem a lista o filtro de indicador fica só com "Todos" e "Sem indicador"
+})
 onBeforeUnmount(() => clearTimeout(espera))
 
 const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { id: 'EMPRESTIMO', label: 'Empréstimos' }]
@@ -98,6 +118,15 @@ async function aposMudar() {
 
 <template>
   <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
+  <div v-if="podeFiltrar" class="row" style="gap: 8px; flex-wrap: wrap; align-items: center" data-testid="cron-filtros">
+    <div class="inp" style="flex: 1 1 200px; max-width: 280px"><select v-model="filtroIndicador" aria-label="Filtrar por indicador" data-testid="cron-filtro-indicador"><option value="">Todos os indicadores</option><option value="SEM">Sem indicador</option><option v-for="i in indicadores" :key="i.id" :value="String(i.id)">{{ i.nome }}</option></select></div>
+    <Seg v-model="filtroSituacao as string" :itens="situacoes" data-testid="cron-filtro-situacao" />
+    <div v-if="mostraModalidade" class="pills" role="group" aria-label="Filtrar por modalidade" data-testid="cron-filtro-modalidade">
+      <button type="button" class="pill" :class="{ on: !filtroModalidade.length }" :aria-pressed="!filtroModalidade.length" data-modalidade="TODAS" @click="filtroModalidade = []">Todas</button>
+      <button v-for="m in modalidades" :key="m.id" type="button" class="pill" :class="{ on: filtroModalidade.includes(m.id) }" :aria-pressed="filtroModalidade.includes(m.id)" :data-modalidade="m.id" @click="alternarModalidade(m.id)">{{ m.label }}</button>
+    </div>
+    <button v-if="comFiltro" class="btn b-ghost b-sm" data-testid="cron-limpar-filtros" @click="limparFiltros">Limpar filtros</button>
+  </div>
   <label class="busca"><Icon name="search" small /><input v-model="busca" :placeholder="indicador ? 'Buscar cliente pelo nome' : 'Buscar cliente ou indicador'" aria-label="Buscar cliente" data-testid="cron-busca" /></label>
 
   <div class="between" style="gap: 8px">
@@ -127,16 +156,16 @@ async function aposMudar() {
       <span v-for="i in grade.vazios" :key="'v' + i"></span>
       <button
         v-for="d in grade.dias" :key="d.iso" type="button" class="d" :class="{ hoje: d.iso === hoje, sel: d.iso === dia }" :data-dia="d.iso" :data-cor="d.cor ?? ''"
-        :aria-label="d.itens.length ? `${rotuloDia(d.iso)}: ${plural(d.itens.length)}` : rotuloDia(d.iso)" @click="escolher(d.iso, d.itens.length)"
+        :aria-label="d.itens.length ? `${rotuloDia(d.iso)}: ${plural(d.itens.length)}${d.recebido.n ? `, ${d.recebido.n} com pagamento` : ''}${d.aberto.n ? `, ${d.aberto.n} em aberto` : ''}` : rotuloDia(d.iso)" @click="escolher(d.iso, d.itens.length)"
       >
         <span class="n">{{ d.dia }}</span>
         <template v-if="d.itens.length">
-          <span class="v num" :style="{ color: CORES[d.cor!] }">{{ kfmt(d.total) }}</span>
-          <span class="q">{{ plural(d.itens.length) }}</span>
+          <span v-if="d.recebido.n" class="b" data-bloco="recebido"><span class="v num" :style="{ color: CORES.ok }">{{ kfmt(d.recebido.valor) }}</span><span class="q">{{ d.recebido.n === 1 ? 'paga' : `${d.recebido.n} pagas` }}</span></span>
+          <span v-if="d.aberto.n" class="b" data-bloco="aberto"><span class="v num" :style="{ color: CORES[d.cor!] }">{{ kfmt(d.aberto.valor) }}</span><span class="q">{{ d.aberto.n === 1 ? 'aberta' : `${d.aberto.n} abertas` }}</span></span>
         </template>
       </button>
     </div>
-    <div class="small" style="margin-top: 10px">Vermelho atrasado · laranja vence esta semana · verde pago</div>
+    <div class="small" style="margin-top: 10px">Em cada dia: o de cima (verde) já foi recebido, o de baixo ainda está aberto · vermelho atrasado · laranja vence esta semana</div>
   </div>
 
   <!-- sem dia escolhido, ou com busca: todas as parcelas do mês (da busca), dia a dia. Com um dia escolhido: só as dele -->

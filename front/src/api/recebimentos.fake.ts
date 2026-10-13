@@ -40,6 +40,9 @@ interface Op {
   id: number
   cliente: { id: number; nome: string }
   indicador: string | null
+  indicadorId: number | null
+  /** só empréstimo */
+  modalidade: string | null
   data: string
   status: string
   descricao: string
@@ -63,8 +66,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
   const foneDe = (id: number) => fones.get(id) ?? ''
 
   const permitido = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o administrador e o cobrador mexem com recebimentos', 'SEM_PERMISSAO') }
-  const comoOp = (r: Registro): Op => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, data: r.dataVenda, status: r.status, descricao: r.aparelho.modelo, parcelas: r.parcelas, emp: null })
-  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, data: r.dataEmprestimo, status: r.status, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), parcelas: r.parcelas, emp: r })
+  const comoOp = (r: Registro): Op => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, indicadorId: r.indicador?.id ?? null, modalidade: null, data: r.dataVenda, status: r.status, descricao: r.aparelho.modelo, parcelas: r.parcelas, emp: null })
+  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, indicadorId: r.indicador?.id ?? null, modalidade: r.modalidade, data: r.dataEmprestimo, status: r.status, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), parcelas: r.parcelas, emp: r })
   const doEscopo = (s: Sessao, alvo: AlvoApi, id: number): Op => {
     if (alvo === 'VENDA') {
       const r = vendas._interno.noEscopo(s).find((x) => x.id === id)
@@ -103,13 +106,14 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
   const capitalAberto = (r: RegistroEmprestimo) => arred2(r.capital - r.amortizado)
 
   /** Todas as parcelas das operações no escopo de quem pergunta (as mesmas linhas das cobranças). */
-  const parcelasDoEscopo = (s: Sessao, tipo?: AlvoApi): CobrancaApi[] => {
+  const parcelasDoEscopo = (s: Sessao, tipo?: AlvoApi, filtro: { indicador?: number | 'SEM'; modalidade?: string[] } = {}): CobrancaApi[] => {
     const ops: Op[] = [
       ...(tipo === 'EMPRESTIMO' ? [] : vendas._interno.noEscopo(s).filter((r) => r.status !== 'RETOMADA' && r.status !== 'CANCELADA').map(comoOp)),
       ...(tipo === 'VENDA' || !emprestimos ? [] : emprestimos._interno.noEscopo(s).filter((r) => r.status !== 'CANCELADA').map(comoOpEmp)),
     ]
+    const passa = (o: Op) => (filtro.indicador === undefined || (filtro.indicador === 'SEM' ? o.indicadorId === null : o.indicadorId === filtro.indicador)) && (!filtro.modalidade?.length || (o.modalidade !== null && filtro.modalidade.includes(o.modalidade)))
     const ultimaDe = (o: Op, numero: number) => transacoes.filter((t) => t.alvo === o.alvo && t.operacaoId === o.id && t.tipo === 'PARCELA' && !t.desfeita && t.itens.some((i) => i.numero === numero)).sort((a, b) => b.id - a.id)[0]
-    const todas: CobrancaApi[] = ops.flatMap((o) =>
+    const todas: CobrancaApi[] = ops.filter(passa).flatMap((o) =>
       o.parcelas.map((p) => {
         const u = ultimaDe(o, p.numero)
         const f = falta(p)
@@ -287,8 +291,16 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new ErroApi(400, 'mes deve ser AAAA-MM')
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
-      const itens = parcelasDoEscopo(s, q.tipo)
-        .filter((c) => c.vencimento.slice(0, 7) === mes && casaBusca([c.cliente.nome, c.indicador], q.busca))
+      let indicador: number | 'SEM' | undefined
+      if (q.indicador !== undefined) {
+        if (q.indicador === 'SEM') indicador = 'SEM'
+        else if (typeof q.indicador === 'number' && Number.isInteger(q.indicador) && q.indicador > 0) indicador = q.indicador
+        else throw new ErroApi(400, 'indicador deve ser um número ou SEM')
+      }
+      if (q.modalidade !== undefined && (!Array.isArray(q.modalidade) || q.modalidade.length > 3 || !q.modalidade.every((m) => ['PARCELADO', 'JUROS', 'DIARIA'].includes(m)))) throw new ErroApi(400, 'modalidade deve ser PARCELADO, JUROS ou DIARIA')
+      if (q.situacao !== undefined && q.situacao !== 'ABERTAS' && q.situacao !== 'RECEBIDAS') throw new ErroApi(400, 'situacao deve ser ABERTAS ou RECEBIDAS')
+      const itens = parcelasDoEscopo(s, q.tipo, { indicador, modalidade: q.modalidade })
+        .filter((c) => c.vencimento.slice(0, 7) === mes && casaBusca([c.cliente.nome, c.indicador], q.busca) && (q.situacao === undefined || (q.situacao === 'ABERTAS') === (c.falta > 0.009)))
         .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.cliente.nome.localeCompare(b.cliente.nome) || a.tipo.localeCompare(b.tipo) || a.operacaoId - b.operacaoId || a.parcela - b.parcela)
       return { mes, hoje, itens: itens.slice(0, 1500), cortado: itens.length > 1500 }
     },

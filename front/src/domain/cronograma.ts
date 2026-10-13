@@ -28,12 +28,18 @@ export function resumoDoMes(itens: CobrancaApi[], hoje: Iso) {
 /** A cor do dia: vermelho (atrasado), laranja (vence hoje ou nos próximos 7 dias), cinza (aberto mais longe), verde (tudo pago). */
 export type CorDia = 'bad' | 'warn' | 'dim' | 'ok'
 
+/** Quantas parcelas e quanto dinheiro. */
+export interface BlocoDia { n: number; valor: number }
+
 export interface DiaCalendario {
   iso: Iso
   dia: number
   itens: CobrancaApi[]
   /** o que o dia mostra: o que falta nas abertas, ou o que foi pago nas quitadas */
   total: number
+  /** o dia em dois blocos: o que já entrou (parcelas com pagamento) e o que ainda falta (parcelas abertas) */
+  recebido: BlocoDia
+  aberto: BlocoDia
   cor: CorDia | null
 }
 
@@ -56,7 +62,9 @@ export function gradeDoMes(ym: string, itens: CobrancaApi[], hoje: Iso): GradeMe
     const total = Math.round(xs.reduce((s, c) => s + (aberta(c) ? c.falta : c.pago), 0) * 100) / 100
     let cor: CorDia | null = null
     if (xs.length) cor = abertas.length ? (iso < hoje ? 'bad' : iso === hoje || diasEntre(hoje, iso) <= 7 ? 'warn' : 'dim') : 'ok'
-    dias.push({ iso, dia: d, itens: xs, total, cor })
+    const soma = (ys: number[]) => Math.round(ys.reduce((a, b) => a + b, 0) * 100) / 100
+    const comPagamento = xs.filter((c) => c.pago > 0.009) // parcela paga pela metade entra nos dois blocos: o que entrou e o que ainda falta
+    dias.push({ iso, dia: d, itens: xs, total, cor, recebido: { n: comPagamento.length, valor: soma(comPagamento.map((c) => c.pago)) }, aberto: { n: abertas.length, valor: soma(abertas.map((c) => c.falta)) } })
   }
   return { vazios, dias }
 }
