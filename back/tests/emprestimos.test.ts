@@ -8,7 +8,7 @@ import { createAuthService } from '../src/modules/auth/services/auth.service.js'
 import { hashSenha } from '../src/modules/auth/services/password.js'
 import { createTokensService } from '../src/modules/auth/services/tokens.js'
 import { createEmprestimosRepository } from '../src/modules/emprestimos/models/repository.js'
-import { planoEmprestimo } from '../src/modules/emprestimos/services/calculo.js'
+import { planoEmprestimo, primeiroVencimentoPadrao } from '../src/modules/emprestimos/services/calculo.js'
 import { createEmprestimosService } from '../src/modules/emprestimos/services/emprestimos.service.js'
 import { createIndicadoresRepository } from '../src/modules/indicadores/models/repository.js'
 import { createIndicadoresService } from '../src/modules/indicadores/services/indicadores.service.js'
@@ -90,7 +90,17 @@ describe('plano do empréstimo só juros (puro)', () => {
 })
 
 describe('plano do empréstimo diário (puro)', () => {
-  const diaria = (o: { capital: number; taxa: number; n: number; data: string; primeira?: string }) => planoEmprestimo({ modalidade: 'DIARIA', periodicidade: 'DIARIA', ...o })
+  const diaria = (o: { capital: number; taxa: number; n: number; data: string; primeira?: string; pulaDomingo?: boolean }) => planoEmprestimo({ modalidade: 'DIARIA', periodicidade: 'DIARIA', ...o })
+  it('sem pular domingo: todos os dias seguidos, domingo inclusive', () => {
+    const p = diaria({ capital: 1000, taxa: 20, n: 5, data: '2026-10-02', pulaDomingo: false })
+    expect(p.map((x) => x.vencimento)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07']) // sáb, DOM, seg, ter, qua
+    expect(diaria({ capital: 1000, taxa: 20, n: 3, data: '2026-10-03', primeira: '2026-10-04', pulaDomingo: false }).map((x) => x.vencimento)).toEqual(['2026-10-04', '2026-10-05', '2026-10-06']) // 1º no domingo fica no domingo
+    expect(primeiroVencimentoPadrao('2026-10-03', 'DIARIA', false)).toBe('2026-10-04'); expect(primeiroVencimentoPadrao('2026-10-03', 'DIARIA')).toBe('2026-10-05')
+  })
+  it('o valor da parcela não muda com o domingo (o total é dividido igual)', () => {
+    const com = diaria({ capital: 1000, taxa: 20, n: 24, data: '2026-10-03' }), sem = diaria({ capital: 1000, taxa: 20, n: 24, data: '2026-10-03', pulaDomingo: false })
+    expect(sem.map((x) => x.valor)).toEqual(com.map((x) => x.valor)); expect(sem).toHaveLength(24)
+  })
   it('pula domingo: sábado 03/10 → segunda 05, terça 06, quarta 07', () => {
     const p = diaria({ capital: 1000, taxa: 20, n: 3, data: '2026-10-03' })
     expect(p.map((x) => x.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
@@ -186,6 +196,24 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
       const e = (await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-04' })).json()
       expect(e).toMatchObject({ modalidade: 'DIARIA', periodicidade: 'DIARIA', valorParcela: 400 })
       expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-05', '2026-10-06', '2026-10-07'])
+    })
+    it('diária que NÃO pula domingo: o domingo vira parcela e a escolha fica gravada', async () => {
+      const e = (await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 4, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-03', pulaDomingo: false })).json()
+      expect(e).toMatchObject({ modalidade: 'DIARIA', pulaDomingo: false })
+      expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06']) // o dia 04 é domingo
+      const lido = (await app.inject({ method: 'GET', url: `/api/emprestimos/${e.id}`, headers: { authorization: `Bearer ${t.admin}` } })).json()
+      expect(lido.pulaDomingo).toBe(false)
+    })
+    it('diária sem dizer nada continua pulando o domingo (padrão), e a escolha vem como true', async () => {
+      const e = (await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-03' })).json()
+      expect(e.pulaDomingo).toBe(true); expect(e.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-03', '2026-10-05', '2026-10-06'])
+      const explicito = (await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-03', pulaDomingo: true })).json()
+      expect(explicito.parcelas.map((p: { vencimento: string }) => p.vencimento)).toEqual(['2026-10-03', '2026-10-05', '2026-10-06'])
+    })
+    it('outras frequências não escolhem domingo: pulaDomingo falso é recusado, e o parcelado sempre mostra true', async () => {
+      expect((await emprestar('admin', { pulaDomingo: false })).statusCode).toBe(400)
+      expect((await emprestar('admin', { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, pulaDomingo: 'nao' })).statusCode).toBe(400)
+      expect((await emprestar('admin', {})).json().pulaDomingo).toBe(true)
     })
     it.each([
       ['frequência inventada', { periodicidade: 'ANUAL' }], ['diária com frequência mensal', { modalidade: 'DIARIA', periodicidade: 'MENSAL', taxa: 20 }],

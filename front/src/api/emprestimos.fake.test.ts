@@ -47,6 +47,18 @@ describe('criar', () => {
     expect(e).toMatchObject({ modalidade: 'JUROS', nParcelas: 3, valorParcela: 360, total: 4080, lucroTotal: 1080 })
     expect(e.parcelas.map((p) => p.valor)).toEqual([360, 360, 3360])
   })
+  it('diária que não pula o domingo: o domingo vira parcela e a escolha fica gravada; o padrão pula', async () => {
+    const com = await emprestar(ADMIN, { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 4, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-03', pulaDomingo: false })
+    expect(com.pulaDomingo).toBe(false)
+    expect(com.parcelas.map((p) => p.vencimento)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06']) // 04/10 é domingo
+    const padrao = await emprestar(ADMIN, { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, dataEmprestimo: '2026-10-01', primeiroVencimento: '2026-10-03' })
+    expect(padrao.pulaDomingo).toBe(true); expect(padrao.parcelas.map((p) => p.vencimento)).toEqual(['2026-10-03', '2026-10-05', '2026-10-06'])
+  })
+  it('só a diária escolhe o domingo: falso nas outras frequências e valor que não é verdadeiro/falso levam 400', async () => {
+    expect((await falha(emprestar(ADMIN, { modalidade: 'PARCELADO', capital: 1000, taxa: 20, parcelas: 3, pulaDomingo: false })))?.status).toBe(400)
+    expect((await falha(emprestar(ADMIN, { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 3, pulaDomingo: 'nao' } as never)))?.status).toBe(400)
+    expect((await emprestar(ADMIN, { modalidade: 'PARCELADO', capital: 1000, taxa: 20, parcelas: 3 })).pulaDomingo).toBe(true)
+  })
   it('diária: parcela por dia útil (sem domingo) com a taxa do período todo', async () => {
     const e = await emprestar(ADMIN, { modalidade: 'DIARIA', capital: 1000, taxa: 20, parcelas: 24 })
     expect(e).toMatchObject({ modalidade: 'DIARIA', nParcelas: 24, valorParcela: 50, total: 1200, lucroTotal: 200 })

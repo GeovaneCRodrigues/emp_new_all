@@ -40,6 +40,14 @@ describe.skipIf(!db)('importar empréstimos e recebimentos do sistema antigo (Po
     movimentacoesCaixa: [{ id: 1, tipo: 'APORTE', valor: 7500, data: '2026-05-01', obs: 'aporte inicial' }],
   })
 
+  it('diária migrada guarda se o domingo contava: com parcela em domingo = não pulava; sem = pulava; as outras ficam true', async () => {
+    const diaria = (id: number, dataInicio: string) => op(id, { modalidade: 'PARCELADO', periodicidade: 'DIARIA', dataInicio, valorOriginal: 600, valorRecebimentoMensal: 100, qtdeParcelasLucro: 6 })
+    const estado: EstadoAntigo = { ...vazio(), operacoes: [diaria(1, '2026-09-01'), diaria(2, '2026-09-07'), op(3)] } // 01/09 a 06/09 inclui o domingo 06/09; 07/09 a 12/09 não
+    await importarOperacoes(db!, estado, { aplicar: true, hoje: HOJE })
+    const dom = async (id: number) => (await db!('emprestimos').where({ legacy_id: id }).first()).pula_domingo
+    expect(await dom(1)).toBe(false); expect(await dom(2)).toBe(true); expect(await dom(3)).toBe(true)
+  })
+
   it('SIMULAÇÃO: o relatório é completo mas NADA é gravado', async () => {
     const r = await importarOperacoes(db!, cenario(), { aplicar: false, hoje: HOJE })
     expect(r.modo).toBe('SIMULACAO')

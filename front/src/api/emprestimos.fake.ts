@@ -12,7 +12,7 @@ import type { IndicadoresFake } from './indicadores.fake'
 export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
 export interface RegistroEmprestimo {
   id: number; cliente: { id: number; nome: string }; indicador: { id: number; nome: string } | null; pct: number; dataEmprestimo: string
-  capital: number; modalidade: ModalidadeApi; taxa: number; periodicidade: PeriodicidadeApi; status: StatusEmprestimo; observacoes: string | null
+  capital: number; modalidade: ModalidadeApi; taxa: number; periodicidade: PeriodicidadeApi; pulaDomingo: boolean; status: StatusEmprestimo; observacoes: string | null
   /** só juros: quanto do capital já foi pago adiantado (conta como dinheiro recebido) */
   amortizado: number; parcelas: Parcela[]
 }
@@ -41,7 +41,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const ind = seed.indicadores.find((i) => i.id === e.indicadorId)
     return {
       id: e.id, cliente: { id: cli.id, nome: cli.nome }, indicador: ind ? { id: ind.id, nome: ind.nome } : null, pct: e.pct, dataEmprestimo: e.data,
-      capital: e.capital, modalidade: e.mod, taxa: e.taxa, periodicidade: e.freq, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null, amortizado: 0,
+      capital: e.capital, modalidade: e.mod, taxa: e.taxa, periodicidade: e.freq, pulaDomingo: true, status: e.status === 'QUITADA' ? 'QUITADA' : 'ATIVA', observacoes: null, amortizado: 0,
       parcelas: e.parcelas.map((p) => ({ numero: p.n, vencimento: p.venc, vencimentoOriginal: p.vencOriginal ?? null, valor: p.valor, desconto: p.desconto, pago: p.pagos.reduce((x, g) => x + g.valor, 0), quitadaEm: p.pago })),
     }
   })
@@ -60,7 +60,7 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const lucroTotal = arred2(total - r.capital)
     const status: StatusEmprestimo = r.status === 'CANCELADA' ? 'CANCELADA' : falta <= 0.009 ? 'QUITADA' : 'ATIVA'
     const base: EmprestimoApi = {
-      id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
+      id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, pulaDomingo: r.pulaDomingo, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
       valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
       parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
@@ -102,6 +102,11 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
         if (e.dataEmprestimo < '2020-01-01') throw erro('A data do empréstimo é antiga demais')
         data = e.dataEmprestimo
       }
+      // diária: o administrador escolhe se o domingo conta (padrão: pula). Nas outras frequências a escolha não existe.
+      const pedidoPula = (e as { pulaDomingo?: unknown }).pulaDomingo
+      if (pedidoPula !== undefined && pedidoPula !== null && typeof pedidoPula !== 'boolean') throw erro('pulaDomingo deve ser verdadeiro ou falso')
+      if (pedidoPula === false && periodicidade !== 'DIARIA') throw erro('Só a diária escolhe se o domingo conta')
+      const pulaDomingo = pedidoPula !== false
       let primeira: string | undefined
       if (e.primeiroVencimento !== undefined && e.primeiroVencimento !== null) {
         if (!dataValida(e.primeiroVencimento)) throw erro('primeiroVencimento precisa ser uma data válida (AAAA-MM-DD)')
@@ -125,8 +130,8 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
       const capital = arred2(e.capital)
       const reg: RegistroEmprestimo = {
         id: ++proximoId, cliente: { id: cliente.id, nome: cliente.nome }, indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null, pct: indicador?.pct ?? 0,
-        dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, status: 'ATIVA', observacoes, amortizado: 0,
-        parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
+        dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, pulaDomingo, status: 'ATIVA', observacoes, amortizado: 0,
+        parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)

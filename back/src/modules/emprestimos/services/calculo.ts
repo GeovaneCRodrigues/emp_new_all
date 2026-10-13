@@ -2,24 +2,26 @@ import { addDia, pulaDomingo, somaDiasUteis, somaMes } from '../../../shared/dat
 import { arred2, ceilCent } from '../../vendas/services/calculo.js'
 import type { ModalidadeEmprestimo, Periodicidade } from '../models/types.js'
 
-export type EntradaPlano = { capital: number; modalidade: ModalidadeEmprestimo; taxa: number; n: number; data: string; periodicidade: Periodicidade; primeira?: string }
+export type EntradaPlano = { capital: number; modalidade: ModalidadeEmprestimo; taxa: number; n: number; data: string; periodicidade: Periodicidade; primeira?: string; /** só diária: o domingo não conta (padrão) */ pulaDomingo?: boolean }
 export type ItemPlano = { vencimento: string; valor: number }
 
 export const NOME_PERIODICIDADE: Record<Periodicidade, string> = { MENSAL: 'mensal', QUINZENAL: 'quinzenal', SEMANAL: 'semanal', DIARIA: 'diária' }
 
 /** 1º vencimento padrão: um período depois da data do empréstimo (no mensal, o mesmo dia do mês seguinte). */
-export function primeiroVencimentoPadrao(data: string, periodicidade: Periodicidade): string {
+export function primeiroVencimentoPadrao(data: string, periodicidade: Periodicidade, pulaDomingo = true): string {
   if (periodicidade === 'QUINZENAL') return addDia(data, 15)
   if (periodicidade === 'SEMANAL') return addDia(data, 7)
-  if (periodicidade === 'DIARIA') return somaDiasUteis(data, 1)
+  if (periodicidade === 'DIARIA') return pulaDomingo ? somaDiasUteis(data, 1) : addDia(data, 1)
   return somaMes(data, 1, Number(data.slice(8, 10)))
 }
 
 /**
  * Datas das parcelas. Mensal: o mesmo dia do mês do 1º vencimento (limitado ao fim do mês); quinzenal: de 15 em 15
- * dias; semanal: de 7 em 7; diária: todo dia menos domingo (se o 1º cair no domingo, vai para a segunda).
+ * dias; semanal: de 7 em 7; diária: todo dia menos domingo (se o 1º cair no domingo, vai para a segunda) ou, com `pulaDomingo`
+ * falso, todos os dias seguidos.
  */
-export function vencimentosDoPlano(primeira: string, periodicidade: Periodicidade, n: number, diaMensal = Number(primeira.slice(8, 10))): string[] {
+export function vencimentosDoPlano(primeira: string, periodicidade: Periodicidade, n: number, diaMensal = Number(primeira.slice(8, 10)), pulaDomingoNaDiaria = true): string[] {
+  if (periodicidade === 'DIARIA' && !pulaDomingoNaDiaria) return Array.from({ length: n }, (_, i) => addDia(primeira, i))
   if (periodicidade === 'DIARIA') {
     const p0 = pulaDomingo(primeira)
     return Array.from({ length: n }, (_, i) => (i ? somaDiasUteis(p0, i) : p0))
@@ -37,7 +39,8 @@ export function vencimentosDoPlano(primeira: string, periodicidade: Periodicidad
 export function planoEmprestimo(a: EntradaPlano): ItemPlano[] {
   const t = a.taxa / 100
   // sem 1º vencimento escolhido, o dia do mês é o do empréstimo (31/01 → 28/02, 31/03, 30/04…); escolhido, vale o dia dele
-  const venc = a.primeira ? vencimentosDoPlano(a.primeira, a.periodicidade, a.n) : vencimentosDoPlano(primeiroVencimentoPadrao(a.data, a.periodicidade), a.periodicidade, a.n, Number(a.data.slice(8, 10)))
+  const pula = a.pulaDomingo ?? true
+  const venc = a.primeira ? vencimentosDoPlano(a.primeira, a.periodicidade, a.n, undefined, pula) : vencimentosDoPlano(primeiroVencimentoPadrao(a.data, a.periodicidade, pula), a.periodicidade, a.n, Number(a.data.slice(8, 10)), pula)
   if (a.modalidade === 'JUROS') {
     const juro = arred2(a.capital * t)
     return venc.map((vencimento, i) => ({ vencimento, valor: arred2(juro + (i === a.n - 1 ? a.capital : 0)) }))

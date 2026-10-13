@@ -39,7 +39,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
   <Sheet :aberto="emprestimo !== null" @fechar="emit('fechar')">
     <template v-if="emprestimo">
       <h3>{{ emprestimo.cliente.nome }}</h3>
-      <div class="small">{{ nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) }} · emprestado em {{ dmyA(emprestimo.dataEmprestimo) }}</div>
+      <div class="small">{{ nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) }}<template v-if="emprestimo.periodicidade === 'DIARIA'"> ({{ emprestimo.pulaDomingo ? 'sem domingo' : 'com domingo' }})</template> · emprestado em {{ dmyA(emprestimo.dataEmprestimo) }}</div>
 
       <div class="card pad" style="margin-top: 12px">
         <div class="between small"><span><b class="num" style="color: var(--strong)">{{ fmt(emprestimo.recebido) }}</b> recebido de {{ fmt(emprestimo.total) }}</span><span class="num">{{ pct }}%</span></div>

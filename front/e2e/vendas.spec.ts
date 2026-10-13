@@ -310,6 +310,36 @@ test.describe('empréstimos parcelados', () => {
     await expect(page.getByTestId('dados-admin')).toContainText('1.000,00')
   })
 
+  test('diária: o botão escolhe se o domingo conta (começa em "pular"); cobrando no domingo, a lista traz o domingo', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '100000', freq: 'DIARIA', n: 10, taxa: 20 })
+    const escolha = page.getByTestId('diaria-domingo')
+    await expect(escolha).toBeVisible()
+    await expect(escolha.locator('[data-domingo="pular"]')).toHaveClass(/on/)
+    await expect(page.getByTestId('diaria-info')).toContainText('todo dia menos domingo')
+    await escolha.locator('[data-domingo="cobrar"]').click()
+    await expect(escolha.locator('[data-domingo="cobrar"]')).toHaveClass(/on/)
+    await expect(page.getByTestId('diaria-info')).toContainText('domingo inclusive')
+    await expect(page.getByTestId('previa-parcela')).toContainText('120,00') // o valor da parcela não muda com o domingo (1.200 em 10x)
+    await page.getByRole('button', { name: 'Continuar' }).click()
+    await expect(page.getByText('Vale o dia escolhido, mesmo que seja domingo.')).toBeVisible()
+    const textos = (await page.getByTestId('lista-parcelas').locator('.li').allInnerTexts()).map((t) => t.toLowerCase())
+    expect(textos).toHaveLength(10)
+    expect(textos.some((t) => t.includes('dom'))).toBe(true) // 10 dias seguidos passam por um domingo
+    await page.getByRole('button', { name: 'Fazer empréstimo' }).click()
+    await expect(page.getByTestId('dados-admin')).toContainText('1.000,00')
+  })
+
+  test('o botão do domingo só aparece na diária', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '100000', freq: 'SEMANAL' })
+    await expect(page.getByTestId('diaria-domingo')).toHaveCount(0)
+    await page.locator('[data-freq="DIARIA"]').click()
+    await expect(page.getByTestId('diaria-domingo')).toBeVisible()
+    await page.locator('[data-freq="MENSAL"]').click()
+    await expect(page.getByTestId('diaria-domingo')).toHaveCount(0)
+  })
+
   test('os botões travam com o motivo: sem cliente, sem valor e 1º vencimento antes do empréstimo', async ({ page }) => {
     await entrar(page)
     await page.goto('/operacoes')

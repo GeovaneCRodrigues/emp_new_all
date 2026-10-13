@@ -11,6 +11,8 @@ export interface EmprestimoApi {
   cliente: { id: number; nome: string }
   modalidade: ModalidadeApi
   periodicidade: PeriodicidadeApi
+  /** só diária: o domingo não conta (padrão); falso = todos os dias, domingo inclusive */
+  pulaDomingo: boolean
   dataEmprestimo: string
   observacoes: string | null
   nParcelas: number
@@ -50,6 +52,8 @@ export interface EntradaEmprestimo {
   parcelas: number
   /** padrão: mensal (a diária é sempre diária) */
   periodicidade?: PeriodicidadeApi
+  /** só diária: o domingo conta? padrão: não (pula). Nas outras frequências não existe */
+  pulaDomingo?: boolean
   /** padrão: hoje */
   dataEmprestimo?: string
   /** padrão: um período depois da data do empréstimo */

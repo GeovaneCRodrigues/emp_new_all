@@ -31,6 +31,8 @@ export type Emprestimo = {
   /** parcelado e diária: % de juros NO TOTAL (100% = o cliente paga o dobro). Só juros: % a cada parcela. */
   taxa: number
   periodicidade: Periodicidade
+  /** só diária: o domingo não conta (padrão); falso = todos os dias, domingo inclusive */
+  pulaDomingo: boolean
   status: StatusEmprestimo
   observacoes: string | null
   modoDivisao: ModoDivisao
@@ -51,6 +53,7 @@ export type NovoEmprestimo = {
   modalidade: ModalidadeEmprestimo
   taxa: number
   periodicidade: Periodicidade
+  pulaDomingo: boolean
   observacoes: string | null
   modoDivisao: ModoDivisao
 }
