@@ -98,6 +98,12 @@ function calcularTaxa(modalidade: ModalidadeNova, capital: number, valorPorParce
  * Converte UMA operação do sistema antigo para o modelo novo: o empréstimo, as parcelas (geradas pela regra antiga), os
  * recebimentos (cada um vira um recibo), e o acordo. Nenhum centavo recebido se perde: tudo o que entrou é alocado nas parcelas.
  */
+/** No sistema antigo `data_inicio` é de onde as parcelas contam, e pode cair depois do dia em que o empréstimo foi lançado; empréstimo não nasce no futuro. */
+function dataDoEmprestimo(dataInicio: string, criadoEm: string | null): string {
+  const criado = criadoEm ? criadoEm.slice(0, 10) : null
+  return criado && /^\d{4}-\d{2}-\d{2}$/.test(criado) && criado < dataInicio ? criado : dataInicio
+}
+
 export function transformarOperacao(op: OperacaoAntiga, estado: EstadoAntigo, hoje: string): ResultadoOperacao {
   const avisos = new Set<CodigoAvisoOperacao>()
   if (op.modalidade === 'JUROS' && op.periodicidade === 'DIARIA') return { novo: null, avisos: [], erro: 'só juros com frequência diária não existe no sistema novo' }
@@ -265,7 +271,7 @@ export function transformarOperacao(op: OperacaoAntiga, estado: EstadoAntigo, ho
   return {
     novo: {
       legacyId: op.id, clienteLegacyId: op.clienteId, indicadorLegacyId: op.indicadorId, pct: temIndicador ? Math.min(1, Math.max(0, op.percentualParceiro)) : 0,
-      dataEmprestimo: op.dataInicio, capital, modalidade, periodicidade: modalidade === 'DIARIA' ? 'DIARIA' : op.periodicidade === 'DIARIA' ? 'MENSAL' : op.periodicidade, taxa, modoDivisao,
+      dataEmprestimo: dataDoEmprestimo(op.dataInicio, op.criadoEm), capital, modalidade, periodicidade: modalidade === 'DIARIA' ? 'DIARIA' : op.periodicidade === 'DIARIA' ? 'MENSAL' : op.periodicidade, taxa, modoDivisao,
       observacoes: op.obs?.trim() || null, statusAntigo: op.status, status, parcelas, pagamentos, acordo, criadoEm: op.criadoEm,
     },
     avisos: [...avisos],
