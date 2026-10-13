@@ -54,7 +54,7 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
     abas: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('clientes', 'Clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
     lateral: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('clientes', 'Meus clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
     // no computador ficam na lateral; no celular, no fim do Início
-    mais: [i('vendas', 'Minhas vendas', 'badge-dollar-sign'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],
+    mais: [i('vendas', 'Operações', 'layers'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],
   },
 }
 
@@ -65,8 +65,8 @@ export const TITULOS: Record<string, string> = {
   pedidos: 'Pedidos', vendas: 'Vendas', indicar: 'Indicar', cobranca: 'Cobrança', repasse: 'Repasse', niveis: 'Níveis',
 }
 
-/** Títulos que mudam para o indicador ("Meus clientes", "Minhas vendas"). */
-export const TITULOS_INDICADOR: Record<string, string> = { clientes: 'Meus clientes', vendas: 'Minhas vendas' }
+/** Títulos que mudam para o indicador ("Meus clientes", "Operações"). */
+export const TITULOS_INDICADOR: Record<string, string> = { clientes: 'Meus clientes', vendas: 'Operações' }
 
 /** O menu do administrador em grupos (lateral no computador e "Mais" no celular). Configurações fica sozinho no rodapé. */
 export interface GrupoMenu { titulo: string; ids: string[] }

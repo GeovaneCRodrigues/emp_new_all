@@ -7,7 +7,7 @@ async function ir(page: Page, nome: string) {
   if (ehComputador()) { await page.locator('aside.side').getByRole('button', { name: new RegExp('^' + nome) }).click(); return }
   const aba = page.locator('nav.tabs').getByRole('button', { name: new RegExp('^' + nome) })
   if (await aba.count()) await aba.click()
-  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ 'Minhas vendas': 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
+  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ Operações: 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
 }
 const numero = (t: string) => Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 
@@ -17,7 +17,7 @@ test.describe('portal do indicador (demonstração)', () => {
   test('menu do design: Início, Cobrança, Meus clientes e Repasse, e o grupo Mais no computador', async ({ page }) => {
     test.skip(!ehComputador(), 'só no computador')
     const lateral = page.locator('aside.side')
-    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Minhas vendas', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
+    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Operações', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
     await expect(lateral.locator('.titulo')).toHaveText('Mais')
   })
 
@@ -82,9 +82,9 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(page.getByRole('dialog').getByText('Patrícia Gomes')).toBeVisible()
   })
 
-  test('Minhas vendas: iPhones e empréstimos, com a parte dele e sem custo nem lucro da loja', async ({ page }) => {
-    await ir(page, 'Minhas vendas')
-    await expect(page.locator('h1')).toHaveText('Minhas vendas')
+  test('Operações: iPhones e empréstimos, com a parte dele e sem custo nem lucro da loja', async ({ page }) => {
+    await ir(page, 'Operações')
+    await expect(page.locator('h1')).toHaveText('Operações')
     const cards = page.getByTestId('minhas-vendas')
     await expect(cards.locator('[data-venda]').first()).toBeVisible()
     await expect(cards.locator('[data-sua-parte]').first()).toContainText('sua parte R$')
