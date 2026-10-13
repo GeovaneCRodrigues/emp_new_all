@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { AparelhoApi } from '@/api/estoque'
 import { ErroApi, type ClienteApi } from '@/api/clientes'
 import type { PropostaApi, TipoProposta } from '@/api/propostas'
-import { estoqueApi, propostasApi } from '@/api/recursos'
+import { propostasApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { exibirFone } from '@/domain/documentos'
 import { fmt, gbTxt } from '@/domain/format'
@@ -13,40 +12,28 @@ import Sheet from './Sheet.vue'
 
 /**
  * A proposta do indicador é só uma INTENÇÃO: o que o cliente quer. A loja aceita ou recusa e cadastra a venda/empréstimo.
- * `inicial` deixa a tela de origem (Estoque, Simulador) abrir já com o aparelho ou as parcelas preenchidos.
+ * `inicial` deixa a tela de origem (Simulador) abrir já com as parcelas preenchidas. O indicador não vê o estoque: o aparelho vai em texto.
  */
-const props = defineProps<{ aberto: boolean; cliente: ClienteApi | null; inicial?: { tipo?: TipoProposta; aparelhoId?: number; interesse?: string; parcelas?: number; obs?: string } }>()
+const props = defineProps<{ aberto: boolean; cliente: ClienteApi | null; inicial?: { tipo?: TipoProposta; interesse?: string; parcelas?: number; obs?: string } }>()
 const emit = defineEmits<{ fechar: []; enviada: [p: PropostaApi] }>()
 const { sessao } = useApp()
 
 const TIPOS = [{ id: 'VENDA', label: 'Venda de iPhone' }, { id: 'EMPRESTIMO', label: 'Empréstimo' }]
 const tipo = ref<TipoProposta>('VENDA')
 const interesse = ref('')
-const aparelhoId = ref('')
 const valor = ref(0)
 const parcelas = ref('')
 const obs = ref('')
 const erro = ref('')
 const enviando = ref(false)
-const aparelhos = ref<AparelhoApi[]>([])
 
-watch(() => props.aberto, async (aberto) => {
+watch(() => props.aberto, (aberto) => {
   if (!aberto) return
   const i = props.inicial ?? {}
-  tipo.value = i.tipo ?? 'VENDA'; interesse.value = i.interesse ?? ''; aparelhoId.value = i.aparelhoId ? String(i.aparelhoId) : ''
+  tipo.value = i.tipo ?? 'VENDA'; interesse.value = i.interesse ?? ''
   valor.value = 0; parcelas.value = i.parcelas ? String(i.parcelas) : ''; obs.value = i.obs ?? ''; erro.value = ''
-  if (!aparelhos.value.length) aparelhos.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => null))?.itens ?? []
-  // veio de um aparelho (Estoque, Simulador): a lista só chegou agora, então o texto é preenchido aqui
-  const a = aparelhos.value.find((x) => String(x.id) === aparelhoId.value)
-  if (a && !interesse.value.trim()) interesse.value = `${a.modelo} ${gbTxt(a.gb)} ${a.cor}`
 }, { immediate: true })
 
-// escolher do estoque preenche o texto (que ainda dá para ajustar)
-watch(aparelhoId, (id) => {
-  const a = aparelhos.value.find((x) => String(x.id) === id)
-  if (a) interesse.value = `${a.modelo} ${gbTxt(a.gb)} ${a.cor}`
-})
-watch(tipo, (t) => { if (t === 'EMPRESTIMO') aparelhoId.value = '' })
 
 const nParcelas = computed(() => (parcelas.value.trim() === '' ? null : Number(parcelas.value)))
 const problema = computed(() => {
@@ -62,7 +49,7 @@ async function enviar() {
   try {
     const p = await propostasApi.criar(sessao.value, {
       clienteId: props.cliente.id, tipo: tipo.value,
-      ...(interesse.value.trim() ? { interesse: interesse.value.trim() } : {}), ...(aparelhoId.value ? { aparelhoId: Number(aparelhoId.value) } : {}),
+      ...(interesse.value.trim() ? { interesse: interesse.value.trim() } : {}),
       ...(tipo.value === 'EMPRESTIMO' && valor.value > 0 ? { valor: valor.value } : {}), ...(nParcelas.value ? { parcelas: nParcelas.value } : {}), ...(obs.value.trim() ? { obs: obs.value.trim() } : {}),
     })
     emit('enviada', p)
@@ -83,10 +70,6 @@ async function enviar() {
         <div class="aviso">É só a intenção: a loja analisa e cadastra a venda ou o empréstimo no seu nome.</div>
         <div class="field"><label>O que ele quer?</label><Seg v-model="tipo" :itens="TIPOS" /></div>
         <template v-if="tipo === 'VENDA'">
-          <div class="field">
-            <label for="pAparelho">Escolha do estoque (opcional)</label>
-            <div class="inp"><select id="pAparelho" v-model="aparelhoId"><option value="">Outro aparelho / ainda não sei</option><option v-for="a in aparelhos" :key="a.id" :value="String(a.id)">{{ a.modelo }} {{ gbTxt(a.gb) }} {{ a.cor }} · {{ fmt(a.preco) }}</option></select></div>
-          </div>
           <div class="field"><label for="pInteresse">Qual aparelho? *</label><div class="inp"><input id="pInteresse" v-model="interesse" maxlength="160" placeholder="Ex.: iPhone 14 128 GB preto" autocomplete="off" /></div></div>
         </template>
         <template v-else>

@@ -56,11 +56,21 @@ describe('quem pode mandar e ver', () => {
 })
 
 describe('criar', () => {
-  it('venda com aparelho: guarda o aparelho e monta o texto do interesse', async () => {
+  it('venda: o aparelho vai em texto no interesse (o indicador não escolhe do estoque)', async () => {
     const c = await cliente()
+    const p = await api.criar(IND1, { clienteId: c, tipo: 'VENDA', interesse: 'iPhone 15 Pro 256 GB', parcelas: 10, obs: 'quer entrada baixa' })
+    expect(p).toMatchObject({ tipo: 'VENDA', status: 'PENDENTE', interesse: 'iPhone 15 Pro 256 GB', parcelas: 10, obs: 'quer entrada baixa', aparelho: null, operacao: null })
+  })
+  it('aparelhoId (existente, inexistente ou de empréstimo) leva 400 com a mesma mensagem e nada é gravado', async () => {
     const ap = (await estoque.listar(ADMIN, { limite: 1 })).itens[0]
-    const p = await api.criar(IND1, { clienteId: c, tipo: 'VENDA', aparelhoId: ap.id, parcelas: 10, obs: 'quer entrada baixa' })
-    expect(p).toMatchObject({ tipo: 'VENDA', status: 'PENDENTE', interesse: `${ap.modelo} ${ap.gb} GB ${ap.cor}`, parcelas: 10, obs: 'quer entrada baixa', aparelho: { id: ap.id }, operacao: null })
+    const c = await cliente()
+    const msgs = new Set<string>()
+    for (const e of [{ tipo: 'VENDA', aparelhoId: ap.id, interesse: 'x' }, { tipo: 'VENDA', aparelhoId: 999999, interesse: 'x' }, { tipo: 'EMPRESTIMO', aparelhoId: ap.id, valor: 1000 }]) {
+      const r = await falha(api.criar(IND1, { clienteId: c, ...e } as never))
+      expect(r?.status).toBe(400); msgs.add(r!.message)
+    }
+    expect(msgs.size).toBe(1)
+    expect((await api.listar(ADMIN, {})).total).toBe(0)
   })
   it('empréstimo com valor', async () => {
     const p = await api.criar(IND1, { clienteId: await cliente(), tipo: 'EMPRESTIMO', valor: 5000.5, parcelas: 6 })
@@ -78,10 +88,6 @@ describe('criar', () => {
     for (const k of Object.keys(corpo)) if (corpo[k] === undefined) delete corpo[k]
     expect((await falha(api.criar(IND1, corpo as never)))?.status).toBe(400)
     expect((await api.listar(ADMIN, {})).total).toBe(0)
-  })
-  it('aparelho em proposta de empréstimo: 400', async () => {
-    const ap = (await estoque.listar(ADMIN, { limite: 1 })).itens[0]
-    expect((await falha(api.criar(IND1, { clienteId: await cliente(), tipo: 'EMPRESTIMO', aparelhoId: ap.id, valor: 1000 })))?.status).toBe(400)
   })
 })
 

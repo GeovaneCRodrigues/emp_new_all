@@ -66,12 +66,12 @@ test.describe('indicador: cadastra o cliente e manda a proposta', () => {
     await expect(enviar).toBeEnabled()
   })
 
-  test('escolher um aparelho do estoque preenche o texto', async ({ page }) => {
+  test('a proposta não oferece o estoque: o aparelho é escrito em texto', async ({ page }) => {
     await navegar(page, '/indicar')
     await page.getByTestId('nova-proposta').click()
     await page.getByTestId('escolher-cliente').locator('[data-cliente]').first().click()
-    await page.locator('#pAparelho').selectOption({ index: 1 })
-    await expect(page.locator('#pInteresse')).toHaveValue(/GB/)
+    await expect(page.locator('#pAparelho')).toHaveCount(0)
+    await page.locator('#pInteresse').fill('iPhone 14 128 GB preto')
     await expect(page.getByRole('button', { name: 'Mandar proposta' })).toBeEnabled()
   })
 

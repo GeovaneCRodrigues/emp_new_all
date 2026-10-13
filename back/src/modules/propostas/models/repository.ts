@@ -13,7 +13,6 @@ export interface PropostaTx {
 export interface PropostasRepository {
   /** O cliente existe e é dele (cadastrou ou tem venda/empréstimo com ele)? */
   clienteDoIndicador(clienteId: number, indicadorId: number): Promise<{ id: number } | null>
-  aparelhoExiste(id: number): Promise<{ id: number; modelo: string; gb: number; cor: string } | null>
   criar(d: NovaProposta): Promise<Proposta>
   listar(escopo: EscopoPropostas, filtro: FiltroPropostas): Promise<{ itens: Proposta[]; total: number; pendentes: number }>
   buscar(id: number, escopo: EscopoPropostas): Promise<Proposta | null>
@@ -60,9 +59,6 @@ export function createPropostasRepository(db: Knex): PropostasRepository {
           .orWhereExists(function () { this.select(1).from('emprestimos').whereRaw('emprestimos.cliente_id = c.id').where('emprestimos.indicador_id', indicadorId) })
       }).first<{ id: number } | undefined>('c.id')
       return l ?? null
-    },
-    async aparelhoExiste(id) {
-      return (await db('bens').where({ id }).first<{ id: number; modelo: string; gb: number; cor: string } | undefined>('id', 'modelo', 'gb', 'cor')) ?? null
     },
     async criar(d) {
       const [{ id }] = await db('indicacoes').insert({
