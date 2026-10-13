@@ -3,7 +3,7 @@ import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { CaixaRepository } from '../../caixa/models/repository.js'
 import type { EmprestimosRepository } from '../../emprestimos/models/repository.js'
-import { jurosPorVencerSoJuros, jurosRecebidosSoJuros } from '../../emprestimos/services/calculo.js'
+import { faltaExigivel, jurosPorVencerSoJuros, jurosRecebidosSoJuros } from '../../emprestimos/services/calculo.js'
 import type { IndicadoresRepository } from '../../indicadores/models/repository.js'
 import { vaiLiberarSemJurosPorVencer } from '../../repasses/services/calculo.js'
 import type { RepassesService } from '../../repasses/services/repasses.service.js'
@@ -50,6 +50,7 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
         ops.push({
           tipo: 'VENDA', id: v.id, data: v.dataVenda, status: c.status, indicadorId: v.indicador?.id ?? null, pct: v.pct, investido: v.investido, total: c.total, recebido: c.recebido, falta: c.falta,
           lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0,
+          aCobrar: v.parcelas.map((p) => ({ vencimento: p.vencimento, falta: arred2(p.valor - p.desconto - p.pago) })).filter((p) => p.falta > 0),
           modelo: v.aparelho.modelo, diasParado: compra ? diasEntre(compra, v.dataVenda) : null, parcelas: parcelas(v.parcelas),
           // a entrada e a troca valem na data da venda; o resto, na data de cada recebimento
           entradas: [...(v.entrada + v.troca > 0 ? [{ data: v.dataVenda, valor: arred2(v.entrada + v.troca) }] : []), ...doDia('VENDA', v.id)],
@@ -63,7 +64,7 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
         const linha = linhasRepasse.get(e.id)
         ops.push({
           tipo: 'EMPRESTIMO', id: e.id, data: e.dataEmprestimo, status: c.status, indicadorId: e.indicador?.id ?? null, pct: e.pct, investido: e.capital, total: c.total, recebido: c.recebido, falta: c.falta,
-          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: jurosRecebidosSoJuros(e), jurosPorVencer: porVencer,
+          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: jurosRecebidosSoJuros(e), jurosPorVencer: porVencer, aCobrar: faltaExigivel(e, dia),
           parteFuturaAbatida: porVencer > 0 && linha ? arred2(linha.vaiLiberar - vaiLiberarSemJurosPorVencer(linha, porVencer)) : 0,
           modelo: null, diasParado: null, parcelas: parcelas(e.parcelas), entradas: doDia('EMPRESTIMO', e.id),
         })

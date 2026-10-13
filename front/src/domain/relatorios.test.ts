@@ -6,7 +6,7 @@ import { janela, lucroPorMesTodos, lucroRealizadoAte, montarRelatorios, somaMes,
 
 const op = (o: Partial<OpRelatorio> = {}): OpRelatorio => ({
   tipo: 'EMPRESTIMO', id: 1, data: '2026-09-01', status: 'ATIVA', indicadorId: null, pct: 0, investido: 1000, total: 1500, recebido: 0, falta: 1500, lucroTotal: 500, capitalDeVolta: 0,
-  jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
+  jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, aCobrar: [], modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
 })
 
 describe('relatórios (cópia do cálculo do backend)', () => {
@@ -42,5 +42,13 @@ describe('relatórios (cópia do cálculo do backend)', () => {
   it('vaiLiberarSemJurosPorVencer: tira o juro por vencer antes do %, abate o liberado e nunca fica negativo', () => {
     const b = { total: 2800, descontos: 0, investido: 2000, pct: 0.5, liberado: 0 }
     expect(vaiLiberarSemJurosPorVencer(b, 600)).toBe(100); expect(vaiLiberarSemJurosPorVencer({ ...b, liberado: 80 }, 600)).toBe(20); expect(vaiLiberarSemJurosPorVencer({ ...b, liberado: 500 }, 600)).toBe(0)
+  })
+  it('previsão: atraso por faixa, a vencer por mês, vence hoje é a vencer, quitada fora', () => {
+    const a = op({ aCobrar: [{ vencimento: '2026-10-09', falta: 100 }, { vencimento: '2026-10-03', falta: 50 }, { vencimento: '2026-09-10', falta: 200 }, { vencimento: '2026-08-01', falta: 300 }, { vencimento: '2026-10-10', falta: 40 }, { vencimento: '2026-10-25', falta: 60 }, { vencimento: '2026-12-05', falta: 70 }] })
+    const quitada = op({ id: 2, status: 'QUITADA', aCobrar: [{ vencimento: '2026-11-01', falta: 999 }] })
+    const p = montarRelatorios([a, quitada], { hoje: '2026-10-10', caixa: 1000, estoque: 500, aportes: 0, repassesAPagar: 30, repassesFuturos: 80, indicadores: [] }).previsao
+    expect(p.atraso).toEqual({ ate7: { n: 2, valor: 150 }, de8a30: { n: 1, valor: 200 }, mais30: { n: 1, valor: 300 } })
+    expect(p.aVencer).toEqual({ n: 3, valor: 170 })
+    expect(p.porMes).toEqual([{ mes: '2026-10', valor: 100 }, { mes: '2026-11', valor: 0 }, { mes: '2026-12', valor: 70 }])
   })
 })

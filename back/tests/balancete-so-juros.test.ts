@@ -2,7 +2,7 @@ import type { Knex } from 'knex'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createCaixaRepository } from '../src/modules/caixa/models/repository.js'
 import { createEmprestimosRepository } from '../src/modules/emprestimos/models/repository.js'
-import { jurosPorVencerSoJuros } from '../src/modules/emprestimos/services/calculo.js'
+import { faltaExigivel, jurosPorVencerSoJuros } from '../src/modules/emprestimos/services/calculo.js'
 import { createIndicadoresRepository } from '../src/modules/indicadores/models/repository.js'
 import { createRelatoriosRepository } from '../src/modules/relatorios/models/repository.js'
 import { createRelatoriosService } from '../src/modules/relatorios/services/relatorios.service.js'
@@ -41,6 +41,28 @@ describe('jurosPorVencerSoJuros (conta pura)', () => {
     expect(jurosPorVencerSoJuros(soJuros([...plano.slice(0, 3), parc(5, '2027-02-10', 500, { acordo: 'NOVA' })]), HOJE)).toBe(0)
   })
   it('sem parcelas não quebra', () => { expect(jurosPorVencerSoJuros(soJuros([]), HOJE)).toBe(0) })
+})
+
+describe('faltaExigivel (o que o cliente deve de fato, parcela a parcela)', () => {
+  const plano = [parc(1, '2026-10-10', 200), parc(2, '2026-11-10', 200), parc(3, '2026-12-10', 200), parc(4, '2027-01-10', 2200)]
+  const soma = (xs: { falta: number }[]) => Math.round(xs.reduce((a, b) => a + b.falta, 0) * 100) / 100
+  const faltaTotal = (ps: ReturnType<typeof parc>[]) => Math.round(ps.reduce((a, p) => a + Math.max(0, p.valor - p.desconto - p.pago), 0) * 100) / 100
+  it('só juros: vencida fica inteira; das futuras sobra só o capital em aberto, na última', () => {
+    expect(faltaExigivel(soJuros(plano), HOJE)).toEqual([{ vencimento: '2026-10-10', falta: 200 }, { vencimento: '2027-01-10', falta: 2000 }])
+  })
+  it('é consistente com o juro por vencer: falta total − exigível = juros por vencer (inclusive com amortização, pagamento e desconto)', () => {
+    const casos = [
+      soJuros(plano), soJuros(plano, { amortizado: 500 }), soJuros([parc(1, '2026-11-10', 200, { pago: 80 }), parc(2, '2026-12-10', 200, { desconto: 50 }), parc(3, '2027-01-10', 2200)]),
+      soJuros([parc(1, '2026-09-10', 200), parc(2, '2026-10-10', 2200)]), soJuros(plano, { modalidade: 'PARCELADO' as never }),
+      soJuros([...plano.slice(0, 3), parc(5, '2027-02-10', 500, { acordo: 'NOVA' })]),
+    ]
+    for (const c of casos) expect(Math.round((faltaTotal(c.parcelas) - soma(faltaExigivel(c, HOJE))) * 100) / 100, JSON.stringify(c.parcelas.length)).toBe(jurosPorVencerSoJuros(c, HOJE))
+  })
+  it('parcelado e só juros com acordo: tudo o que falta; parcela paga some', () => {
+    const p = [parc(1, '2026-10-01', 100, { pago: 100 }), parc(2, '2026-11-01', 100), parc(3, '2026-12-01', 100, { acordo: 'NOVA' })]
+    expect(faltaExigivel(soJuros(p, { modalidade: 'PARCELADO' as never }), HOJE)).toEqual([{ vencimento: '2026-11-01', falta: 100 }, { vencimento: '2026-12-01', falta: 100 }])
+    expect(faltaExigivel(soJuros(p), HOJE)).toHaveLength(2)
+  })
 })
 
 describe('vaiLiberarSemJurosPorVencer', () => {
@@ -95,6 +117,16 @@ describe.skipIf(!db)('balancete com só juros (Postgres de verdade)', () => {
   it('a tela de Repasses não muda: o indicador continua vendo a parte cheia (400)', async () => {
     expect((await repasses.resumo(ADMIN))[0].resumo.vaiLiberar).toBe(400)
   })
+  it('previsão: a parcela vencida é atraso, e o único a vencer é o capital na última (jan/2027); os meses do meio ficam zerados', async () => {
+    const p = (await ver()).previsao
+    expect(p.atraso).toEqual({ ate7: { n: 1, valor: 200 }, de8a30: { n: 0, valor: 0 }, mais30: { n: 0, valor: 0 } })
+    expect(p.aVencer).toEqual({ n: 1, valor: 2000 })
+    expect(p.porMes.map((m) => m.mes)).toEqual(['2026-10', '2026-11', '2026-12', '2027-01'])
+    expect(p.porMes.map((m) => m.valor)).toEqual([0, 0, 0, 2000])
+    // o total da previsão fecha com o "a receber" do balancete
+    const b = (await ver()).balancete
+    expect(p.atraso.ate7.valor + p.aVencer.valor).toBe(b.aReceberEmprestimos + b.aReceberVendas)
+  })
   it('quando o cliente paga a parcela vencida, sai do a receber e vira caixa/lucro, e o juro por vencer não muda', async () => {
     const k = db!
     const [p1] = await k('emprestimo_parcelas').where({ emprestimo_id: id.e, numero: 1 })
@@ -103,5 +135,7 @@ describe.skipIf(!db)('balancete com só juros (Postgres de verdade)', () => {
     const b = (await ver()).balancete
     expect(b.aReceberEmprestimos).toBe(2000)
     expect(b.jurosPorVencer).toBe(600)
+    const p = (await ver()).previsao
+    expect(p.atraso.ate7).toEqual({ n: 0, valor: 0 }); expect(p.aVencer.valor).toBe(2000)
   })
 })

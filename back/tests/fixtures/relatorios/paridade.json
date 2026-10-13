@@ -31,7 +31,13 @@
     }
    ],
    "jurosPorVencer": 0,
-   "parteFuturaAbatida": 0
+   "parteFuturaAbatida": 0,
+   "aCobrar": [
+    {
+     "vencimento": "2026-10-20",
+     "falta": 500
+    }
+   ]
   },
   {
    "tipo": "EMPRESTIMO",
@@ -70,7 +76,13 @@
     }
    ],
    "jurosPorVencer": 0,
-   "parteFuturaAbatida": 0
+   "parteFuturaAbatida": 0,
+   "aCobrar": [
+    {
+     "vencimento": "2026-10-05",
+     "falta": 100
+    }
+   ]
   },
   {
    "tipo": "EMPRESTIMO",
@@ -113,7 +125,13 @@
     }
    ],
    "jurosPorVencer": 0,
-   "parteFuturaAbatida": 0
+   "parteFuturaAbatida": 0,
+   "aCobrar": [
+    {
+     "vencimento": "2026-11-10",
+     "falta": 100
+    }
+   ]
   },
   {
    "tipo": "VENDA",
@@ -146,7 +164,13 @@
     }
    ],
    "jurosPorVencer": 0,
-   "parteFuturaAbatida": 0
+   "parteFuturaAbatida": 0,
+   "aCobrar": [
+    {
+     "vencimento": "2026-09-01",
+     "falta": 400
+    }
+   ]
   },
   {
    "tipo": "EMPRESTIMO",
@@ -180,7 +204,8 @@
     }
    ],
    "jurosPorVencer": 0,
-   "parteFuturaAbatida": 0
+   "parteFuturaAbatida": 0,
+   "aCobrar": []
   },
   {
    "tipo": "EMPRESTIMO",
@@ -231,6 +256,16 @@
      "data": "2026-10-05",
      "valor": 200
     }
+   ],
+   "aCobrar": [
+    {
+     "vencimento": "2026-10-20",
+     "falta": 200
+    },
+    {
+     "vencimento": "2027-01-20",
+     "falta": 1000
+    }
    ]
   }
  ],
@@ -258,6 +293,48 @@
  },
  "esperado": {
   "hoje": "2026-10-10",
+  "previsao": {
+   "caixa": 5000,
+   "estoque": 3000,
+   "repassesAPagar": 100,
+   "parteIndicadores": 70,
+   "atraso": {
+    "ate7": {
+     "n": 1,
+     "valor": 100
+    },
+    "de8a30": {
+     "n": 0,
+     "valor": 0
+    },
+    "mais30": {
+     "n": 1,
+     "valor": 400
+    }
+   },
+   "aVencer": {
+    "n": 4,
+    "valor": 1800
+   },
+   "porMes": [
+    {
+     "mes": "2026-10",
+     "valor": 700
+    },
+    {
+     "mes": "2026-11",
+     "valor": 100
+    },
+    {
+     "mes": "2026-12",
+     "valor": 0
+    },
+    {
+     "mes": "2027-01",
+     "valor": 1000
+    }
+   ]
+  },
   "resumo": {
    "meses": [
     "2026-05",

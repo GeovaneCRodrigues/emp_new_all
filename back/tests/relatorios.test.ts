@@ -175,6 +175,13 @@ describe.skipIf(!db)('relatórios (Postgres de verdade)', () => {
       expect(m[4]).toMatchObject({ previsto: 1250 + 100, recebido: 1250, emAtraso: 0 })
       expect(m[5]).toMatchObject({ previsto: 1100, recebido: 0 })
     })
+    it('previsão: fecha com o a receber do balancete e usa o caixa, o estoque e os repasses do balancete', async () => {
+      const r = await rel()
+      const p = r.previsao
+      expect(p.atraso.ate7.valor + p.atraso.de8a30.valor + p.atraso.mais30.valor + p.aVencer.valor).toBe(Math.round((r.balancete.aReceberVendas + r.balancete.aReceberEmprestimos) * 100) / 100)
+      expect(p.porMes.reduce((x, m) => x + m.valor, 0)).toBeCloseTo(p.aVencer.valor, 2)
+      expect(p).toMatchObject({ caixa: r.balancete.caixa, estoque: r.balancete.estoque, repassesAPagar: r.balancete.repassesAPagar, parteIndicadores: r.balancete.parteFuturaIndicadores })
+    })
     it('balancete e patrimônio', async () => {
       const b = (await rel()).balancete
       expect(b.estoque).toBe(4000); expect(b.aReceberVendas).toBe(0); expect(b.aReceberEmprestimos).toBe(300 + 1200 - 250) // E: dos 1200 que faltam, 250 são juros que ainda não venceram (o capital em aberto, 950, continua valendo)

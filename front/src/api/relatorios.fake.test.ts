@@ -72,6 +72,22 @@ describe('relatórios (demonstração)', () => {
     const b = (await api.ver(ADMIN)).balancete
     expect(b.aReceberEmprestimos).toBe(soma([antes.aReceberEmprestimos, 1500])); expect(b.jurosPorVencer).toBe(antes.jurosPorVencer)
   })
+  it('previsão: o devido fecha com o "a receber" do balancete e o juro futuro do só juros fica de fora', async () => {
+    const r = await api.ver(ADMIN)
+    const p = r.previsao
+    expect(soma([p.atraso.ate7.valor, p.atraso.de8a30.valor, p.atraso.mais30.valor, p.aVencer.valor])).toBe(soma([r.balancete.aReceberVendas, r.balancete.aReceberEmprestimos]))
+    expect(soma(p.porMes.map((m) => m.valor))).toBe(p.aVencer.valor)
+    expect(p).toMatchObject({ caixa: r.balancete.caixa, estoque: r.balancete.estoque, repassesAPagar: r.balancete.repassesAPagar, parteIndicadores: r.balancete.parteFuturaIndicadores })
+    expect(p.porMes[0].mes).toBe('2026-10')
+  })
+  it('previsão: um só juros novo entra só com o capital, no mês da última parcela', async () => {
+    const antes = (await api.ver(ADMIN)).previsao
+    await emprestimos.criar(ADMIN, { clienteId: 3, capital: 1000, modalidade: 'JUROS', taxa: 10, parcelas: 4, periodicidade: 'MENSAL', primeiroVencimento: '2026-11-08' } as never)
+    const p = (await api.ver(ADMIN)).previsao
+    expect(p.aVencer.valor).toBe(soma([antes.aVencer.valor, 1000]))
+    const mes = (x: typeof p, m: string) => x.porMes.find((i) => i.mes === m)?.valor ?? 0
+    expect(mes(p, '2027-02')).toBe(soma([mes(antes, '2027-02'), 1000])); expect(mes(p, '2026-11')).toBe(mes(antes, '2026-11'))
+  })
   it('estoque: só os aparelhos disponíveis, pelo custo com extras', async () => {
     const r = await api.ver(ADMIN)
     const lista = (await estoque.listar(ADMIN, { limite: 100 })).itens.filter((a) => a.estado === 'DISPONIVEL')
