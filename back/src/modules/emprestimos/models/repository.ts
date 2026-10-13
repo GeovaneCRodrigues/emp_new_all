@@ -20,7 +20,7 @@ export interface EmprestimosRepository {
 
 type Linha = {
   id: number; cliente_id: number; cliente_nome: string; indicador_id: number | null; indicador_nome: string | null; percentual_indicador: string
-  data_emprestimo: Date | string; capital: string; modalidade: Emprestimo['modalidade']; taxa: string; periodicidade: Emprestimo['periodicidade']; status: Emprestimo['status']; observacoes: string | null; modo_divisao: Emprestimo['modoDivisao']
+  data_emprestimo: Date | string; capital: string; modalidade: Emprestimo['modalidade']; taxa: string; periodicidade: Emprestimo['periodicidade']; status: Emprestimo['status']; observacoes: string | null; modo_divisao: Emprestimo['modoDivisao']; pula_domingo: boolean
 }
 type LinhaParcela = { id: number; emprestimo_id: number; numero: number; vencimento: Date | string; vencimento_original: Date | string | null; valor: string; desconto: string; quitada_em: Date | string | null; pago: string; acordo_id: number | null; encerrada_acordo_id: number | null }
 
@@ -57,7 +57,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
     }
     return linhas.map((l) => ({
       id: l.id, cliente: { id: l.cliente_id, nome: l.cliente_nome }, indicador: l.indicador_id ? { id: l.indicador_id, nome: l.indicador_nome ?? '' } : null,
-      pct: Number(l.percentual_indicador), dataEmprestimo: dia(l.data_emprestimo), capital: Number(l.capital), modalidade: l.modalidade, taxa: Number(l.taxa), periodicidade: l.periodicidade, modoDivisao: l.modo_divisao,
+      pct: Number(l.percentual_indicador), dataEmprestimo: dia(l.data_emprestimo), capital: Number(l.capital), modalidade: l.modalidade, taxa: Number(l.taxa), periodicidade: l.periodicidade, pulaDomingo: l.pula_domingo, modoDivisao: l.modo_divisao,
       status: l.status, observacoes: l.observacoes, amortizado: amortizado.get(l.id) ?? 0, parcelas: porEmp.get(l.id) ?? [],
     }))
   }
@@ -84,7 +84,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
           async criar(d) {
             const [{ id }] = await trx('emprestimos').insert({
               cliente_id: d.clienteId, indicador_id: d.indicadorId, percentual_indicador: d.pct, data_emprestimo: d.dataEmprestimo,
-              capital: d.capital, modalidade: d.modalidade, taxa: d.taxa, periodicidade: d.periodicidade, observacoes: d.observacoes, modo_divisao: d.modoDivisao,
+              capital: d.capital, modalidade: d.modalidade, taxa: d.taxa, periodicidade: d.periodicidade, pula_domingo: d.pulaDomingo, observacoes: d.observacoes, modo_divisao: d.modoDivisao,
             }).returning('id')
             return id
           },

@@ -91,18 +91,20 @@ export const contasOp = (o: Operacao, bens: Map<number, Bem>, hoje: Iso): Contas
   o.tipo === 'EMP' ? contasEmp(o, hoje) : contasVenda(o, bens.get(o.bemId)!, hoje)
 
 /** 1º vencimento padrão: um período depois da data do empréstimo (no mensal, o mesmo dia do mês seguinte). */
-export function primeiroVenc(data: Iso, freq: Periodicidade): Iso {
+export function primeiroVenc(data: Iso, freq: Periodicidade, pulaDomingo = true): Iso {
   if (freq === 'QUINZENAL') return addDia(data, 15)
   if (freq === 'SEMANAL') return addDia(data, 7)
-  if (freq === 'DIARIA') return somaDiasUteis(data, 1)
+  if (freq === 'DIARIA') return pulaDomingo ? somaDiasUteis(data, 1) : addDia(data, 1)
   return somaMes(data, 1, Number(data.slice(8, 10)))
 }
 
 /**
  * Datas das parcelas. Mensal: o mesmo dia do mês do 1º vencimento (limitado ao fim do mês); quinzenal: de 15 em 15
- * dias; semanal: de 7 em 7; diária: todo dia menos domingo (se o 1º cair no domingo, vai para a segunda).
+ * dias; semanal: de 7 em 7; diária: todo dia menos domingo (se o 1º cair no domingo, vai para a segunda) ou, com `pulaDomingo`
+ * falso, todos os dias seguidos.
  */
-export function vencimentosEmp(primeira: Iso, freq: Periodicidade, n: number, diaMensal = Number(primeira.slice(8, 10))): Iso[] {
+export function vencimentosEmp(primeira: Iso, freq: Periodicidade, n: number, diaMensal = Number(primeira.slice(8, 10)), pulaDomingoNaDiaria = true): Iso[] {
+  if (freq === 'DIARIA' && !pulaDomingoNaDiaria) return Array.from({ length: n }, (_, i) => addDia(primeira, i))
   if (freq === 'DIARIA') {
     const p0 = pulaDomingo(primeira)
     return Array.from({ length: n }, (_, i) => (i ? somaDiasUteis(p0, i) : p0))
@@ -118,11 +120,12 @@ export function vencimentosEmp(primeira: Iso, freq: Periodicidade, n: number, di
  *  - Só juros: a cada parcela paga só o juro (capital × taxa%) e o capital vem junto na última.
  * Sem `primeira`, o 1º vencimento é um período depois de `data` e o dia do mês é o da própria data.
  */
-export function planoEmprestimo(a: { capital: number; mod: ModalidadeEmp; taxa: number; n: number; data: Iso; freq?: Periodicidade; primeira?: Iso }) {
+export function planoEmprestimo(a: { capital: number; mod: ModalidadeEmp; taxa: number; n: number; data: Iso; freq?: Periodicidade; primeira?: Iso; pulaDomingo?: boolean }) {
   const c = a.capital || 0
   const t = (a.taxa || 0) / 100
   const freq: Periodicidade = a.mod === 'DIARIA' ? 'DIARIA' : a.freq ?? 'MENSAL'
-  const venc = a.primeira ? vencimentosEmp(a.primeira, freq, a.n) : vencimentosEmp(primeiroVenc(a.data, freq), freq, a.n, Number(a.data.slice(8, 10)))
+  const pula = a.pulaDomingo ?? true
+  const venc = a.primeira ? vencimentosEmp(a.primeira, freq, a.n, undefined, pula) : vencimentosEmp(primeiroVenc(a.data, freq, pula), freq, a.n, Number(a.data.slice(8, 10)), pula)
   if (a.mod === 'JUROS') return venc.map((v, i) => ({ venc: v, valor: arred2(c * t) + (i === a.n - 1 ? c : 0) }))
   const parc = ceilCent((c * (1 + t)) / a.n)
   return venc.map((v) => ({ venc: v, valor: parc }))

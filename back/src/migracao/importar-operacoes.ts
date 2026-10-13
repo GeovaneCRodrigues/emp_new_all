@@ -76,7 +76,7 @@ export async function importarOperacoes(db: Knex, estado: EstadoAntigo, opcoes: 
       const quando = e.criadoEm ?? `${e.dataEmprestimo}T12:00:00Z`
       const [{ id: emprestimoId }] = await trx('emprestimos').insert({
         cliente_id: clienteId, indicador_id: indicadorId, percentual_indicador: e.pct, data_emprestimo: e.dataEmprestimo, capital: e.capital, modalidade: e.modalidade,
-        periodicidade: e.periodicidade, taxa: e.taxa, status: e.status, observacoes: e.observacoes, modo_divisao: e.modoDivisao, legacy_id: e.legacyId, created_at: quando, updated_at: quando,
+        periodicidade: e.periodicidade, pula_domingo: e.periodicidade !== 'DIARIA' || !e.parcelas.some((p) => new Date(p.vencimento + 'T12:00:00Z').getUTCDay() === 0), taxa: e.taxa, status: e.status, observacoes: e.observacoes, modo_divisao: e.modoDivisao, legacy_id: e.legacyId, created_at: quando, updated_at: quando,
       }).returning('id')
       rel.emprestimos.criados++; rel.totais.capital = r2(rel.totais.capital + e.capital)
 

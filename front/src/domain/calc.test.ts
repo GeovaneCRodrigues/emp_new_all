@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contasEmp, contasVenda, planoEmprestimo, planoParc, simularVenda } from './calc'
+import { contasEmp, contasVenda, planoEmprestimo, planoParc, primeiroVenc, simularVenda } from './calc'
 import type { Bem, Emprestimo, Parcela, Venda } from './types'
 
 const HOJE = '2026-10-08'
@@ -135,6 +135,13 @@ describe('empréstimo', () => {
   })
   it('diária: 1º vencimento num domingo vai para a segunda', () => {
     expect(planoEmprestimo({ capital: 100, mod: 'DIARIA', taxa: 10, n: 2, data: '2026-10-01', primeira: '2026-10-04' }).map((p) => p.venc)).toEqual(['2026-10-05', '2026-10-06'])
+  })
+  it('diária que cobra no domingo: todos os dias seguidos; o 1º no domingo fica no domingo; o valor da parcela não muda', () => {
+    const sem = planoEmprestimo({ capital: 1000, mod: 'DIARIA', taxa: 20, n: 5, data: '2026-10-02', pulaDomingo: false })
+    expect(sem.map((p) => p.venc)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05', '2026-10-06', '2026-10-07']) // o dia 04 é domingo
+    expect(planoEmprestimo({ capital: 100, mod: 'DIARIA', taxa: 10, n: 2, data: '2026-10-01', primeira: '2026-10-04', pulaDomingo: false }).map((p) => p.venc)).toEqual(['2026-10-04', '2026-10-05'])
+    expect(sem.map((p) => p.valor)).toEqual(planoEmprestimo({ capital: 1000, mod: 'DIARIA', taxa: 20, n: 5, data: '2026-10-02' }).map((p) => p.valor))
+    expect(primeiroVenc('2026-10-03', 'DIARIA', false)).toBe('2026-10-04'); expect(primeiroVenc('2026-10-03', 'DIARIA')).toBe('2026-10-05')
   })
   it('contas do empréstimo usam o capital como investido', () => {
     const e: Emprestimo = { tipo: 'EMP', id: 2, clienteId: 1, data: '2026-10-01', capital: 1000, mod: 'PARCELADO', taxa: 10, freq: 'MENSAL', parcelas: [parcela(1, 550, 550), parcela(2, 550)], indicadorId: 0, pct: 0, status: 'ATIVA' }

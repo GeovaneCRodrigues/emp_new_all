@@ -32,7 +32,7 @@ const ATALHOS_JURO = [5, 8, 10, 12, 15]
 const FREQS: PeriodicidadeApi[] = ['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA']
 
 const passo = ref(1)
-const f = reactive({ capital: 0, data: '', indicadorId: 0, observacoes: '', tipo: 'PARCELADO' as 'PARCELADO' | 'JUROS', freq: 'MENSAL' as PeriodicidadeApi, n: 6, taxa: 30, primeira: '' })
+const f = reactive({ capital: 0, data: '', indicadorId: 0, observacoes: '', tipo: 'PARCELADO' as 'PARCELADO' | 'JUROS', freq: 'MENSAL' as PeriodicidadeApi, n: 6, taxa: 30, primeira: '', /** só diária: o domingo não conta (padrão) */ pulaDomingo: true })
 const primeiraEditada = ref(false)
 const cliente = ref<ClienteApi | null>(null)
 const busca = ref('')
@@ -45,7 +45,7 @@ const digitado = reactive<{ total: number | null; parcela: number | null }>({ to
 
 watch(() => props.aberto, async (a) => {
   if (!a) return
-  Object.assign(f, { capital: 0, data: hoje.value, indicadorId: 0, observacoes: '', tipo: 'PARCELADO', freq: 'MENSAL', n: 6, taxa: 30, primeira: primeiroVenc(hoje.value, 'MENSAL') })
+  Object.assign(f, { capital: 0, data: hoje.value, indicadorId: 0, observacoes: '', tipo: 'PARCELADO', freq: 'MENSAL', n: 6, taxa: 30, primeira: primeiroVenc(hoje.value, 'MENSAL'), pulaDomingo: true })
   primeiraEditada.value = false; digitado.total = null; digitado.parcela = null
   cliente.value = null; busca.value = ''; erro.value = ''; passo.value = 1
   indicadores.value = await indicadoresApi.opcoes(sessao.value).catch(() => [])
@@ -82,11 +82,11 @@ function escolherTipo(t: 'PARCELADO' | 'JUROS') {
   f.taxa = t === 'JUROS' ? 10 : 30
   digitado.total = null; digitado.parcela = null
 }
-watch([() => f.data, () => f.freq], () => { if (!primeiraEditada.value && f.data) f.primeira = primeiroVenc(f.data, f.freq) })
+watch([() => f.data, () => f.freq, () => f.pulaDomingo], () => { if (!primeiraEditada.value && f.data) f.primeira = primeiroVenc(f.data, f.freq, f.pulaDomingo) })
 
 const plano = computed(() => {
   if (!(f.capital > 0) || !(f.taxa > 0) || !Number.isInteger(f.n) || f.n < 1 || f.n > 120) return []
-  return planoEmprestimo({ capital: f.capital, mod: modalidade.value, taxa: f.taxa, n: f.n, data: f.data || hoje.value, freq: f.freq, primeira: f.primeira || undefined })
+  return planoEmprestimo({ capital: f.capital, mod: modalidade.value, taxa: f.taxa, n: f.n, data: f.data || hoje.value, freq: f.freq, primeira: f.primeira || undefined, pulaDomingo: f.pulaDomingo })
 })
 const totalPlano = computed(() => arred2(plano.value.reduce((s, p) => s + p.valor, 0)))
 const parcelaPlano = computed(() => plano.value[0]?.valor ?? 0)
@@ -145,7 +145,7 @@ async function salvar() {
   enviando.value = true; erro.value = ''
   try {
     const criado = await emprestimosApi.criar(sessao.value, {
-      clienteId: cliente.value.id, modalidade: modalidade.value, periodicidade: f.freq, capital: f.capital, taxa: f.taxa, parcelas: f.n,
+      clienteId: cliente.value.id, modalidade: modalidade.value, periodicidade: f.freq, ...(diaria.value ? { pulaDomingo: f.pulaDomingo } : {}), capital: f.capital, taxa: f.taxa, parcelas: f.n,
       dataEmprestimo: f.data, primeiroVencimento: f.primeira,
       ...(f.indicadorId ? { indicadorId: f.indicadorId } : {}), ...(f.observacoes.trim() ? { observacoes: f.observacoes.trim() } : {}),
     })
@@ -192,7 +192,14 @@ async function salvar() {
       <template v-else-if="passo === 2">
         <div class="field"><label>De quanto em quanto tempo?</label>
           <div class="pills"><button v-for="x in FREQS" :key="x" type="button" class="pill" :class="{ on: f.freq === x }" :data-freq="x" @click="escolherFreq(x)">{{ FREQ[x].label }}</button></div>
-          <div class="small">{{ FREQ[f.freq].cada.charAt(0).toUpperCase() + FREQ[f.freq].cada.slice(1) }}.</div>
+          <div class="small">{{ diaria ? (f.pulaDomingo ? 'Todo dia menos domingo' : 'Todo dia, domingo inclusive') : FREQ[f.freq].cada.charAt(0).toUpperCase() + FREQ[f.freq].cada.slice(1) }}.</div>
+        </div>
+        <div v-if="diaria" class="field" data-testid="diaria-domingo"><label>E o domingo?</label>
+          <div class="pills">
+            <button type="button" class="pill" :class="{ on: f.pulaDomingo }" data-domingo="pular" @click="f.pulaDomingo = true">Pular o domingo</button>
+            <button type="button" class="pill" :class="{ on: !f.pulaDomingo }" data-domingo="cobrar" @click="f.pulaDomingo = false">Cobrar no domingo</button>
+          </div>
+          <div class="small">{{ f.pulaDomingo ? 'Não tem parcela no domingo: depois do sábado vem a segunda.' : 'Tem parcela todos os dias, inclusive no domingo.' }}</div>
         </div>
         <div v-if="!diaria" class="field"><label>Como o cliente paga?</label>
           <div class="pills">
@@ -201,7 +208,7 @@ async function salvar() {
           </div>
           <div class="small">{{ soJuros ? 'Paga o juro a cada parcela e o capital vem junto na última.' : 'O capital e os juros são divididos em parcelas iguais.' }}</div>
         </div>
-        <div v-else class="small" data-testid="diaria-info">A diária é sempre parcelada: o capital e os juros divididos em parcelas, todo dia menos domingo.</div>
+        <div v-else class="small" data-testid="diaria-info">A diária é sempre parcelada: o capital e os juros divididos em parcelas, {{ f.pulaDomingo ? 'todo dia menos domingo' : 'todo dia, domingo inclusive' }}.</div>
 
         <div class="field"><label for="eParcelas">Quantas parcelas?</label>
           <div class="pills"><button v-for="q in FREQ[f.freq].qtd" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="definirN(q)">{{ q }}x</button></div>
@@ -231,7 +238,7 @@ async function salvar() {
       <template v-else>
         <div class="field"><label for="ePrimeira">1º vencimento</label>
           <DateField id="ePrimeira" v-model="f.primeira" :min="f.data" @update:model-value="primeiraEditada = true" />
-          <div class="small">{{ diaria ? 'Se cair no domingo, vai para a segunda.' : `Sugerido: ${dmy(primeiroVenc(f.data, f.freq))}.` }}</div>
+          <div class="small">{{ diaria ? (f.pulaDomingo ? 'Se cair no domingo, vai para a segunda.' : 'Vale o dia escolhido, mesmo que seja domingo.') : `Sugerido: ${dmy(primeiroVenc(f.data, f.freq))}.` }}</div>
         </div>
         <div v-if="plano.length" class="card list" data-testid="lista-parcelas" style="max-height: 260px; overflow: auto">
           <div v-for="(p, i) in plano" :key="i" class="li" style="cursor: default" :data-parcela-prevista="i + 1">

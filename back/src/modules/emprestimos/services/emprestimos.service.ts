@@ -86,7 +86,11 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         if (e.dataEmprestimo < '2020-01-01') throw requisicaoInvalida('A data do empréstimo é antiga demais')
         data = e.dataEmprestimo
       }
-      let primeira = primeiroVencimentoPadrao(data, periodicidade)
+      // diária: o administrador escolhe se o domingo conta (padrão: pula). Nas outras frequências a escolha não existe.
+      if (e.pulaDomingo !== undefined && e.pulaDomingo !== null && typeof e.pulaDomingo !== 'boolean') throw requisicaoInvalida('pulaDomingo deve ser verdadeiro ou falso')
+      if (e.pulaDomingo === false && periodicidade !== 'DIARIA') throw requisicaoInvalida('Só a diária escolhe se o domingo conta')
+      const pulaDomingo = e.pulaDomingo !== false
+      let primeira = primeiroVencimentoPadrao(data, periodicidade, pulaDomingo)
       if (e.primeiroVencimento !== undefined && e.primeiroVencimento !== null) {
         if (!dataValida(e.primeiroVencimento)) throw requisicaoInvalida('primeiroVencimento precisa ser uma data válida (AAAA-MM-DD)')
         if (e.primeiroVencimento < data) throw requisicaoInvalida('O 1º vencimento não pode ser antes da data do empréstimo')
@@ -118,9 +122,9 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         const id = await tx.criar({
           clienteId: cliente.id, indicadorId: indicador?.id ?? null,
           // o % do indicador fica congelado neste empréstimo
-          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, observacoes, modoDivisao,
+          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, pulaDomingo, observacoes, modoDivisao,
         })
-        await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa, n, data, periodicidade, primeira }).map((p, i) => ({ numero: i + 1, ...p })))
+        await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa, n, data, periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, ...p })))
         return id
       })
 
