@@ -28,7 +28,8 @@ const { atualizar } = useAtrasadas()
 const mes = ref(hoje.value.slice(0, 7))
 const tipo = ref<'' | AlvoApi>('')
 const busca = ref('')
-const dia = ref<string | null>(hoje.value)
+/** O dia escolhido no calendário; sem dia (null) a lista de baixo traz o mês inteiro. */
+const dia = ref<string | null>(null)
 const itens = ref<CobrancaApi[]>([])
 const cortado = ref(false)
 /** A busca com que `itens` foi carregado: a lista de baixo só aparece quando bate com o que está digitado (senão mostraria o resultado de antes). */
@@ -58,7 +59,7 @@ async function carregar() {
 }
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(carregar, 300) })
-watch([mes, tipo], () => { dia.value = mes.value === hoje.value.slice(0, 7) ? hoje.value : null; carregar() })
+watch([mes, tipo], () => { dia.value = null; carregar() })
 onMounted(() => { carregar(); if (!props.indicador) atualizar(sessao.value) })
 onBeforeUnmount(() => clearTimeout(espera))
 
@@ -67,6 +68,9 @@ const resumo = computed(() => resumoDoMes(itens.value, hoje.value))
 const grade = computed(() => gradeDoMes(mes.value, itens.value, hoje.value))
 const doDia = computed(() => grade.value.dias.find((d) => d.iso === dia.value)?.itens ?? [])
 const comBusca = computed(() => busca.value.trim() !== '')
+/** Sem dia escolhido (ou com busca), a lista traz todas as parcelas do mês, agrupadas por dia. */
+const listaDoMes = computed(() => comBusca.value || dia.value === null)
+const porDia = computed(() => grade.value.dias.filter((d) => d.itens.length))
 const buscaPronta = computed(() => buscaDosItens.value === busca.value.trim())
 const clientes = computed(() => new Set(itens.value.map((c) => c.cliente.id)).size)
 const doMes = computed(() => itens.value.length)
@@ -102,7 +106,10 @@ async function aposMudar() {
       <b data-testid="cron-mes" style="color: var(--strong); font-size: 15px; min-width: 140px; text-align: center; text-transform: capitalize">{{ mesLabel(mes) }}</b>
       <button class="btn b-out b-sm" aria-label="Próximo mês" data-testid="cron-mes-prox" @click="mes = somaYm(mes, 1)"><Icon name="chevron-right" small /></button>
     </div>
-    <button v-if="naoEhHoje" class="btn b-ghost b-sm" data-testid="cron-hoje" @click="mes = hoje.slice(0, 7)">Hoje</button>
+    <div class="row" style="gap: 6px">
+      <button class="btn b-sm" :class="dia === null ? 'b-pri' : 'b-out'" :aria-pressed="dia === null" data-testid="cron-mes-todo" @click="dia = null">Mês inteiro</button>
+      <button v-if="naoEhHoje" class="btn b-ghost b-sm" data-testid="cron-hoje" @click="mes = hoje.slice(0, 7)">Hoje</button>
+    </div>
   </div>
 
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
@@ -132,16 +139,19 @@ async function aposMudar() {
     <div class="small" style="margin-top: 10px">Vermelho atrasado · laranja vence esta semana · verde pago</div>
   </div>
 
-  <!-- com busca, embaixo vêm todas as parcelas do mês desse cliente, não só as do dia -->
+  <!-- sem dia escolhido, ou com busca: todas as parcelas do mês (da busca), dia a dia. Com um dia escolhido: só as dele -->
   <div v-if="comBusca && !buscaPronta" class="empty" data-testid="cron-buscando">Buscando…</div>
-  <div v-else-if="comBusca" class="card" data-testid="cron-lista-busca">
+  <div v-else-if="listaDoMes && !(carregando && !itens.length)" class="card" :data-testid="comBusca ? 'cron-lista-busca' : 'cron-lista-mes'">
     <div class="totbar">
       <b style="color: var(--strong)">{{ doMes ? `${plural(doMes)} em ${mesNome(mes)}` : `Nada em ${mesNome(mes)}` }}</b>
-      <span class="small">{{ doMes ? `${clientes} cliente(s)` : 'nenhum cliente com esse nome' }}</span>
+      <span class="small">{{ doMes ? `${clientes} cliente(s)` : comBusca ? 'nenhum cliente com esse nome' : 'nada vence neste mês' }}</span>
     </div>
-    <div v-if="doMes" class="list">
-      <CobrancaLinha v-for="c in itens" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" />
-    </div>
+    <template v-for="g in porDia" :key="g.iso">
+      <div class="small" style="padding: 8px 14px 2px; font-weight: 700; color: var(--soft); text-transform: capitalize" :data-grupo-dia="g.iso">{{ rotuloDia(g.iso) }} · {{ plural(g.itens.length) }}</div>
+      <div class="list">
+        <CobrancaLinha v-for="c in g.itens" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" />
+      </div>
+    </template>
   </div>
   <div v-else-if="dia" class="card" data-testid="cron-lista-dia">
     <div class="totbar">
