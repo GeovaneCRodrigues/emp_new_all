@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
+import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ErroApi } from '@/api/clientes'
 import type { EmprestimoApi, ResumoEmprestimosApi } from '@/api/emprestimos'
@@ -31,7 +33,6 @@ const { busca } = useBusca(() => carregar())
 // ---- iPhones: vem da API ----
 const vendas = ref<VendaApi[]>([])
 const total = ref(0)
-const pagina = ref(1)
 const resumo = ref<ResumoVendasApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
@@ -46,22 +47,17 @@ async function aposMudar() {
 }
 
 let pedido = 0
-async function carregar(mais = false) {
+async function carregar() {
   const meu = ++pedido
   carregando.value = true
   erro.value = ''
-  try {
-    const p = mais ? pagina.value + 1 : 1
-    const r = await vendasApi.listar(sessao.value, { status: filtro.value, busca: busca.value.trim() || undefined, pagina: p, limite: 20 })
-    if (meu !== pedido) return
-    vendas.value = mais ? [...vendas.value, ...r.itens] : r.itens
-    total.value = r.total
-    pagina.value = p
-  } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as vendas.'
-  } finally {
-    if (meu === pedido) carregando.value = false
-  }
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => vendasApi.listar(sessao.value, { status: filtro.value, busca: busca.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    ativo: () => meu === pedido, mostrados: () => vendas.value.length,
+    aplicar: (r, p) => { vendas.value = p === 1 ? r.itens : [...vendas.value, ...r.itens]; total.value = r.total },
+  })
+  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as vendas.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  await primeira.catch(() => undefined)
 }
 async function carregarResumo() {
   try { resumo.value = await vendasApi.resumo(sessao.value) } catch { /* os números ficam em branco */ }
@@ -94,7 +90,6 @@ const filtroEmp = ref('ATIVA')
 const { busca: buscaEmp } = useBusca(() => carregarEmp())
 const emps = ref<EmprestimoApi[]>([])
 const totalEmp = ref(0)
-const paginaEmp = ref(1)
 const resumoEmp = ref<ResumoEmprestimosApi | null>(null)
 const carregandoEmp = ref(false)
 const erroEmp = ref('')
@@ -102,20 +97,16 @@ const fichaEmp = ref<EmprestimoApi | null>(null)
 const formEmp = ref(false)
 const inicialEmp = ref<{ propostaId?: number; clienteId?: number; indicadorId?: number; capital?: number; n?: number } | null>(null)
 let pedidoEmp = 0
-async function carregarEmp(mais = false) {
+async function carregarEmp() {
   const meu = ++pedidoEmp
   carregandoEmp.value = true; erroEmp.value = ''
-  try {
-    const p = mais ? paginaEmp.value + 1 : 1
-    const r = await emprestimosApi.listar(sessao.value, { status: filtroEmp.value, busca: buscaEmp.value.trim() || undefined, pagina: p, limite: 20 })
-    if (meu !== pedidoEmp) return
-    emps.value = mais ? [...emps.value, ...r.itens] : r.itens
-    totalEmp.value = r.total; paginaEmp.value = p
-  } catch (e) {
-    if (meu === pedidoEmp) erroEmp.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os empréstimos.'
-  } finally {
-    if (meu === pedidoEmp) carregandoEmp.value = false
-  }
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => emprestimosApi.listar(sessao.value, { status: filtroEmp.value, busca: buscaEmp.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    ativo: () => meu === pedidoEmp, mostrados: () => emps.value.length,
+    aplicar: (r, p) => { emps.value = p === 1 ? r.itens : [...emps.value, ...r.itens]; totalEmp.value = r.total },
+  })
+  fim.catch((e) => { if (meu === pedidoEmp) erroEmp.value = e instanceof ErroApi ? e.message : 'Não consegui carregar os empréstimos.' }).finally(() => { if (meu === pedidoEmp) carregandoEmp.value = false })
+  await primeira.catch(() => undefined)
 }
 async function carregarResumoEmp() { try { resumoEmp.value = await emprestimosApi.resumo(sessao.value) } catch { /* os números ficam em branco */ } }
 watch(filtroEmp, () => carregarEmp())
@@ -149,7 +140,7 @@ const abas = computed(() => [
       <div v-if="!vendas.length && !carregando && !erro" class="card empty">{{ busca.trim() ? 'Nada encontrado nesta lista.' : 'Nenhuma venda aqui.' }}</div>
       <div v-if="carregando && !vendas.length" class="card empty">Carregando…</div>
     </div>
-    <button v-if="vendas.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+    <RestanteDaLista :mostrados="vendas.length" :total="total" :carregando="carregando" :parado="!!erro" />
   </template>
 
   <template v-else>
@@ -166,7 +157,7 @@ const abas = computed(() => [
       <div v-if="!emps.length && !carregandoEmp && !erroEmp" class="card empty">{{ buscaEmp.trim() ? 'Nada encontrado nesta lista.' : 'Nenhum empréstimo aqui.' }}</div>
       <div v-if="carregandoEmp && !emps.length" class="card empty">Carregando…</div>
     </div>
-    <button v-if="emps.length < totalEmp" class="btn b-out" :disabled="carregandoEmp" @click="carregarEmp(true)">{{ carregandoEmp ? 'Carregando…' : 'Carregar mais' }}</button>
+    <RestanteDaLista :mostrados="emps.length" :total="totalEmp" :carregando="carregandoEmp" :parado="!!erroEmp" />
   </template>
 
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />

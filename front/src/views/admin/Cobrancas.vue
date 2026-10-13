@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
+import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
 import type { AbaCobranca, AlvoApi, CobrancaApi, ListaCobrancasApi } from '@/api/recebimentos'
 import type { EmprestimoApi } from '@/api/emprestimos'
@@ -26,7 +28,6 @@ const { busca } = useBusca(() => carregar())
 const itens = ref<CobrancaApi[]>([])
 const total = ref(0)
 const valorTotal = ref(0)
-const pagina = ref(1)
 const contagens = ref<ListaCobrancasApi['contagens']>({ atrasadas: 0, hoje: 0, proximas: 0 })
 const carregando = ref(true)
 const erro = ref('')
@@ -35,21 +36,16 @@ const fichaEmp = ref<EmprestimoApi | null>(null)
 const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
 
 let pedido = 0
-async function carregar(mais = false) {
+async function carregar() {
   const meu = ++pedido
-  carregando.value = true
-  erro.value = ''
-  try {
-    const p = mais ? pagina.value + 1 : 1
-    const r = await recebimentosApi.cobrancas(sessao.value, { aba: aba.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(busca.value.trim() ? { busca: busca.value.trim() } : {}), pagina: p, limite: 20 })
-    if (meu !== pedido) return
-    itens.value = mais ? [...itens.value, ...r.itens] : r.itens
-    total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens; pagina.value = p
-  } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.'
-  } finally {
-    if (meu === pedido) carregando.value = false
-  }
+  carregando.value = true; erro.value = ''
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => recebimentosApi.cobrancas(sessao.value, { aba: aba.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(busca.value.trim() ? { busca: busca.value.trim() } : {}), pagina: p, limite: PAGINA_CHEIA }),
+    ativo: () => meu === pedido, mostrados: () => itens.value.length,
+    aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens },
+  })
+  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  await primeira.catch(() => undefined)
 }
 watch([aba, tipo], () => carregar())
 onMounted(() => { carregar(); atualizar(sessao.value) })
@@ -93,7 +89,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
       <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
     </div>
   </div>
-  <button v-if="itens.length < total" class="btn b-out" :disabled="carregando" @click="carregar(true)">{{ carregando ? 'Carregando…' : 'Carregar mais' }}</button>
+  <RestanteDaLista :mostrados="itens.length" :total="total" :carregando="carregando" :parado="!!erro" />
 
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
   <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
+import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
 import type { CaixaLojaApi, CategoriaMovimentoApi, LancamentoApi, MovimentoApi } from '@/api/caixa'
 import { caixaApi } from '@/api/recursos'
@@ -17,7 +19,6 @@ const { sessao } = useApp()
 const caixa = ref<CaixaLojaApi | null>(null)
 const itens = ref<MovimentoApi[]>([])
 const { busca } = useBusca(() => carregar())
-const pagina = ref(1)
 const carregando = ref(true)
 const erro = ref('')
 const formAberto = ref(false)
@@ -25,23 +26,20 @@ const editando = ref<LancamentoApi | null>(null)
 
 // uma resposta antiga que chega atrasada não pode sobrescrever a mais nova
 let pedido = 0
-async function carregar(mais = false) {
+async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
-  try {
-    const p = mais ? pagina.value + 1 : 1
-    const r = await caixaApi.ver(sessao.value, { pagina: p, limite: 25, busca: busca.value.trim() || undefined })
-    if (meu !== pedido) return
-    caixa.value = r; itens.value = mais ? [...itens.value, ...r.itens] : r.itens; pagina.value = p
-  } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o caixa.'
-  } finally {
-    if (meu === pedido) carregando.value = false
-  }
+  const { primeira, fim } = carregarCadeia({
+    buscar: (p) => caixaApi.ver(sessao.value, { pagina: p, limite: PAGINA_CHEIA, busca: busca.value.trim() || undefined }),
+    ativo: () => meu === pedido, mostrados: () => itens.value.length,
+    // o resumo e o saldo vêm em toda página e são os mesmos; o extrato vai se juntando
+    aplicar: (r, p) => { caixa.value = r; itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens] },
+  })
+  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o caixa.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  await primeira.catch(() => undefined)
 }
 onMounted(() => carregar())
 
-const restantes = computed(() => (caixa.value ? Math.max(0, caixa.value.total - itens.value.length) : 0))
 const ICONE: Record<CategoriaMovimentoApi, string> = {
   RECEBIMENTO: 'arrow-down-left', ENTRADA_VENDA: 'arrow-down-left', TRANSFERENCIA: 'arrow-down-left', APORTE: 'arrow-down-left',
   REPASSE: 'arrow-up-right', RETIRADA: 'arrow-up-right', DESPESA: 'arrow-up-right', EMPRESTIMO: 'arrow-up-right', COMPRA: 'arrow-up-right',
@@ -87,7 +85,7 @@ async function aposSalvar() { formAberto.value = false; await carregar() }
       </component>
       <div v-if="!itens.length && !carregando" class="empty">{{ busca.trim() ? 'Nada no extrato com essa busca.' : 'Nada no caixa ainda.' }}</div>
     </div>
-    <button v-if="restantes > 0" class="btn b-sub b-block" :disabled="carregando" data-testid="caixa-mais" @click="carregar(true)">{{ carregando ? 'Carregando…' : `Mostrar mais (${restantes})` }}</button>
+    <RestanteDaLista v-if="caixa" :mostrados="itens.length" :total="caixa.total" :carregando="carregando" :parado="!!erro" />
   </template>
   <div v-else-if="carregando" class="empty">Carregando…</div>
 
