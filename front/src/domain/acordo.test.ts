@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distribuirAcordo, problemaDoAcordo, vencimentosAcordo } from './acordo'
+import { distribuirAcordo, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from './acordo'
 
 describe('divisão do acordo', () => {
   it('a soma fecha no centavo: 1.000,01 em 3x → 333,33 + 333,33 + 333,35', () => {
@@ -27,4 +27,16 @@ describe('validação da proposta', () => {
     ['sem data', { primeiraParcela: '' }], ['data que já passou', { primeiraParcela: '2026-11-29' }], ['data a mais de um ano', { primeiraParcela: '2027-12-02' }], ['pequeno demais', { valorTotal: 0.04, parcelas: 5 }],
   ])('recusa %s', (_n, m) => { expect(problemaDoAcordo({ ...ok, ...m }, '2026-11-30')).not.toBe('') })
   it('a data de hoje é aceita', () => { expect(problemaDoAcordo({ ...ok, primeiraParcela: '2026-11-30' }, '2026-11-30')).toBe('') })
+})
+
+describe('valorSugeridoAcordo', () => {
+  it('o que devia + dinheiro novo + juros dele (Mateus: 1.600 + 1.500 + 1.500 = 4.600)', () => { expect(valorSugeridoAcordo(1600, 1500, 1500)).toBe(4600) })
+  it('sem juros soma só o dinheiro novo; sem dinheiro novo devolve o saldo', () => {
+    expect(valorSugeridoAcordo(1600, 1500, 0)).toBe(3100)
+    expect(valorSugeridoAcordo(1600, 0, 0)).toBe(1600)
+  })
+  it('negativo conta como zero e arredonda no centavo', () => {
+    expect(valorSugeridoAcordo(100, -5, -1)).toBe(100)
+    expect(valorSugeridoAcordo(100.1, 0.2, 0.3)).toBe(100.6)
+  })
 })
