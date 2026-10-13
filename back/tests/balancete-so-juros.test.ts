@@ -65,6 +65,29 @@ describe('faltaExigivel (o que o cliente deve de fato, parcela a parcela)', () =
   })
 })
 
+describe('parcela remarcada (pagou parte e o resto ficou para outra data)', () => {
+  // 2ª parcela venceu em 10/10, o cliente pagou 1 centavo e o resto foi remarcado para 22/10 (hoje é 15/10): o juro continua devido
+  const plano = [parc(1, '2026-09-10', 200, { pago: 200 }), parc(2, '2026-10-22', 200, { pago: 0.01, vencimentoOriginal: '2026-10-10' } as never), parc(3, '2026-11-10', 200), parc(4, '2026-12-10', 2200)]
+  it('o juro que já venceu continua exigível mesmo com o vencimento novo no futuro', () => {
+    const e = soJuros(plano as never)
+    expect(jurosPorVencerSoJuros(e, HOJE)).toBe(2400 - 2000) // só os 200 de novembro e os 200 de dezembro são por vencer
+    expect(faltaExigivel(e, HOJE)).toEqual([{ vencimento: '2026-10-22', falta: 199.99 }, { vencimento: '2026-12-10', falta: 2000 }])
+  })
+  it('sem a data original, valia o vencimento novo (e o juro vencido sumia): a data original é o que decide', () => {
+    const sem = soJuros(plano.map((p) => ({ ...p, vencimentoOriginal: undefined })) as never)
+    expect(jurosPorVencerSoJuros(sem, HOJE)).toBeGreaterThan(400) // o comportamento antigo, errado
+  })
+  it('remarcar uma parcela que ainda nem venceu não a faz exigível', () => {
+    const e = soJuros([parc(1, '2026-11-20', 200, { pago: 50, vencimentoOriginal: '2026-11-10' } as never), parc(2, '2026-12-10', 2200)] as never)
+    expect(jurosPorVencerSoJuros(e, HOJE)).toBe(350) // 150 do que falta da 1ª + 200 de juro da última; nenhuma virou exigível
+  })
+  it('a conta fecha: falta total − exigível = juros por vencer, também com remarcação', () => {
+    const e = soJuros(plano as never)
+    const total = plano.reduce((a, p) => a + Math.max(0, p.valor - p.desconto - p.pago), 0)
+    expect(Math.round((total - faltaExigivel(e, HOJE).reduce((a, x) => a + x.falta, 0)) * 100) / 100).toBe(jurosPorVencerSoJuros(e, HOJE))
+  })
+})
+
 describe('vaiLiberarSemJurosPorVencer', () => {
   const base = { total: 2800, descontos: 0, investido: 2000, pct: 0.5, liberado: 0 }
   it('tira o juro por vencer do lucro previsto antes de aplicar o %', () => {

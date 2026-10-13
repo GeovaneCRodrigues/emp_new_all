@@ -18,8 +18,8 @@ export type DetalheDoIndicador = ResumoDoIndicador & { operacoes: ResumoRepasse[
 export type RepassesService = {
   /** Todos os indicadores com a pagar / já pago / vai liberar (administrador). */
   resumo(s: Sessao): Promise<ResumoDoIndicador[]>
-  /** Todas as operações com indicador, já com a parte de cada um (administrador). Os relatórios usam para o balancete. */
-  operacoes(s: Sessao): Promise<ResumoRepasse['operacoes']>
+  /** O resumo de cada indicador e as operações com a parte de cada um, numa carga só (administrador). Os relatórios usam para o balancete. */
+  visaoGeral(s: Sessao): Promise<{ resumos: ResumoDoIndicador[]; operacoes: ResumoRepasse['operacoes'] }>
   /** Um indicador por dentro: cada operação (venda ou empréstimo) e os pagamentos. O indicador vê só o dele. */
   detalhe(s: Sessao, indicadorId: number): Promise<DetalheDoIndicador>
   /** Registra um repasse (total ou parcial). Só o administrador, e nunca mais do que está a pagar. */
@@ -82,20 +82,25 @@ export function createRepassesService(d: Dependencias): RepassesService {
     return { indicador: { id: ind.id, nome: ind.nome, chavePix: ind.chavePix, ativo: ind.ativo }, resumo, nOperacoes: operacoes.length, operacoes, repasses }
   }
 
+  /** Uma carga só (as vendas e empréstimos são lidos uma vez): o resumo de cada indicador e as operações já com a parte de cada um. */
+  async function visaoGeral(s: Sessao) {
+    if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os repasses de todos')
+    const [indicadores, ops, pagos] = await Promise.all([d.indicadores.listar(), operacoesPorIndicador(), d.repo.totaisPagos()])
+    const resumos: ResumoDoIndicador[] = indicadores.map((i) => {
+      const { operacoes, ...resumo } = calcularRepasse(ops.get(i.id) ?? [], pagos.get(i.id) ?? 0)
+      return { indicador: { id: i.id, nome: i.nome, chavePix: i.chavePix, ativo: i.ativo }, resumo, nOperacoes: operacoes.length }
+    })
+    const operacoes = [...ops.entries()].flatMap(([id, lista]) => calcularRepasse(lista, pagos.get(id) ?? 0).operacoes)
+    return { resumos, operacoes }
+  }
+
   return {
     async resumo(s) {
-      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os repasses de todos')
-      const [indicadores, ops, pagos] = await Promise.all([d.indicadores.listar(), operacoesPorIndicador(), d.repo.totaisPagos()])
-      return indicadores.map((i) => {
-        const { operacoes, ...resumo } = calcularRepasse(ops.get(i.id) ?? [], pagos.get(i.id) ?? 0)
-        return { indicador: { id: i.id, nome: i.nome, chavePix: i.chavePix, ativo: i.ativo }, resumo, nOperacoes: operacoes.length }
-      })
+      return (await visaoGeral(s)).resumos
     },
 
-    async operacoes(s) {
-      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os repasses de todos')
-      const [ops, pagos] = await Promise.all([operacoesPorIndicador(), d.repo.totaisPagos()])
-      return [...ops.entries()].flatMap(([id, lista]) => calcularRepasse(lista, pagos.get(id) ?? 0).operacoes)
+    async visaoGeral(s) {
+      return visaoGeral(s)
     },
 
     async detalhe(s, id) {

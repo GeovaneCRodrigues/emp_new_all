@@ -11,7 +11,7 @@ import { gerarCronogramaAntigo } from './antigo/cronograma.js'
  */
 const dia = (d: unknown) => (d instanceof Date ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : String(d).slice(0, 10))
 const r2 = (v: number) => Math.round(v * 100) / 100
-const hoje = process.argv[2] ?? new Date().toISOString().slice(0, 10)
+const hoje = process.argv[2] ?? new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
 const urlAntigo = process.env.OLD_MYSQL_URL
 if (!urlAntigo) { console.error('Informe OLD_MYSQL_URL'); process.exit(1) }
 
@@ -22,7 +22,7 @@ try {
   const antigas = gerarCronogramaAntigo({ operacoes: est.operacoes, recebimentos: est.recebimentos, parcelasExtras: est.parcelasExtras, parcelaAjustes: est.parcelaAjustes, quitacoes: est.quitacoes, parcelaVencimentos: est.parcelaVencimentos, acordos: est.acordos, hoje })
   const emp = await db.knex('emprestimos').whereNotNull('legacy_id').select('id', 'legacy_id', 'status', 'capital', 'modalidade', 'percentual_indicador', 'indicador_id')
   const parc = await db.knex('emprestimo_parcelas as p').join('emprestimos as e', 'e.id', 'p.emprestimo_id').whereNotNull('e.legacy_id')
-    .leftJoin(db.knex('recebimentos').select('emprestimo_parcela_id').sum({ pago: 'valor' }).groupBy('emprestimo_parcela_id').as('r'), 'r.emprestimo_parcela_id', 'p.id')
+    .leftJoin(db.knex('recebimentos as rc').join('transacoes_recebimento as t', 't.id', 'rc.transacao_id').whereNull('t.desfeita_em').select('rc.emprestimo_parcela_id').sum({ pago: 'rc.valor' }).groupBy('rc.emprestimo_parcela_id').as('r'), 'r.emprestimo_parcela_id', 'p.id')
     .select('e.legacy_id as op', 'p.numero', 'p.vencimento', 'p.valor', 'p.desconto', 'p.quitada_em', db.knex.raw('coalesce(r.pago,0) as pago'))
 
   const linhas: { op: number; mod: string; stAnt: string; stNovo: string; recAnt: number; recNovo: number; vencAnt: number; vencNovo: number; abertoAnt: number; abertoNovo: number; nAnt: number; nNovo: number; motivos: string[] }[] = []

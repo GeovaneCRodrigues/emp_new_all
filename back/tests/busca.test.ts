@@ -148,6 +148,19 @@ describe.skipIf(!db)('busca nas listas (Postgres de verdade)', () => {
       expect(await aparelhos('17 pro max', 'vendedor')).toEqual([])
       expect(await aparelhos('iphone 13', 'vendedor')).toEqual(['IPHONE 13'])
     })
+    it('o indicador não acha pelo IMEI nem pelo próprio nome (só pelo que vê na resposta)', async () => {
+      const d = await db!('vendas as v').join('bens as b', 'b.id', 'v.bem_id').whereNotNull('v.indicador_id').first<{ imei: string; modelo: string }>('b.imei', 'b.modelo')
+      expect(d?.imei).toBeTruthy()
+      expect(await aparelhos(d!.imei)).toContain(d!.modelo) // a loja acha
+      expect(await aparelhos(d!.imei, 'indicador')).toEqual([]) // o indicador não: o IMEI não é dele
+      expect(await aparelhos(d!.imei.slice(0, 8), 'indicador')).toEqual([]) // nem por prefixo
+      expect(await aparelhos('roberto')).not.toEqual([]); expect(await aparelhos('roberto', 'indicador')).toEqual([]) // o próprio nome também não
+      expect(await aparelhos(d!.modelo, 'indicador')).toContain(d!.modelo) // o modelo, que ele vê, continua achando
+    })
+    it('empréstimos: o indicador também não busca pelo próprio nome', async () => {
+      const nomes = async (q: string, papel = 'admin') => ((await req(`/api/emprestimos?busca=${encodeURIComponent(q)}`, papel)).json().itens as { cliente: { nome: string } }[]).length
+      expect(await nomes('roberto')).toBeGreaterThan(0); expect(await nomes('roberto', 'indicador')).toBe(0)
+    })
     it('o IMEI não aparece na resposta (só serve para achar)', async () => {
       expect(JSON.stringify((await req('/api/vendas?busca=350000000000002')).json())).not.toContain('350000000000002')
     })

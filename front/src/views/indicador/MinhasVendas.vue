@@ -11,11 +11,12 @@ import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { useApp } from '@/composables/useApp'
+import { resumoAndamento } from '@/domain/andamento'
 import { casaBusca } from '@/domain/busca'
 import { fmt, fmt0, gbTxt } from '@/domain/format'
 
 /** As vendas e empréstimos que o indicador trouxe: só leitura (quem cadastra é a loja). Mostra a parte dele, nunca custo nem lucro. */
-const { sessao } = useApp()
+const { sessao, hoje } = useApp()
 const vendas = ref<VendaApi[]>([])
 const emps = ref<EmprestimoApi[]>([])
 const aba = ref('iphone')
@@ -50,7 +51,8 @@ const resumo = computed(() => ({
 const CHIP: Record<string, string> = { ATIVA: 'c-ok', QUITADA: 'c-ok', RETOMADA: 'c-bad', CANCELADA: 'c-neu' }
 const rotulo = (o: { status: string; atrasadas: number }) => (o.status === 'QUITADA' ? 'quitada' : o.status === 'RETOMADA' ? 'retomada' : o.status === 'CANCELADA' ? 'cancelada' : o.atrasadas > 0 ? `${o.atrasadas} atrasada${o.atrasadas > 1 ? 's' : ''}` : 'em dia')
 const chip = (o: { status: string; atrasadas: number }) => (o.status === 'ATIVA' && o.atrasadas > 0 ? 'c-bad' : CHIP[o.status])
-const pagas = (o: { parcelas: { falta: number }[] }) => o.parcelas.filter((p) => p.falta <= 0.009).length
+/** A mesma conta da folha de andamento (parcelas encerradas por acordo ou por retomada não entram). */
+const andamento = (o: VendaApi | EmprestimoApi) => resumoAndamento(o.parcelas, hoje.value, o.status !== 'RETOMADA' && o.status !== 'CANCELADA')
 const barra = (o: { recebido: number; total: number }) => (o.total > 0 ? Math.min(100, Math.round((o.recebido / o.total) * 100)) : 100)
 const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo só juros' : e.modalidade === 'DIARIA' ? 'Empréstimo diário' : 'Empréstimo parcelado')
 </script>
@@ -78,7 +80,7 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
         <span class="chip" :class="chip(o)" data-status>{{ rotulo(o) }}</span>
       </div>
       <div class="bar"><i :style="{ width: barra(o) + '%' }"></i></div>
-      <div class="row small" style="justify-content: space-between"><span class="num">{{ fmt0(o.recebido) }} de {{ fmt0(o.total) }}</span><span>{{ pagas(o) }}/{{ o.nParcelas }} parcelas</span></div>
+      <div class="row small" style="justify-content: space-between"><span class="num">{{ fmt0(o.recebido) }} de {{ fmt0(o.total) }}</span><span>{{ andamento(o).pagas }}/{{ andamento(o).total }} parcelas</span></div>
       <div class="small" style="color: var(--primary); font-weight: 600" data-sua-parte>sua parte {{ fmt(o.suaParte ?? 0) }}<template v-if="(o.jaLiberado ?? 0) > 0"> · já liberou {{ fmt(o.jaLiberado ?? 0) }}</template></div>
     </div>
     <div v-if="lista.length && !visiveis.length" class="card empty">Nada encontrado nesta lista.</div>

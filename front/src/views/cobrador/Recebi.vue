@@ -30,8 +30,9 @@ let pedido = 0
 async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
+  const [a, termo, s] = [aba.value, busca.value.trim() || undefined, sessao.value] // fixa os filtros desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => recebimentosApi.cobrancas(sessao.value, { aba: aba.value, busca: busca.value.trim() || undefined, pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => recebimentosApi.cobrancas(s, { aba: a, busca: termo, pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total; if (p === 1) atualizar(sessao.value) },
   })
@@ -41,7 +42,7 @@ async function carregar() {
 let espera: ReturnType<typeof setTimeout> | undefined
 watch(aba, () => carregar())
 watch(busca, () => { clearTimeout(espera); espera = setTimeout(() => carregar(), 300) })
-onBeforeUnmount(() => clearTimeout(espera))
+onBeforeUnmount(() => { clearTimeout(espera); pedido++ }) // sair da tela cancela o que ainda está chegando
 onMounted(() => carregar())
 const chave = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
 </script>

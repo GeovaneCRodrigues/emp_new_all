@@ -41,14 +41,15 @@ export function pctDoJuro(capital: number, juro: number): number {
  * não é dívida dele nem patrimônio da loja. A última parcela leva o capital em aberto, e esse capital continua valendo.
  * Cópia de jurosPorVencerSoJuros do backend. Qualquer outra modalidade, ou só juros com acordo, devolve 0.
  */
-export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): number {
+export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; vencimentoOriginal?: string | null; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): number {
   if (e.modalidade !== 'JUROS' || e.parcelas.some((p) => p.acordo !== null)) return 0
   const falta = (p: { valor: number; desconto: number; pago: number }) => Math.max(0, p.valor - p.desconto - p.pago)
   const ordenadas = [...e.parcelas].sort((a, b) => a.numero - b.numero)
   const ultima = ordenadas[ordenadas.length - 1]
   if (!ultima) return 0
-  const futuras = ordenadas.filter((p) => p.vencimento > hoje)
-  const capitalNaUltima = ultima.vencimento > hoje ? Math.min(Math.max(0, e.capital - e.amortizado), falta(ultima)) : 0
+  // o juro vence na data ORIGINAL: pagar parte e remarcar o resto (FICA) não o transforma em juro futuro
+  const futuras = ordenadas.filter((p) => (p.vencimentoOriginal ?? p.vencimento) > hoje)
+  const capitalNaUltima = (ultima.vencimentoOriginal ?? ultima.vencimento) > hoje ? Math.min(Math.max(0, e.capital - e.amortizado), falta(ultima)) : 0
   return Math.round(Math.max(0, futuras.reduce((x, p) => x + falta(p), 0) - capitalNaUltima) * 100) / 100
 }
 
@@ -56,7 +57,7 @@ export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmp; capital: n
  * O que o cliente deve de fato, parcela a parcela. No só juros sem acordo, o juro que ainda não venceu não entra: das parcelas
  * futuras sobra só o capital em aberto, na última. Cópia de faltaExigivel do backend.
  */
-export function faltaExigivel(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): { vencimento: string; falta: number }[] {
+export function faltaExigivel(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; vencimentoOriginal?: string | null; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): { vencimento: string; falta: number }[] {
   const arred = (v: number) => Math.round(v * 100) / 100
   const falta = (p: { valor: number; desconto: number; pago: number }) => Math.max(0, arred(p.valor - p.desconto - p.pago))
   const soJuros = e.modalidade === 'JUROS' && !e.parcelas.some((p) => p.acordo !== null)
@@ -64,7 +65,7 @@ export function faltaExigivel(e: { modalidade: ModalidadeEmp; capital: number; a
   const ultima = ordenadas[ordenadas.length - 1]
   return ordenadas.map((p) => {
     const f = falta(p)
-    if (!soJuros || p.vencimento <= hoje) return { vencimento: p.vencimento, falta: f }
+    if (!soJuros || (p.vencimentoOriginal ?? p.vencimento) <= hoje) return { vencimento: p.vencimento, falta: f }
     return { vencimento: p.vencimento, falta: p === ultima ? Math.min(f, Math.max(0, arred(e.capital - e.amortizado))) : 0 }
   }).filter((x) => x.falta > 0)
 }

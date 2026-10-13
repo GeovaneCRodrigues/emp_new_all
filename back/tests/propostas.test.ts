@@ -201,6 +201,18 @@ describe.skipIf(!db)('cliente do indicador e proposta (Postgres de verdade)', ()
       expect(mensagens.size).toBe(1) // existente ou não, a resposta é a mesma: não dá para sondar o estoque
       expect(await db!('indicacoes').count('* as n').first().then((l) => Number((l as { n: string }).n))).toBe(0)
     })
+    it('proposta antiga com aparelho do estoque: a loja vê o aparelho, o indicador só o texto do interesse', async () => {
+      const c = await clienteDoIndicador()
+      const [b] = await db!('bens').insert({ modelo: 'iPhone 11', gb: 64, cor: 'Verde', preco_venda: 2500, valor_compra: 1500, data_compra: '2026-09-01' }).returning('id')
+      const [p] = await db!('indicacoes').insert({ indicador_id: id.roberto, cliente_id: c, tipo: 'VENDA', interesse: 'iPhone 11 64 GB Verde', aparelho_id: b.id, status: 'PENDENTE' }).returning('id')
+      expect((await req('GET', `/api/propostas/${p.id}`, 'admin')).json().aparelho).toMatchObject({ id: b.id, modelo: 'iPhone 11' })
+      const doIndicador = (await req('GET', `/api/propostas/${p.id}`, 'indicador')).json()
+      expect(doIndicador.aparelho).toBeNull(); expect(doIndicador.interesse).toBe('iPhone 11 64 GB Verde')
+      const itens = (await lista('indicador')).itens as { id: number; aparelho: unknown }[]
+      expect(itens.find((x) => x.id === p.id)?.aparelho).toBeNull()
+      expect(JSON.stringify(await lista('indicador'))).not.toContain('"modelo":"iPhone 11"')
+      expect(((await lista('admin')).itens as { id: number; aparelho: { modelo: string } | null }[]).find((x) => x.id === p.id)?.aparelho?.modelo).toBe('iPhone 11')
+    })
     it('empréstimo com valor', async () => {
       const c = await clienteDoIndicador()
       const r = await req('POST', '/api/propostas', 'indicador', { clienteId: c, tipo: 'EMPRESTIMO', valor: 5000.5, parcelas: 6 })

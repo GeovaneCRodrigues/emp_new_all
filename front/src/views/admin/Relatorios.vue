@@ -38,13 +38,17 @@ onMounted(carregar)
 // Previsão: as perdas esperadas são suposição sua; ficam salvas neste navegador e dá para voltar ao padrão.
 const CHAVE_PERDAS = 'relPerdas'
 function perdasSalvas(): Perdas { try { return lerPerdas(JSON.parse(localStorage.getItem(CHAVE_PERDAS) ?? 'null')) } catch { return { ...PERDAS_PADRAO } } }
-const inteiro = (v: number) => Math.round(v * 100)
-const perdasPct = reactive((() => { const p = perdasSalvas(); return { aVencer: inteiro(p.aVencer), ate7: inteiro(p.ate7), de8a30: inteiro(p.de8a30), mais30: inteiro(p.mais30) } })())
+/** Fração (0,025) → o que aparece no campo (2,5): sem arredondar para inteiro, senão 2,5% voltaria como 3% ao recarregar. */
+const emPct = (v: number) => Math.round(v * 10000) / 100
+const perdasPct = reactive<Record<keyof Perdas, number>>((() => { const p = perdasSalvas(); return { aVencer: emPct(p.aVencer), ate7: emPct(p.ate7), de8a30: emPct(p.de8a30), mais30: emPct(p.mais30) } })())
 // o que for digitado fora de 0 a 100 (ou vazio) é limitado a esse intervalo
-const limitar = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v / 100)) : 0)
-const perdas = computed<Perdas>(() => ({ aVencer: limitar(perdasPct.aVencer), ate7: limitar(perdasPct.ate7), de8a30: limitar(perdasPct.de8a30), mais30: limitar(perdasPct.mais30) }))
+// campo vazio ou sem sentido vale o padrão daquele grupo (nunca 0%, que seria o cenário mais otimista)
+const fracao = (k: keyof Perdas) => { const v = perdasPct[k]; return typeof v === 'number' && Number.isFinite(v) ? Math.min(1, Math.max(0, v / 100)) : PERDAS_PADRAO[k] }
+const perdas = computed<Perdas>(() => ({ aVencer: fracao('aVencer'), ate7: fracao('ate7'), de8a30: fracao('de8a30'), mais30: fracao('mais30') }))
+/** Ao sair do campo, ele mostra o que a conta realmente usa (900 vira 100, vazio volta ao padrão). */
+function normalizar(k: keyof Perdas) { perdasPct[k] = emPct(fracao(k)) }
 watch(perdas, (p) => { try { localStorage.setItem(CHAVE_PERDAS, JSON.stringify(p)) } catch { /* sem armazenamento: só não lembra */ } })
-function voltarAoPadrao() { perdasPct.aVencer = inteiro(PERDAS_PADRAO.aVencer); perdasPct.ate7 = inteiro(PERDAS_PADRAO.ate7); perdasPct.de8a30 = inteiro(PERDAS_PADRAO.de8a30); perdasPct.mais30 = inteiro(PERDAS_PADRAO.mais30) }
+function voltarAoPadrao() { perdasPct.aVencer = emPct(PERDAS_PADRAO.aVencer); perdasPct.ate7 = emPct(PERDAS_PADRAO.ate7); perdasPct.de8a30 = emPct(PERDAS_PADRAO.de8a30); perdasPct.mais30 = emPct(PERDAS_PADRAO.mais30) }
 const cenarios = computed(() => (r.value ? CENARIOS.map((c) => ({ ...c, ...cenario(r.value!.previsao, perdas.value, c.fator) })) : []))
 const realista = computed(() => cenarios.value.find((c) => c.id === 'realista'))
 const GRUPOS = [
@@ -196,7 +200,7 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
             <tbody>
               <tr v-for="g in GRUPOS" :key="g.id" :data-grupo="g.id">
                 <td><b>{{ g.rotulo }}</b></td><td class="r num">{{ grupoDaPrevisao(g.id).n }}</td><td class="r num">{{ fmt0(grupoDaPrevisao(g.id).valor) }}</td>
-                <td class="r"><span class="inp" style="display: inline-flex; width: 74px; height: 32px"><input v-model.number="perdasPct[g.id]" type="number" min="0" max="100" step="1" inputmode="numeric" :aria-label="`Perda esperada: ${g.rotulo}, em %`" :data-testid="`prev-perda-${g.id}`" style="text-align: right" /></span> %</td>
+                <td class="r"><span class="inp" style="display: inline-flex; width: 74px; height: 32px"><input v-model.number="perdasPct[g.id]" type="number" min="0" max="100" step="0.5" inputmode="decimal" @change="normalizar(g.id)" :aria-label="`Perda esperada: ${g.rotulo}, em %`" :data-testid="`prev-perda-${g.id}`" style="text-align: right" /></span> %</td>
                 <td class="r num" :data-testid="`prev-esperado-${g.id}`">{{ fmt0(esperadoDoGrupo(g.id)) }}</td>
               </tr>
             </tbody>
