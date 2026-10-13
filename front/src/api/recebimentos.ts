@@ -59,6 +59,8 @@ export interface CobrancaApi {
   atrasoDias: number
   cliente: { id: number; nome: string; fone: string }
   aparelho: string
+  /** quem indicou a operação (null: venda direta). O indicador não recebe nome de indicador */
+  indicador: string | null
   ultimaTransacaoId: number | null
   ultimoRecebimentoEm: string | null
   /** o indicador avisou que recebeu esta parcela e a loja ainda não respondeu */

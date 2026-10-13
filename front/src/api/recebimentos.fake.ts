@@ -1,3 +1,4 @@
+import { casaBusca } from '@/domain/busca'
 import { criarSeed } from '@/data/seed'
 import { addDia } from '@/domain/datas'
 import { soDigitos } from '@/domain/documentos'
@@ -38,6 +39,7 @@ interface Op {
   alvo: AlvoApi
   id: number
   cliente: { id: number; nome: string }
+  indicador: string | null
   data: string
   status: string
   descricao: string
@@ -61,8 +63,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
   const foneDe = (id: number) => fones.get(id) ?? ''
 
   const permitido = (s: Sessao) => { if (s.perfil !== 'ADMIN' && s.perfil !== 'COBRADOR') throw new ErroApi(403, 'Só o administrador e o cobrador mexem com recebimentos', 'SEM_PERMISSAO') }
-  const comoOp = (r: Registro): Op => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, data: r.dataVenda, status: r.status, descricao: r.aparelho.modelo, parcelas: r.parcelas, emp: null })
-  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, data: r.dataEmprestimo, status: r.status, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), parcelas: r.parcelas, emp: r })
+  const comoOp = (r: Registro): Op => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, data: r.dataVenda, status: r.status, descricao: r.aparelho.modelo, parcelas: r.parcelas, emp: null })
+  const comoOpEmp = (r: RegistroEmprestimo): Op => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, indicador: r.indicador?.nome ?? null, data: r.dataEmprestimo, status: r.status, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), parcelas: r.parcelas, emp: r })
   const doEscopo = (s: Sessao, alvo: AlvoApi, id: number): Op => {
     if (alvo === 'VENDA') {
       const r = vendas._interno.noEscopo(s).find((x) => x.id === id)
@@ -114,7 +116,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         return {
           tipo: o.alvo, operacaoId: o.id, parcela: p.numero, nParcelas: o.parcelas.length, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, pago: p.pago, falta: f,
           atrasoDias: f > 0.009 && p.vencimento < hoje ? Math.round((Date.parse(hoje) - Date.parse(p.vencimento)) / 864e5) : 0,
-          cliente: { id: o.cliente.id, nome: o.cliente.nome, fone: foneDe(o.cliente.id) }, aparelho: o.descricao, ultimaTransacaoId: u?.id ?? null, ultimoRecebimentoEm: u?.data ?? null,
+          cliente: { id: o.cliente.id, nome: o.cliente.nome, fone: foneDe(o.cliente.id) }, aparelho: o.descricao, indicador: s.perfil === 'INDICADOR' ? null : o.indicador, ultimaTransacaoId: u?.id ?? null, ultimoRecebimentoEm: u?.data ?? null,
           baixaPendente: (() => { const b = vendas._interno.pedidos.find((x) => x.tipo === 'BAIXA' && x.status === 'PENDENTE' && x.alvo === o.alvo && x.operacaoId === o.id && x.parcela === p.numero); return b ? { id: b.id, valor: b.valor, por: b.solicitanteNome } : null })(),
         }
       }),
@@ -263,11 +265,9 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
       const limite = Math.min(Math.max(q.limite ?? 20, 1), 100)
       const pagina = Math.max(q.pagina ?? 1, 1)
-      const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      const busca = q.busca ? semAcento(q.busca).trim() : ''
       const todas = parcelasDoEscopo(s, q.tipo)
       const aberta = (c: CobrancaApi) => c.falta > 0.009
-      const daBusca = (c: CobrancaApi) => !busca || semAcento(c.cliente.nome).includes(busca)
+      const daBusca = (c: CobrancaApi) => casaBusca([c.cliente.nome, c.indicador], q.busca)
       const daAba: Record<AbaCobranca, (c: CobrancaApi) => boolean> = {
         atrasadas: (c) => aberta(c) && c.vencimento < hoje,
         hoje: (c) => aberta(c) && c.vencimento >= hoje && c.vencimento <= addDia(hoje, 7),
@@ -287,10 +287,8 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new ErroApi(400, 'mes deve ser AAAA-MM')
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
-      const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      const busca = q.busca ? semAcento(q.busca).trim() : ''
       const itens = parcelasDoEscopo(s, q.tipo)
-        .filter((c) => c.vencimento.slice(0, 7) === mes && (!busca || semAcento(c.cliente.nome).includes(busca)))
+        .filter((c) => c.vencimento.slice(0, 7) === mes && casaBusca([c.cliente.nome, c.indicador], q.busca))
         .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.cliente.nome.localeCompare(b.cliente.nome) || a.tipo.localeCompare(b.tipo) || a.operacaoId - b.operacaoId || a.parcela - b.parcela)
       return { mes, hoje, itens: itens.slice(0, 1500), cortado: itens.length > 1500 }
     },

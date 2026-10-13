@@ -112,6 +112,23 @@ test.describe('busca em Cobranças, Contratos, Indicadores e Caixa (administrado
     await expect(linhas).toHaveCount(todas)
   })
 
+  test('cobranças: mostra "indicado por" nas operações com indicador e a busca acha pelo nome dele', async ({ page }) => {
+    await navegar(page, '/cobrancas')
+    for (const aba of [/^Atrasadas/, /^Hoje/, /^Próximas/]) {
+      await page.getByRole('button', { name: aba }).first().click()
+      if ((await page.locator('[data-cobranca] [data-indicador]').count()) > 0) break
+    }
+    const marca = page.locator('[data-cobranca] [data-indicador]')
+    await expect(marca.first()).toBeVisible()
+    const nome = ((await marca.first().innerText()).replace('indicado por', '')).trim()
+    expect(nome.length).toBeGreaterThan(0)
+    const todas = await page.locator('[data-cobranca]').count()
+    await campo(page, 'Buscar cliente').fill(nome.toUpperCase())
+    await expect.poll(async () => (await page.locator('[data-cobranca]').count()) <= todas && (await page.locator('[data-cobranca]').filter({ hasNotText: nome }).count()) === 0).toBe(true)
+    expect(await page.locator('[data-cobranca]').count()).toBeGreaterThan(0)
+    expect(await semRolagemLateral(page)).toBe(true)
+  })
+
   test('contratos: acha por cliente (sem acento), por número, e mostra aviso sem resultado', async ({ page }) => {
     await navegar(page, '/contratos'); await expect(page.getByTestId('ct-abas')).toBeVisible()
     const itens = page.getByTestId('ct-lista').locator('[data-contrato]')

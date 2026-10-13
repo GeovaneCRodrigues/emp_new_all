@@ -26,7 +26,7 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
   const req = (url: string, papel?: string) => app.inject({ method: 'GET', url, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
-  const cron = async (q: string, papel = 'admin') => (await req(`/api/cronograma${q}`, papel)).json() as { mes: string; hoje: string; cortado: boolean; itens: { tipo: string; operacaoId: number; parcela: number; vencimento: string; valor: number; pago: number; falta: number; atrasoDias: number; cliente: { id: number; nome: string } }[] }
+  const cron = async (q: string, papel = 'admin') => (await req(`/api/cronograma${q}`, papel)).json() as { mes: string; hoje: string; cortado: boolean; itens: { tipo: string; operacaoId: number; parcela: number; vencimento: string; valor: number; pago: number; falta: number; atrasoDias: number; indicador: string | null; cliente: { id: number; nome: string } }[] }
   const chave = (r: Awaited<ReturnType<typeof cron>>) => r.itens.map((i) => `${i.tipo[0]}${i.operacaoId}.${i.parcela}@${i.vencimento.slice(5)}`)
 
   async function venda(clienteId: number, indicadorId: number | null, parcelas: [string, number][], status = 'ATIVA'): Promise<{ id: number; parcelaIds: number[] }> {
@@ -133,6 +133,37 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     expect((await cron('?mes=2026-10&busca=bruno')).itens.map((i) => i.cliente.nome)).toEqual(['Bruno Lima'])
     expect((await cron('?mes=2026-10&busca=zzz')).itens).toEqual([])
     expect((await cron(`?mes=2026-10&busca=${encodeURIComponent('%')}`)).itens).toEqual([]) // % não vira curinga
+  })
+
+  describe('o nome do indicador (cronograma e cobranças)', () => {
+    const cobr = async (q: string, papel = 'admin') => (await req(`/api/cobrancas?${q}`, papel)).json() as { itens: { tipo: string; operacaoId: number; parcela: number; indicador: string | null; cliente: { nome: string } }[]; total: number }
+    it('cada parcela traz o indicador da operação, e null na venda direta', async () => {
+      const m = new Map((await cron('?mes=2026-10')).itens.map((i) => [`${i.tipo[0]}.${i.operacaoId}`, i.indicador]))
+      expect(m.get(`V.${V()}`)).toBe('Roberto'); expect(m.get(`E.${EB()}`)).toBe('Outro'); expect(m.get(`E.${EA()}`)).toBeNull()
+      const c = await cobr('aba=atrasadas&limite=100')
+      expect(c.itens.map((i) => `${i.tipo[0]}.${i.operacaoId}.${i.parcela}=${i.indicador}`).sort()).toEqual([`E.${EA()}.1=null`, `V.${V()}.1=Roberto`, `V.${V()}.3=Roberto`].sort()) // a venda tem a parcela de 30/09 e a de 10/10 em aberto
+    })
+    it('o cobrador vê o indicador das parcelas da carteira dele', async () => {
+      expect((await cobr('aba=hoje&limite=100', 'cobrador2')).itens.map((i) => i.indicador)).toEqual(['Outro'])
+    })
+    it('o indicador não recebe nome de indicador (nem o dele), nem em cobranças nem no cronograma', async () => {
+      expect((await cron('?mes=2026-10', 'indicador')).itens.every((i) => i.indicador === null)).toBe(true)
+      const c = await cobr('aba=atrasadas&limite=100', 'indicador')
+      expect(c.itens.length).toBeGreaterThan(0); expect(c.itens.every((i) => i.indicador === null)).toBe(true)
+      expect(JSON.stringify(c)).not.toContain('Roberto')
+    })
+    it('a busca também acha pelo nome do indicador (e junto com o cliente, em qualquer ordem)', async () => {
+      expect((await cron(`?mes=2026-10&busca=roberto`)).itens.map((i) => i.cliente.nome)).toEqual(Array(4).fill('José Conceição'))
+      expect((await cron(`?mes=2026-10&busca=outro`)).itens.map((i) => i.cliente.nome)).toEqual(['Bruno Lima'])
+      expect((await cron(`?mes=2026-10&busca=${encodeURIComponent('roberto jose')}`)).itens.length).toBe(4)
+      expect((await cron(`?mes=2026-10&busca=${encodeURIComponent('bruno roberto')}`)).itens).toEqual([])
+      expect((await cobr('aba=hoje&busca=OUTRO&limite=100')).itens.map((i) => i.cliente.nome)).toEqual(['Bruno Lima'])
+      expect((await cobr('aba=atrasadas&busca=roberto&limite=100')).itens.map((i) => i.operacaoId)).toEqual([V(), V()])
+    })
+    it('o indicador não acha pelo nome de indicador (só pelo cliente)', async () => {
+      expect((await cobr('aba=atrasadas&busca=roberto&limite=100', 'indicador')).total).toBe(0)
+      expect((await cobr('aba=atrasadas&busca=jose&limite=100', 'indicador')).total).toBeGreaterThan(0)
+    })
   })
 
   describe('quem vê o quê', () => {

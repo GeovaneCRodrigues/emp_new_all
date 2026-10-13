@@ -78,7 +78,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
 </script>
 
 <template>
-  <CampoBusca v-model="busca" placeholder="Buscar cliente" />
+  <CampoBusca v-model="busca" placeholder="Buscar cliente ou indicador" />
   <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
   <Seg v-model="aba as string" :itens="abas" />
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>

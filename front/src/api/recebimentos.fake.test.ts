@@ -295,6 +295,27 @@ describe('cronograma (o calendário do mês)', () => {
     expect(achou.itens.length).toBeGreaterThan(0); expect(achou.itens.every((i) => i.cliente.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(parte))).toBe(true)
     expect((await cron(ADMIN, { busca: 'zzzz' })).itens).toEqual([])
   })
+  it('cada parcela traz o indicador da operação (null na venda direta), e o indicador não recebe nome de indicador', async () => {
+    const todas = (await api.cobrancas(ADMIN, { aba: 'proximas', limite: 100 })).itens
+    const comIndicador = todas.filter((c) => c.indicador !== null)
+    expect(comIndicador.length).toBeGreaterThan(0); expect(todas.some((c) => c.indicador === null)).toBe(true)
+    // o cobrador vê o mesmo indicador que o administrador, nas parcelas da carteira dele
+    const doCobrador = (await api.cobrancas(COBR, { aba: 'proximas', limite: 100 })).itens
+    expect(doCobrador.length).toBeGreaterThan(0)
+    for (const c of doCobrador) expect(c.indicador, `${c.tipo}${c.operacaoId}:${c.parcela}`).toBe(todas.find((x) => x.tipo === c.tipo && x.operacaoId === c.operacaoId && x.parcela === c.parcela)!.indicador)
+    const doIndicador = await api.cobrancas(IND, { aba: 'proximas', limite: 100 })
+    expect(doIndicador.itens.length).toBeGreaterThan(0); expect(doIndicador.itens.every((c) => c.indicador === null)).toBe(true)
+    expect((await cron(IND)).itens.every((i) => i.indicador === null)).toBe(true)
+  })
+  it('a busca acha pelo nome do indicador, também junto com o cliente; o indicador só busca pelo cliente', async () => {
+    const todas = (await api.cobrancas(ADMIN, { aba: 'proximas', limite: 100 })).itens
+    const c = todas.find((x) => x.indicador !== null)!
+    const achou = await api.cobrancas(ADMIN, { aba: 'proximas', busca: c.indicador!.toUpperCase(), limite: 100 })
+    expect(achou.itens.length).toBeGreaterThan(0); expect(achou.itens.every((x) => x.indicador === c.indicador || x.cliente.nome.toLowerCase().includes(c.indicador!.toLowerCase()))).toBe(true)
+    expect((await api.cobrancas(ADMIN, { aba: 'proximas', busca: `${c.cliente.nome.split(' ')[0]} ${c.indicador}`, limite: 100 })).itens.some((x) => x.operacaoId === c.operacaoId)).toBe(true)
+    expect((await cron(ADMIN, { busca: c.indicador! })).itens.some((i) => i.indicador === c.indicador)).toBe(true)
+    expect((await api.cobrancas(IND, { aba: 'proximas', busca: c.indicador!, limite: 100 })).itens.every((x) => x.cliente.nome.toLowerCase().includes(c.indicador!.toLowerCase()))).toBe(true)
+  })
   it('cobrador vê só a carteira dele; o indicador, só as operações dele; vendedor 403', async () => {
     const todas = (await cron(ADMIN)).itens.length
     const cobr = await cron(COBR)

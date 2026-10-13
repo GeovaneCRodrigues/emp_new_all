@@ -109,6 +109,13 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(page.getByTestId('repasses-recebidos')).toBeVisible()
   })
 
+  test('Cobrança: o indicador não vê "indicado por" (o nome de indicador não vai para ele)', async ({ page }) => {
+    await ir(page, 'Cobrança')
+    await expect(page.locator('[data-cobranca]').first()).toBeVisible()
+    await expect(page.locator('[data-indicador]')).toHaveCount(0)
+    await expect(page.locator('.content')).not.toContainText('indicado por')
+  })
+
   test('Estoque: o indicador não tem a tela (nem no menu, nem digitando o endereço)', async ({ page }) => {
     await expect(page.getByRole('button', { name: /^Estoque/ })).toHaveCount(0)
     await expect(page.locator('[data-mais="estoque"]')).toHaveCount(0)

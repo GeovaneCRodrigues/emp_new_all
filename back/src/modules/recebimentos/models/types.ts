@@ -76,6 +76,8 @@ export type LinhaCobranca = {
   falta: number
   cliente: { id: number; nome: string; fone: string }
   descricao: string
+  /** quem indicou a operação (null: venda direta). O indicador não recebe o próprio nome */
+  indicador: string | null
   ultimaTransacaoId: number | null
   ultimoRecebimentoEm: string | null
   /** o indicador avisou que recebeu esta parcela e a loja ainda não respondeu */
