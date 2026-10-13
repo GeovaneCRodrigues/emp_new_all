@@ -76,6 +76,20 @@ test.describe('relatórios (administrador)', () => {
     expect(await txt(page, 'caixa-saldo')).toBe(caixa)
   })
 
+  test('Balancete: o juro de só juros que ainda não venceu fica fora do "a receber" e aparece à parte', async ({ page }) => {
+    await aba(page, 'Balancete').click()
+    const aReceber = await txt(page, 'rel-b-areceber-emp')
+    await expect(page.getByTestId('rel-juros-por-vencer')).toBeVisible()
+    const porVencer = numero(((await page.getByTestId('rel-juros-por-vencer').locator('.num').textContent()) ?? ''))
+    expect(porVencer).toBeGreaterThan(0)
+    // o total do contrato (Operações › Empréstimos) segue mostrando tudo o que o plano prevê: balancete + juro por vencer
+    await navegar(page, '/operacoes')
+    await page.getByRole('button', { name: /Empréstimos/ }).click()
+    const emOperacoes = numero(((await page.locator('.resumo3 .val').first().textContent()) ?? ''))
+    expect(Math.abs(aReceber + porVencer - emOperacoes)).toBeLessThanOrEqual(1)
+    expect(aReceber).toBeLessThan(emOperacoes)
+  })
+
   test('um aporte lançado no Caixa aparece no balancete (patrimônio e "Você colocou")', async ({ page }) => {
     await aba(page, 'Balancete').click()
     const antes = await txt(page, 'rel-patrimonio')

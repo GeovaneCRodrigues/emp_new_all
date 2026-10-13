@@ -22,6 +22,10 @@ export type OpRelatorio = {
   capitalDeVolta: number
   /** só juros dividido a cada pagamento: quanto do que entrou foi juro */
   jurosRecebidos: number | null
+  /** só juros: juro de parcelas que ainda não venceram. Está em `falta`, mas o cliente não deve (pode quitar o capital antes) */
+  jurosPorVencer: number
+  /** quanto da parte futura dos indicadores sai do balancete por causa desse juro por vencer */
+  parteFuturaAbatida: number
   /** só vendas */
   modelo: string | null
   diasParado: number | null
@@ -143,9 +147,12 @@ export function montarRelatorios(ops: OpRelatorio[], x: DadosExtras) {
   })
 
   const aReceberVendas = somar(ops.filter((o) => o.tipo === 'VENDA' && o.status === 'ATIVA').map((o) => o.falta))
-  const aReceberEmprestimos = somar(ops.filter((o) => o.tipo === 'EMPRESTIMO' && o.status === 'ATIVA').map((o) => o.falta))
+  const emprestimosAtivos = ops.filter((o) => o.tipo === 'EMPRESTIMO' && o.status === 'ATIVA')
+  const jurosPorVencer = somar(emprestimosAtivos.map((o) => o.jurosPorVencer))
+  const aReceberEmprestimos = arred2(somar(emprestimosAtivos.map((o) => o.falta)) - jurosPorVencer)
+  const parteFutura = Math.max(0, arred2(x.repassesFuturos - somar(emprestimosAtivos.map((o) => o.parteFuturaAbatida))))
   const ativo = arred2(x.caixa + estoque + aReceberVendas + aReceberEmprestimos)
-  const passivo = arred2(x.repassesAPagar + x.repassesFuturos)
+  const passivo = arred2(x.repassesAPagar + parteFutura)
 
   return {
     hoje: x.hoje,
@@ -164,8 +171,8 @@ export function montarRelatorios(ops: OpRelatorio[], x: DadosExtras) {
     porIndicador,
     controleMensal: controle,
     balancete: {
-      caixa: x.caixa, estoque, aReceberVendas, aReceberEmprestimos, ativo,
-      repassesAPagar: x.repassesAPagar, parteFuturaIndicadores: x.repassesFuturos, passivo,
+      caixa: x.caixa, estoque, aReceberVendas, aReceberEmprestimos, jurosPorVencer, ativo,
+      repassesAPagar: x.repassesAPagar, parteFuturaIndicadores: parteFutura, passivo,
       patrimonio: arred2(ativo - passivo), aportes: x.aportes,
     },
   }

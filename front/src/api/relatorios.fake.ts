@@ -1,6 +1,8 @@
 import type { Sessao } from '@/domain/escopo'
+import { jurosPorVencerSoJuros } from '@/domain/emprestimo'
 import { arred2 } from '@/domain/format'
 import { montarRelatorios, type OpRelatorio } from '@/domain/relatorios'
+import { vaiLiberarSemJurosPorVencer } from '@/domain/repasseIndicador'
 import { ErroApi } from './clientes'
 import type { CaixaApi } from './caixa'
 import type { EmprestimosFake } from './emprestimos.fake'
@@ -28,6 +30,7 @@ export function criarRelatoriosFake(dep: { vendas: VendasFake; emprestimos: Empr
       const caixa = await dep.caixa.ver(ADM, { limite: 1 })
       const movimentos = await todasAsPaginas((p) => dep.caixa.ver(ADM, { pagina: p, limite: 100 }))
       const repasses = await dep.repasses.resumo(ADM)
+      const linhasDeRepasse = (await Promise.all(repasses.map((i) => dep.repasses.detalhe(ADM, i.indicador.id)))).flatMap((d) => d.operacoes.filter((o) => o.tipo === 'EMPRESTIMO'))
       const ops: OpRelatorio[] = []
 
       for (const r of dep.vendas._interno.registros) {
@@ -36,7 +39,7 @@ export function criarRelatoriosFake(dep: { vendas: VendasFake; emprestimos: Empr
         const ap = aparelhos.find((a) => a.id === r.aparelho.id)
         ops.push({
           tipo: 'VENDA', id: r.id, data: r.dataVenda, status: c.status, indicadorId: r.indicador?.id ?? null, pct: r.pct, investido: r.investido, total: c.total, recebido: c.recebido, falta: c.falta,
-          lucroTotal: c.lucroTotal ?? 0, capitalDeVolta: c.capitalDeVolta ?? Math.min(r.investido, c.recebido), jurosRecebidos: null, modelo: r.aparelho.modelo,
+          lucroTotal: c.lucroTotal ?? 0, capitalDeVolta: c.capitalDeVolta ?? Math.min(r.investido, c.recebido), jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, modelo: r.aparelho.modelo,
           diasParado: ap?.dataCompra ? diasEntre(ap.dataCompra, r.dataVenda) : null,
           parcelas: r.parcelas.map((p) => ({ vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago })),
           entradas: [...(r.entrada + r.troca > 0 ? [{ data: r.dataVenda, valor: arred2(r.entrada + r.troca) }] : []), ...doDia('VENDA', r.id)],
@@ -45,9 +48,14 @@ export function criarRelatoriosFake(dep: { vendas: VendasFake; emprestimos: Empr
       for (const r of dep.emprestimos._interno.registros) {
         const c = dep.emprestimos._interno.calcular(r, 'ADMIN')
         if (c.status !== 'ATIVA' && c.status !== 'QUITADA') continue
+        const porVencer = c.status === 'ATIVA'
+          ? jurosPorVencerSoJuros({ modalidade: r.modalidade, capital: r.capital, amortizado: r.amortizado, parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago, acordo: p.acordoId || p.encerradaId ? 'ACORDO' : null })) }, hoje)
+          : 0
+        const linha = linhasDeRepasse.find((o) => o.id === r.id)
         ops.push({
           tipo: 'EMPRESTIMO', id: r.id, data: r.dataEmprestimo, status: c.status, indicadorId: r.indicador?.id ?? null, pct: r.pct, investido: r.capital, total: c.total, recebido: c.recebido, falta: c.falta,
-          lucroTotal: c.lucroTotal ?? 0, capitalDeVolta: c.capitalDeVolta ?? Math.min(r.capital, c.recebido), jurosRecebidos: null, modelo: null, diasParado: null,
+          lucroTotal: c.lucroTotal ?? 0, capitalDeVolta: c.capitalDeVolta ?? Math.min(r.capital, c.recebido), jurosRecebidos: null, jurosPorVencer: porVencer, modelo: null, diasParado: null,
+          parteFuturaAbatida: porVencer > 0 && linha && linha.investido !== undefined ? arred2(linha.vaiLiberar - vaiLiberarSemJurosPorVencer({ ...linha, investido: linha.investido }, porVencer)) : 0,
           parcelas: r.parcelas.map((p) => ({ vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago })),
           entradas: doDia('EMPRESTIMO', r.id),
         })

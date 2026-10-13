@@ -165,7 +165,8 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
             <div class="li" style="padding: 9px 14px"><span class="mid t">Caixa</span><b class="num" data-testid="rel-b-caixa">{{ fmt(r.balancete.caixa) }}</b></div>
             <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">Estoque</span><span class="s" style="display: block">pelo custo dos aparelhos</span></span><b class="num">{{ fmt(r.balancete.estoque) }}</b></div>
             <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">A receber de vendas</span><span class="s" style="display: block">parcelas em aberto</span></span><b class="num">{{ fmt(r.balancete.aReceberVendas) }}</b></div>
-            <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">A receber de empréstimos</span><span class="s" style="display: block">parcelas em aberto</span></span><b class="num">{{ fmt(r.balancete.aReceberEmprestimos) }}</b></div>
+            <div class="li" style="padding: 9px 14px"><span class="mid"><span class="t" style="display: block">A receber de empréstimos</span><span class="s" style="display: block">parcelas em aberto{{ r.balancete.jurosPorVencer > 0 ? ' (só juros: capital e juros já vencidos)' : '' }}</span></span><b class="num" data-testid="rel-b-areceber-emp">{{ fmt(r.balancete.aReceberEmprestimos) }}</b></div>
+            <div v-if="r.balancete.jurosPorVencer > 0" class="li" style="padding: 9px 14px; opacity: 0.75" data-testid="rel-juros-por-vencer"><span class="mid"><span class="t" style="display: block">Juros por vencer (só juros)</span><span class="s" style="display: block">não conta no total: o cliente pode quitar o capital antes</span></span><b class="num">{{ fmt(r.balancete.jurosPorVencer) }}</b></div>
           </div>
         </div>
         <div class="card">

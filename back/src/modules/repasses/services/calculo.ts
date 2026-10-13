@@ -48,6 +48,15 @@ export function partesDoIndicador(o: { total: number; descontos: number; recebid
   }
 }
 
+/**
+ * O que ainda vai liberar numa operação, sem contar o lucro que vem de juros que ainda não venceram (só juros).
+ * Usado no balancete, que só conta o que o cliente já deve. A tela de repasses segue com o `vaiLiberar` cheio.
+ */
+export function vaiLiberarSemJurosPorVencer(o: { total: number; descontos: number; investido: number; pct: number; liberado: number }, jurosPorVencer: number): number {
+  const parte = arred2(Math.max(0, o.total - o.descontos - jurosPorVencer - o.investido) * o.pct)
+  return arred2(Math.max(0, parte - o.liberado))
+}
+
 export type ResumoRepasse = {
   liberado: number
   pago: number

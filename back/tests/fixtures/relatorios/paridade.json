@@ -29,7 +29,9 @@
      "data": "2026-10-02",
      "valor": 2500
     }
-   ]
+   ],
+   "jurosPorVencer": 0,
+   "parteFuturaAbatida": 0
   },
   {
    "tipo": "EMPRESTIMO",
@@ -66,7 +68,9 @@
      "data": "2026-09-15",
      "valor": 1400
     }
-   ]
+   ],
+   "jurosPorVencer": 0,
+   "parteFuturaAbatida": 0
   },
   {
    "tipo": "EMPRESTIMO",
@@ -107,7 +111,9 @@
      "data": "2026-10-10",
      "valor": 50
     }
-   ]
+   ],
+   "jurosPorVencer": 0,
+   "parteFuturaAbatida": 0
   },
   {
    "tipo": "VENDA",
@@ -138,7 +144,9 @@
      "data": "2026-07-01",
      "valor": 800
     }
-   ]
+   ],
+   "jurosPorVencer": 0,
+   "parteFuturaAbatida": 0
   },
   {
    "tipo": "EMPRESTIMO",
@@ -170,6 +178,59 @@
      "data": "2026-08-05",
      "valor": 400
     }
+   ],
+   "jurosPorVencer": 0,
+   "parteFuturaAbatida": 0
+  },
+  {
+   "tipo": "EMPRESTIMO",
+   "id": 60,
+   "data": "2026-09-20",
+   "status": "ATIVA",
+   "indicadorId": 8,
+   "pct": 0.4,
+   "investido": 1000,
+   "total": 2000,
+   "recebido": 200,
+   "falta": 1800,
+   "lucroTotal": 1000,
+   "capitalDeVolta": 200,
+   "jurosRecebidos": null,
+   "jurosPorVencer": 800,
+   "parteFuturaAbatida": 50,
+   "modelo": null,
+   "diasParado": null,
+   "parcelas": [
+    {
+     "vencimento": "2026-10-20",
+     "valor": 200,
+     "desconto": 0,
+     "pago": 0
+    },
+    {
+     "vencimento": "2026-11-20",
+     "valor": 200,
+     "desconto": 0,
+     "pago": 0
+    },
+    {
+     "vencimento": "2026-12-20",
+     "valor": 200,
+     "desconto": 0,
+     "pago": 0
+    },
+    {
+     "vencimento": "2027-01-20",
+     "valor": 1200,
+     "desconto": 0,
+     "pago": 0
+    }
+   ],
+   "entradas": [
+    {
+     "data": "2026-10-05",
+     "valor": 200
+    }
    ]
   }
  ],
@@ -179,7 +240,7 @@
   "estoque": 3000,
   "aportes": 8000,
   "repassesAPagar": 100,
-  "repassesFuturos": 50,
+  "repassesFuturos": 120,
   "indicadores": [
    {
     "id": 7,
@@ -245,7 +306,7 @@
     1000,
     1500,
     1000,
-    0,
+    1000,
     3000
    ],
    "recebido": [
@@ -254,7 +315,7 @@
     1500,
     400,
     1400,
-    2650
+    2850
    ],
    "lucro": [
     0,
@@ -272,19 +333,19 @@
     "retorno": 0.2857
    },
    "emprestimos": {
-    "investido": 3000,
-    "recebido": 3250,
+    "investido": 4000,
+    "recebido": 3450,
     "lucroNoBolso": 740,
-    "lucroPorVir": 175,
-    "retorno": 0.305
+    "lucroPorVir": 775,
+    "retorno": 0.3787
    }
   },
   "capital": {
    "emCaixa": 5000,
    "noEstoque": 3000,
    "vendasNaRua": 700,
-   "emprestimosNaRua": 850,
-   "total": 9550,
+   "emprestimosNaRua": 1650,
+   "total": 10350,
    "meses": [
     "2026-05",
     "2026-06",
@@ -298,7 +359,7 @@
     1000,
     1500,
     1000,
-    0,
+    1000,
     3000
    ]
   },
@@ -313,6 +374,15 @@
     "suaParte": 1000
    },
    {
+    "indicadorId": 8,
+    "nome": "Ana",
+    "operacoes": 2,
+    "capitalNaRua": 800,
+    "lucroTotal": 1700,
+    "parteDele": 610,
+    "suaParte": 1090
+   },
+   {
     "indicadorId": 7,
     "nome": "Roberto",
     "operacoes": 2,
@@ -320,15 +390,6 @@
     "lucroTotal": 850,
     "parteDele": 425,
     "suaParte": 425
-   },
-   {
-    "indicadorId": 8,
-    "nome": "Ana",
-    "operacoes": 1,
-    "capitalNaRua": 0,
-    "lucroTotal": 700,
-    "parteDele": 210,
-    "suaParte": 490
    }
   ],
   "controleMensal": [
@@ -352,25 +413,25 @@
    },
    {
     "mes": "2026-10",
-    "previsto": 700,
+    "previsto": 900,
     "recebido": 100,
     "emAtraso": 100
    },
    {
     "mes": "2026-11",
-    "previsto": 100,
+    "previsto": 300,
     "recebido": 0,
     "emAtraso": 0
    },
    {
     "mes": "2026-12",
-    "previsto": 0,
+    "previsto": 200,
     "recebido": 0,
     "emAtraso": 0
    },
    {
     "mes": "2027-01",
-    "previsto": 0,
+    "previsto": 1200,
     "recebido": 0,
     "emAtraso": 0
    }
@@ -379,12 +440,13 @@
    "caixa": 5000,
    "estoque": 3000,
    "aReceberVendas": 900,
-   "aReceberEmprestimos": 1300,
-   "ativo": 10200,
+   "aReceberEmprestimos": 2300,
+   "jurosPorVencer": 800,
+   "ativo": 11200,
    "repassesAPagar": 100,
-   "parteFuturaIndicadores": 50,
-   "passivo": 150,
-   "patrimonio": 10050,
+   "parteFuturaIndicadores": 70,
+   "passivo": 170,
+   "patrimonio": 11030,
    "aportes": 8000
   }
  }
