@@ -35,3 +35,19 @@ export function pctDaParcela(capital: number, parcela: number, n: number): numbe
 export function pctDoJuro(capital: number, juro: number): number {
   return capital > 0 ? Math.round((juro / capital) * 1e6) / 1e4 : 0
 }
+
+/**
+ * Só juros (sem acordo): quanto dos juros ainda NÃO venceu. O cliente pode quitar o capital quando quiser, então o juro futuro
+ * não é dívida dele nem patrimônio da loja. A última parcela leva o capital em aberto, e esse capital continua valendo.
+ * Cópia de jurosPorVencerSoJuros do backend. Qualquer outra modalidade, ou só juros com acordo, devolve 0.
+ */
+export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmp; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): number {
+  if (e.modalidade !== 'JUROS' || e.parcelas.some((p) => p.acordo !== null)) return 0
+  const falta = (p: { valor: number; desconto: number; pago: number }) => Math.max(0, p.valor - p.desconto - p.pago)
+  const ordenadas = [...e.parcelas].sort((a, b) => a.numero - b.numero)
+  const ultima = ordenadas[ordenadas.length - 1]
+  if (!ultima) return 0
+  const futuras = ordenadas.filter((p) => p.vencimento > hoje)
+  const capitalNaUltima = ultima.vencimento > hoje ? Math.min(Math.max(0, e.capital - e.amortizado), falta(ultima)) : 0
+  return Math.round(Math.max(0, futuras.reduce((x, p) => x + falta(p), 0) - capitalNaUltima) * 100) / 100
+}

@@ -5,7 +5,7 @@ import { janela, lucroPorMesTodos, lucroRealizado, lucroRealizadoAte, montarRela
 const HOJE = '2026-10-10'
 const op = (o: Partial<OpRelatorio> = {}): OpRelatorio => ({
   tipo: 'EMPRESTIMO', id: 1, data: '2026-09-01', status: 'ATIVA', indicadorId: null, pct: 0, investido: 1000, total: 1500, recebido: 0, falta: 1500, lucroTotal: 500, capitalDeVolta: 0,
-  jurosRecebidos: null, modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
+  jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0, modelo: null, diasParado: null, parcelas: [], entradas: [], ...o,
 })
 const extras = (e: Partial<DadosExtras> = {}): DadosExtras => ({ hoje: HOJE, caixa: 0, estoque: 0, aportes: 0, repassesAPagar: 0, repassesFuturos: 0, indicadores: [], ...e })
 
@@ -101,6 +101,15 @@ describe('relatórios montados', () => {
   })
   it('balancete: o que tem menos o que deve', () => {
     expect(r.balancete).toMatchObject({ caixa: 5000, estoque: 3000, aReceberVendas: 500, aReceberEmprestimos: 100, ativo: 8600, repassesAPagar: 100, parteFuturaIndicadores: 50, passivo: 150, patrimonio: 8450, aportes: 8000 })
+  })
+  it('balancete: o juro de só juros que ainda não venceu não é patrimônio (nem a parte futura do indicador sobre ele)', () => {
+    const soJuros = op({ id: 2, indicadorId: 7, pct: 0.5, investido: 1000, total: 2200, falta: 2200, lucroTotal: 1200, jurosPorVencer: 1000, parteFuturaAbatida: 500 })
+    const b = montarRelatorios([op({ falta: 100 }), soJuros], extras({ caixa: 1000, repassesAPagar: 30, repassesFuturos: 600 })).balancete
+    expect(b).toMatchObject({ aReceberEmprestimos: 100 + 1200, jurosPorVencer: 1000, ativo: 2300, parteFuturaIndicadores: 100, passivo: 130, patrimonio: 2170 })
+  })
+  it('balancete: operação quitada não tira nada, e a parte futura nunca fica negativa', () => {
+    const q = op({ status: 'QUITADA', falta: 0, jurosPorVencer: 300, parteFuturaAbatida: 150 })
+    expect(montarRelatorios([q], extras({ repassesFuturos: 0 })).balancete).toMatchObject({ aReceberEmprestimos: 0, jurosPorVencer: 0, parteFuturaIndicadores: 0 })
   })
   it('saldo de caixa negativo não entra no capital, mas aparece no balancete', () => {
     const n = montarRelatorios([], extras({ caixa: -300 }))

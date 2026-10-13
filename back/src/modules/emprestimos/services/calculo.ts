@@ -65,3 +65,19 @@ export function jurosRecebidosSoJuros(e: { modalidade: ModalidadeEmprestimo; mod
   const capitalNaUltima = ultima ? Math.min(capitalAberto, Math.max(0, ultima.pago - jurosDaUltima)) : 0
   return arred2(Math.max(0, pago - capitalNaUltima))
 }
+
+/**
+ * Só juros (sem acordo): quanto dos juros ainda NÃO venceu. O cliente pode quitar o capital quando quiser, então o juro futuro
+ * não é dívida dele nem patrimônio da loja. A última parcela leva o capital em aberto, e esse capital continua valendo.
+ * Qualquer outra modalidade, ou só juros com acordo (parcelas fixas), devolve 0: o que falta é todo exigível.
+ */
+export function jurosPorVencerSoJuros(e: { modalidade: ModalidadeEmprestimo; capital: number; amortizado: number; parcelas: { numero: number; vencimento: string; valor: number; desconto: number; pago: number; acordo: string | null }[] }, hoje: string): number {
+  if (e.modalidade !== 'JUROS' || e.parcelas.some((p) => p.acordo !== null)) return 0
+  const falta = (p: { valor: number; desconto: number; pago: number }) => Math.max(0, p.valor - p.desconto - p.pago)
+  const ordenadas = [...e.parcelas].sort((a, b) => a.numero - b.numero)
+  const ultima = ordenadas[ordenadas.length - 1]
+  if (!ultima) return 0
+  const futuras = ordenadas.filter((p) => p.vencimento > hoje)
+  const capitalNaUltima = ultima.vencimento > hoje ? Math.min(Math.max(0, e.capital - e.amortizado), falta(ultima)) : 0
+  return arred2(Math.max(0, futuras.reduce((x, p) => x + falta(p), 0) - capitalNaUltima))
+}

@@ -78,3 +78,9 @@ export function calcularRepasse(operacoes: OperacaoRepasse[], pago: number): Res
     vaiLiberar: arred2(linhas.reduce((x, l) => x + l.vaiLiberar, 0)), pagoAMais: arred2(Math.max(0, pagoTotal - liberado)), operacoes: linhas,
   }
 }
+
+/** O que ainda vai liberar numa operação sem o lucro de juros que não venceram (só juros). Cópia do backend; o balancete usa, a tela de repasses não. */
+export function vaiLiberarSemJurosPorVencer(o: { total: number; descontos: number; investido: number; pct: number; liberado: number }, jurosPorVencer: number): number {
+  const parte = arred2(Math.max(0, o.total - o.descontos - jurosPorVencer - o.investido) * o.pct)
+  return arred2(Math.max(0, parte - o.liberado))
+}

@@ -177,12 +177,13 @@ describe.skipIf(!db)('relatórios (Postgres de verdade)', () => {
     })
     it('balancete e patrimônio', async () => {
       const b = (await rel()).balancete
-      expect(b.estoque).toBe(4000); expect(b.aReceberVendas).toBe(0); expect(b.aReceberEmprestimos).toBe(300 + 1200)
+      expect(b.estoque).toBe(4000); expect(b.aReceberVendas).toBe(0); expect(b.aReceberEmprestimos).toBe(300 + 1200 - 250) // E: dos 1200 que faltam, 250 são juros que ainda não venceram (o capital em aberto, 950, continua valendo)
+      expect(b.jurosPorVencer).toBe(250)
       expect(b.aportes).toBe(10000 - 500)
-      expect(b.ativo).toBe(b.caixa + 4000 + 1500)
+      expect(b.ativo).toBe(b.caixa + 4000 + 1250)
       expect(b.patrimonio).toBe(Math.round((b.ativo - b.passivo) * 100) / 100)
       expect(b.repassesAPagar).toBe(200) // B 250 + E 50 liberados menos 100 pagos
-      expect(b.parteFuturaIndicadores).toBe(125) // E: 175 de parte prevista (a amortização conta como dinheiro que entrou) menos 50 já liberados
+      expect(b.parteFuturaIndicadores).toBe(0) // E: sem os 250 de juro por vencer, a parte prevista cai de 175 para 50, e os 50 já estão liberados
     })
   })
 })

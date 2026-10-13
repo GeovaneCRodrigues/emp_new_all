@@ -3,8 +3,9 @@ import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { CaixaRepository } from '../../caixa/models/repository.js'
 import type { EmprestimosRepository } from '../../emprestimos/models/repository.js'
-import { jurosRecebidosSoJuros } from '../../emprestimos/services/calculo.js'
+import { jurosPorVencerSoJuros, jurosRecebidosSoJuros } from '../../emprestimos/services/calculo.js'
 import type { IndicadoresRepository } from '../../indicadores/models/repository.js'
+import { vaiLiberarSemJurosPorVencer } from '../../repasses/services/calculo.js'
 import type { RepassesService } from '../../repasses/services/repasses.service.js'
 import type { VendasRepository } from '../../vendas/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
@@ -34,9 +35,9 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
     async ver(s) {
       if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os relatórios')
       const dia = hoje()
-      const [vendas, emprestimos, entradas, estoque, aportes, compras, indicadores, repasses, caixa] = await Promise.all([
+      const [vendas, emprestimos, entradas, estoque, aportes, compras, indicadores, repasses, linhasDeRepasse, caixa] = await Promise.all([
         d.vendas.listar(tudo), d.emprestimos.listar(tudo), d.repo.entradas(), d.repo.estoque(), d.repo.aportes(dia), d.repo.compraDoAparelho(),
-        d.indicadores.listar(), d.repasses.resumo(s), d.caixa.resumo({ hoje: dia, mesIni: `${dia.slice(0, 7)}-01`, mesFim: dia }),
+        d.indicadores.listar(), d.repasses.resumo(s), d.repasses.operacoes(s), d.caixa.resumo({ hoje: dia, mesIni: `${dia.slice(0, 7)}-01`, mesFim: dia }),
       ])
       const doDia = (alvo: 'VENDA' | 'EMPRESTIMO', id: number) => entradas.filter((e) => e.alvo === alvo && e.operacaoId === id).map((e) => ({ data: e.data, valor: e.valor }))
       const parcelas = (ps: { vencimento: string; valor: number; desconto: number; pago: number }[]) => ps.map((p) => ({ vencimento: p.vencimento, valor: p.valor, desconto: p.desconto, pago: p.pago }))
@@ -48,18 +49,22 @@ export function createRelatoriosService(d: Dependencias): RelatoriosService {
         const compra = compras.get(v.id)
         ops.push({
           tipo: 'VENDA', id: v.id, data: v.dataVenda, status: c.status, indicadorId: v.indicador?.id ?? null, pct: v.pct, investido: v.investido, total: c.total, recebido: c.recebido, falta: c.falta,
-          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: null,
+          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: null, jurosPorVencer: 0, parteFuturaAbatida: 0,
           modelo: v.aparelho.modelo, diasParado: compra ? diasEntre(compra, v.dataVenda) : null, parcelas: parcelas(v.parcelas),
           // a entrada e a troca valem na data da venda; o resto, na data de cada recebimento
           entradas: [...(v.entrada + v.troca > 0 ? [{ data: v.dataVenda, valor: arred2(v.entrada + v.troca) }] : []), ...doDia('VENDA', v.id)],
         })
       }
+      const linhasRepasse = new Map(linhasDeRepasse.filter((o) => o.tipo === 'EMPRESTIMO').map((o) => [o.id, o] as const))
       for (const e of emprestimos) {
         const c = contas({ entrada: e.amortizado, troca: 0, investido: e.capital, pct: e.pct, statusGravado: e.status, parcelas: parcelas(e.parcelas) }, dia)
         if (c.status !== 'ATIVA' && c.status !== 'QUITADA') continue
+        const porVencer = c.status === 'ATIVA' ? jurosPorVencerSoJuros(e, dia) : 0
+        const linha = linhasRepasse.get(e.id)
         ops.push({
           tipo: 'EMPRESTIMO', id: e.id, data: e.dataEmprestimo, status: c.status, indicadorId: e.indicador?.id ?? null, pct: e.pct, investido: e.capital, total: c.total, recebido: c.recebido, falta: c.falta,
-          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: jurosRecebidosSoJuros(e),
+          lucroTotal: c.lucroTotal, capitalDeVolta: c.capitalDeVolta, jurosRecebidos: jurosRecebidosSoJuros(e), jurosPorVencer: porVencer,
+          parteFuturaAbatida: porVencer > 0 && linha ? arred2(linha.vaiLiberar - vaiLiberarSemJurosPorVencer(linha, porVencer)) : 0,
           modelo: null, diasParado: null, parcelas: parcelas(e.parcelas), entradas: doDia('EMPRESTIMO', e.id),
         })
       }

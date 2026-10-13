@@ -57,6 +57,21 @@ describe('relatórios (demonstração)', () => {
     expect(r.balancete.patrimonio).toBe(Math.round((r.balancete.ativo - r.balancete.passivo) * 100) / 100)
     expect(r.balancete.aportes).toBe(100000) // o saldo de abertura da demonstração
   })
+  it('só juros novo: no balancete entra o capital, o juro que ainda não venceu fica à parte (não é patrimônio)', async () => {
+    const antes = (await api.ver(ADMIN)).balancete
+    // capital 1000, 10% por parcela, 4 parcelas a partir de novembro: 100 + 100 + 100 + (100 + 1000); tudo ainda vence depois de 08/10
+    await emprestimos.criar(ADMIN, { clienteId: 3, capital: 1000, modalidade: 'JUROS', taxa: 10, parcelas: 4, periodicidade: 'MENSAL', primeiroVencimento: '2026-11-08' } as never)
+    const b = (await api.ver(ADMIN)).balancete
+    expect(b.aReceberEmprestimos).toBe(soma([antes.aReceberEmprestimos, 1000]))
+    expect(b.jurosPorVencer).toBe(soma([antes.jurosPorVencer, 400]))
+    expect(b.ativo).toBe(antes.ativo) // emprestar tira 1000 do caixa e põe 1000 a receber: o patrimônio não muda no dia
+  })
+  it('parcelado e diária não perdem nada: o que falta é todo devido', async () => {
+    const antes = (await api.ver(ADMIN)).balancete
+    await emprestimos.criar(ADMIN, { clienteId: 3, capital: 1000, modalidade: 'PARCELADO', taxa: 50, parcelas: 3, periodicidade: 'MENSAL', primeiroVencimento: '2026-11-08' } as never)
+    const b = (await api.ver(ADMIN)).balancete
+    expect(b.aReceberEmprestimos).toBe(soma([antes.aReceberEmprestimos, 1500])); expect(b.jurosPorVencer).toBe(antes.jurosPorVencer)
+  })
   it('estoque: só os aparelhos disponíveis, pelo custo com extras', async () => {
     const r = await api.ver(ADMIN)
     const lista = (await estoque.listar(ADMIN, { limite: 100 })).itens.filter((a) => a.estado === 'DISPONIVEL')

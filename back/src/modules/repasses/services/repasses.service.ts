@@ -18,6 +18,8 @@ export type DetalheDoIndicador = ResumoDoIndicador & { operacoes: ResumoRepasse[
 export type RepassesService = {
   /** Todos os indicadores com a pagar / já pago / vai liberar (administrador). */
   resumo(s: Sessao): Promise<ResumoDoIndicador[]>
+  /** Todas as operações com indicador, já com a parte de cada um (administrador). Os relatórios usam para o balancete. */
+  operacoes(s: Sessao): Promise<ResumoRepasse['operacoes']>
   /** Um indicador por dentro: cada operação (venda ou empréstimo) e os pagamentos. O indicador vê só o dele. */
   detalhe(s: Sessao, indicadorId: number): Promise<DetalheDoIndicador>
   /** Registra um repasse (total ou parcial). Só o administrador, e nunca mais do que está a pagar. */
@@ -88,6 +90,12 @@ export function createRepassesService(d: Dependencias): RepassesService {
         const { operacoes, ...resumo } = calcularRepasse(ops.get(i.id) ?? [], pagos.get(i.id) ?? 0)
         return { indicador: { id: i.id, nome: i.nome, chavePix: i.chavePix, ativo: i.ativo }, resumo, nOperacoes: operacoes.length }
       })
+    },
+
+    async operacoes(s) {
+      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador vê os repasses de todos')
+      const [ops, pagos] = await Promise.all([operacoesPorIndicador(), d.repo.totaisPagos()])
+      return [...ops.entries()].flatMap(([id, lista]) => calcularRepasse(lista, pagos.get(id) ?? 0).operacoes)
     },
 
     async detalhe(s, id) {
