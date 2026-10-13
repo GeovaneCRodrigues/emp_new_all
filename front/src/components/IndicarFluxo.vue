@@ -14,9 +14,9 @@ import Sheet from './Sheet.vue'
 
 /**
  * O caminho do indicador até a proposta: escolher um cliente dele (ou cadastrar um novo) e dizer o que o cliente quer.
- * Quem chama (Indicar, Meus clientes, Estoque, Simulador) usa `abrir()`; `inicial` já vem com o aparelho/parcelas.
+ * Quem chama (Indicar, Meus clientes, Simulador) usa `abrir()`; `inicial` já vem com o texto e as parcelas.
  */
-type Inicial = { tipo?: TipoProposta; aparelhoId?: number; interesse?: string; parcelas?: number; obs?: string }
+type Inicial = { tipo?: TipoProposta; interesse?: string; parcelas?: number; obs?: string }
 const emit = defineEmits<{ enviada: [p: PropostaApi] }>()
 const { sessao } = useApp()
 const { mostrar } = useToast()

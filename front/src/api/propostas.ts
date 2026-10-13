@@ -28,7 +28,6 @@ export interface EntradaProposta {
   clienteId: number
   tipo: TipoProposta
   interesse?: string
-  aparelhoId?: number
   valor?: number
   parcelas?: number
   obs?: string

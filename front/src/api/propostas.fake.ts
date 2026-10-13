@@ -54,15 +54,9 @@ export function criarPropostasFake(d: { clientes: ClientesApi; estoque: EstoqueA
         valor = Math.round(e.valor * 100) / 100
       }
       const parcelas = e.parcelas === undefined || e.parcelas === null ? null : inteiro(e.parcelas, 'parcelas', 1, 120)
-      let aparelho: PropostaApi['aparelho'] = null
-      if (e.aparelhoId !== undefined && e.aparelhoId !== null) {
-        if (e.tipo !== 'VENDA') throw nao(400, 'Só uma proposta de venda tem aparelho')
-        const id = inteiro(e.aparelhoId, 'aparelhoId', 1, 2 ** 31 - 1)
-        const a = await d.estoque.obter(ADM, id).catch(() => null)
-        if (!a) throw nao(400, 'Aparelho não encontrado')
-        aparelho = { id: a.id, modelo: a.modelo, gb: a.gb, cor: a.cor }
-        interesse ??= `${a.modelo} ${a.gb} GB ${a.cor}`
-      }
+      // o indicador não vê o estoque: o aparelho vem em texto, no interesse
+      const { aparelhoId } = e as unknown as { aparelhoId?: unknown }
+      if (aparelhoId !== undefined && aparelhoId !== null) throw nao(400, 'Descreva o aparelho em "interesse": o indicador não escolhe do estoque')
       if (!interesse && valor === null) throw nao(400, e.tipo === 'VENDA' ? 'Diga qual aparelho o cliente quer' : 'Diga quanto o cliente quer pegar')
       // 404 igual a cliente que não existe: não revela cliente de outro indicador
       const cliente = await d.clientes.obter(s, clienteId).catch(() => null)
@@ -70,7 +64,7 @@ export function criarPropostasFake(d: { clientes: ClientesApi; estoque: EstoqueA
       const ind = (await d.indicadores.listar(ADM)).find((i) => i.id === s.indicadorId)
       const p: PropostaApi = {
         id: ++seq, indicador: { id: s.indicadorId, nome: ind?.nome ?? 'Indicador' }, cliente: { id: cliente.id, nome: cliente.nome, fone: cliente.fone },
-        tipo: e.tipo, interesse, aparelho, valor, parcelas, obs, status: 'PENDENTE', motivoRecusa: null, respondidoPor: null, respondidoEm: null, operacao: null, criadaEm: agora(),
+        tipo: e.tipo, interesse, aparelho: null, valor, parcelas, obs, status: 'PENDENTE', motivoRecusa: null, respondidoPor: null, respondidoEm: null, operacao: null, criadaEm: agora(),
       }
       registros.push(p)
       return copia(p)

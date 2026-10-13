@@ -184,12 +184,22 @@ describe.skipIf(!db)('cliente do indicador e proposta (Postgres de verdade)', ()
   })
 
   describe('criar a proposta', () => {
-    it('venda com aparelho: guarda o aparelho e monta o texto do interesse', async () => {
+    it('venda: o aparelho vai em texto no interesse (o indicador não escolhe do estoque)', async () => {
+      const c = await clienteDoIndicador()
+      const r = await req('POST', '/api/propostas', 'indicador', { clienteId: c, tipo: 'VENDA', interesse: 'iPhone 15 Pro 256 GB', parcelas: 10, obs: 'quer entrada baixa' })
+      expect(r.statusCode).toBe(201)
+      expect(r.json()).toMatchObject({ tipo: 'VENDA', status: 'PENDENTE', interesse: 'iPhone 15 Pro 256 GB', parcelas: 10, obs: 'quer entrada baixa', indicador: { nome: 'Roberto' }, aparelho: null, operacao: null })
+    })
+    it('indicador que manda aparelhoId (existente, inexistente ou de empréstimo) leva 400 igual e nada é gravado', async () => {
       const c = await clienteDoIndicador()
       const [b] = await db!('bens').insert({ modelo: 'iPhone 15 Pro', gb: 256, cor: 'Titânio', preco_venda: 7000, valor_compra: 5000, data_compra: '2026-09-01' }).returning('id')
-      const r = await req('POST', '/api/propostas', 'indicador', { clienteId: c, tipo: 'VENDA', aparelhoId: b.id, parcelas: 10, obs: 'quer entrada baixa' })
-      expect(r.statusCode).toBe(201)
-      expect(r.json()).toMatchObject({ tipo: 'VENDA', status: 'PENDENTE', interesse: 'iPhone 15 Pro 256 GB Titânio', parcelas: 10, obs: 'quer entrada baixa', indicador: { nome: 'Roberto' }, aparelho: { id: b.id, modelo: 'iPhone 15 Pro' }, operacao: null })
+      const mensagens = new Set<string>()
+      for (const corpo of [{ tipo: 'VENDA', aparelhoId: b.id, interesse: 'x' }, { tipo: 'VENDA', aparelhoId: 999999, interesse: 'x' }, { tipo: 'EMPRESTIMO', aparelhoId: b.id, valor: 1000 }]) {
+        const r = await req('POST', '/api/propostas', 'indicador', { clienteId: c, ...corpo })
+        expect(r.statusCode).toBe(400); mensagens.add(r.json().erro)
+      }
+      expect(mensagens.size).toBe(1) // existente ou não, a resposta é a mesma: não dá para sondar o estoque
+      expect(await db!('indicacoes').count('* as n').first().then((l) => Number((l as { n: string }).n))).toBe(0)
     })
     it('empréstimo com valor', async () => {
       const c = await clienteDoIndicador()
@@ -203,7 +213,7 @@ describe.skipIf(!db)('cliente do indicador e proposta (Postgres de verdade)', ()
       ['interesse enorme', { interesse: 'x'.repeat(161) }], ['obs enorme', { obs: 'x'.repeat(501) }], ['interesse que não é texto', { interesse: 5 }],
       ['valor zero', { valor: 0 }], ['valor negativo', { valor: -1 }], ['valor como texto', { valor: '100' }], ['valor gigante', { valor: 1e9 }],
       ['parcelas zero', { parcelas: 0 }], ['parcelas 121', { parcelas: 121 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas como texto', { parcelas: '10' }],
-      ['aparelho inexistente', { aparelhoId: 999999 }], ['aparelho que não é número', { aparelhoId: 'a' }],
+      ['aparelhoId (o indicador não escolhe do estoque)', { aparelhoId: 999999 }], ['aparelhoId como texto', { aparelhoId: 'a' }],
       ['nada dito (sem interesse nem valor)', { interesse: undefined }],
     ])('recusa %s (400) e não grava nada', async (_n, m) => {
       const c = await clienteDoIndicador()
@@ -211,11 +221,6 @@ describe.skipIf(!db)('cliente do indicador e proposta (Postgres de verdade)', ()
       for (const k of Object.keys(corpo)) if (corpo[k] === undefined) delete corpo[k]
       expect((await req('POST', '/api/propostas', 'indicador', corpo)).statusCode).toBe(400)
       expect(await db!('indicacoes').count('* as n').first().then((l) => Number((l as { n: string }).n))).toBe(0)
-    })
-    it('aparelho em proposta de empréstimo: 400', async () => {
-      const c = await clienteDoIndicador()
-      const [b] = await db!('bens').insert({ modelo: 'iPhone 12', gb: 64, cor: 'Azul', preco_venda: 2000, valor_compra: 1500, data_compra: '2026-09-01' }).returning('id')
-      expect((await req('POST', '/api/propostas', 'indicador', { clienteId: c, tipo: 'EMPRESTIMO', aparelhoId: b.id, valor: 1000 })).statusCode).toBe(400)
     })
     it('registra na auditoria', async () => {
       const c = await clienteDoIndicador()

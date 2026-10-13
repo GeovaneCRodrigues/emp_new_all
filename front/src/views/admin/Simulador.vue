@@ -25,6 +25,7 @@ const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
 const disponiveis = ref<AparelhoApi[]>([])
 onMounted(async () => {
   vendasApi.juros(sessao.value).then((j) => { jurosServidor.value = j }).catch(() => undefined)
+  if (ehIndicador.value) return // o indicador não vê o estoque: digita o preço
   disponiveis.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => ({ itens: [] as AparelhoApi[] }))).itens
   // /simulador?bem=ID: o aparelho pode não estar na primeira página
   const id = Number(route.query.bem)
@@ -72,10 +73,10 @@ function venderAssim() {
   if (s.bemId) q.set('bem', String(s.bemId))
   router.push('/vender?' + q.toString())
 }
-/** O indicador manda a simulação para a loja: a proposta abre com o aparelho e as parcelas na observação. */
+/** O indicador manda a simulação para a loja: a proposta abre com as parcelas na observação (o aparelho ele escreve). */
 function indicarAssim() {
   const obs = `Simulação: ${fmt(s.preco)}${entrada.value ? ` · entrada ${fmt(entrada.value)}` : ''} · ${sel.value.n}x ${fmt(sel.value.parc)}`
-  fluxo.value?.abrir({ inicial: { tipo: 'VENDA', ...(s.bemId ? { aparelhoId: s.bemId } : {}), parcelas: sel.value.n, obs } })
+  fluxo.value?.abrir({ inicial: { tipo: 'VENDA', parcelas: sel.value.n, obs } })
 }
 async function copiar() {
   try { await navigator.clipboard.writeText(mensagem.value); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { /* sem permissão: o texto já está na tela */ }
@@ -85,7 +86,7 @@ async function copiar() {
 <template>
   <div class="vender-grid">
     <div style="display: flex; flex-direction: column; gap: 14px">
-      <div class="field">
+      <div v-if="!ehIndicador" class="field">
         <label for="simBem">Aparelho</label>
         <div class="inp">
           <select id="simBem" style="font-size: 15px" :value="s.bemId ?? ''" @change="escolherBem(Number(($event.target as HTMLSelectElement).value) || null)">

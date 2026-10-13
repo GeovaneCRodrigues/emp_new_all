@@ -54,7 +54,7 @@ export function createPropostasService(d: { repo: PropostasRepository; auditoria
       const clienteId = inteiro(e.clienteId, 'clienteId', 1, 2 ** 31 - 1)
       if (typeof e.tipo !== 'string' || !TIPOS.includes(e.tipo as TipoProposta)) throw requisicaoInvalida('tipo deve ser VENDA ou EMPRESTIMO')
       const tipo = e.tipo as TipoProposta
-      let interesse = texto(e, 'interesse', 160)
+      const interesse = texto(e, 'interesse', 160)
       const obs = texto(e, 'obs', 500)
       let valor: number | null = null
       if (e.valor !== undefined && e.valor !== null) {
@@ -62,20 +62,14 @@ export function createPropostasService(d: { repo: PropostasRepository; auditoria
         valor = Math.round(e.valor * 100) / 100
       }
       const parcelas = e.parcelas === undefined || e.parcelas === null ? null : inteiro(e.parcelas, 'parcelas', 1, 120)
-      let aparelhoId: number | null = null
-      if (e.aparelhoId !== undefined && e.aparelhoId !== null) {
-        if (tipo !== 'VENDA') throw requisicaoInvalida('Só uma proposta de venda tem aparelho')
-        aparelhoId = inteiro(e.aparelhoId, 'aparelhoId', 1, 2 ** 31 - 1)
-        const a = await d.repo.aparelhoExiste(aparelhoId)
-        if (!a) throw requisicaoInvalida('Aparelho não encontrado')
-        interesse ??= `${a.modelo} ${a.gb} GB ${a.cor}`
-      }
+      // o indicador não vê o estoque: o aparelho vem em texto, no interesse
+      if (e.aparelhoId !== undefined && e.aparelhoId !== null) throw requisicaoInvalida('Descreva o aparelho em "interesse": o indicador não escolhe do estoque')
       if (!interesse && valor === null) throw requisicaoInvalida(tipo === 'VENDA' ? 'Diga qual aparelho o cliente quer' : 'Diga quanto o cliente quer pegar')
       // 404 igual a cliente que não existe: não revela cliente de outro indicador
       if (!(await d.repo.clienteDoIndicador(clienteId, s.indicadorId))) throw naoEncontrado('Cliente não encontrado')
 
-      const p = await d.repo.criar({ indicadorId: s.indicadorId, clienteId, tipo, interesse, aparelhoId, valor, parcelas, obs })
-      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'PROPOSTA_CRIADA', entidade: 'proposta', entidadeId: p.id, depois: { clienteId, tipo, interesse, aparelhoId, valor, parcelas } })
+      const p = await d.repo.criar({ indicadorId: s.indicadorId, clienteId, tipo, interesse, aparelhoId: null, valor, parcelas, obs })
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'PROPOSTA_CRIADA', entidade: 'proposta', entidadeId: p.id, depois: { clienteId, tipo, interesse, valor, parcelas } })
       return p
     },
 

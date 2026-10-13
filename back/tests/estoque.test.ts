@@ -80,29 +80,21 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
       }
       return ids
     }
-    it('indicador consulta só o que está disponível, sem custo, extras, observações nem para quem é; não vê o resumo nem mexe (403)', async () => {
+    it('indicador não tem acesso ao estoque: lista, aparelho, resumo, cadastro e edição dão 403 (e o 403 não revela se o aparelho existe)', async () => {
       const ids = await umDeCada()
-      const r = await req('GET', '/api/aparelhos', 'indicador')
-      expect(r.statusCode).toBe(200)
-      const itens = r.json().itens as Record<string, unknown>[]
-      expect(itens.map((a) => a.id)).toContain(ids.DISPONIVEL)
-      expect(itens.map((a) => a.id)).not.toContain(ids.ENCOMENDADO)
-      expect(itens.map((a) => a.id)).not.toContain(ids.VENDIDO)
-      for (const a of itens) {
-        expect(a.estado).toBe('DISPONIVEL')
-        for (const campo of ['custo', 'extras', 'observacoes']) expect(campo in a, campo).toBe(false)
-        expect(a.paraCliente).toBeNull()
+      for (const [m, url, corpo] of [
+        ['GET', '/api/aparelhos'], ['GET', `/api/aparelhos/${ids.DISPONIVEL}`], ['GET', `/api/aparelhos/${ids.VENDIDO}`], ['GET', '/api/aparelhos/999999'], ['GET', '/api/aparelhos/resumo'],
+        ['GET', '/api/aparelhos?busca=iphone'], ['POST', '/api/aparelhos', aparelho()], ['PATCH', `/api/aparelhos/${ids.DISPONIVEL}`, { preco: 1 }],
+      ] as const) {
+        const r = await req(m, url, 'indicador', corpo as never)
+        expect(r.statusCode, `${m} ${url}`).toBe(403)
+        expect(r.body).not.toMatch(/segredo|custo|IPHONE|modelo/i)
       }
-      expect(JSON.stringify(r.json())).not.toMatch(/"custo"|"extras"|segredo/)
-      expect((await req('GET', `/api/aparelhos/${ids.DISPONIVEL}`, 'indicador')).statusCode).toBe(200)
-      expect((await req('GET', '/api/aparelhos/resumo', 'indicador')).statusCode).toBe(403)
-      expect((await req('POST', '/api/aparelhos', 'indicador', aparelho())).statusCode).toBe(403)
-      expect((await req('PATCH', `/api/aparelhos/${ids.DISPONIVEL}`, 'indicador', { preco: 1 })).statusCode).toBe(403)
     })
-    it('indicador não abre aparelho vendido nem encomendado (404, igual a inexistente)', async () => {
+    it('o vendedor continua vendo disponível e encomendado (sem custo), nunca o vendido', async () => {
       const ids = await umDeCada()
-      for (const estado of ['ENCOMENDADO', 'VENDIDO']) expect((await req('GET', `/api/aparelhos/${ids[estado]}`, 'indicador')).statusCode).toBe(404)
-      expect((await req('GET', '/api/aparelhos/999999', 'indicador')).statusCode).toBe(404)
+      const itens = (await req('GET', '/api/aparelhos', 'vendedorA')).json().itens as { id: number }[]
+      expect(itens.map((a) => a.id)).toEqual(expect.arrayContaining([ids.DISPONIVEL, ids.ENCOMENDADO])); expect(itens.map((a) => a.id)).not.toContain(ids.VENDIDO)
     })
     it('vendedor não cadastra nem edita aparelho (403)', async () => {
       expect((await req('POST', '/api/aparelhos', 'vendedorA', aparelho())).statusCode).toBe(403)

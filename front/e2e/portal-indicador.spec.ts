@@ -7,7 +7,7 @@ async function ir(page: Page, nome: string) {
   if (ehComputador()) { await page.locator('aside.side').getByRole('button', { name: new RegExp('^' + nome) }).click(); return }
   const aba = page.locator('nav.tabs').getByRole('button', { name: new RegExp('^' + nome) })
   if (await aba.count()) await aba.click()
-  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ 'Minhas vendas': 'vendas', Estoque: 'estoque', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
+  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ 'Minhas vendas': 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
 }
 const numero = (t: string) => Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 
@@ -17,7 +17,7 @@ test.describe('portal do indicador (demonstração)', () => {
   test('menu do design: Início, Cobrança, Meus clientes e Repasse, e o grupo Mais no computador', async ({ page }) => {
     test.skip(!ehComputador(), 'só no computador')
     const lateral = page.locator('aside.side')
-    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Minhas vendas', 'Estoque', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
+    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Minhas vendas', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
     await expect(lateral.locator('.titulo')).toHaveText('Mais')
   })
 
@@ -25,7 +25,7 @@ test.describe('portal do indicador (demonstração)', () => {
     test.skip(ehComputador(), 'só no celular')
     const barra = page.locator('nav.tabs')
     for (const n of ['Início', 'Cobrança', 'Novo', 'Clientes', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
-    await expect(page.locator('[data-mais]')).toHaveCount(4)
+    await expect(page.locator('[data-mais]')).toHaveCount(3)
   })
 
   test('Início: pra cobrar hoje, quanto devem, já recebi, vai ganhar e o nível', async ({ page }) => {
@@ -109,25 +109,20 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(page.getByTestId('repasses-recebidos')).toBeVisible()
   })
 
-  test('Estoque: só consulta com o preço de venda (sem custo nem lucro), e Indicar abre a proposta com o aparelho', async ({ page }) => {
-    await ir(page, 'Estoque')
-    await expect(page.locator('h1')).toHaveText('Estoque')
-    await expect(page.getByTestId('resumo-estoque')).toContainText('Menor preço')
-    const texto = (await page.locator('.content').innerText()).toLowerCase()
-    for (const proibido of ['custo', 'lucro', 'margem', 'capital parado']) expect(texto, proibido).not.toContain(proibido)
-    await expect(page.getByRole('button', { name: /^Encomendado/ })).toHaveCount(0)
-    await page.locator('.fone').first().click()
-    await expect(page.getByRole('button', { name: 'Vender' })).toHaveCount(0)
-    await page.locator('[data-indicar-aparelho]').click()
-    await page.getByTestId('escolher-cliente').locator('[data-cliente]').first().click()
-    await expect(page.locator('#pInteresse')).toHaveValue(/GB/)
-    await expect(page.locator('#pAparelho')).not.toHaveValue('')
+  test('Estoque: o indicador não tem a tela (nem no menu, nem digitando o endereço)', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /^Estoque/ })).toHaveCount(0)
+    await expect(page.locator('[data-mais="estoque"]')).toHaveCount(0)
+    await navegar(page, '/estoque')
+    await expect(page.getByTestId('resumo-estoque')).toHaveCount(0)
+    await expect(page.locator('.fone')).toHaveCount(0) // nenhum aparelho listado
+    await expect(page.locator('.content')).not.toContainText(/Capital parado|Margem média|Disponível ·/)
   })
 
   test('Simulador: "Indicar assim" abre a proposta com as parcelas e a simulação na observação', async ({ page }) => {
     await ir(page, 'Simulador')
     await expect(page.locator('h1')).toHaveText('Simulador')
     await expect(page.getByRole('button', { name: 'Vender assim' })).toHaveCount(0)
+    await expect(page.locator('#simBem')).toHaveCount(0) // sem estoque: o indicador digita o preço
     await expect(page.locator('.content')).not.toContainText('seu lucro')
     await page.locator('[data-indicar-assim]').click()
     await page.getByTestId('escolher-cliente').locator('[data-cliente]').first().click()
