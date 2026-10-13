@@ -12,8 +12,10 @@ async function indicarVenda(page: Page, nome = 'Maria da Silva', interesse = 'iP
   await page.getByRole('button', { name: 'Cadastrar cliente' }).click()
   await page.fill('#pInteresse', interesse); await page.fill('#pParcelas', parcelas)
   await page.getByRole('button', { name: 'Mandar proposta' }).click()
-  await expect(page.getByTestId('minhas-propostas')).toContainText(nome)
-  return nome
+  // o cadastro é padronizado em maiúsculas
+  const padronizado = nome.toLocaleUpperCase('pt-BR')
+  await expect(page.getByTestId('minhas-propostas')).toContainText(padronizado)
+  return padronizado
 }
 const cardProposta = (page: Page, nome: string) => page.getByTestId('proposta').filter({ hasText: nome })
 

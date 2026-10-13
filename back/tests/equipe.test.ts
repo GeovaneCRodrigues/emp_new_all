@@ -400,7 +400,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
         expect(email).toBe('bruna@loja.com')
         expect(senhaTemporaria.length).toBeGreaterThanOrEqual(10)
         const u = await db!('users').where({ id: novoId }).first()
-        expect(u).toMatchObject({ nome: 'Bruna Teixeira', perfil: 'VENDEDOR', fone: '11981234455', ativo: true, senha_temporaria: true })
+        expect(u).toMatchObject({ nome: 'BRUNA TEIXEIRA', perfil: 'VENDEDOR', fone: '11981234455', ativo: true, senha_temporaria: true })
         expect(u.senha_hash).not.toContain(senhaTemporaria)
         expect(JSON.stringify(await db!('auditoria').where({ acao: 'EQUIPE_CONVIDADO', entidade_id: novoId }).first())).not.toContain(senhaTemporaria)
         const l = await login('bruna@loja.com', senhaTemporaria)
@@ -423,10 +423,10 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
       it('edita nome e telefone; audita o antes e o depois', async () => {
         const r = await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { nome: 'Bruna T. Souza', fone: '(11) 90000-0000' })
         expect(r.statusCode).toBe(200)
-        expect(r.json()).toMatchObject({ nome: 'Bruna T. Souza' })
+        expect(r.json()).toMatchObject({ nome: 'BRUNA T. SOUZA' })
         const a = await db!('auditoria').where({ acao: 'EQUIPE_ALTERADO', entidade_id: id.bruna }).first()
-        expect(a.antes.nome).toBe('Bruna Teixeira')
-        expect(a.depois.nome).toBe('Bruna T. Souza')
+        expect(a.antes.nome).toBe('BRUNA TEIXEIRA')
+        expect(a.depois.nome).toBe('BRUNA T. SOUZA')
       })
       it('desativar derruba o acesso na hora (sessão e login); reativar devolve', async () => {
         const [u] = await db!('users').where({ id: id.cobrador2 })

@@ -217,7 +217,7 @@ describe('equipe', () => {
     const r = await equipe.convidar(ADMIN, { nome: '  Ana   Lima ', email: 'Ana@Loja.com', perfil: 'COBRADOR', fone: '(11) 98123-4455' })
     expect(r.email).toBe('ana@loja.com')
     expect(r.senhaTemporaria.length).toBeGreaterThanOrEqual(10)
-    expect((await equipe.listar(ADMIN)).find((p) => p.id === r.id)).toMatchObject({ nome: 'Ana Lima', fone: '11981234455', perfil: 'COBRADOR' })
+    expect((await equipe.listar(ADMIN)).find((p) => p.id === r.id)).toMatchObject({ nome: 'ANA LIMA', fone: '11981234455', perfil: 'COBRADOR' })
     expect((await falha(equipe.convidar(ADMIN, { nome: 'Outra', email: 'ana@loja.com', perfil: 'VENDEDOR' })))?.codigo).toBe('EMAIL_EM_USO')
     for (const perfil of ['ADMIN', 'INDICADOR', 'DONO']) expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: `f${perfil}@t.com`, perfil: perfil as never })))?.status).toBe(400)
     expect((await falha(equipe.convidar(ADMIN, { nome: 'F', email: 'f1@t.com', perfil: 'COBRADOR' })))?.status).toBe(400)
@@ -225,7 +225,7 @@ describe('equipe', () => {
     expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: 'f2@t.com', perfil: 'COBRADOR', fone: '123' })))?.status).toBe(400)
   })
   it('edita, desativa e reativa; não mexe em administrador, nem desativa a si mesmo; 404 e validações', async () => {
-    expect((await equipe.atualizar(ADMIN, 2, { nome: 'Bruna T. Souza', fone: '(11) 90000-0000' })).nome).toBe('Bruna T. Souza')
+    expect((await equipe.atualizar(ADMIN, 2, { nome: 'Bruna T. Souza', fone: '(11) 90000-0000' })).nome).toBe('BRUNA T. SOUZA')
     expect((await equipe.atualizar(ADMIN, 2, { ativo: false })).ativo).toBe(false)
     expect((await equipe.atualizar(ADMIN, 2, { ativo: true })).ativo).toBe(true)
     expect((await falha(equipe.atualizar(ADMIN, 1, { ativo: false })))?.status).toBe(403)

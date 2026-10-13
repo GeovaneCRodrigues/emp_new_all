@@ -35,7 +35,7 @@ describe('permissões', () => {
 describe('cadastro e %', () => {
   it('% definido à mão fica manual; WhatsApp é normalizado; nível Bronze', async () => {
     const i = await api.criar(ADMIN, { nome: '  Roberto   Silva ', whatsapp: '(11) 98812-4410', pct: 0.5 })
-    expect(i).toMatchObject({ nome: 'Roberto Silva', whatsapp: '11988124410', pct: 0.5, pctManual: true, ativo: true, operacoes: 0 })
+    expect(i).toMatchObject({ nome: 'ROBERTO SILVA', whatsapp: '11988124410', pct: 0.5, pctManual: true, ativo: true, operacoes: 0 })
     expect(i.nivel.nome).toBe('Bronze')
     expect(i.faltamParaProximo).toBe(3)
   })

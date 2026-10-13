@@ -5,7 +5,7 @@ import { ErroApi, type ClienteApi } from '@/api/clientes'
 import type { PropostaApi, TipoProposta } from '@/api/propostas'
 import { estoqueApi, propostasApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
-import { mascaraFone } from '@/domain/documentos'
+import { exibirFone } from '@/domain/documentos'
 import { fmt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
 import Seg from './Seg.vue'
@@ -78,7 +78,7 @@ async function enviar() {
   <Sheet :aberto="aberto" @fechar="emit('fechar')">
     <template v-if="cliente">
       <h3>Mandar proposta</h3>
-      <div class="small" style="margin-top: 2px">{{ cliente.nome }} · {{ mascaraFone(cliente.fone) }}</div>
+      <div class="small" style="margin-top: 2px">{{ cliente.nome }} · {{ exibirFone(cliente.fone) }}</div>
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="enviar">
         <div class="aviso">É só a intenção: a loja analisa e cadastra a venda ou o empréstimo no seu nome.</div>
         <div class="field"><label>O que ele quer?</label><Seg v-model="tipo" :itens="TIPOS" /></div>

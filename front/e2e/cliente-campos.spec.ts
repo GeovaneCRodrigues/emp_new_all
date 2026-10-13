@@ -1,0 +1,45 @@
+import { expect, test } from '@playwright/test'
+import { entrar, navegar, verComo } from './helpers'
+
+test.describe('e-mail e observações do cliente (só do administrador)', () => {
+  test('o admin grava na ficha e vê de volta; o vendedor não tem esses campos', async ({ page }) => {
+    await entrar(page)
+    await navegar(page, '/clientes')
+    await page.locator('.li').first().click()
+    await page.getByRole('button', { name: 'Editar' }).click()
+    await page.fill('#cEmail', 'sem-arroba')
+    await page.getByRole('button', { name: 'Salvar alterações' }).click()
+    await expect(page.getByText('E-mail inválido')).toBeVisible()
+    await page.fill('#cEmail', 'maria@exemplo.com')
+    await page.fill('#cObs', 'Cliente antigo, paga sempre no dia 10')
+    await page.getByRole('button', { name: 'Salvar alterações' }).click()
+    await expect(page.getByRole('heading', { name: 'Editar cliente' })).toHaveCount(0)
+    await page.locator('.li').first().click()
+    await page.getByRole('button', { name: 'Editar' }).click()
+    await expect(page.locator('#cEmail')).toHaveValue('maria@exemplo.com')
+    await expect(page.locator('#cObs')).toHaveValue('Cliente antigo, paga sempre no dia 10')
+    await page.keyboard.press('Escape')
+    await verComo(page, 'Vendedor')
+    await navegar(page, '/clientes')
+    await page.locator('.li').first().click()
+    await page.getByRole('button', { name: 'Editar' }).click()
+    await expect(page.locator('#cEmail')).toHaveCount(0)
+    await expect(page.locator('#cObs')).toHaveCount(0)
+  })
+})
+
+test.describe('cadastro em letras maiúsculas', () => {
+  test('o campo já mostra maiúsculo enquanto digita e o cadastro fica salvo assim (nome e endereço)', async ({ page }) => {
+    await entrar(page)
+    await navegar(page, '/clientes')
+    await page.getByRole('button', { name: 'Cliente', exact: true }).click()
+    await page.fill('#cNome', '  josé da conceição  ')
+    await page.fill('#cFone', '11981112233')
+    await page.fill('#cEnd', 'rua são joão, 5')
+    expect(await page.locator('#cNome').evaluate((el) => getComputedStyle(el).textTransform)).toBe('uppercase')
+    await page.getByRole('button', { name: 'Cadastrar cliente' }).click()
+    await expect(page.locator('.li', { hasText: 'JOSÉ DA CONCEIÇÃO' })).toHaveCount(1)
+    await page.locator('.li', { hasText: 'JOSÉ DA CONCEIÇÃO' }).click()
+    await expect(page.getByRole('dialog')).toContainText('RUA SÃO JOÃO, 5')
+  })
+})

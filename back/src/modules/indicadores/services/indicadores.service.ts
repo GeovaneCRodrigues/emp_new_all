@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import { normalizarFone } from '../../../shared/documentos.js'
+import { maiusculas } from '../../../shared/texto.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { hashSenha } from '../../auth/services/password.js'
@@ -80,7 +81,7 @@ export function createIndicadoresService(repo: IndicadoresRepository, auditoria:
     if (!parcial || 'nome' in e) {
       if (typeof e.nome !== 'string' || e.nome.trim().length < 2) throw requisicaoInvalida('Informe o nome do indicador (ao menos 2 letras)')
       if (e.nome.trim().length > 160) throw requisicaoInvalida('nome pode ter no máximo 160 caracteres')
-      d.nome = e.nome.trim().replace(/\s+/g, ' ')
+      d.nome = maiusculas(e.nome)
     }
     const zap = opcional(e, 'whatsapp', 30)
     if (zap !== undefined) {

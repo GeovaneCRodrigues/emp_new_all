@@ -1,7 +1,7 @@
 import { criarSeed } from '@/data/seed'
 import { normalizarFone } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
-import { arred2 } from '@/domain/format'
+import { arred2, maiusculas } from '@/domain/format'
 import { falta } from '@/domain/recebimento'
 import { problemaDoAcordo } from '@/domain/acordo'
 import { nomeEmprestimo } from '@/domain/emprestimo'
@@ -320,7 +320,7 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       let fone: string | null = null
       if (e.fone) { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') }
       if (usuarios.some((u) => u.email === email)) throw new ErroApi(409, 'Já existe um usuário com esse e-mail', 'EMAIL_EM_USO')
-      const u: Usuario = { id: ++proximoId, nome: e.nome.trim().replace(/\s+/g, ' '), email, perfil: e.perfil, fone, ativo: true }
+      const u: Usuario = { id: ++proximoId, nome: maiusculas(e.nome), email, perfil: e.perfil, fone, ativo: true }
       usuarios.push(u)
       // no modo demonstração a senha é só para ver como fica; o login falso não a reconhece
       const bytes = crypto.getRandomValues(new Uint8Array(10))
@@ -337,7 +337,7 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       if ('fone' in e) { if (!e.fone) fone = null; else { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') } }
       if ('ativo' in e && typeof e.ativo !== 'boolean') throw erro('ativo deve ser verdadeiro ou falso')
       if (e.ativo === false && id === s.usuarioId) throw erro('Você não pode desativar o seu próprio acesso')
-      if ('nome' in e) u.nome = e.nome!.trim().replace(/\s+/g, ' ')
+      if ('nome' in e) u.nome = maiusculas(e.nome!)
       if (fone !== undefined) u.fone = fone
       if (typeof e.ativo === 'boolean') u.ativo = e.ativo
       return pessoa(u)

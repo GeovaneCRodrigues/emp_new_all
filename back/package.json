@@ -14,7 +14,8 @@
     "test": "vitest run",
     "migrate": "tsx node_modules/.bin/knex migrate:latest --knexfile knexfile.ts",
     "migrate:rollback": "tsx node_modules/.bin/knex migrate:rollback --knexfile knexfile.ts",
-    "create-admin": "tsx src/scripts/create-admin.ts"
+    "create-admin": "tsx src/scripts/create-admin.ts",
+    "migrar:legado": "tsx src/migracao/cli.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.1",
@@ -31,6 +32,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.23.1",
+    "mysql2": "^3.24.5",
     "tsx": "^4.23.15",
     "typescript": "5.9",
     "vitest": "^4.1.11"

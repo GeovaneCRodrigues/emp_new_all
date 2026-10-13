@@ -49,7 +49,7 @@ const linkWhatsApp = computed(() => {
     <div class="acts">
       <template v-if="recebida && c.ultimaTransacaoId"><button class="btn b-out b-sm" @click="$emit('recibo', c.ultimaTransacaoId)">Recibo</button></template>
       <template v-else-if="aberta">
-        <a class="wa" :href="linkWhatsApp" target="_blank" rel="noopener" aria-label="Cobrar no WhatsApp"><Icon name="message-circle" small /></a>
+        <a v-if="c.cliente.fone" class="wa" :href="linkWhatsApp" target="_blank" rel="noopener" aria-label="Cobrar no WhatsApp"><Icon name="message-circle" small /></a>
         <template v-if="indicador">
           <span v-if="c.baixaPendente" class="chip c-warn" data-aguardando>esperando a loja</span>
           <button v-else class="btn b-ok b-sm" data-avisar @click="$emit('avisar', c)">Recebi</button>

@@ -1,5 +1,6 @@
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import { cpfValido, normalizarFone, soDigitos } from '../../../shared/documentos.js'
+import { maiusculas } from '../../../shared/texto.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { ClientesRepository } from '../models/repository.js'
@@ -46,7 +47,7 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
     if (!parcial || 'nome' in e) {
       if (typeof e.nome !== 'string' || e.nome.trim().length < 2) throw requisicaoInvalida('Informe o nome do cliente (ao menos 2 letras)')
       if (e.nome.trim().length > 160) throw requisicaoInvalida('nome pode ter no máximo 160 caracteres')
-      d.nome = e.nome.trim().replace(/\s+/g, ' ')
+      d.nome = maiusculas(e.nome)
     }
     if (!parcial || 'fone' in e) {
       const fone = typeof e.fone === 'string' ? normalizarFone(e.fone) : null
@@ -62,12 +63,21 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
       }
     } else if (!parcial) d.cpf = null
 
-    for (const [campo, max] of [['rg', 20], ['endereco', 500], ['origem', 60]] as const) {
+    for (const [campo, max] of [['rg', 20], ['endereco', 500], ['origem', 60], ['email', 255], ['observacoes', 2000]] as const) {
       const v = opcional(e, campo, max)
-      if (v !== undefined) d[campo] = v
+      // nomes e endereços em maiúsculas; e-mail e observações ficam como foram digitados
+      if (v !== undefined) d[campo] = typeof v === 'string' && (campo === 'endereco' || campo === 'rg') ? maiusculas(v) : v
       else if (!parcial) d[campo] = null
     }
+    if (typeof d.email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) throw requisicaoInvalida('E-mail inválido')
     return d
+  }
+
+  /** E-mail e observações são só do administrador: de quem não é, nem entram na conta. */
+  const soAdmin = (s: Sessao, e: EntradaCliente): EntradaCliente => {
+    if (s.perfil === 'ADMIN') return e
+    const { email: _email, observacoes: _obs, ...resto } = e
+    return resto
   }
 
   /** O nome do outro cliente só aparece se ele está no escopo de quem pediu; senão o aviso é genérico (não vaza clientes de outra carteira). */
@@ -106,6 +116,7 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
 
     async criar(s, entrada) {
       if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR' && s.perfil !== 'INDICADOR') throw semPermissao('Você não pode cadastrar clientes')
+      entrada = soAdmin(s, entrada)
       const d = validar(entrada, false) as DadosCliente
       d.indicadorId = null
       if (s.perfil === 'INDICADOR') {
@@ -129,6 +140,7 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
       const antes = await repo.buscar(id, escopoDe(s))
       if (!antes) throw naoEncontrado('Cliente não encontrado')
 
+      entrada = soAdmin(s, entrada)
       const d = validar(entrada, true)
       if ('responsavelId' in entrada) {
         if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador muda o responsável')

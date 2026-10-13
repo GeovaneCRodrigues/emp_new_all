@@ -10,7 +10,7 @@ import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import Seg from '@/components/Seg.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
-import { mascaraFone } from '@/domain/documentos'
+import { exibirFone } from '@/domain/documentos'
 import { fmt, fmt0, iniciais } from '@/domain/format'
 
 /** Os clientes do indicador (os que ele cadastrou e os que têm venda ou empréstimo com ele), com o que cada um deve e a parte dele. */
@@ -104,7 +104,7 @@ const propor = (c: ClienteApi) => { ficha.value = null; fluxo.value?.abrir({ cli
 
   <Sheet :aberto="ficha !== null" @fechar="ficha = null">
     <template v-if="ficha">
-      <div class="row" style="gap: 12px"><span class="ini">{{ iniciais(ficha.nome) }}</span><div style="flex: 1; min-width: 0"><h3>{{ ficha.nome }}</h3><div class="small">{{ mascaraFone(ficha.fone) }}</div></div></div>
+      <div class="row" style="gap: 12px"><span class="ini">{{ iniciais(ficha.nome) }}</span><div style="flex: 1; min-width: 0"><h3>{{ ficha.nome }}</h3><div class="small">{{ exibirFone(ficha.fone) }}</div></div></div>
       <div class="dl card pad" style="margin-top: 14px">
         <div><div class="lbl">Ainda deve</div><div class="val num">{{ fmt(linhaDe(ficha)?.deve ?? 0) }}</div></div>
         <div><div class="lbl">Sua parte</div><div class="val num">{{ fmt(linhaDe(ficha)?.suaParte ?? 0) }}</div></div>
@@ -116,7 +116,7 @@ const propor = (c: ClienteApi) => { ficha.value = null; fluxo.value?.abrir({ cli
         </div>
       </div>
       <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
-        <a class="btn b-out" style="flex: 1" :href="`https://wa.me/55${ficha.fone}`" target="_blank" rel="noopener"><Icon name="message-circle" small />WhatsApp</a>
+        <a v-if="ficha.fone" class="btn b-out" style="flex: 1" :href="`https://wa.me/55${ficha.fone}`" target="_blank" rel="noopener"><Icon name="message-circle" small />WhatsApp</a>
         <button class="btn b-pri" style="flex: 1" data-propor @click="propor(ficha)">Mandar proposta</button>
       </div>
     </template>

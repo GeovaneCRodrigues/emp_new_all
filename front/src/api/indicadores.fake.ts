@@ -1,3 +1,4 @@
+import { maiusculas } from '@/domain/format'
 import { criarSeed } from '@/data/seed'
 import { normalizarFone } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
@@ -50,7 +51,7 @@ export function criarIndicadoresFake(): IndicadoresFake {
     const d: Partial<Registro> = {}
     if (!parcial || 'nome' in e) {
       if (typeof e.nome !== 'string' || e.nome.trim().length < 2) throw new ErroApi(400, 'Informe o nome do indicador (ao menos 2 letras)')
-      d.nome = e.nome.trim().replace(/\s+/g, ' ')
+      d.nome = maiusculas(e.nome)
     }
     if ('whatsapp' in e) {
       const bruto = (e.whatsapp ?? '').trim()

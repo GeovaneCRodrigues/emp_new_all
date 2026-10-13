@@ -82,7 +82,7 @@ describe.skipIf(!db)('indicadores (Postgres de verdade)', () => {
       const r = await req('POST', '/api/indicadores', 'admin', { nome: '  Roberto   Indicações ', whatsapp: '(11) 98812-4410', chavePix: 'roberto@pix.com', pct: 0.5 })
       expect(r.statusCode).toBe(201)
       const i = r.json()
-      expect(i).toMatchObject({ nome: 'Roberto Indicações', whatsapp: '11988124410', chavePix: 'roberto@pix.com', pct: 0.5, pctManual: true, ativo: true, operacoes: 0, temAcesso: false })
+      expect(i).toMatchObject({ nome: 'ROBERTO INDICAÇÕES', whatsapp: '11988124410', chavePix: 'roberto@pix.com', pct: 0.5, pctManual: true, ativo: true, operacoes: 0, temAcesso: false })
       expect(i.nivel).toMatchObject({ nome: 'Bronze' })
       expect(i.proximoNivel).toMatchObject({ nome: 'Prata' })
       expect(i.faltamParaProximo).toBe(3)
@@ -141,7 +141,7 @@ describe.skipIf(!db)('indicadores (Postgres de verdade)', () => {
   describe('edição do %', () => {
     it('mexer só no nome não toca no %', async () => {
       const r = await req('PATCH', `/api/indicadores/${id.roberto}`, 'admin', { nome: 'Roberto Silva' })
-      expect(r.json()).toMatchObject({ nome: 'Roberto Silva', pct: 0.5, pctManual: true })
+      expect(r.json()).toMatchObject({ nome: 'ROBERTO SILVA', pct: 0.5, pctManual: true })
     })
 
     it('definir o % à mão torna manual', async () => {

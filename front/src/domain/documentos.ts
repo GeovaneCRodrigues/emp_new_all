@@ -37,6 +37,9 @@ export function mascaraFone(v: string): string {
   return `(${d.slice(0, 2)}) ${cauda}`
 }
 
+/** O telefone para mostrar: formatado, ou "sem telefone" (clientes trazidos do sistema antigo muitas vezes não têm). */
+export const exibirFone = (v: string | null | undefined): string => (v && soDigitos(v) ? mascaraFone(v) : 'sem telefone')
+
 /** IMEI: 15 dígitos com o dígito verificador (Luhn) certo. Aceita com ou sem separadores. */
 export function imeiValido(valor: string): boolean {
   const d = soDigitos(valor)
