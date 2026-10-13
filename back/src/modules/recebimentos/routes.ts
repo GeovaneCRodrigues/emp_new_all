@@ -12,6 +12,8 @@ export function recebimentosRoutes(service: RecebimentosService, auth: preHandle
     app.get('/vendas/:id/pagamentos', p, c.pagamentos('VENDA'))
     app.post('/emprestimos/:id/recebimentos', { ...p, ...limite }, c.registrar('EMPRESTIMO'))
     app.get('/emprestimos/:id/pagamentos', p, c.pagamentos('EMPRESTIMO'))
+    app.patch('/vendas/:id/parcelas/:numero/vencimento', { ...p, ...limite }, c.remarcar('VENDA'))
+    app.patch('/emprestimos/:id/parcelas/:numero/vencimento', { ...p, ...limite }, c.remarcar('EMPRESTIMO'))
     app.get('/recibos/:id', p, c.recibo)
     app.post('/recebimentos/:id/desfazer', { ...p, ...limite }, c.desfazer)
     app.get('/cobrancas', p, c.cobrancas)

@@ -9,6 +9,7 @@ import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
 import CampoBusca from '@/components/CampoBusca.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
+import RemarcarForm from '@/components/RemarcarForm.vue'
 import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
 import Seg from '@/components/Seg.vue'
@@ -66,6 +67,7 @@ async function abrirFicha(c: CobrancaApi) {
   if (c.tipo === 'VENDA') ficha.value = await vendasApi.obter(sessao.value, c.operacaoId).catch(() => null)
   else fichaEmp.value = await emprestimosApi.obter(sessao.value, c.operacaoId).catch(() => null)
 }
+const remarcar = ref<InstanceType<typeof RemarcarForm> | null>(null)
 const receber = (c: CobrancaApi) => fluxo.value?.iniciar(c.tipo, c.operacaoId, c.parcela)
 /** Depois de um recebimento: recarrega a lista e as fichas abertas. */
 async function aposMudar() {
@@ -87,13 +89,14 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
       <b class="num" data-testid="cobrancas-total" style="font-size: 16px" :style="{ color: aba === 'atrasadas' ? 'var(--bad)' : aba === 'recebidas' ? 'var(--ok)' : 'var(--strong)' }">{{ fmt(valorTotal) }}</b>
     </div>
     <div class="list">
-      <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" />
+      <CobrancaLinha v-for="c in itens" :key="c.tipo + c.operacaoId + '-' + c.parcela" :c="c" :recebida="aba === 'recebidas'" editavel @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @editar="remarcar?.abrir($event)" />
       <div v-if="!itens.length && !carregando && !erro" class="empty">{{ busca.trim() ? 'Ninguém com esse nome nesta lista.' : 'Nada aqui.' }}</div>
       <div v-if="carregando && !itens.length" class="empty">Carregando…</div>
     </div>
   </div>
   <RestanteDaLista :mostrados="itens.length" :total="total" :carregando="carregando" :parado="!!erro" />
 
+  <RemarcarForm ref="remarcar" @feito="aposMudar" />
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
   <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />

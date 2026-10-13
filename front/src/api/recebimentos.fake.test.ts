@@ -354,3 +354,34 @@ describe('cronograma (o calendário do mês)', () => {
     expect((await falha(cron(ADMIN, { busca: 'x'.repeat(81) })))?.status).toBe(400)
   })
 })
+
+describe('remarcar o vencimento (botão Editar)', () => {
+  const nova = '2026-10-20'
+  const venc = async (v: number, n: number) => (await parcelas(v)).find((p) => p.numero === n)!
+  it('muda a data, guarda a original, e voltar para ela tira a marca', async () => {
+    const v = await venda()
+    const antes = (await venc(v, 1)).vencimento
+    expect(await api.remarcar(ADMIN, 'VENDA', v, 1, { vencimento: nova })).toEqual({ parcela: 1, vencimento: nova, vencimentoOriginal: antes })
+    expect(await api.remarcar(ADMIN, 'VENDA', v, 1, { vencimento: '2026-10-25' })).toMatchObject({ vencimentoOriginal: antes })
+    expect(await api.remarcar(ADMIN, 'VENDA', v, 1, { vencimento: antes < '2026-10-08' ? '2026-10-08' : antes })).toBeTruthy()
+  })
+  it('só o administrador', async () => {
+    const v = await venda()
+    for (const s of [COBR, VEND, IND]) expect((await falha(api.remarcar(s, 'VENDA', v, 1, { vencimento: nova })))?.status).toBe(403)
+  })
+  it('validações: data passada, formato, mais de um ano, mesma data, parcela e venda inexistentes', async () => {
+    const v = await venda()
+    const atual = (await venc(v, 1)).vencimento
+    for (const vencimento of ['', '20/10/2026', '2026-02-30', '2026-10-07', '2027-12-31', atual]) expect((await falha(api.remarcar(ADMIN, 'VENDA', v, 1, { vencimento })))?.status, vencimento).toBe(400)
+    expect((await falha(api.remarcar(ADMIN, 'VENDA', v, 99, { vencimento: nova })))?.status).toBe(404)
+    expect((await falha(api.remarcar(ADMIN, 'VENDA', 999999, 1, { vencimento: nova })))?.status).toBe(404)
+  })
+  it('parcela paga → 409; a atrasada que ganha data futura sai das atrasadas', async () => {
+    const v = await venda()
+    await receber(ADMIN, v, { parcela: 1, valor: 840 })
+    expect((await falha(api.remarcar(ADMIN, 'VENDA', v, 1, { vencimento: nova })))?.codigo).toBe('PARCELA_PAGA')
+    const atrasou = async () => (await api.cobrancas(ADMIN, { aba: 'atrasadas', limite: 100 })).itens.some((c) => c.operacaoId === v && c.parcela === 2)
+    await api.remarcar(ADMIN, 'VENDA', v, 2, { vencimento: '2026-12-30' })
+    expect(await atrasou()).toBe(false)
+  })
+})
