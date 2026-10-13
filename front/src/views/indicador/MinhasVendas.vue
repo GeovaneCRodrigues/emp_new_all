@@ -6,6 +6,7 @@ import { todasAsPaginas } from '@/api/paginar'
 import { emprestimosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
+import AndamentoOperacao from '@/components/AndamentoOperacao.vue'
 import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
@@ -21,6 +22,8 @@ const aba = ref('iphone')
 const carregando = ref(true)
 const erro = ref('')
 const fluxo = ref<InstanceType<typeof IndicarFluxo> | null>(null)
+/** A operação aberta para acompanhar o andamento. */
+const aberta = ref<VendaApi | EmprestimoApi | null>(null)
 
 onMounted(async () => {
   try {
@@ -54,7 +57,7 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
 
 <template>
   <div class="row" style="justify-content: space-between; gap: 12px">
-    <p class="small" style="margin: 0; flex: 1">O que você trouxe para a loja. Quem cadastra a venda é a loja.</p>
+    <p class="small" style="margin: 0; flex: 1">O que você trouxe para a loja. Toque numa operação para acompanhar o andamento.</p>
     <button class="btn b-pri b-sm" @click="fluxo?.abrir()"><Icon name="plus" small />Indicar cliente</button>
   </div>
   <Abas v-model="aba" :itens="abas" />
@@ -66,7 +69,10 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
   </div>
   <CampoBusca v-if="lista.length" v-model="busca" placeholder="Buscar cliente ou aparelho" style="margin-top: 14px" />
   <div class="fones" style="margin-top: 14px" data-testid="minhas-vendas">
-    <div v-for="o in visiveis" :key="o.id" class="card pad" style="display: flex; flex-direction: column; gap: 10px" :data-venda="o.id">
+    <div
+      v-for="o in visiveis" :key="o.id" class="card pad" style="display: flex; flex-direction: column; gap: 10px; cursor: pointer" :data-venda="o.id" role="button" tabindex="0"
+      :aria-label="`Ver o andamento de ${o.cliente.nome}`" @click="aberta = o" @keydown.enter.prevent="aberta = o" @keydown.space.prevent="aberta = o"
+    >
       <div class="row" style="justify-content: space-between; gap: 8px">
         <div style="min-width: 0"><div class="val">{{ o.cliente.nome }}</div><div class="small">{{ 'aparelho' in o ? `${o.aparelho.modelo} ${gbTxt(o.aparelho.gb)} · ${o.aparelho.cor}` : nomeEmp(o) }}</div></div>
         <span class="chip" :class="chip(o)" data-status>{{ rotulo(o) }}</span>
@@ -78,5 +84,6 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
     <div v-if="lista.length && !visiveis.length" class="card empty">Nada encontrado nesta lista.</div>
     <div v-if="!lista.length && !carregando && !erro" class="card empty">{{ aba === 'iphone' ? 'Nenhuma venda sua ainda.' : 'Nenhum empréstimo seu ainda.' }}</div>
   </div>
+  <AndamentoOperacao :operacao="aberta" @fechar="aberta = null" />
   <IndicarFluxo ref="fluxo" />
 </template>

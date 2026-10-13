@@ -95,6 +95,54 @@ test.describe('portal do indicador (demonstração)', () => {
     for (const proibido of ['custo', 'lucro', 'capital', 'margem']) expect(texto, proibido).not.toContain(proibido)
   })
 
+  for (const [aba, rotulo] of [['iPhones', 'iPhone'], ['Empréstimos', 'empréstimo']] as const) {
+    test(`Operações: tocar num ${rotulo} abre o andamento, parcela a parcela e sem nada da loja`, async ({ page }) => {
+      await ir(page, 'Operações')
+      if (aba === 'Empréstimos') await page.getByRole('button', { name: /^Empréstimos/ }).click()
+      const card = page.getByTestId('minhas-vendas').locator('[data-venda]').first()
+      await expect(card).toBeVisible()
+      const nParcelas = Number(/\d+\/(\d+) parcelas/.exec(await card.innerText())?.[1] ?? '0')
+      expect(nParcelas).toBeGreaterThan(0)
+      const nome = (await card.locator('.val').first().innerText()).trim()
+      const recebido = (await card.locator('.num').first().innerText()).trim() // "R$ 1.200 de R$ 3.000"
+      await card.click()
+      const folha = page.locator('[role="dialog"]')
+      await expect(folha).toBeVisible()
+      await expect(folha.locator('[data-andamento-titulo]')).toBeVisible()
+      await expect(folha).toContainText(nome)
+      await expect(folha.locator('[data-andamento-status]')).toHaveText(/em dia|atrasada|quitada|retomada|cancelada/)
+      await expect(folha.locator('[data-andamento-sua-parte]')).toContainText('sua parte R$')
+      await expect(folha.locator('[data-andamento-pagas]')).toContainText(`/${nParcelas} parcelas`)
+      expect(recebido).toMatch(/R\$/)
+      // a lista tem uma linha por parcela (a entrada, quando há, vem a mais)
+      expect(await folha.locator('[data-parcela]:not([data-parcela="entrada"])').count()).toBe(nParcelas)
+      await expect(folha.locator('[data-parcela]').first()).toBeVisible()
+      // só acompanhamento: nada de custo/lucro/capital da loja nem botão de receber
+      const texto = (await folha.innerText()).toLowerCase()
+      for (const proibido of ['custo', 'lucro', 'capital', 'margem', 'motivo']) expect(texto, proibido).not.toContain(proibido)
+      await expect(folha.getByRole('button', { name: /receb/i })).toHaveCount(0)
+      await page.keyboard.press('Escape')
+      await expect(folha).toHaveCount(0)
+    })
+  }
+
+  test('Operações: o andamento também abre pelo teclado (Enter) e mostra as parcelas atrasadas em vermelho', async ({ page }) => {
+    await ir(page, 'Operações')
+    const cards = page.getByTestId('minhas-vendas').locator('[data-venda]')
+    await expect(cards.first()).toBeVisible()
+    const comAtraso = cards.filter({ hasText: /atrasadas?/ }).first()
+    const alvo = (await comAtraso.count()) ? comAtraso : cards.first()
+    await alvo.focus(); await page.keyboard.press('Enter')
+    const folha = page.locator('[role="dialog"]')
+    await expect(folha).toBeVisible()
+    if (await comAtraso.count()) {
+      await expect(folha.locator('[data-estado="atrasada"]').first()).toBeVisible()
+      await expect(folha.locator('[data-andamento-atrasado]')).toContainText('R$')
+      await expect(folha.locator('[data-andamento-proxima]')).toContainText(/venceu/)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  })
+
   test('Repasse: pra receber, já recebi e vai liberar; por cliente sem o capital da loja', async ({ page }) => {
     await ir(page, 'Repasse')
     await expect(page.locator('h1')).toHaveText('Repasse')
