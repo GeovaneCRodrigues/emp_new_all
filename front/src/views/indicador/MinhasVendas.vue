@@ -9,7 +9,7 @@ import Abas from '@/components/Abas.vue'
 import Icon from '@/components/Icon.vue'
 import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { useApp } from '@/composables/useApp'
-import { fmt, fmt0 } from '@/domain/format'
+import { fmt, fmt0, gbTxt } from '@/domain/format'
 
 /** As vendas e empréstimos que o indicador trouxe: só leitura (quem cadastra é a loja). Mostra a parte dele, nunca custo nem lucro. */
 const { sessao } = useApp()
@@ -62,7 +62,7 @@ const nomeEmp = (e: EmprestimoApi) => (e.modalidade === 'JUROS' ? 'Empréstimo s
   <div class="fones" style="margin-top: 14px" data-testid="minhas-vendas">
     <div v-for="o in lista" :key="o.id" class="card pad" style="display: flex; flex-direction: column; gap: 10px" :data-venda="o.id">
       <div class="row" style="justify-content: space-between; gap: 8px">
-        <div style="min-width: 0"><div class="val">{{ o.cliente.nome }}</div><div class="small">{{ 'aparelho' in o ? `${o.aparelho.modelo} ${o.aparelho.gb} GB · ${o.aparelho.cor}` : nomeEmp(o) }}</div></div>
+        <div style="min-width: 0"><div class="val">{{ o.cliente.nome }}</div><div class="small">{{ 'aparelho' in o ? `${o.aparelho.modelo} ${gbTxt(o.aparelho.gb)} · ${o.aparelho.cor}` : nomeEmp(o) }}</div></div>
         <span class="chip" :class="chip(o)" data-status>{{ rotulo(o) }}</span>
       </div>
       <div class="bar"><i :style="{ width: barra(o) + '%' }"></i></div>

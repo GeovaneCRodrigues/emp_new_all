@@ -28,6 +28,9 @@ export const iniciais = (nome: string) =>
 /** Cadastro padronizado: sem espaços sobrando e em LETRAS MAIÚSCULAS (nomes e endereços). */
 export const maiusculas = (v: string): string => v.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR')
 
+/** Capacidade do aparelho para mostrar; 0 = não informada (aparelhos migrados do sistema antigo), então some. */
+export const gbTxt = (gb: number): string => (gb > 0 ? `${gb} GB` : '')
+
 export const arred2 = (v: number) => Math.round(v * 100) / 100 + 0 // "+ 0" troca -0 por 0
 
 /** Arredonda para cima no centavo, ignorando ruído de ponto flutuante (1200,0000000001 → 1200,00). */

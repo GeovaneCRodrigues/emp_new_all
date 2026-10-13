@@ -6,7 +6,7 @@ import type { PropostaApi, TipoProposta } from '@/api/propostas'
 import { estoqueApi, propostasApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { exibirFone } from '@/domain/documentos'
-import { fmt } from '@/domain/format'
+import { fmt, gbTxt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
 import Seg from './Seg.vue'
 import Sheet from './Sheet.vue'
@@ -38,13 +38,13 @@ watch(() => props.aberto, async (aberto) => {
   if (!aparelhos.value.length) aparelhos.value = (await estoqueApi.listar(sessao.value, { estado: 'DISPONIVEL', limite: 100 }).catch(() => null))?.itens ?? []
   // veio de um aparelho (Estoque, Simulador): a lista só chegou agora, então o texto é preenchido aqui
   const a = aparelhos.value.find((x) => String(x.id) === aparelhoId.value)
-  if (a && !interesse.value.trim()) interesse.value = `${a.modelo} ${a.gb} GB ${a.cor}`
+  if (a && !interesse.value.trim()) interesse.value = `${a.modelo} ${gbTxt(a.gb)} ${a.cor}`
 }, { immediate: true })
 
 // escolher do estoque preenche o texto (que ainda dá para ajustar)
 watch(aparelhoId, (id) => {
   const a = aparelhos.value.find((x) => String(x.id) === id)
-  if (a) interesse.value = `${a.modelo} ${a.gb} GB ${a.cor}`
+  if (a) interesse.value = `${a.modelo} ${gbTxt(a.gb)} ${a.cor}`
 })
 watch(tipo, (t) => { if (t === 'EMPRESTIMO') aparelhoId.value = '' })
 
@@ -85,7 +85,7 @@ async function enviar() {
         <template v-if="tipo === 'VENDA'">
           <div class="field">
             <label for="pAparelho">Escolha do estoque (opcional)</label>
-            <div class="inp"><select id="pAparelho" v-model="aparelhoId"><option value="">Outro aparelho / ainda não sei</option><option v-for="a in aparelhos" :key="a.id" :value="String(a.id)">{{ a.modelo }} {{ a.gb }} GB {{ a.cor }} · {{ fmt(a.preco) }}</option></select></div>
+            <div class="inp"><select id="pAparelho" v-model="aparelhoId"><option value="">Outro aparelho / ainda não sei</option><option v-for="a in aparelhos" :key="a.id" :value="String(a.id)">{{ a.modelo }} {{ gbTxt(a.gb) }} {{ a.cor }} · {{ fmt(a.preco) }}</option></select></div>
           </div>
           <div class="field"><label for="pInteresse">Qual aparelho? *</label><div class="inp"><input id="pInteresse" v-model="interesse" maxlength="160" placeholder="Ex.: iPhone 14 128 GB preto" autocomplete="off" /></div></div>
         </template>
