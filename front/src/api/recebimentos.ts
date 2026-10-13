@@ -76,6 +76,16 @@ export interface ListaCobrancasApi {
   contagens: { atrasadas: number; hoje: number; proximas: number }
 }
 
+/** O calendário do mês: as parcelas (pagas e em aberto) que vencem nele. */
+export interface CronogramaApi {
+  /** AAAA-MM */
+  mes: string
+  hoje: string
+  itens: CobrancaApi[]
+  /** o mês passou do limite de linhas e a lista veio cortada */
+  cortado: boolean
+}
+
 export interface EntradaRecebimento {
   parcela: number
   valor: number
@@ -94,5 +104,6 @@ export interface RecebimentosApi {
   recibo(s: Sessao, id: number): Promise<ReciboApi>
   pagamentos(s: Sessao, alvo: AlvoApi, operacaoId: number): Promise<PagamentoApi[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
+  cronograma(s: Sessao, q: { mes?: string; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string }): Promise<CronogramaApi>
   cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
 }

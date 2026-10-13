@@ -2,7 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify'
 import { naoAutenticado, requisicaoInvalida } from '../../../shared/errors.js'
 import type { Alvo } from '../models/types.js'
 import type { RecebimentosService } from '../services/recebimentos.service.js'
-import { cobrancasView, pagamentosView, registradoView, reciboView } from '../views/recebimentos.view.js'
+import { cobrancasView, cronogramaView, pagamentosView, registradoView, reciboView } from '../views/recebimentos.view.js'
 
 const sessaoOuErro = (req: FastifyRequest) => req.sessao ?? (() => { throw naoAutenticado() })()
 const numero = (v: unknown) => (typeof v === 'string' && v.trim() !== '' ? Number(v) : undefined)
@@ -21,6 +21,10 @@ export function createRecebimentosController(service: RecebimentosService) {
     pagamentos: (alvo: Alvo) => async (req: FastifyRequest) => pagamentosView(await service.pagamentos(sessaoOuErro(req), alvo, idDaRota(req))),
     async recibo(req: FastifyRequest) { return reciboView(await service.recibo(sessaoOuErro(req), idDaRota(req))) },
     async desfazer(req: FastifyRequest, reply: FastifyReply) { await service.desfazer(sessaoOuErro(req), idDaRota(req)); return reply.code(204).send() },
+    async cronograma(req: FastifyRequest) {
+      const q = req.query as Record<string, unknown>
+      return cronogramaView(await service.cronograma(sessaoOuErro(req), { mes: typeof q.mes === 'string' ? q.mes : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined }))
+    },
     async cobrancas(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
       return cobrancasView(await service.cobrancas(sessaoOuErro(req), { aba: typeof q.aba === 'string' ? q.aba : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined, pagina: numero(q.pagina), limite: numero(q.limite) }))

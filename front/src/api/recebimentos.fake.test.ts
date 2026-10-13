@@ -258,3 +258,56 @@ describe('cobranças', () => {
     expect((await api.cobrancas(ADMIN, { limite: 99999 })).limite).toBe(100)
   })
 })
+
+describe('cronograma (o calendário do mês)', () => {
+  const cron = (s: Sessao, q: Parameters<RecebimentosApi['cronograma']>[1] = {}) => api.cronograma(s, q)
+  const meses = (r: { itens: { vencimento: string }[] }) => new Set(r.itens.map((i) => i.vencimento.slice(0, 7)))
+
+  it('sem mês, usa o mês de hoje (outubro de 2026 na demonstração)', async () => {
+    const r = await cron(ADMIN)
+    expect(r.mes).toBe('2026-10'); expect(r.hoje).toBe('2026-10-08'); expect(r.cortado).toBe(false)
+    expect(r.itens.length).toBeGreaterThan(0); expect([...meses(r)]).toEqual(['2026-10'])
+  })
+  it('só as parcelas do mês pedido, em ordem de data, pagas e em aberto', async () => {
+    await venda() // 4 parcelas de 840: 10/11, 10/12, 10/01, 10/02
+    const nov = await cron(ADMIN, { mes: '2026-11' })
+    expect([...meses(nov)]).toEqual(['2026-11']); expect(nov.itens.some((i) => i.vencimento === '2026-11-10' && i.valor === 840)).toBe(true)
+    expect(nov.itens.map((i) => i.vencimento)).toEqual([...nov.itens.map((i) => i.vencimento)].sort())
+    const out = await cron(ADMIN, { mes: '2026-10' })
+    expect(out.itens.some((i) => i.vencimento === '2026-11-10')).toBe(false)
+  })
+  it('mostra o pago e o que falta: depois de receber, a parcela continua no mês com pago e falta certos', async () => {
+    const v = await venda()
+    await receber(ADMIN, v, { parcela: 1, valor: 840 })
+    const it = (await cron(ADMIN, { mes: '2026-11' })).itens.find((i) => i.operacaoId === v && i.parcela === 1)!
+    expect(it).toMatchObject({ valor: 840, pago: 840, falta: 0, atrasoDias: 0 })
+  })
+  it('o atraso só conta o que está aberto e já venceu', async () => {
+    const r = await cron(ADMIN, { mes: '2026-10' })
+    for (const i of r.itens) expect(i.atrasoDias > 0).toBe(i.falta > 0.009 && i.vencimento < '2026-10-08')
+  })
+  it('filtra por tipo e pela busca (sem acento, sem maiúscula)', async () => {
+    expect((await cron(ADMIN, { tipo: 'VENDA' })).itens.every((i) => i.tipo === 'VENDA')).toBe(true)
+    const todos = await cron(ADMIN)
+    const nome = todos.itens[0].cliente.nome
+    const parte = nome.split(' ')[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const achou = await cron(ADMIN, { busca: parte.toUpperCase() })
+    expect(achou.itens.length).toBeGreaterThan(0); expect(achou.itens.every((i) => i.cliente.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(parte))).toBe(true)
+    expect((await cron(ADMIN, { busca: 'zzzz' })).itens).toEqual([])
+  })
+  it('cobrador vê só a carteira dele; o indicador, só as operações dele; vendedor 403', async () => {
+    const todas = (await cron(ADMIN)).itens.length
+    const cobr = await cron(COBR)
+    expect(cobr.itens.length).toBeLessThan(todas)
+    expect((await cron(COBR2)).itens).toEqual([])
+    const ind = await cron(IND)
+    expect(ind.itens.length).toBeLessThan(todas)
+    expect(JSON.stringify(ind)).not.toMatch(/custo|lucro|investido|capital/i)
+    expect((await falha(cron(VEND)))?.status).toBe(403)
+  })
+  it('valida o mês, o tipo e a busca', async () => {
+    for (const mes of ['2026-13', '2026-00', '26-10', 'outubro', '2026-10-01']) expect((await falha(cron(ADMIN, { mes })))?.status, mes).toBe(400)
+    expect((await falha(cron(ADMIN, { tipo: 'CARRO' as never })))?.status).toBe(400)
+    expect((await falha(cron(ADMIN, { busca: 'x'.repeat(81) })))?.status).toBe(400)
+  })
+})
