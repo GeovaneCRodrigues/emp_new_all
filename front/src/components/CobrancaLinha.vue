@@ -6,8 +6,8 @@ import { dmy, fmt, fmt0, iniciais } from '@/domain/format'
 import Icon from './Icon.vue'
 
 /** `indicador`: o Recebi dele não dá a baixa, só AVISA a loja (`avisar`); depois da aviso, a parcela fica "esperando a loja". */
-const props = defineProps<{ c: CobrancaApi; recebida?: boolean; indicador?: boolean }>()
-defineEmits<{ abrir: [c: CobrancaApi]; receber: [c: CobrancaApi]; avisar: [c: CobrancaApi]; recibo: [id: number] }>()
+const props = defineProps<{ c: CobrancaApi; recebida?: boolean; indicador?: boolean; /** o administrador pode mudar o vencimento (botão Editar) */ editavel?: boolean }>()
+defineEmits<{ abrir: [c: CobrancaApi]; receber: [c: CobrancaApi]; avisar: [c: CobrancaApi]; recibo: [id: number]; editar: [c: CobrancaApi] }>()
 const { hoje } = useApp()
 
 const aberta = computed(() => props.c.falta > 0.009)
@@ -50,6 +50,7 @@ const linkWhatsApp = computed(() => {
     <div class="acts">
       <template v-if="recebida && c.ultimaTransacaoId"><button class="btn b-out b-sm" @click="$emit('recibo', c.ultimaTransacaoId)">Recibo</button></template>
       <template v-else-if="aberta">
+        <button v-if="editavel && !indicador" class="btn b-out b-sm" data-editar aria-label="Editar o vencimento" title="Editar o vencimento" @click="$emit('editar', c)"><Icon name="pencil" small /></button>
         <a v-if="c.cliente.fone" class="wa" :href="linkWhatsApp" target="_blank" rel="noopener" aria-label="Cobrar no WhatsApp"><Icon name="message-circle" small /></a>
         <template v-if="indicador">
           <span v-if="c.baixaPendente" class="chip c-warn" data-aguardando>esperando a loja</span>

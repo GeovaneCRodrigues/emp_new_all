@@ -233,6 +233,25 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       }))
     },
 
+    async remarcar(s, alvo, operacaoId, numero, e) {
+      if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador muda o vencimento', 'SEM_PERMISSAO')
+      if (!Number.isInteger(numero) || numero < 1) throw new ErroApi(400, 'Parcela inválida')
+      const venc = e?.vencimento
+      if (typeof venc !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(venc) || new Date(venc + 'T12:00:00Z').toISOString().slice(0, 10) !== venc) throw new ErroApi(400, 'Informe a nova data de vencimento (AAAA-MM-DD)')
+      if (venc < hoje) throw new ErroApi(400, 'A nova data não pode ser antes de hoje')
+      if (venc > addDia(hoje, 366)) throw new ErroApi(400, 'A nova data não pode passar de um ano')
+      if (e.motivo !== undefined && e.motivo !== null && (typeof e.motivo !== 'string' || e.motivo.trim().length > 500)) throw new ErroApi(400, 'motivo: no máximo 500 letras')
+      const o = doEscopo(s, alvo, operacaoId)
+      if (o.status === 'RETOMADA' || o.status === 'CANCELADA') throw new ErroApi(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+      const p = o.parcelas.find((x) => x.numero === numero)
+      if (!p) throw new ErroApi(404, 'Parcela não encontrada', 'NAO_ENCONTRADO')
+      if (falta(p) <= 0.009) throw new ErroApi(409, 'Esta parcela já foi paga: não dá para mudar o vencimento', 'PARCELA_PAGA')
+      if (venc === p.vencimento) throw new ErroApi(400, 'A parcela já vence nesta data')
+      const original = p.vencimentoOriginal ?? p.vencimento
+      p.vencimentoOriginal = venc === original ? null : original
+      p.vencimento = venc
+      return { parcela: numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal }
+    },
     async desfazer(s, transacaoId) {
       permitido(s)
       const t = transacoes.find((x) => x.id === transacaoId)

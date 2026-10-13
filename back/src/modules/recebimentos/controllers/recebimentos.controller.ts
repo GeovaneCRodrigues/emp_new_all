@@ -21,6 +21,10 @@ export function createRecebimentosController(service: RecebimentosService) {
     pagamentos: (alvo: Alvo) => async (req: FastifyRequest) => pagamentosView(await service.pagamentos(sessaoOuErro(req), alvo, idDaRota(req))),
     async recibo(req: FastifyRequest) { return reciboView(await service.recibo(sessaoOuErro(req), idDaRota(req))) },
     async desfazer(req: FastifyRequest, reply: FastifyReply) { await service.desfazer(sessaoOuErro(req), idDaRota(req)); return reply.code(204).send() },
+    remarcar: (alvo: Alvo) => async (req: FastifyRequest) => {
+      const n = Number((req.params as { numero?: string }).numero)
+      return service.remarcar(sessaoOuErro(req), alvo, idDaRota(req), n, (req.body ?? {}) as Record<string, unknown>)
+    },
     async cronograma(req: FastifyRequest) {
       const q = req.query as Record<string, unknown>
       return cronogramaView(await service.cronograma(sessaoOuErro(req), { mes: typeof q.mes === 'string' ? q.mes : undefined, tipo: typeof q.tipo === 'string' ? q.tipo : undefined, busca: typeof q.busca === 'string' ? q.busca : undefined, indicador: typeof q.indicador === 'string' ? q.indicador : undefined, modalidade: typeof q.modalidade === 'string' ? q.modalidade : undefined, situacao: typeof q.situacao === 'string' ? q.situacao : undefined }))

@@ -28,6 +28,7 @@ export function criarRecebimentosHttp(baseUrl: string, requisicao: Requisicao): 
     registrar: (_s, alvo, id, e) => chamar(`/${CAMINHO[alvo]}/${id}/recebimentos`, { method: 'POST', body: JSON.stringify(e) }),
     recibo: (_s, id) => chamar(`/recibos/${id}`),
     pagamentos: (_s, alvo, id) => chamar(`/${CAMINHO[alvo]}/${id}/pagamentos`),
+    remarcar: (_s, alvo, id, n, e) => chamar(`/${alvo === 'VENDA' ? 'vendas' : 'emprestimos'}/${id}/parcelas/${n}/vencimento`, { method: 'PATCH', body: JSON.stringify(e) }),
     desfazer: (_s, id) => chamar(`/recebimentos/${id}/desfazer`, { method: 'POST' }),
     cobrancas: (_s, q) => chamar('/cobrancas' + qs(q)),
     cronograma: (_s, q) => chamar('/cronograma' + qs({ ...q, modalidade: q.modalidade?.length ? q.modalidade.join(',') : undefined })),

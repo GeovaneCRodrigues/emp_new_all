@@ -11,6 +11,7 @@ import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
 import Icon from '@/components/Icon.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
+import RemarcarForm from '@/components/RemarcarForm.vue'
 import Seg from '@/components/Seg.vue'
 import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
@@ -57,6 +58,7 @@ const ficha = ref<VendaApi | null>(null)
 const fichaEmp = ref<EmprestimoApi | null>(null)
 const fluxo = ref<InstanceType<typeof RecebimentoFluxo> | null>(null)
 const aviso = ref<InstanceType<typeof AvisarRecebiForm> | null>(null)
+const remarcar = ref<InstanceType<typeof RemarcarForm> | null>(null)
 
 // uma resposta antiga que chega atrasada não pode sobrescrever a mais nova
 let pedido = 0
@@ -178,7 +180,7 @@ async function aposMudar() {
     <template v-for="g in porDia" :key="g.iso">
       <div class="small" style="padding: 8px 14px 2px; font-weight: 700; color: var(--soft); text-transform: capitalize" :data-grupo-dia="g.iso">{{ rotuloDia(g.iso) }} · {{ plural(g.itens.length) }}</div>
       <div class="list">
-        <CobrancaLinha v-for="c in g.itens" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" />
+        <CobrancaLinha v-for="c in g.itens" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" :editavel="podeFiltrar" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" @editar="remarcar?.abrir($event)" />
       </div>
     </template>
   </div>
@@ -188,7 +190,7 @@ async function aposMudar() {
       <span class="small">{{ doDia.length ? plural(doDia.length) : 'nada vence neste dia' }}</span>
     </div>
     <div v-if="doDia.length" class="list">
-      <CobrancaLinha v-for="c in doDia" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" />
+      <CobrancaLinha v-for="c in doDia" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" :editavel="podeFiltrar" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" @editar="remarcar?.abrir($event)" />
     </div>
   </div>
   <div v-if="carregando && !itens.length && !erro" class="empty">Carregando…</div>
@@ -197,6 +199,7 @@ async function aposMudar() {
     <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
     <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
     <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
+    <RemarcarForm ref="remarcar" @feito="aposMudar" />
   </template>
   <AvisarRecebiForm v-else ref="aviso" @enviado="carregar()" />
 </template>

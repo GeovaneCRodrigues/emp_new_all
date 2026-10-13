@@ -187,6 +187,66 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     })
   })
 
+  describe('editar o vencimento de uma parcela em aberto (remarcar)', () => {
+    const patch = (url: string, papel: string | undefined, corpo: object) => app.inject({ method: 'PATCH', url, payload: corpo, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
+    const remarcarE = (e: number, n: number, corpo: object, papel: string | undefined = 'admin') => patch(`/api/emprestimos/${e}/parcelas/${n}/vencimento`, papel, corpo)
+    const doMes = async (mes: string, alvo: string) => (await cron(`?mes=${mes}`)).itens.filter((i) => `${i.tipo[0]}${i.operacaoId}` === alvo).map((i) => ({ n: i.parcela, venc: i.vencimento, orig: (i as unknown as { vencimentoOriginal: string | null }).vencimentoOriginal }))
+    it('muda o vencimento, guarda a data original e a parcela aparece na nova data', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-02-05', 100], ['2027-03-05', 100]])
+      const r = await remarcarE(e.id, 1, { vencimento: '2027-02-20', motivo: 'Cliente combinou pagar dia 20' })
+      expect(r.statusCode).toBe(200)
+      expect(r.json()).toEqual({ parcela: 1, vencimento: '2027-02-20', vencimentoOriginal: '2027-02-05' })
+      expect(await doMes('2027-02', `E${e.id}`)).toEqual([{ n: 1, venc: '2027-02-20', orig: '2027-02-05' }])
+      expect(await doMes('2027-03', `E${e.id}`)).toEqual([{ n: 2, venc: '2027-03-05', orig: null }]) // a outra não mexe
+      const log = await db!('auditoria').where({ acao: 'VENCIMENTO_ALTERADO', entidade: 'emprestimo', entidade_id: e.id }).first()
+      expect(log.antes).toMatchObject({ parcela: 1, vencimento: '2027-02-05' }); expect(log.depois).toMatchObject({ vencimento: '2027-02-20', motivo: 'Cliente combinou pagar dia 20' })
+    })
+    it('remarcar de novo mantém a data ORIGINAL; voltar para ela tira a marca de remarcada', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-04-05', 100]])
+      await remarcarE(e.id, 1, { vencimento: '2027-04-10' })
+      expect((await remarcarE(e.id, 1, { vencimento: '2027-04-25' })).json()).toMatchObject({ vencimento: '2027-04-25', vencimentoOriginal: '2027-04-05' })
+      expect((await remarcarE(e.id, 1, { vencimento: '2027-04-05' })).json()).toMatchObject({ vencimento: '2027-04-05', vencimentoOriginal: null })
+    })
+    it('atrasada que ganha data futura sai das atrasadas', async () => {
+      const e = await emprestimo(id.ana, null, [['2026-09-01', 80]])
+      const atrasadas = async () => (await req('/api/cobrancas?aba=atrasadas&limite=100', 'admin')).json().itens.some((i: { tipo: string; operacaoId: number }) => i.tipo === 'EMPRESTIMO' && i.operacaoId === e.id)
+      expect(await atrasadas()).toBe(true)
+      await remarcarE(e.id, 1, { vencimento: '2026-11-30' })
+      expect(await atrasadas()).toBe(false)
+    })
+    it('venda de iPhone também', async () => {
+      const v = await venda(id.ana, null, [['2027-05-05', 300]])
+      const r = await patch(`/api/vendas/${v.id}/parcelas/1/vencimento`, 'admin', { vencimento: '2027-05-18' })
+      expect(r.json()).toEqual({ parcela: 1, vencimento: '2027-05-18', vencimentoOriginal: '2027-05-05' })
+    })
+    it('validações: data passada, formato, mais de um ano, mesma data, motivo enorme, parcela e operação inexistentes', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-06-05', 100]])
+      for (const corpo of [{}, { vencimento: '' }, { vencimento: '20/06/2027' }, { vencimento: '2027-02-30' }, { vencimento: '2026-10-14' }, { vencimento: '2027-12-31' }, { vencimento: '2027-06-05' }, { vencimento: '2027-06-10', motivo: 'x'.repeat(501) }, { vencimento: 20270610 }]) {
+        expect((await remarcarE(e.id, 1, corpo)).statusCode, JSON.stringify(corpo)).toBe(400)
+      }
+      expect((await remarcarE(e.id, 9, { vencimento: '2027-06-10' })).statusCode).toBe(404)
+      expect((await remarcarE(e.id, 0, { vencimento: '2027-06-10' })).statusCode).toBe(400)
+      expect((await remarcarE(999999, 1, { vencimento: '2027-06-10' })).statusCode).toBe(404)
+    })
+    it('parcela paga → 409; paga pela metade ainda dá', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-07-05', 100], ['2027-08-05', 100]])
+      await pagar('E', e.parcelaIds[0], id.ana, 100); await pagar('E', e.parcelaIds[1], id.ana, 40)
+      const r = await remarcarE(e.id, 1, { vencimento: '2027-07-20' })
+      expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('PARCELA_PAGA')
+      expect((await remarcarE(e.id, 2, { vencimento: '2027-08-20' })).statusCode).toBe(200)
+    })
+    it('empréstimo cancelado → 409', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-09-05', 100]], 'CANCELADA')
+      expect((await remarcarE(e.id, 1, { vencimento: '2027-09-20' })).json().codigo).toBe('VENDA_ENCERRADA')
+    })
+    it('só o administrador; sem login 401', async () => {
+      const e = await emprestimo(id.ana, null, [['2027-10-05', 100]])
+      for (const papel of ['cobrador', 'vendedor', 'indicador']) expect((await remarcarE(e.id, 1, { vencimento: '2027-10-20' }, papel)).statusCode, papel).toBe(403)
+      expect((await remarcarE(e.id, 1, { vencimento: '2027-10-20' }, '')).statusCode).toBe(401)
+      expect((await doMes('2027-10', `E${e.id}`))[0].venc).toBe('2027-10-05') // nada mudou
+    })
+  })
+
   describe('o nome do indicador (cronograma e cobranças)', () => {
     const cobr = async (q: string, papel = 'admin') => (await req(`/api/cobrancas?${q}`, papel)).json() as { itens: { tipo: string; operacaoId: number; parcela: number; indicador: string | null; cliente: { nome: string } }[]; total: number }
     it('cada parcela traz o indicador da operação, e null na venda direta', async () => {

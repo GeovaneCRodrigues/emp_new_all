@@ -1,4 +1,5 @@
 import { termoBusca } from '../../../shared/busca.js'
+import { addDia } from '../../../shared/datas.js'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
@@ -35,6 +36,7 @@ export type Recibo = {
 }
 
 export type Registrado = { recibo: Recibo; efeitos: EfeitoRecebimento[]; quitada: boolean; pedidoDescontoId: number | null }
+export type Remarcada = { parcela: number; vencimento: string; vencimentoOriginal: string | null }
 export type PagamentoView = { transacaoId: number; numero: string; data: string; forma: FormaPagamento; valor: number; recebidoPor: string; referencia: string; tipo: 'ENTRADA' | 'PARCELA'; desfeita: boolean; podeDesfazer: boolean }
 export type ResultadoCronograma = { mes: string; hoje: string; itens: (LinhaCobranca & { atrasoDias: number })[]; cortado: boolean }
 export type ListaCobrancas = { itens: (LinhaCobranca & { atrasoDias: number })[]; total: number; valorTotal: number; pagina: number; limite: number; contagens: { atrasadas: number; hoje: number; proximas: number } }
@@ -46,6 +48,8 @@ export type RecebimentosService = {
   recibo(s: Sessao, transacaoId: number): Promise<Recibo>
   pagamentos(s: Sessao, alvo: Alvo, operacaoId: number): Promise<PagamentoView[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
+  /** O administrador muda a data de vencimento de uma parcela em aberto (o cliente combinou outro dia). A data original fica guardada. */
+  remarcar(s: Sessao, alvo: Alvo, operacaoId: number, parcela: number, e: Entrada): Promise<Remarcada>
   cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
   /** O calendário do mês: as parcelas (pagas e em aberto) que vencem no mês, no escopo de quem pergunta. */
   cronograma(s: Sessao, q: { mes?: string; tipo?: string; busca?: string; indicador?: string; modalidade?: string; situacao?: string }): Promise<ResultadoCronograma>
@@ -252,6 +256,36 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
     },
 
     recibo: reciboDe,
+
+    async remarcar(s, alvo, operacaoId, numero, e) {
+      if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador muda o vencimento')
+      if (!Number.isInteger(numero) || numero < 1) throw requisicaoInvalida('Parcela inválida')
+      if (!dataValida(e.vencimento)) throw requisicaoInvalida('Informe a nova data de vencimento (AAAA-MM-DD)')
+      const novo = e.vencimento
+      if (novo < hoje()) throw requisicaoInvalida('A nova data não pode ser antes de hoje')
+      if (novo > addDia(hoje(), 366)) throw requisicaoInvalida('A nova data não pode passar de um ano')
+      let motivo: string | null = null
+      if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
+        if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('motivo: no máximo 500 letras')
+        motivo = e.motivo.trim() || null
+      }
+      const feito = await dep.repo.emTransacao(async (tx) => {
+        const op = await tx.travarOperacao(alvo, operacaoId, { tipo: 'TODOS' })
+        if (!op) throw naoEncontrado(alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
+        if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
+        const p = (await tx.parcelas(alvo, operacaoId)).find((x) => x.numero === numero)
+        if (!p) throw naoEncontrado('Parcela não encontrada')
+        if (falta(p) <= 0.009) throw new HttpError(409, 'Esta parcela já foi paga: não dá para mudar o vencimento', 'PARCELA_PAGA')
+        if (novo === p.vencimento) throw requisicaoInvalida('A parcela já vence nesta data')
+        // a data original é a de antes da primeira remarcação; voltar para ela desfaz a marca de "remarcada"
+        const original = p.vencimentoOriginal ?? p.vencimento
+        const vencimentoOriginal = novo === original ? null : original
+        await tx.atualizarParcela(alvo, p.id, { vencimento: novo, vencimentoOriginal, desconto: p.desconto, quitadaEm: p.quitadaEm })
+        return { antes: p.vencimento, resultado: { parcela: numero, vencimento: novo, vencimentoOriginal } }
+      })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'VENCIMENTO_ALTERADO', entidade: alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: operacaoId, antes: { parcela: numero, vencimento: feito.antes }, depois: { parcela: numero, vencimento: novo, ...(motivo ? { motivo } : {}) } })
+      return feito.resultado
+    },
 
     async pagamentos(s, alvo, operacaoId) {
       const escopo = escopoDe(s)
