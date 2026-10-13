@@ -36,8 +36,8 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     for (const [i, [vencimento, valor]] of parcelas.entries()) { const [p] = await db!('venda_parcelas').insert({ venda_id: v.id, numero: i + 1, vencimento, valor }).returning('id'); ids.push(p.id) }
     return { id: v.id, parcelaIds: ids }
   }
-  async function emprestimo(clienteId: number, indicadorId: number | null, parcelas: [string, number][], status = 'ATIVA'): Promise<{ id: number; parcelaIds: number[] }> {
-    const [e] = await db!('emprestimos').insert({ cliente_id: clienteId, indicador_id: indicadorId, percentual_indicador: indicadorId ? 0.5 : 0, data_emprestimo: '2026-01-10', capital: 1000, modalidade: 'PARCELADO', taxa: 30, periodicidade: 'MENSAL', status }).returning('id')
+  async function emprestimo(clienteId: number, indicadorId: number | null, parcelas: [string, number][], status = 'ATIVA', modalidade = 'PARCELADO'): Promise<{ id: number; parcelaIds: number[] }> {
+    const [e] = await db!('emprestimos').insert({ cliente_id: clienteId, indicador_id: indicadorId, percentual_indicador: indicadorId ? 0.5 : 0, data_emprestimo: '2026-01-10', capital: 1000, modalidade, taxa: 30, periodicidade: modalidade === 'DIARIA' ? 'DIARIA' : 'MENSAL', status }).returning('id')
     const ids: number[] = []
     for (const [i, [vencimento, valor]] of parcelas.entries()) { const [p] = await db!('emprestimo_parcelas').insert({ emprestimo_id: e.id, numero: i + 1, vencimento, valor }).returning('id'); ids.push(p.id) }
     return { id: e.id, parcelaIds: ids }
@@ -133,6 +133,58 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     expect((await cron('?mes=2026-10&busca=bruno')).itens.map((i) => i.cliente.nome)).toEqual(['Bruno Lima'])
     expect((await cron('?mes=2026-10&busca=zzz')).itens).toEqual([])
     expect((await cron(`?mes=2026-10&busca=${encodeURIComponent('%')}`)).itens).toEqual([]) // % não vira curinga
+  })
+
+  describe('filtros de indicador e modalidade', () => {
+    const ref2: Record<string, number> = {}
+    let roberto = 0, outro = 0
+    beforeAll(async () => {
+      roberto = (await db!('indicadores').where({ nome: 'Roberto' }).first()).id; outro = (await db!('indicadores').where({ nome: 'Outro' }).first()).id
+      ref2.parc = (await emprestimo(id.ana, roberto, [['2026-12-03', 100]])).id
+      ref2.juros = (await emprestimo(id.ana, outro, [['2026-12-04', 200]], 'ATIVA', 'JUROS')).id
+      ref2.dia = (await emprestimo(id.bruno, null, [['2026-12-05', 300]], 'ATIVA', 'DIARIA')).id
+      ref2.venda = (await venda(id.bruno, roberto, [['2026-12-06', 400]])).id
+    })
+    const ids = async (q: string) => (await cron(`?mes=2026-12${q}`)).itens.map((i) => `${i.tipo[0]}${i.operacaoId}`).sort()
+    const todos = () => [`E${ref2.parc}`, `E${ref2.juros}`, `E${ref2.dia}`, `V${ref2.venda}`].sort()
+    it('sem filtro traz tudo; modalidade traz só empréstimos daquela modalidade', async () => {
+      expect(await ids('')).toEqual(todos())
+      expect(await ids('&modalidade=PARCELADO')).toEqual([`E${ref2.parc}`])
+      expect(await ids('&modalidade=JUROS')).toEqual([`E${ref2.juros}`])
+      expect(await ids('&modalidade=DIARIA')).toEqual([`E${ref2.dia}`])
+    })
+    it('várias modalidades juntas (multisseleção), na ordem que vier e sem repetir', async () => {
+      expect(await ids('&modalidade=JUROS,DIARIA')).toEqual([`E${ref2.juros}`, `E${ref2.dia}`].sort())
+      expect(await ids('&modalidade=DIARIA,PARCELADO,JUROS')).toEqual([`E${ref2.parc}`, `E${ref2.juros}`, `E${ref2.dia}`].sort())
+      expect(await ids('&modalidade=JUROS,JUROS')).toEqual([`E${ref2.juros}`])
+      expect(await ids(`&modalidade=PARCELADO,DIARIA&indicador=${roberto}`)).toEqual([`E${ref2.parc}`])
+    })
+    it('indicador: um deles, ou SEM para a venda direta', async () => {
+      expect(await ids(`&indicador=${roberto}`)).toEqual([`E${ref2.parc}`, `V${ref2.venda}`].sort())
+      expect(await ids(`&indicador=${outro}`)).toEqual([`E${ref2.juros}`])
+      expect(await ids('&indicador=SEM')).toEqual([`E${ref2.dia}`])
+    })
+    it('os filtros somam entre si, com o tipo e com a busca', async () => {
+      expect(await ids(`&indicador=${roberto}&modalidade=PARCELADO`)).toEqual([`E${ref2.parc}`])
+      expect(await ids(`&indicador=${outro}&modalidade=PARCELADO`)).toEqual([])
+      expect(await ids(`&indicador=${roberto}&tipo=VENDA`)).toEqual([`V${ref2.venda}`])
+      expect(await ids('&modalidade=JUROS&tipo=VENDA')).toEqual([])
+      expect(await ids(`&indicador=${roberto}&busca=bruno`)).toEqual([`V${ref2.venda}`])
+    })
+    it('situação: só o que falta receber, só o que já foi recebido, e soma com os outros filtros', async () => {
+      await pagar('E', (await db!('emprestimo_parcelas').where({ emprestimo_id: ref2.juros }).first()).id, id.ana, 200) // quita a do só juros
+      expect(await ids('&situacao=RECEBIDAS')).toEqual([`E${ref2.juros}`])
+      expect(await ids('&situacao=ABERTAS')).toEqual([`E${ref2.parc}`, `E${ref2.dia}`, `V${ref2.venda}`].sort())
+      expect(await ids('&situacao=ABERTAS&modalidade=JUROS')).toEqual([])
+      expect(await ids(`&situacao=ABERTAS&indicador=${roberto}`)).toEqual([`E${ref2.parc}`, `V${ref2.venda}`].sort())
+    })
+    it('o cobrador filtra só dentro da carteira dele', async () => {
+      const r = (await cron(`?mes=2026-12&indicador=${roberto}`, 'cobrador2')).itens.map((i) => `${i.tipo[0]}${i.operacaoId}`)
+      expect(r).toEqual([`V${ref2.venda}`])
+    })
+    it('valor inválido → 400', async () => {
+      for (const q of ['indicador=abc', 'indicador=0', 'indicador=-1', 'indicador=1.5', 'indicador=', 'modalidade=XYZ', 'modalidade=parcelado', 'modalidade=', 'situacao=abertas', 'situacao=', 'situacao=XYZ', 'modalidade=JUROS,', 'modalidade=JUROS,XYZ', 'modalidade=PARCELADO,JUROS,DIARIA,JUROS']) expect((await req(`/api/cronograma?mes=2026-12&${q}`, 'admin')).statusCode, q).toBe(400)
+    })
   })
 
   describe('o nome do indicador (cronograma e cobranças)', () => {

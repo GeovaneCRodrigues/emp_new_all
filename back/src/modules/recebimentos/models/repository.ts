@@ -45,7 +45,7 @@ export interface RecebimentosRepository {
   pagamentosDaOperacao(alvo: Alvo, id: number): Promise<PagamentoDaOperacao[]>
   cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; busca?: string; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
   /** As parcelas (pagas e em aberto) que vencem entre `de` e `ate`, para o calendário; `cortado` avisa que passou do limite. */
-  cronograma(escopo: EscopoRecebimentos, f: { de: string; ate: string; tipo?: Alvo; busca?: string; limite: number }): Promise<{ itens: LinhaCobranca[]; cortado: boolean }>
+  cronograma(escopo: EscopoRecebimentos, f: { de: string; ate: string; tipo?: Alvo; busca?: string; /** número = só as operações desse indicador; 'SEM' = vendas/empréstimos sem indicador */ indicador?: number | 'SEM'; /** só empréstimos de alguma dessas modalidades */ modalidade?: ('PARCELADO' | 'JUROS' | 'DIARIA')[]; /** ABERTAS = ainda falta receber; RECEBIDAS = parcela quitada */ situacao?: 'ABERTAS' | 'RECEBIDAS'; limite: number }): Promise<{ itens: LinhaCobranca[]; cortado: boolean }>
   empresa(): Promise<{ nome: string; cnpj: string | null }>
 }
 
@@ -94,7 +94,7 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       q.leftJoin('indicadores as i', 'i.id', 'o.indicador_id')
       escopoSql(q, escopo)
       return q.select(
-        db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'i.nome as indicador_nome',
+        db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'i.nome as indicador_nome', 'o.indicador_id as indicador_id', db.raw(alvo === 'VENDA' ? 'null::text as modalidade' : 'o.modalidade::text as modalidade'),
         db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : `${NOME_EMPRESTIMO_SQL.replace(/\be\./g, 'o.')} as descricao`),
         db.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n_parcelas`),
         db.raw(`${pagoSql(alvo)} as pago`),
@@ -272,6 +272,11 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
       const q = db.from(db.raw('(' + tipos.map((a) => `(${linhasDeCobranca(a, escopo).toQuery()})`).join(' union all ') + ') as u')).whereRaw('u.vencimento between ? and ?', [f.de, f.ate])
       filtrarPorTexto(q, colunasDeBusca(escopo), f.busca)
+      if (f.indicador === 'SEM') q.whereNull('u.indicador_id')
+      else if (f.indicador !== undefined) q.where('u.indicador_id', f.indicador)
+      if (f.modalidade?.length) q.whereIn('u.modalidade', f.modalidade)
+      if (f.situacao === 'ABERTAS') q.whereRaw('u.falta > 0.009')
+      else if (f.situacao === 'RECEBIDAS') q.whereRaw('u.falta <= 0.009')
       const ls = await q.select<LinhaBruta[]>('u.*').orderByRaw('u.vencimento asc, u.cliente_nome asc, u.tipo asc, u.operacao_id asc, u.numero asc').limit(f.limite + 1)
       return { itens: ls.slice(0, f.limite).map(paraLinha), cortado: ls.length > f.limite }
     },

@@ -263,6 +263,28 @@ describe('cronograma (o calendário do mês)', () => {
   const cron = (s: Sessao, q: Parameters<RecebimentosApi['cronograma']>[1] = {}) => api.cronograma(s, q)
   const meses = (r: { itens: { vencimento: string }[] }) => new Set(r.itens.map((i) => i.vencimento.slice(0, 7)))
 
+  it('filtros: indicador (um, ou SEM); modalidade só vale em empréstimo (vazio = todas); o positivo de modalidade está no e2e', async () => {
+    const todos = (await cron(ADMIN, { mes: '2026-10' })).itens
+    const sem = (await cron(ADMIN, { mes: '2026-10', indicador: 'SEM' })).itens
+    expect(sem.length).toBeLessThan(todos.length); expect(sem.every((i) => i.indicador === null)).toBe(true)
+    const nome = todos.find((i) => i.indicador)!.indicador!
+    const dele = (await cron(ADMIN, { mes: '2026-10', busca: nome })).itens.filter((i) => i.indicador === nome)
+    expect(dele.length).toBeGreaterThan(0)
+    expect((await cron(ADMIN, { mes: '2026-10', modalidade: ['PARCELADO'], tipo: 'VENDA' })).itens).toHaveLength(0)
+    expect((await cron(ADMIN, { mes: '2026-10', modalidade: [] })).itens).toHaveLength(todos.length)
+  })
+  it('situação: A receber e Recebidas dividem o mês; inválida → 400', async () => {
+    const todos = (await cron(ADMIN, { mes: '2026-10' })).itens
+    const ab = (await cron(ADMIN, { mes: '2026-10', situacao: 'ABERTAS' })).itens
+    const rec = (await cron(ADMIN, { mes: '2026-10', situacao: 'RECEBIDAS' })).itens
+    expect(ab.length + rec.length).toBe(todos.length); expect(ab.every((i) => i.falta > 0.009)).toBe(true); expect(rec.every((i) => i.falta <= 0.009)).toBe(true)
+    await expect(cron(ADMIN, { mes: '2026-10', situacao: 'XYZ' as never })).rejects.toMatchObject({ status: 400 })
+  })
+  it('filtros inválidos → 400', async () => {
+    for (const q of [{ indicador: 0 }, { indicador: -1 }, { indicador: 1.5 }, { indicador: 'abc' }, { modalidade: ['XYZ'] }, { modalidade: 'JUROS' }, { modalidade: ['JUROS', 'JUROS', 'JUROS', 'JUROS'] }]) {
+      await expect(cron(ADMIN, { mes: '2026-10', ...(q as object) } as never), JSON.stringify(q)).rejects.toMatchObject({ status: 400 })
+    }
+  })
   it('sem mês, usa o mês de hoje (outubro de 2026 na demonstração)', async () => {
     const r = await cron(ADMIN)
     expect(r.mes).toBe('2026-10'); expect(r.hoje).toBe('2026-10-08'); expect(r.cortado).toBe(false)

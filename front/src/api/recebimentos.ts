@@ -106,6 +106,6 @@ export interface RecebimentosApi {
   recibo(s: Sessao, id: number): Promise<ReciboApi>
   pagamentos(s: Sessao, alvo: AlvoApi, operacaoId: number): Promise<PagamentoApi[]>
   desfazer(s: Sessao, transacaoId: number): Promise<void>
-  cronograma(s: Sessao, q: { mes?: string; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string }): Promise<CronogramaApi>
+  cronograma(s: Sessao, q: { mes?: string; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; /** número = só as operações desse indicador; 'SEM' = vendas/empréstimos sem indicador */ indicador?: number | 'SEM'; /** só empréstimos de alguma dessas modalidades (vazio = todas) */ modalidade?: ('PARCELADO' | 'JUROS' | 'DIARIA')[]; /** só o que falta receber, ou só o que já foi recebido (omitido = tudo) */ situacao?: 'ABERTAS' | 'RECEBIDAS' }): Promise<CronogramaApi>
   cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
 }

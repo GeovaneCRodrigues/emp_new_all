@@ -68,3 +68,31 @@ describe('grade do mês', () => {
     expect(gradeDoMes('2026-08', [c('2026-08-31', 100)], HOJE).dias[30].cor).toBe('bad')
   })
 })
+
+describe('o dia em dois blocos: recebido e aberto', () => {
+  const dia = (xs: CobrancaApi[]) => gradeDoMes('2026-10', xs, HOJE).dias[4]
+  it('dia só pago: só o bloco recebido', () => {
+    const d = dia([c('2026-10-05', 100, 100), c('2026-10-05', 200, 200)])
+    expect(d.recebido).toEqual({ n: 2, valor: 300 }); expect(d.aberto).toEqual({ n: 0, valor: 0 })
+  })
+  it('dia só aberto: só o bloco aberto', () => {
+    const d = dia([c('2026-10-05', 100), c('2026-10-05', 250)])
+    expect(d.recebido).toEqual({ n: 0, valor: 0 }); expect(d.aberto).toEqual({ n: 2, valor: 350 })
+  })
+  it('dia misto: uma paga e uma aberta', () => {
+    const d = dia([c('2026-10-05', 100, 100), c('2026-10-05', 300)])
+    expect(d.recebido).toEqual({ n: 1, valor: 100 }); expect(d.aberto).toEqual({ n: 1, valor: 300 })
+  })
+  it('parcela paga pela metade entra nos dois: o que entrou e o que falta', () => {
+    const d = dia([c('2026-10-05', 300, 50)])
+    expect(d.recebido).toEqual({ n: 1, valor: 50 }); expect(d.aberto).toEqual({ n: 1, valor: 250 })
+  })
+  it('parcela quitada com desconto conta o que foi pago, e não o valor cheio', () => {
+    const d = dia([c('2026-10-05', 1368, 1000, { falta: 0 })])
+    expect(d.recebido).toEqual({ n: 1, valor: 1000 }); expect(d.aberto.n).toBe(0)
+  })
+  it('dia vazio: tudo zero; centavos não acumulam erro', () => {
+    expect(dia([]).recebido).toEqual({ n: 0, valor: 0 })
+    expect(dia([c('2026-10-05', 0.1, 0.1), c('2026-10-05', 0.2, 0.2)]).recebido.valor).toBe(0.3)
+  })
+})

@@ -48,7 +48,7 @@ export type RecebimentosService = {
   desfazer(s: Sessao, transacaoId: number): Promise<void>
   cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
   /** O calendário do mês: as parcelas (pagas e em aberto) que vencem no mês, no escopo de quem pergunta. */
-  cronograma(s: Sessao, q: { mes?: string; tipo?: string; busca?: string }): Promise<ResultadoCronograma>
+  cronograma(s: Sessao, q: { mes?: string; tipo?: string; busca?: string; indicador?: string; modalidade?: string; situacao?: string }): Promise<ResultadoCronograma>
 }
 
 const FORMAS: FormaPagamento[] = ['PIX', 'DINHEIRO', 'CARTAO']
@@ -315,9 +315,23 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw requisicaoInvalida('tipo deve ser VENDA ou EMPRESTIMO')
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw requisicaoInvalida('busca: no máximo 80 letras')
       const busca = termoBusca(q.busca)
+      let indicador: number | 'SEM' | undefined
+      if (q.indicador !== undefined) {
+        if (q.indicador === 'SEM') indicador = 'SEM'
+        else if (/^[1-9]\d{0,9}$/.test(q.indicador)) indicador = Number(q.indicador)
+        else throw requisicaoInvalida('indicador deve ser um número ou SEM')
+      }
+      if (q.situacao !== undefined && q.situacao !== 'ABERTAS' && q.situacao !== 'RECEBIDAS') throw requisicaoInvalida('situacao deve ser ABERTAS ou RECEBIDAS')
+      // uma ou mais modalidades, separadas por vírgula (PARCELADO,JUROS)
+      let modalidade: ('PARCELADO' | 'JUROS' | 'DIARIA')[] | undefined
+      if (q.modalidade !== undefined) {
+        const lista = q.modalidade.split(',')
+        if (lista.length > 3 || !lista.every((m) => ['PARCELADO', 'JUROS', 'DIARIA'].includes(m))) throw requisicaoInvalida('modalidade deve ser PARCELADO, JUROS ou DIARIA (várias separadas por vírgula)')
+        modalidade = [...new Set(lista)] as ('PARCELADO' | 'JUROS' | 'DIARIA')[]
+      }
       const [ano, m] = mes.split('-').map(Number)
       const ultimo = new Date(Date.UTC(ano, m, 0)).getUTCDate()
-      const r = await dep.repo.cronograma(escopo, { de: `${mes}-01`, ate: `${mes}-${String(ultimo).padStart(2, '0')}`, tipo: q.tipo as Alvo | undefined, busca, limite: LIMITE_CRONOGRAMA })
+      const r = await dep.repo.cronograma(escopo, { de: `${mes}-01`, ate: `${mes}-${String(ultimo).padStart(2, '0')}`, tipo: q.tipo as Alvo | undefined, busca, indicador, modalidade, situacao: q.situacao as 'ABERTAS' | 'RECEBIDAS' | undefined, limite: LIMITE_CRONOGRAMA })
       const atraso = (l: LinhaCobranca) => (l.falta > 0.009 && l.vencimento < dia ? Math.round((Date.parse(dia) - Date.parse(l.vencimento)) / 864e5) : 0)
       return { mes, hoje: dia, itens: r.itens.map((l) => ({ ...l, indicador: escopo.tipo === 'INDICADOR' ? null : l.indicador, atrasoDias: atraso(l) })), cortado: r.cortado }
     },
