@@ -28,6 +28,18 @@ function conservaOsCentavos(e: ReturnType<typeof novo>, recebimentos: Recebiment
   expect(e.parcelas.map((p) => p.numero)).toEqual(e.parcelas.map((_, i) => i + 1)) // numeração contínua
 }
 
+describe('data do empréstimo', () => {
+  it('data_inicio depois do dia do lançamento: o empréstimo vale o dia em que foi lançado (parcelas não mudam)', () => {
+    const e = novo(op({ dataInicio: '2026-10-18', criadoEm: '2026-09-18T19:47:26Z' }))
+    expect(e.dataEmprestimo).toBe('2026-09-18')
+    expect(e.parcelas[0].vencimento).toBe('2026-10-10')
+  })
+  it('data_inicio igual ou antes do lançamento fica como está; sem data de criação também', () => {
+    expect(novo(op({ dataInicio: '2026-05-01', criadoEm: '2026-05-05T12:00:00Z' })).dataEmprestimo).toBe('2026-05-01')
+    expect(novo(op({ dataInicio: '2026-10-18', criadoEm: null })).dataEmprestimo).toBe('2026-10-18')
+  })
+})
+
 describe('parcelado mensal', () => {
   const recs = [rec('1-1', 500, '2026-05-10'), rec('1-2', 500, '2026-06-10')]
   it('gera as 4 parcelas pela regra antiga e aloca os dois pagamentos', () => {
