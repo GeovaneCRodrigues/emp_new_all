@@ -1,3 +1,4 @@
+import type { PeriodicidadeAcordo } from '../../acordos/models/acordo.js'
 export type StatusAprovacao = 'PENDENTE' | 'APROVADO' | 'RECUSADO'
 
 /** O que o pedido mexe: uma venda de iPhone ou um empréstimo. */
@@ -17,7 +18,7 @@ export type Aprovacao = {
   /** desconto: o valor pedido. Retomada: o que estava em aberto na venda quando pediu. Acordo: o valor total proposto. */
   valor: number
   /** só no pedido de acordo: o que o cobrador propôs */
-  acordo: { parcelas: number; primeiraParcela: string; saldoNoPedido: number } | null
+  acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null
   /** só no aviso de baixa do indicador: como e quando ele diz que recebeu (o `valor` é o que ele recebeu) */
   baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null } | null
   motivo: string | null

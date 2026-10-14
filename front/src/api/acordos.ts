@@ -1,3 +1,4 @@
+import type { PeriodicidadeAcordo } from '@/domain/acordo'
 import type { Sessao } from '@/domain/escopo'
 import type { AlvoApi } from './recebimentos'
 
@@ -10,6 +11,7 @@ export interface ResultadoAcordoApi {
   valorTotal: number
   nParcelas: number
   primeiraParcela: string
+  periodicidade: PeriodicidadeAcordo
   parcelasEncerradas: number
   substituiuAcordoId: number | null
   /** dinheiro novo emprestado junto (já somado no capital do empréstimo) */
@@ -23,6 +25,7 @@ export interface AcordoApi {
   valorTotal: number
   nParcelas: number
   primeiraParcela: string
+  periodicidade: PeriodicidadeAcordo
   motivo: string | null
   /** dinheiro novo emprestado junto com o acordo (já somado no capital do empréstimo) */
   capitalAdicional: number
@@ -35,8 +38,10 @@ export interface AcordoApi {
 export interface EntradaAcordo {
   valorTotal: number
   parcelas: number
-  /** AAAA-MM-DD; as outras vencem mês a mês no mesmo dia */
+  /** AAAA-MM-DD; as outras vencem na periodicidade escolhida */
   primeiraParcela: string
+  /** omitido = mensal; venda de iPhone só mensal; diária é de segunda a sábado */
+  periodicidade?: PeriodicidadeAcordo
   motivo?: string
   /** só empréstimo: dinheiro novo emprestado junto; soma no capital e sai do Caixa na data do acordo */
   capitalAdicional?: number

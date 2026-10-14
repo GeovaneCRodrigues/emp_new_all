@@ -1,4 +1,4 @@
-import { addDia, somaMes } from './datas'
+import { addDia, pulaDomingo, somaDiasUteis, somaMes } from './datas'
 import { arred2 } from './format'
 import type { Iso } from './types'
 
@@ -13,8 +13,20 @@ export function distribuirAcordo(total: number, n: number): number[] {
   return valores
 }
 
-/** Mensal, no dia da 1ª parcela (limitado ao fim do mês). */
-export const vencimentosAcordo = (primeira: Iso, n: number): Iso[] => Array.from({ length: n }, (_, i) => somaMes(primeira, i, Number(primeira.slice(8, 10))))
+export type PeriodicidadeAcordo = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
+export const PERIODICIDADES_ACORDO: { valor: PeriodicidadeAcordo; rotulo: string; ajuda: string }[] = [
+  { valor: 'MENSAL', rotulo: 'Mensal', ajuda: 'As outras vencem mês a mês, no mesmo dia.' },
+  { valor: 'QUINZENAL', rotulo: 'Quinzenal', ajuda: 'As outras vencem a cada 14 dias.' },
+  { valor: 'SEMANAL', rotulo: 'Semanal', ajuda: 'As outras vencem a cada 7 dias.' },
+  { valor: 'DIARIA', rotulo: 'Diária (seg a sáb)', ajuda: 'As outras vencem todo dia, de segunda a sábado (domingo não conta).' },
+]
+
+/** Os vencimentos das parcelas: mensal no dia da 1ª (limitado ao fim do mês), quinzenal, semanal, ou diária de segunda a sábado. */
+export const vencimentosAcordo = (primeira: Iso, n: number, periodicidade: PeriodicidadeAcordo = 'MENSAL'): Iso[] => Array.from({ length: n }, (_, i) =>
+  periodicidade === 'SEMANAL' ? addDia(primeira, 7 * i)
+  : periodicidade === 'QUINZENAL' ? addDia(primeira, 14 * i)
+  : periodicidade === 'DIARIA' ? somaDiasUteis(pulaDomingo(primeira), i)
+  : somaMes(primeira, i, Number(primeira.slice(8, 10))))
 
 /** O valor sugerido do acordo: o que ele devia + o dinheiro novo emprestado + o juro cobrado sobre esse dinheiro (tudo em reais). */
 export const valorSugeridoAcordo = (saldo: number, dinheiroNovo: number, jurosDoNovo: number): number => arred2(saldo + Math.max(0, dinheiroNovo) + Math.max(0, jurosDoNovo))

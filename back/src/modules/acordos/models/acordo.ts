@@ -1,16 +1,35 @@
 import type { Knex } from 'knex'
-import { addDia, somaMes } from '../../../shared/datas.js'
+import { addDia, pulaDomingo, somaDiasUteis, somaMes } from '../../../shared/datas.js'
 import { HttpError, naoEncontrado, requisicaoInvalida } from '../../../shared/errors.js'
 import { PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '../../../shared/sql.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 
 export type AlvoAcordo = 'VENDA' | 'EMPRESTIMO'
-export type ResultadoAcordo = { acordoId: number; alvo: AlvoAcordo; operacaoId: number; saldoAntes: number; valorTotal: number; nParcelas: number; primeiraParcela: string; parcelasEncerradas: number; substituiuAcordoId: number | null; capitalAdicional: number }
+export type ResultadoAcordo = { acordoId: number; alvo: AlvoAcordo; operacaoId: number; saldoAntes: number; valorTotal: number; nParcelas: number; primeiraParcela: string; periodicidade: PeriodicidadeAcordo; parcelasEncerradas: number; substituiuAcordoId: number | null; capitalAdicional: number }
 
 const T = {
   VENDA: { op: 'vendas', parcela: 'venda_parcelas', opFk: 'venda_id', pago: PAGO_PARCELA_SQL },
   EMPRESTIMO: { op: 'emprestimos', parcela: 'emprestimo_parcelas', opFk: 'emprestimo_id', pago: PAGO_PARCELA_EMPRESTIMO_SQL },
 } as const
+
+export const PERIODICIDADES_ACORDO = ['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA'] as const
+export type PeriodicidadeAcordo = (typeof PERIODICIDADES_ACORDO)[number]
+
+/** De quanto em quanto tempo vencem as parcelas do acordo (omitido = mensal). Só o empréstimo tem as outras; DIARIA é de segunda a sábado. */
+export function validarPeriodicidade(v: unknown, alvo: AlvoAcordo): PeriodicidadeAcordo {
+  if (v === undefined || v === null) return 'MENSAL'
+  if (typeof v !== 'string' || !(PERIODICIDADES_ACORDO as readonly string[]).includes(v)) throw requisicaoInvalida('periodicidade deve ser MENSAL, QUINZENAL, SEMANAL ou DIARIA')
+  if (alvo === 'VENDA' && v !== 'MENSAL') throw requisicaoInvalida('O acordo de venda de iPhone é mensal')
+  return v as PeriodicidadeAcordo
+}
+
+/** O vencimento da parcela `i` (0 = a primeira) do acordo. Diária pula domingo; mensal mantém o dia da 1ª. */
+export function vencimentoDoAcordo(primeira: string, i: number, periodicidade: PeriodicidadeAcordo): string {
+  if (periodicidade === 'SEMANAL') return addDia(primeira, 7 * i)
+  if (periodicidade === 'QUINZENAL') return addDia(primeira, 14 * i)
+  if (periodicidade === 'DIARIA') return somaDiasUteis(pulaDomingo(primeira), i)
+  return somaMes(primeira, i, Number(primeira.slice(8, 10)))
+}
 
 export const ACORDO_MAX_PARCELAS = 120
 const DINHEIRO_MAX = 100_000_000
@@ -48,14 +67,15 @@ export function validarProposta(e: { valorTotal: unknown; parcelas: unknown; pri
  * quando o administrador faz direto e quando aprova o pedido do cobrador.
  *  - só em operação em andamento com saldo; `saldoEsperado` (pedido do cobrador) tem de bater, senão o pedido ficou velho;
  *  - as parcelas abertas viram "encerradas por acordo": ficam só com o que já foi pago (e o desconto) e saem das cobranças;
- *  - as parcelas novas continuam a numeração, mês a mês no dia da 1ª; a soma é exatamente o valor do acordo;
+ *  - as parcelas novas continuam a numeração, na periodicidade escolhida (mensal no dia da 1ª, quinzenal, semanal ou diária de seg a sáb); a soma é exatamente o valor do acordo;
  *  - o acordo anterior que ainda estava de pé é marcado como substituído;
  *  - pedidos de desconto e de acordo que esperavam sobre a operação são recusados ("Acordo feito").
  */
 export async function fazerAcordo(trx: Knex.Transaction, d: {
-  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number
+  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo
 }): Promise<ResultadoAcordo> {
   const t = T[d.alvo]
+  const periodicidade = d.periodicidade ?? 'MENSAL'
   const op = await trx(t.op).where({ id: d.operacaoId }).first<{ id: number; status: string } | undefined>('id', 'status')
   if (!op) throw naoEncontrado(d.alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado')
   if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, d.alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
@@ -79,7 +99,7 @@ export async function fazerAcordo(trx: Knex.Transaction, d: {
   if (anterior) await trx('acordos').where({ id: anterior.id }).update({ status: 'SUBSTITUIDO', updated_at: trx.fn.now() })
 
   const [{ id: acordoId }] = await trx('acordos').insert({
-    [t.opFk]: d.operacaoId, criado_por: d.usuarioId, aprovacao_id: d.aprovacaoId ?? null, data_acordo: d.dia, saldo_antes: saldo, valor_total: d.valorTotal, capital_adicional: capitalAdicional, n_parcelas: d.n,
+    [t.opFk]: d.operacaoId, criado_por: d.usuarioId, aprovacao_id: d.aprovacaoId ?? null, data_acordo: d.dia, saldo_antes: saldo, valor_total: d.valorTotal, capital_adicional: capitalAdicional, periodicidade, n_parcelas: d.n,
     primeira_parcela: d.primeira, motivo: d.motivo,
     parcelas_antes: JSON.stringify(abertas.map((p) => ({ numero: p.numero, valor: Number(p.valor), desconto: Number(p.desconto), pago: Number(p.pago), falta: p.falta, vencimento: dia(p.vencimento), vencimentoOriginal: dia(p.vencimento_original) }))),
   }).returning('id')
@@ -91,10 +111,9 @@ export async function fazerAcordo(trx: Knex.Transaction, d: {
   // as novas, na sequência da numeração
   const proximo = Math.max(...ps.map((p) => p.numero)) + 1
   const valores = distribuir(d.valorTotal, d.n)
-  const diaMes = Number(d.primeira.slice(8, 10))
-  await trx(t.parcela).insert(valores.map((valor, i) => ({ [t.opFk]: d.operacaoId, numero: proximo + i, vencimento: somaMes(d.primeira, i, diaMes), valor, acordo_id: acordoId })))
+  await trx(t.parcela).insert(valores.map((valor, i) => ({ [t.opFk]: d.operacaoId, numero: proximo + i, vencimento: vencimentoDoAcordo(d.primeira, i, periodicidade), valor, acordo_id: acordoId })))
 
   await trx('aprovacoes').where({ [t.opFk]: d.operacaoId, status: 'PENDENTE' }).whereIn('tipo', ['DESCONTO', 'ACORDO']).whereNot('id', d.aprovacaoId ?? -1)
     .update({ status: 'RECUSADO', respondido_por: d.usuarioId, respondido_em: trx.fn.now(), resposta: 'Acordo feito', updated_at: trx.fn.now() })
-  return { acordoId, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
+  return { acordoId, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, periodicidade, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
 }

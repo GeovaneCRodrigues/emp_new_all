@@ -1,3 +1,4 @@
+import type { PeriodicidadeAcordo } from '@/domain/acordo'
 import { casaBusca } from '@/domain/busca'
 import { criarSeed } from '@/data/seed'
 import { imeiValido, soDigitos } from '@/domain/documentos'
@@ -69,7 +70,7 @@ export interface Pedido {
   respondidoEm: string | null
   resposta: string | null
   /** pedido de acordo: a proposta do cobrador */
-  dados?: { parcelas: number; primeiraParcela: string; saldoNoPedido: number }
+  dados?: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number }
 }
 
 /** O dia de um cobrador, fechado por ele e (depois) conferido pelo administrador. */

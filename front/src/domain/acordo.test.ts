@@ -17,6 +17,14 @@ describe('datas do acordo', () => {
     expect(vencimentosAcordo('2026-12-01', 4)).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
     expect(vencimentosAcordo('2026-12-31', 3)).toEqual(['2026-12-31', '2027-01-31', '2027-02-28'])
   })
+  it('semanal (7 dias) e quinzenal (14 dias)', () => {
+    expect(vencimentosAcordo('2026-12-01', 4, 'SEMANAL')).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22'])
+    expect(vencimentosAcordo('2026-12-01', 4, 'QUINZENAL')).toEqual(['2026-12-01', '2026-12-15', '2026-12-29', '2027-01-12'])
+  })
+  it('diária de segunda a sábado: pula o domingo e uma 1ª num domingo vai para a segunda', () => {
+    expect(vencimentosAcordo('2026-12-04', 4, 'DIARIA')).toEqual(['2026-12-04', '2026-12-05', '2026-12-07', '2026-12-08'])
+    expect(vencimentosAcordo('2026-12-06', 3, 'DIARIA')).toEqual(['2026-12-07', '2026-12-08', '2026-12-09'])
+  })
 })
 
 describe('validação da proposta', () => {

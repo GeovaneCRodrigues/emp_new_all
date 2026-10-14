@@ -1,4 +1,4 @@
-import { distribuirAcordo, problemaDoAcordo, vencimentosAcordo } from '@/domain/acordo'
+import { distribuirAcordo, PERIODICIDADES_ACORDO, problemaDoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import type { AcordoApi, AcordosApi, ResultadoAcordoApi } from './acordos'
@@ -12,7 +12,7 @@ interface Reg extends AcordoApi { alvo: AlvoApi; operacaoId: number }
 export interface AcordosFake extends AcordosApi {
   _interno: {
     /** A regra única do acordo (a mesma no caminho direto e na aprovação do pedido do cobrador). */
-    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number }): ResultadoAcordoApi
+    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo }): ResultadoAcordoApi
   }
 }
 
@@ -56,15 +56,16 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     for (const p of abertas) { p.valor = arred2(p.pago + p.desconto); p.quitadaEm = hoje; p.encerradaId = id }
     const proximo = Math.max(...op.parcelas.map((p) => p.numero)) + 1
     const valores = distribuirAcordo(d.valorTotal, d.n)
-    const venc = vencimentosAcordo(d.primeira, d.n)
+    const periodicidade = d.periodicidade ?? 'MENSAL'
+    const venc = vencimentosAcordo(d.primeira, d.n, periodicidade)
     valores.forEach((valor, i) => op.parcelas.push({ numero: proximo + i, vencimento: venc[i], vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, acordoId: id }))
     for (const p of pedidos) {
       if (p.alvo === d.alvo && p.operacaoId === d.operacaoId && p.status === 'PENDENTE' && p.id !== d.aprovacaoId && (p.tipo === 'DESCONTO' || p.tipo === 'ACORDO')) {
         p.status = 'RECUSADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`; p.resposta = 'Acordo feito'
       }
     }
-    acordos.push({ id, alvo: d.alvo, operacaoId: d.operacaoId, dataAcordo: hoje, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, motivo: d.motivo, capitalAdicional, status: 'ATIVO', feitoPor: d.usuarioNome, aprovacaoId: d.aprovacaoId ?? null })
-    return { acordoId: id, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
+    acordos.push({ id, alvo: d.alvo, operacaoId: d.operacaoId, dataAcordo: hoje, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, periodicidade, motivo: d.motivo, capitalAdicional, status: 'ATIVO', feitoPor: d.usuarioNome, aprovacaoId: d.aprovacaoId ?? null })
+    return { acordoId: id, alvo: d.alvo, operacaoId: d.operacaoId, saldoAntes: saldo, valorTotal: d.valorTotal, nParcelas: d.n, primeiraParcela: d.primeira, periodicidade, parcelasEncerradas: abertas.length, substituiuAcordoId: anterior?.id ?? null, capitalAdicional }
   }
 
   return {
@@ -75,6 +76,9 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
       if (typeof e.valorTotal !== 'number' || typeof e.parcelas !== 'number' || typeof e.primeiraParcela !== 'string') throw new ErroApi(400, 'Informe o valor, as parcelas e a data da 1ª parcela')
       if (e.capitalAdicional !== undefined && (typeof e.capitalAdicional !== 'number' || !Number.isFinite(e.capitalAdicional))) throw new ErroApi(400, 'Dinheiro novo: informe um valor válido (zero ou mais)')
       if ((e.capitalAdicional ?? 0) > 0 && alvo !== 'EMPRESTIMO') throw new ErroApi(400, 'Dinheiro novo só vale em empréstimo')
+      const periodicidade = (e.periodicidade ?? 'MENSAL') as PeriodicidadeAcordo
+      if (!PERIODICIDADES_ACORDO.some((x) => x.valor === periodicidade)) throw new ErroApi(400, 'periodicidade deve ser MENSAL, QUINZENAL, SEMANAL ou DIARIA')
+      if (alvo === 'VENDA' && periodicidade !== 'MENSAL') throw new ErroApi(400, 'O acordo de venda de iPhone é mensal')
       const problema = problemaDoAcordo(e, hoje)
       if (problema) throw new ErroApi(400, problema)
       let motivo: string | null = null
@@ -82,7 +86,7 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw new ErroApi(400, 'motivo: no máximo 500 letras')
         motivo = e.motivo.trim() || null
       }
-      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo, capitalAdicional: arred2(e.capitalAdicional ?? 0) })
+      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo, capitalAdicional: arred2(e.capitalAdicional ?? 0), periodicidade })
     },
 
     async listar(s, alvo, operacaoId) {

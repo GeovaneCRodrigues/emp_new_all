@@ -5,7 +5,7 @@ import type { AlvoApi } from '@/api/recebimentos'
 import { acordosApi, aprovacoesApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { distribuirAcordo, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from '@/domain/acordo'
+import { distribuirAcordo, PERIODICIDADES_ACORDO, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
 import { addDia } from '@/domain/datas'
 import { arred2, dmy, fmt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
@@ -23,7 +23,10 @@ const { mostrar } = useToast()
 
 const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
 const ATALHOS = [1, 2, 3, 4, 6, 10, 12]
-const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0, jurosNovo: 0 })
+const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' as PeriodicidadeAcordo })
+/** semanal, quinzenal e diária só no empréstimo; a venda de iPhone é mensal */
+const opcoesPeriodicidade = computed(() => (props.alvo === 'EMPRESTIMO' ? PERIODICIDADES_ACORDO : PERIODICIDADES_ACORDO.slice(0, 1)))
+const ajudaPeriodicidade = computed(() => PERIODICIDADES_ACORDO.find((x) => x.valor === f.periodicidade)?.ajuda ?? '')
 /** dinheiro novo emprestado junto: só o administrador, só em empréstimo */
 const podeDinheiroNovo = computed(() => !ehCobrador.value && props.alvo === 'EMPRESTIMO')
 const erro = ref('')
@@ -31,12 +34,12 @@ const enviando = ref(false)
 
 watch(() => props.aberto, (a) => {
   if (!a || !props.operacao) return
-  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0, jurosNovo: 0 })
+  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' })
   erro.value = ''
 })
 
 const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n))
-const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= 120 ? vencimentosAcordo(f.primeira, f.n) : []))
+const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= 120 ? vencimentosAcordo(f.primeira, f.n, f.periodicidade) : []))
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
 const novo = computed(() => (podeDinheiroNovo.value ? arred2(f.novo) : 0))
 /** o que passa do que ele devia + o dinheiro novo é juros; abaixo disso é desconto */
@@ -55,7 +58,7 @@ async function confirmar() {
   if (enviando.value || problema.value || !props.operacao) return
   enviando.value = true; erro.value = ''
   try {
-    const base = { valorTotal: arred2(f.valor), parcelas: f.n, primeiraParcela: f.primeira }
+    const base = { valorTotal: arred2(f.valor), parcelas: f.n, primeiraParcela: f.primeira, ...(f.periodicidade !== 'MENSAL' ? { periodicidade: f.periodicidade } : {}) }
     if (ehCobrador.value) {
       await aprovacoesApi.pedirAcordo(sessao.value, { alvo: props.alvo, operacaoId: props.operacao.id, ...base, motivo: f.motivo.trim() })
       mostrar('Pedido de acordo enviado. O administrador vai responder.')
@@ -92,7 +95,10 @@ async function confirmar() {
           <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
           <div class="inp"><input id="aParcelas" v-model.number="f.n" type="number" min="1" max="120" step="1" inputmode="numeric" /></div>
         </div>
-        <div class="field"><label for="aData">Data da 1ª parcela</label><DateField id="aData" v-model="f.primeira" :min="hoje" /><div class="small">As outras vencem mês a mês, no mesmo dia.</div></div>
+        <div v-if="opcoesPeriodicidade.length > 1" class="field"><label>De quanto em quanto tempo?</label>
+          <div class="pills" data-testid="acordo-periodicidade"><button v-for="o in opcoesPeriodicidade" :key="o.valor" type="button" class="pill" :class="{ on: f.periodicidade === o.valor }" :data-periodicidade="o.valor" @click="f.periodicidade = o.valor">{{ o.rotulo }}</button></div>
+        </div>
+        <div class="field"><label for="aData">Data da 1ª parcela</label><DateField id="aData" v-model="f.primeira" :min="hoje" /><div class="small" data-testid="acordo-periodicidade-ajuda">{{ ajudaPeriodicidade }}</div></div>
         <div class="field"><label for="aMotivo">{{ ehCobrador ? 'Por que pedir o acordo?' : 'Motivo (opcional)' }}</label><div class="inp"><input id="aMotivo" v-model="f.motivo" maxlength="500" :placeholder="ehCobrador ? 'Ex.: cliente perdeu o emprego' : 'Ex.: renegociação a pedido do cliente'" /></div></div>
 
         <div v-if="valores.length && datas.length" class="card list" data-testid="lista-acordo" style="max-height: 220px; overflow: auto">
