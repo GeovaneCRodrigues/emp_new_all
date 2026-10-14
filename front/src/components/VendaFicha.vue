@@ -120,6 +120,7 @@ const CONTRATO = { AGUARDANDO: 'aguardando envio', ENVIADO: 'enviado, esperando 
 
       <template v-if="venda.parcelas.length">
         <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
+        <div class="row" style="gap: 6px; margin-bottom: 6px" data-resumo-parcelas><span class="chip c-ok" data-parcelas-pagas>{{ venda.parcelas.filter((p) => situacao(p) === 'paga').length }} pagas</span><span class="chip" :class="venda.parcelas.some((p) => situacao(p) === 'atrasada') ? 'c-bad' : 'c-neu'" data-parcelas-atrasadas>{{ venda.parcelas.filter((p) => situacao(p) === 'atrasada').length }} atrasadas</span></div>
         <div class="timeline" style="margin-bottom: 8px"><i v-for="p in venda.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga' || situacao(p) === 'acordo', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}`">{{ p.numero }}</i></div>
         <div class="card list">
           <div v-for="p in venda.parcelas" :key="p.numero" class="li" :data-parcela="p.numero">
