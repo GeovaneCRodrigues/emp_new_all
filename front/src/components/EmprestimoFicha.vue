@@ -64,6 +64,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
       <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">{{ ehCobrador ? 'Pedir acordo' : 'Fazer acordo' }}</button>
 
       <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
+      <div class="row" style="gap: 6px; margin-bottom: 6px" data-resumo-parcelas><span class="chip c-ok" data-parcelas-pagas>{{ emprestimo.parcelas.filter((p) => situacao(p) === 'paga').length }} pagas</span><span class="chip" :class="emprestimo.parcelas.some((p) => situacao(p) === 'atrasada') ? 'c-bad' : 'c-neu'" data-parcelas-atrasadas>{{ emprestimo.parcelas.filter((p) => situacao(p) === 'atrasada').length }} atrasadas</span></div>
       <div class="timeline" style="margin-bottom: 8px"><i v-for="p in emprestimo.parcelas" :key="p.numero" :class="{ p: situacao(p) === 'paga' || situacao(p) === 'acordo', a: situacao(p) === 'atrasada' }" :title="`Parcela ${p.numero}: ${dmy(p.vencimento)}`"></i></div>
       <div class="list">
         <div v-for="p in emprestimo.parcelas" :key="p.numero" class="li" style="cursor: default" :data-parcela="p.numero">
