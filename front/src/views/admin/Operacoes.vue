@@ -9,6 +9,7 @@ import { emprestimosApi, vendasApi } from '@/api/recursos'
 import type { ResumoVendasApi, VendaApi } from '@/api/vendas'
 import Abas from '@/components/Abas.vue'
 import CampoBusca from '@/components/CampoBusca.vue'
+import UnificarForm from '@/components/UnificarForm.vue'
 import RecebimentoFluxo from '@/components/RecebimentoFluxo.vue'
 import EmprestimoCard from '@/components/EmprestimoCard.vue'
 import EmprestimoFicha from '@/components/EmprestimoFicha.vue'
@@ -115,6 +116,33 @@ async function carregarEmp() {
 }
 async function carregarResumoEmp() { try { resumoEmp.value = await emprestimosApi.resumo(sessao.value) } catch { /* os números ficam em branco */ } }
 watch(filtroEmp, () => carregarEmp())
+// ---- Unificar: marcar vários empréstimos do mesmo cliente (botão "Selecionar") ou partir da ficha ----
+const selecionando = ref(false)
+const marcados = ref<number[]>([])
+const unificando = ref(false)
+const candidatos = ref<EmprestimoApi[]>([])
+const clienteMarcado = computed(() => emps.value.find((e) => e.id === marcados.value[0])?.cliente.id ?? null)
+const podeEscolher = (e: EmprestimoApi) => e.status === 'ATIVA' && e.falta > 0.009 && (clienteMarcado.value === null || e.cliente.id === clienteMarcado.value)
+const selecaoDe = (e: EmprestimoApi) => (selecionando.value ? { marcado: marcados.value.includes(e.id), bloqueado: !podeEscolher(e) } : undefined)
+function abrirEmp(e: EmprestimoApi) {
+  if (!selecionando.value) { fichaEmp.value = e; return }
+  if (podeEscolher(e)) marcados.value = marcados.value.includes(e.id) ? marcados.value.filter((x) => x !== e.id) : [...marcados.value, e.id]
+}
+function sairDaSelecao() { selecionando.value = false; marcados.value = [] }
+/** Abre a folha com os empréstimos em andamento do mesmo cliente (busca na API: a lista da tela pode estar filtrada). */
+async function abrirUnificar(ids: number[], cliente: string) {
+  try {
+    const r = await emprestimosApi.listar(sessao.value, { status: 'ATIVA', busca: cliente, limite: 100 })
+    candidatos.value = r.itens
+  } catch { candidatos.value = emps.value }
+  marcados.value = ids
+  unificando.value = true
+}
+async function aoUnificar(novoId: number) {
+  unificando.value = false; sairDaSelecao(); fichaEmp.value = null; filtroEmp.value = 'ATIVA'
+  await Promise.all([carregarEmp(), carregarResumoEmp()])
+  fichaEmp.value = await emprestimosApi.obter(sessao.value, novoId).catch(() => null)
+}
 // ---- Todos: as duas listas juntas, com uma busca e um filtro só (valem para as duas) ----
 const buscaTodos = computed({ get: () => busca.value, set: (t: string) => { busca.value = t; buscaEmp.value = t } })
 const filtroTodos = computed({ get: () => filtro.value, set: (f: string) => { filtro.value = f; filtroEmp.value = f } })
@@ -190,11 +218,15 @@ const abas = computed(() => [
       <div><div class="lbl">Capital na rua</div><div class="val num">{{ resumoEmp ? fmt0(resumoEmp.capitalNaRua ?? 0) : '—' }}</div></div>
       <div><div class="lbl">Lucro por vir</div><div class="val num" style="color: var(--ok)">{{ resumoEmp ? fmt0(resumoEmp.lucroPorVir ?? 0) : '—' }}</div></div>
     </div>
-    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><CampoBusca v-model="buscaEmp" placeholder="Cliente ou indicador" rotulo="Buscar empréstimo" /></div><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <div class="row" style="gap: 8px"><div style="flex: 1; min-width: 0"><CampoBusca v-model="buscaEmp" placeholder="Cliente ou indicador" rotulo="Buscar empréstimo" /></div><button class="btn" :class="selecionando ? 'b-sub' : 'b-out'" data-selecionar @click="selecionando ? sairDaSelecao() : (selecionando = true)">{{ selecionando ? 'Cancelar' : 'Selecionar' }}</button><button class="btn b-pri" @click="formEmp = true"><Icon name="plus" small />Empréstimo</button></div>
+    <div v-if="selecionando" class="aviso" style="justify-content: space-between; gap: 8px" data-testid="barra-selecao">
+      <span>{{ marcados.length ? `${marcados.length} marcado${marcados.length > 1 ? 's' : ''}` : 'Marque os empréstimos do mesmo cliente que quer juntar' }}</span>
+      <button class="btn b-pri b-sm" :disabled="marcados.length < 2" data-unificar-marcados @click="abrirUnificar(marcados, emps.find((x) => x.id === marcados[0])?.cliente.nome ?? '')">Unificar{{ marcados.length ? ` (${marcados.length})` : '' }}</button>
+    </div>
     <Seg v-model="filtroEmp" :itens="filtrosEmp" />
     <div v-if="erroEmp" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erroEmp }}</span><button class="btn b-ghost b-sm" @click="carregarEmp()">Tentar de novo</button></div>
     <div class="fones">
-      <EmprestimoCard v-for="e in emps" :key="e.id" :e="e" @abrir="fichaEmp = $event" />
+      <EmprestimoCard v-for="e in emps" :key="e.id" :e="e" :selecao="selecaoDe(e)" @abrir="abrirEmp" />
       <div v-if="!emps.length && !carregandoEmp && !erroEmp" class="card empty">{{ buscaEmp.trim() ? 'Nada encontrado nesta lista.' : 'Nenhum empréstimo aqui.' }}</div>
       <div v-if="carregandoEmp && !emps.length" class="card empty">Carregando…</div>
     </div>
@@ -202,7 +234,8 @@ const abas = computed(() => [
   </template>
 
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
-  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" />
+  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @unificar="(e) => abrirUnificar([e.id], e.cliente.nome)" />
+  <UnificarForm :aberto="unificando" :selecionados="marcados" :candidatos="candidatos" @fechar="unificando = false" @feito="aoUnificar" />
   <EmprestimoForm :aberto="formEmp" :inicial="inicialEmp" @fechar="formEmp = false; inicialEmp = null" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
 </template>

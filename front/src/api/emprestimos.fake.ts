@@ -15,10 +15,12 @@ export interface RegistroEmprestimo {
   capital: number; modalidade: ModalidadeApi; taxa: number; periodicidade: PeriodicidadeApi; pulaDomingo: boolean; status: StatusEmprestimo; observacoes: string | null
   /** só juros: quanto do capital já foi pago adiantado (conta como dinheiro recebido) */
   amortizado: number; parcelas: Parcela[]
+  /** unificação */
+  unificadoDe?: number[]; unificadoEm?: number | null
 }
 
 export interface EmprestimosFake extends EmprestimosApi {
-  _interno: { hoje: string; registros: RegistroEmprestimo[]; noEscopo(s: Sessao): RegistroEmprestimo[]; calcular(r: RegistroEmprestimo, perfil: Sessao['perfil']): EmprestimoApi }
+  _interno: { hoje: string; novoId(): number; registros: RegistroEmprestimo[]; noEscopo(s: Sessao): RegistroEmprestimo[]; calcular(r: RegistroEmprestimo, perfil: Sessao['perfil']): EmprestimoApi }
 }
 
 const TODAS: ModalidadeApi[] = ['PARCELADO', 'JUROS', 'DIARIA']
@@ -73,12 +75,12 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     return {
       ...base, indicador: r.indicador, capital: r.capital, taxa: r.taxa, capitalAberto: arred2(r.capital - r.amortizado), lucroTotal, capitalDeVolta: arred2(Math.min(r.capital, recebido)),
       lucroRealizado: arred2(Math.max(0, recebido - r.capital) * (1 - r.pct)), seuLucro: arred2(lucroTotal > 0 ? lucroTotal * (1 - r.pct) : lucroTotal),
-      percentualIndicador: r.pct, parteIndicador: arred2(lucroTotal > 0 ? lucroTotal * r.pct : 0),
+      percentualIndicador: r.pct, parteIndicador: arred2(lucroTotal > 0 ? lucroTotal * r.pct : 0), unificadoDe: r.unificadoDe ?? [], unificadoEm: r.unificadoEm ?? null,
     }
   }
 
   return {
-    _interno: { hoje, registros, noEscopo, calcular },
+    _interno: { hoje, novoId: () => ++proximoId, registros, noEscopo, calcular },
 
     async criar(s, e: EntradaEmprestimo) {
       if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador faz empréstimos', 'SEM_PERMISSAO')

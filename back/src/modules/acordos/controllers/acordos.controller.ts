@@ -14,6 +14,7 @@ export function createAcordosController(service: AcordosService) {
   return {
     fazer: (alvo: AlvoAcordo) => async (req: FastifyRequest, reply: FastifyReply) =>
       reply.code(201).send(await service.fazer(sessaoOuErro(req), alvo, idDaRota(req), (req.body ?? {}) as Record<string, unknown>)),
+    unificar: async (req: FastifyRequest, reply: FastifyReply) => reply.code(201).send(await service.unificar(sessaoOuErro(req), (req.body ?? {}) as Record<string, unknown>)),
     listar: (alvo: AlvoAcordo) => async (req: FastifyRequest) => service.listar(sessaoOuErro(req), alvo, idDaRota(req)),
   }
 }

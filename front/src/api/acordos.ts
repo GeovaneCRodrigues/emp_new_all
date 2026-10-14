@@ -33,6 +33,11 @@ export interface AcordoApi {
   feitoPor: string | null
   /** o pedido do cobrador que originou o acordo, se foi o caso */
   aprovacaoId: number | null
+  /** unificação: o empréstimo novo que recebeu o aberto deste empréstimo */
+  unificadoEmId: number | null
+  /** unificação: capital que este empréstimo passou para o novo / que o novo herdou */
+  capitalCedido: number
+  capitalHerdado: number
 }
 
 export interface EntradaAcordo {
@@ -47,7 +52,36 @@ export interface EntradaAcordo {
   capitalAdicional?: number
 }
 
+export interface EntradaUnificar {
+  emprestimoIds: number[]
+  valorTotal: number
+  parcelas: number
+  primeiraParcela: string
+  periodicidade?: PeriodicidadeAcordo
+  /** dinheiro novo emprestado junto: soma no capital do empréstimo novo e sai do Caixa hoje */
+  capitalAdicional?: number
+  motivo?: string
+  /** só quando os empréstimos têm indicadores diferentes: quem fica com o novo (null = ninguém) */
+  indicadorId?: number | null
+}
+
+export interface ResultadoUnificarApi {
+  emprestimoId: number
+  acordoId: number
+  origens: { emprestimoId: number; saldo: number; capitalCedido: number; parcelasEncerradas: number; acordoId: number }[]
+  saldoAntes: number
+  valorTotal: number
+  nParcelas: number
+  primeiraParcela: string
+  periodicidade: PeriodicidadeAcordo
+  capitalAdicional: number
+  capitalHerdado: number
+  capital: number
+}
+
 export interface AcordosApi {
+  /** Só o administrador: junta empréstimos do mesmo cliente num novo, num acordo só. */
+  unificar(s: Sessao, e: EntradaUnificar): Promise<ResultadoUnificarApi>
   /** Só o administrador faz o acordo direto (o cobrador pede em /aprovacoes). */
   fazer(s: Sessao, alvo: AlvoApi, operacaoId: number, e: EntradaAcordo): Promise<ResultadoAcordoApi>
   listar(s: Sessao, alvo: AlvoApi, operacaoId: number): Promise<AcordoApi[]>

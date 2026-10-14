@@ -11,7 +11,7 @@ import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ emprestimo: EmprestimoApi | null }>()
-const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; mudou: [] }>()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; mudou: []; unificar: [emprestimo: EmprestimoApi] }>()
 const { hoje, sessao } = useApp()
 
 const pagamentos = ref<PagamentoApi[]>([])
@@ -26,6 +26,7 @@ const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
 const descontando = ref<{ numero: number; falta: number; vencimento: string } | null>(null)
 function aoPedirDesconto() { descontando.value = null; emit('mudou') }
 const podeAcordo = computed(() => (sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR') && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
+const podeUnificar = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
 const acordando = ref(false)
 function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
@@ -62,6 +63,9 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
       <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">{{ ehCobrador ? 'Pedir acordo' : 'Fazer acordo' }}</button>
+      <button v-if="podeUnificar" class="btn b-out b-block" style="margin-top: 8px" data-unificar @click="emit('unificar', emprestimo)">Unificar com outro empréstimo</button>
+      <div v-if="emprestimo.unificadoDe?.length" class="aviso" style="margin-top: 8px" data-testid="unificado-de">Unificado a partir dos empréstimos {{ emprestimo.unificadoDe.map((i) => '#' + i).join(', ') }}.</div>
+      <div v-if="emprestimo.unificadoEm" class="aviso" style="margin-top: 8px" data-testid="unificado-em">Unificado no empréstimo #{{ emprestimo.unificadoEm }}.</div>
 
       <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
       <div class="row" style="gap: 6px; margin-bottom: 6px" data-resumo-parcelas><span class="chip c-ok" data-parcelas-pagas>{{ emprestimo.parcelas.filter((p) => situacao(p) === 'paga').length }} pagas</span><span class="chip" :class="emprestimo.parcelas.some((p) => situacao(p) === 'atrasada') ? 'c-bad' : 'c-neu'" data-parcelas-atrasadas>{{ emprestimo.parcelas.filter((p) => situacao(p) === 'atrasada').length }} atrasadas</span></div>

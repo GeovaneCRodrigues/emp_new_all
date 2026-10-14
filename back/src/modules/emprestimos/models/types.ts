@@ -39,6 +39,9 @@ export type Emprestimo = {
   /** só juros: quanto do capital já foi pago adiantado (excedente dos recebimentos). Conta como dinheiro recebido. */
   amortizado: number
   parcelas: ParcelaEmprestimo[]
+  /** unificação: os empréstimos que este juntou (ids), ou o empréstimo novo em que este foi juntado */
+  unificadoDe: number[]
+  unificadoEm: number | null
 }
 
 /** Quais empréstimos um pedido pode enxergar. */

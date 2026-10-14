@@ -5,7 +5,8 @@ import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, fmt0 } from '@/domain/format'
 import Icon from './Icon.vue'
 
-const props = defineProps<{ e: EmprestimoApi }>()
+/** `selecao` liga o modo de escolher vários (unificar): o card vira uma caixa de marcar */
+const props = defineProps<{ e: EmprestimoApi; selecao?: { marcado: boolean; bloqueado: boolean } }>()
 defineEmits<{ abrir: [e: EmprestimoApi] }>()
 
 const pct = computed(() => (props.e.total > 0 ? Math.round((props.e.recebido / props.e.total) * 100) : 100))
@@ -25,8 +26,10 @@ const resumo = computed(() => {
 </script>
 
 <template>
-  <button class="card pad" style="text-align: left; display: flex; flex-direction: column; gap: 10px" :data-emprestimo="e.id" @click="$emit('abrir', e)">
+  <button class="card pad" style="text-align: left; display: flex; flex-direction: column; gap: 10px" :style="selecao?.bloqueado ? 'opacity: .45' : selecao?.marcado ? 'outline: 2px solid var(--primary)' : ''" :data-emprestimo="e.id" :data-marcado="selecao ? selecao.marcado : undefined"
+    :aria-pressed="selecao ? selecao.marcado : undefined" :disabled="selecao?.bloqueado" @click="$emit('abrir', e)">
     <div class="row">
+      <span v-if="selecao" aria-hidden="true" data-caixa style="width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; flex: none; border: 2px solid var(--primary)" :style="selecao.marcado ? 'background: var(--primary); color: #fff' : ''"><Icon v-if="selecao.marcado" name="check" small /></span>
       <span class="pic" style="width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--elevated)"><Icon name="landmark" /></span>
       <div style="flex: 1; min-width: 0">
         <div class="between"><span class="val" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ e.cliente.nome }}</span><span class="chip" :class="chip.cls">{{ chip.txt }}</span></div>

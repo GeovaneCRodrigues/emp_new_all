@@ -49,6 +49,9 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
       .join(db('recebimentos as r').join('emprestimo_parcelas as p', 'p.id', 'r.emprestimo_parcela_id').whereIn('p.emprestimo_id', linhas.map((l) => l.id)).distinct('r.transacao_id', 'p.emprestimo_id').as('x'), 'x.transacao_id', 't.id')
       .groupBy('x.emprestimo_id').select<{ emprestimo_id: number; soma: string }[]>('x.emprestimo_id', db.raw("sum((t.ajustes->>'amortizacao')::numeric) as soma"))
     const amortizado = new Map(am.map((a) => [a.emprestimo_id, Number(a.soma)]))
+    // unificação: acordos de origem apontam (unificado_em_id) para o empréstimo novo
+    const un = await db('acordos').whereNotNull('unificado_em_id').where((q) => q.whereIn('emprestimo_id', linhas.map((l) => l.id)).orWhereIn('unificado_em_id', linhas.map((l) => l.id))).select<{ emprestimo_id: number; unificado_em_id: number }[]>('emprestimo_id', 'unificado_em_id')
+    const unificadoEm = new Map(un.map((u) => [u.emprestimo_id, u.unificado_em_id]))
     const porEmp = new Map<number, ParcelaEmprestimo[]>()
     for (const p of ps) {
       const lista = porEmp.get(p.emprestimo_id) ?? []
@@ -59,6 +62,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
       id: l.id, cliente: { id: l.cliente_id, nome: l.cliente_nome }, indicador: l.indicador_id ? { id: l.indicador_id, nome: l.indicador_nome ?? '' } : null,
       pct: Number(l.percentual_indicador), dataEmprestimo: dia(l.data_emprestimo), capital: Number(l.capital), modalidade: l.modalidade, taxa: Number(l.taxa), periodicidade: l.periodicidade, pulaDomingo: l.pula_domingo, modoDivisao: l.modo_divisao,
       status: l.status, observacoes: l.observacoes, amortizado: amortizado.get(l.id) ?? 0, parcelas: porEmp.get(l.id) ?? [],
+      unificadoDe: un.filter((u) => u.unificado_em_id === l.id).map((u) => u.emprestimo_id).sort((a, b) => a - b), unificadoEm: unificadoEm.get(l.id) ?? null,
     }))
   }
 

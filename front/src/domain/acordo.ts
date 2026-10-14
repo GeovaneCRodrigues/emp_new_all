@@ -42,3 +42,16 @@ export function problemaDoAcordo(a: { valorTotal: number; parcelas: number; prim
   if (arred2(a.valorTotal) / a.parcelas < 0.01) return 'O valor é pequeno demais para essa quantidade de parcelas.'
   return ''
 }
+
+/** A conta de unificar vários empréstimos: o que ele deve em todos e o capital que ainda está na rua (passa para o novo). */
+export function resumoUnificacao(emps: { falta: number; capital?: number; capitalDeVolta?: number }[]): { saldo: number; capitalNaRua: number } {
+  return {
+    saldo: arred2(emps.reduce((x, e) => x + e.falta, 0)),
+    capitalNaRua: arred2(emps.reduce((x, e) => x + Math.max(0, (e.capital ?? 0) - (e.capitalDeVolta ?? 0)), 0)),
+  }
+}
+
+/** Os empréstimos têm o mesmo indicador (e o mesmo %)? Se sim, o novo herda; se não, o administrador escolhe. */
+export function indicadoresDiferentes(emps: { indicador?: { id: number; nome: string } | null; percentualIndicador?: number }[]): boolean {
+  return new Set(emps.map((e) => `${e.indicador?.id ?? 'x'}|${e.percentualIndicador ?? 0}`)).size > 1
+}
