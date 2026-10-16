@@ -197,7 +197,7 @@ async function aposMudar() {
 
   <template v-if="!indicador">
     <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
-    <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
+    <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p, q) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p, q)" @recibo="verRecibo" @desfazer="(id) => fluxo?.desfazer(id)" />
     <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />
     <RemarcarForm ref="remarcar" @feito="aposMudar" />
   </template>

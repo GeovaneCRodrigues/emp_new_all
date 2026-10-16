@@ -13,7 +13,7 @@ import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
 import DateField from './DateField.vue'
 
-const props = defineProps<{ alvo: { tipo: AlvoApi; operacaoId: number; parcela: number } | null }>()
+const props = defineProps<{ alvo: { tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean } | null }>()
 const emit = defineEmits<{ fechar: []; registrado: [r: RegistradoApi] }>()
 
 const { sessao, hoje } = useApp()
@@ -58,6 +58,7 @@ watch(() => props.alvo, async (a) => {
     const p = venda.value.parcelas.find((x) => x.numero === a.parcela)
     f.data = hoje.value
     f.valor = p ? falta({ valor: p.valor, pago: p.pago, desconto: p.desconto }) : 0
+    if (a.quitar && p) f.valor = valorParaQuitar(venda.value, p)
     f.forma = 'PIX'; f.resto = 'FICA'; f.pedir = false; f.motivo = ''; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir a venda.'
@@ -65,6 +66,14 @@ watch(() => props.alvo, async (a) => {
     carregando.value = false
   }
 }, { immediate: true })
+
+/** O que zera o empréstimo: só juros = juro da parcela + capital (a última já traz o capital); os demais = tudo que falta. */
+function valorParaQuitar(o: Operacao, p: ParcelaVendaApi) {
+  const dela = falta({ valor: p.valor, pago: p.pago, desconto: p.desconto })
+  if (o.juros) return p.numero === o.parcelas[o.parcelas.length - 1].numero ? dela : Math.round((dela + o.juros.capitalAberto) * 100) / 100
+  return Math.round(o.parcelas.reduce((s, x) => s + falta({ valor: x.valor, pago: x.pago, desconto: x.desconto }), 0) * 100) / 100
+}
+const quitando = computed(() => props.alvo?.quitar === true)
 
 const parcial = computed(() => f.valor > 0 && f.valor < faltaAlvo.value - 0.009)
 const pedindo = computed(() => parcial.value && !ehAdmin.value && f.pedir)
@@ -117,7 +126,7 @@ async function confirmar() {
 
 <template>
   <Sheet :aberto="alvo !== null" @fechar="emit('fechar')">
-    <h3>Registrar recebimento</h3>
+    <h3>{{ quitando ? 'Quitar empréstimo' : 'Registrar recebimento' }}</h3>
     <div v-if="carregando" class="empty">Carregando…</div>
     <div v-else-if="!venda || !parcela" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); margin-top: 12px">{{ erro || 'Parcela não encontrada.' }}</div>
     <template v-else>
@@ -135,6 +144,7 @@ async function confirmar() {
             <DateField id="rData" v-model="f.data" :min="venda.data" :max="hoje" rotulo="Data do recebimento" style="height: 36px; flex: 1; min-width: 150px" />
           </div>
         </div>
+        <div v-if="quitando" class="aviso" data-testid="quitar-aviso">Quitando: o valor já vem com o que zera o empréstimo{{ venda.juros ? ' (o juro desta parcela + o capital)' : '' }}. Confira e confirme.</div>
         <div class="field">
           <label for="rValor">Quanto recebeu?</label>
           <MoneyInput id="rValor" v-model="f.valor" />
@@ -173,7 +183,7 @@ async function confirmar() {
         <div v-if="previa.texto" class="chip c-pri" style="white-space: normal; line-height: 1.4; padding: 6px 10px" data-testid="previa">{{ previa.texto }}</div>
         <div v-else-if="previa.erro" class="chip c-bad" style="white-space: normal; line-height: 1.4; padding: 6px 10px" role="alert">{{ previa.erro }}</div>
         <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
-        <button class="btn b-ok b-block" type="submit" :disabled="enviando || !!previa.erro || !(f.valor > 0) || !motivoOk">{{ enviando ? 'Registrando…' : 'Confirmar recebimento' }}</button>
+        <button class="btn b-ok b-block" type="submit" :disabled="enviando || !!previa.erro || !(f.valor > 0) || !motivoOk">{{ enviando ? 'Registrando…' : quitando ? 'Confirmar quitação' : 'Confirmar recebimento' }}</button>
       </form>
     </template>
   </Sheet>

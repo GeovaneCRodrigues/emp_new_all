@@ -48,6 +48,32 @@ test.describe('baixas de empréstimo', () => {
     await expect(page.locator('[data-parcela="3"]')).toContainText('2.643,20')
   })
 
+  test('botão Quitou: abre o recebimento com juro da parcela + capital (3.360,00), quita e as outras parcelas zeram', async ({ page }) => {
+    await criarSoJuros(page)
+    await page.locator('[data-quitar]').click()
+    await expect(page.getByRole('heading', { name: 'Quitar empréstimo' })).toBeVisible()
+    await expect(page.locator('#rValor')).toHaveValue('3.360,00')
+    await expect(page.getByTestId('previa')).toContainText('abate R$ 3.000,00 do capital')
+    await page.getByRole('button', { name: 'Confirmar quitação' }).click()
+    await expect(page.getByTestId('recibo')).toContainText('Tudo quitado')
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-parcela="2"]')).toContainText('paga')
+    await expect(page.locator('[data-parcela="3"]')).toContainText('paga')
+    await expect(page.locator('[data-quitar]')).toHaveCount(0) // já quitado: o botão some
+  })
+
+  test('botão Quitou em empréstimo parcelado: o valor é tudo que falta e todas as parcelas ficam pagas', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '300000', n: 3, taxa: 10 })
+    await confirmarEmprestimo(page)
+    await expect(page.getByTestId('dados-admin')).toContainText('3.000,00')
+    await page.locator('[data-quitar]').click()
+    await expect(page.locator('#rValor')).toHaveValue('3.300,00') // tudo que falta: as 3 parcelas de 1.100,00
+    await page.getByRole('button', { name: 'Confirmar quitação' }).click()
+    await page.keyboard.press('Escape')
+    for (const n of [1, 2, 3]) await expect(page.locator(`[data-parcela="${n}"]`)).toContainText('paga')
+  })
+
   test('juro + todo o capital quita o empréstimo; desfazer devolve as parcelas', async ({ page }) => {
     await criarSoJuros(page)
     await page.locator('[data-receber="1"]').click()

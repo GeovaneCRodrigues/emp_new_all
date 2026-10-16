@@ -24,7 +24,7 @@ async function abrir(tipo: AlvoApi, id: number) {
   if (tipo === 'VENDA') venda.value = await vendasApi.obter(sessao.value, id).catch(() => null)
   else emprestimo.value = await emprestimosApi.obter(sessao.value, id).catch(() => null)
 }
-const receber = (tipo: AlvoApi, id: number, parcela: number) => fluxo.value?.iniciar(tipo, id, parcela)
+const receber = (tipo: AlvoApi, id: number, parcela: number, quitar?: boolean) => fluxo.value?.iniciar(tipo, id, parcela, quitar)
 const recibo = (id: number) => fluxo.value?.abrirRecibo(id)
 
 /** Depois de qualquer mudança: relê a ficha que está aberta e avisa a tela. */
@@ -39,6 +39,6 @@ defineExpose({ abrir, receber, recibo })
 
 <template>
   <VendaFicha :venda="venda" @fechar="venda = null" @receber="(p) => venda && receber('VENDA', venda.id, p)" @recibo="recibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aoMudar" />
-  <EmprestimoFicha :emprestimo="emprestimo" @fechar="emprestimo = null" @receber="(p) => emprestimo && receber('EMPRESTIMO', emprestimo.id, p)" @recibo="recibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aoMudar" />
+  <EmprestimoFicha :emprestimo="emprestimo" @fechar="emprestimo = null" @receber="(p, q) => emprestimo && receber('EMPRESTIMO', emprestimo.id, p, q)" @recibo="recibo" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aoMudar" />
   <RecebimentoFluxo ref="fluxo" @mudou="aoMudar" />
 </template>
