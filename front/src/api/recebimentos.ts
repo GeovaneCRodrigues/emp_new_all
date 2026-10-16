@@ -102,6 +102,10 @@ export interface EntradaRecebimento {
   novoVencimento?: string
   /** só o cobrador: lança o pagamento, deixa o resto devendo e pede desconto do resto ao administrador */
   pedirDesconto?: { motivo: string }
+  /** só o administrador, em empréstimo: encerra tudo de uma vez. `valor` é o que entrou; menos que o devido, a diferença é desconto */
+  quitar?: boolean
+  /** na quitação do só juros: também cobra o juro da próxima parcela (que ainda não venceu) */
+  cobrarProximo?: boolean
 }
 
 export interface RecebimentosApi {

@@ -234,7 +234,7 @@ const abas = computed(() => [
   </template>
 
   <VendaFicha :venda="ficha" @fechar="ficha = null" @receber="(p) => ficha && fluxo?.iniciar('VENDA', ficha.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @mudou="aposMudar" />
-  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @unificar="(e) => abrirUnificar([e.id], e.cliente.nome)" />
+  <EmprestimoFicha :emprestimo="fichaEmp" @fechar="fichaEmp = null" @mudou="aposMudar" @receber="(p, q) => fichaEmp && fluxo?.iniciar('EMPRESTIMO', fichaEmp.id, p, q)" @recibo="(id) => fluxo?.abrirRecibo(id)" @desfazer="(id) => fluxo?.desfazer(id)" @unificar="(e) => abrirUnificar([e.id], e.cliente.nome)" />
   <UnificarForm :aberto="unificando" :selecionados="marcados" :candidatos="candidatos" @fechar="unificando = false" @feito="aoUnificar" />
   <EmprestimoForm :aberto="formEmp" :inicial="inicialEmp" @fechar="formEmp = false; inicialEmp = null" @salvo="aoSalvarEmp" />
   <RecebimentoFluxo ref="fluxo" @mudou="aposMudar" />

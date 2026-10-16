@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, referencia, type ParcelaAberta } from './recebimento'
+import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, referencia, type ParcelaAberta, calcularQuitacao, planoQuitacao } from './recebimento'
 
 // Mesmos cenários de back/tests/recebimento-calculo.test.ts: a tela e a demonstração têm de prever o que o servidor vai fazer.
 const HOJE = '2026-10-08'
@@ -128,5 +128,26 @@ describe('empréstimo só juros: o excedente amortiza o capital (espelha o backe
   it('a prévia em português fala da amortização', () => {
     const r = calcularRecebimentoJuros(plano(), pedido(1000), opc)
     expect(descreverEfeitos(r.efeitos, (v) => `R$ ${v}`, (d) => d)).toBe('Quita a 1ª, abate R$ 640 do capital (sobram R$ 2360)')
+  })
+})
+
+describe('quitação', () => {
+  const P = (numero: number, vencimento: string, valor: number, extra: Partial<ParcelaAberta> = {}): ParcelaAberta => ({ id: numero, numero, vencimento, vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, ...extra })
+  const juros = [P(1, '2026-11-08', 360), P(2, '2026-12-08', 360), P(3, '2027-01-08', 3360)]
+  it('só juros em dia cobra só o capital e perdoa o juro que não venceu', () => {
+    const pl = planoQuitacao(juros, { data: '2026-10-20', capitalAberto: 3000 })
+    expect([pl.cobrado, pl.perdoado]).toEqual([3000, 1080])
+    expect(planoQuitacao(juros, { data: '2026-11-08', capitalAberto: 3000 }).cobrado).toBe(3360)
+    expect(planoQuitacao(juros, { data: '2026-10-20', capitalAberto: 3000, cobrarProximo: true }).cobrado).toBe(3360)
+  })
+  it('desconto cai primeiro no capital; as parcelas terminam zeradas', () => {
+    const r = calcularQuitacao(juros, { valor: 3000, data: '2026-11-08' }, { capitalAberto: 3000 })
+    expect([r.desconto, r.amortizacao]).toEqual([360, 2640])
+    expect(r.ajustes.map((a) => [a.numero, a.depois.valor])).toEqual([[2, 0], [3, 0]])
+  })
+  it('empréstimo comum cobra tudo que falta e recusa valor acima', () => {
+    const comum = [P(1, '2026-11-08', 1100), P(2, '2026-12-08', 1100)]
+    expect(planoQuitacao(comum, { data: '2026-11-20', capitalAberto: null }).cobrado).toBe(2200)
+    expect(() => calcularQuitacao(comum, { valor: 2300, data: '2026-11-20' }, { capitalAberto: null })).toThrow(/passa do que falta/)
   })
 })

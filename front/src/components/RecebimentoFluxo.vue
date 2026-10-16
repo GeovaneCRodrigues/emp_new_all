@@ -19,10 +19,10 @@ const { sessao } = useApp()
 const { mostrar } = useToast()
 const { atualizar } = useAtrasadas()
 
-const alvo = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number } | null>(null)
+const alvo = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean } | null>(null)
 const recibo = ref<ReciboApi | null>(null)
 
-function iniciar(tipo: AlvoApi, operacaoId: number, parcela: number) { alvo.value = { tipo, operacaoId, parcela } }
+function iniciar(tipo: AlvoApi, operacaoId: number, parcela: number, quitar = false) { alvo.value = { tipo, operacaoId, parcela, ...(quitar ? { quitar } : {}) } }
 async function abrirRecibo(id: number) {
   try { recibo.value = await recebimentosApi.recibo(sessao.value, id) }
   catch (e) { mostrar(e instanceof ErroApi ? e.message : 'Não consegui abrir o recibo.') }

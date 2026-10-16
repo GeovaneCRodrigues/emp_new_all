@@ -11,7 +11,7 @@ import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ emprestimo: EmprestimoApi | null }>()
-const emit = defineEmits<{ fechar: []; receber: [parcela: number]; recibo: [id: number]; desfazer: [id: number]; mudou: []; unificar: [emprestimo: EmprestimoApi] }>()
+const emit = defineEmits<{ fechar: []; receber: [parcela: number, quitar?: boolean]; recibo: [id: number]; desfazer: [id: number]; mudou: []; unificar: [emprestimo: EmprestimoApi] }>()
 const { hoje, sessao } = useApp()
 
 const pagamentos = ref<PagamentoApi[]>([])
@@ -27,6 +27,9 @@ const descontando = ref<{ numero: number; falta: number; vencimento: string } | 
 function aoPedirDesconto() { descontando.value = null; emit('mudou') }
 const podeAcordo = computed(() => (sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR') && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
 const podeUnificar = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009)
+// quitar: só o administrador; abre o recebimento da primeira parcela em aberto já com o valor que zera tudo
+const primeiraAberta = computed(() => props.emprestimo?.parcelas.find((p) => situacao(p) !== 'paga' && situacao(p) !== 'acordo') ?? null)
+const podeQuitar = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009 && primeiraAberta.value !== null)
 const acordando = ref(false)
 function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
@@ -62,6 +65,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
+      <button v-if="podeQuitar" class="btn b-ok b-block" style="margin-top: 10px" data-quitar @click="primeiraAberta && emit('receber', primeiraAberta.numero, true)">Quitou · receber tudo e encerrar</button>
       <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">{{ ehCobrador ? 'Pedir acordo' : 'Fazer acordo' }}</button>
       <button v-if="podeUnificar" class="btn b-out b-block" style="margin-top: 8px" data-unificar @click="emit('unificar', emprestimo)">Unificar com outro empréstimo</button>
       <div v-if="emprestimo.unificadoDe?.length" class="aviso" style="margin-top: 8px" data-testid="unificado-de">Unificado a partir dos empréstimos {{ emprestimo.unificadoDe.map((i) => '#' + i).join(', ') }}.</div>
