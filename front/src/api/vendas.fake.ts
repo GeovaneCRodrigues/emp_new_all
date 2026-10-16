@@ -45,7 +45,7 @@ export interface Transacao {
   /** só juros: o que mudou fora da parcela paga (para o "desfazer") */
   ajustes?: { amortizacao: number; parcelas: { numero: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number } }[] }
   /** parcelas tocadas, com o estado de antes (para o "desfazer") */
-  itens: { numero: number; valorPago: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null } }[]
+  itens: { numero: number; valorPago: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number } }[]
 }
 
 /** Pedido de desconto do cobrador, esperando o administrador. */

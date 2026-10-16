@@ -7,7 +7,7 @@ import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { RecebimentosRepository } from '../models/repository.js'
 import type { Aba, Alvo, EscopoRecebimentos, FormaPagamento, LinhaCobranca, ParcelaAberta, ResumoRecibo, ReciboRegistro } from '../models/types.js'
-import { calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento } from './calculo.js'
+import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento } from './calculo.js'
 
 export type Entrada = Record<string, unknown>
 
@@ -139,6 +139,13 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (data > dia) throw requisicaoInvalida('A data do recebimento não pode ser no futuro')
       if (e.resto !== undefined && e.resto !== 'FICA' && e.resto !== 'DESCONTO') throw requisicaoInvalida('resto deve ser FICA ou DESCONTO')
       if (e.novoVencimento !== undefined && e.novoVencimento !== null && !dataValida(e.novoVencimento)) throw requisicaoInvalida('novoVencimento precisa ser uma data válida (AAAA-MM-DD)')
+      // quitação: encerra o empréstimo de uma vez (só o administrador, e só em empréstimo)
+      const quitar = e.quitar === true
+      if (e.quitar !== undefined && typeof e.quitar !== 'boolean') throw requisicaoInvalida('quitar deve ser verdadeiro ou falso')
+      if (e.cobrarProximo !== undefined && typeof e.cobrarProximo !== 'boolean') throw requisicaoInvalida('cobrarProximo deve ser verdadeiro ou falso')
+      if (quitar && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('Só empréstimo se quita assim')
+      if (quitar && ctx.perfil !== 'ADMIN') throw semPermissao('Só o administrador quita um empréstimo')
+      if (quitar && (e.resto !== undefined || e.pedirDesconto !== undefined)) throw requisicaoInvalida('Na quitação o desconto é a diferença do valor: não envie resto nem pedido de desconto')
       // cobrador: só lança o que recebeu hoje, e desconto só com a aprovação do administrador
       if (ctx.perfil === 'COBRADOR' && data !== dia) throw semPermissao('O cobrador só lança o que recebeu hoje')
       if (ctx.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw semPermissao('Desconto precisa da aprovação do administrador: use "pedir desconto"')
@@ -174,7 +181,11 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         let capitalRestante = 0
         try {
           // só juros segue a regra própria (excedente abate o capital) enquanto não houve acordo; depois do acordo são parcelas comuns
-          if (alvo === 'EMPRESTIMO' && venda.modalidade === 'JUROS' && !venda.temAcordo) {
+          if (quitar) {
+            const soJuros = venda.modalidade === 'JUROS' && !venda.temAcordo
+            const q = calcularQuitacao(parcelas, { valor: e.valor as number, data, cobrarProximo: e.cobrarProximo === true }, { capitalAberto: soJuros ? await tx.capitalAberto(operacaoId) : null })
+            r = q; ajustes = q.ajustes; amortizacao = q.amortizacao; capitalRestante = 0
+          } else if (alvo === 'EMPRESTIMO' && venda.modalidade === 'JUROS' && !venda.temAcordo) {
             // só juros: o que passa do juro da parcela abate o capital e o juro seguinte é recalculado
             const j = calcularRecebimentoJuros(parcelas, pedidoCalc, { capitalAberto: await tx.capitalAberto(operacaoId), taxa: venda.taxa! })
             r = j; ajustes = j.ajustes; amortizacao = j.amortizacao; capitalRestante = j.capitalRestante
@@ -212,7 +223,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         })
         for (const it of r.itens) {
           await tx.criarRecebimento(alvo, { transacaoId: t.id, parcelaId: it.parcelaId, valor: it.valorPago, antes: it.antes })
-          const mudou = it.depois.vencimento !== it.antes.vencimento || it.depois.desconto !== it.antes.desconto || it.depois.quitadaEm !== it.antes.quitadaEm || it.depois.vencimentoOriginal !== it.antes.vencimentoOriginal
+          const mudou = it.depois.valor !== it.antes.valor || it.depois.vencimento !== it.antes.vencimento || it.depois.desconto !== it.antes.desconto || it.depois.quitadaEm !== it.antes.quitadaEm || it.depois.vencimentoOriginal !== it.antes.vencimentoOriginal
           if (mudou) await tx.atualizarParcela(alvo, it.parcelaId, it.depois)
         }
         for (const aj of ajustes) await tx.atualizarParcela(alvo, aj.parcelaId, aj.depois) // só juros: o juro seguinte, recalculado
@@ -228,6 +239,8 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       await dep.auditoria.registrar({ ...base, acao: 'RECEBIMENTO_REGISTRADO', depois: { transacaoId: feito.transacaoId, parcela: numero, valor: e.valor, forma, data, efeitos: feito.efeitos } })
       const desc = feito.efeitos.find((x) => x.tipo === 'DESCONTO')
       if (desc) await dep.auditoria.registrar({ ...base, acao: 'DESCONTO_CONCEDIDO', depois: { transacaoId: feito.transacaoId, ...desc } })
+      const quit = feito.efeitos.find((x): x is Extract<EfeitoRecebimento, { tipo: 'QUITACAO' }> => x.tipo === 'QUITACAO')
+      if (quit) await dep.auditoria.registrar({ ...base, acao: 'EMPRESTIMO_QUITADO', depois: { transacaoId: feito.transacaoId, valor: e.valor, desconto: quit.desconto, jurosPerdoados: quit.perdoado } })
       if (feito.primeiro.depois.vencimento !== feito.primeiro.antes.vencimento) await dep.auditoria.registrar({ ...base, acao: 'VENCIMENTO_ALTERADO', antes: { parcela: numero, vencimento: feito.primeiro.antes.vencimento }, depois: { parcela: numero, vencimento: feito.primeiro.depois.vencimento } })
 
       if (feito.pedidoId) await dep.auditoria.registrar({ ...base, entidade: 'aprovacao', entidadeId: feito.pedidoId, acao: 'DESCONTO_PEDIDO', depois: { alvo, operacaoId, parcela: numero, motivo: feito.motivoPedido } })

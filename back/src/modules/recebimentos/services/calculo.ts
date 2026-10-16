@@ -37,6 +37,8 @@ export type EfeitoRecebimento =
   | { tipo: 'DESCONTO'; numero: number; valor: number }
   /** só juros: o que passou do juro da parcela abateu o capital */
   | { tipo: 'AMORTIZA'; valor: number; capitalRestante: number }
+  /** quitação: o empréstimo foi encerrado; `desconto` é o que o cliente não pagou do devido e `perdoado` o juro que ainda não tinha vencido */
+  | { tipo: 'QUITACAO'; desconto: number; perdoado: number }
 
 export type ItemRecebimento = { parcelaId: number; numero: number; valorPago: number; antes: EstadoParcela; depois: EstadoParcela; faltaDepois: number }
 
@@ -155,4 +157,84 @@ export function calcularRecebimentoJuros(parcelas: ParcelaAberta[], p: PedidoRec
     ajustes.push({ parcelaId: q.id, numero: q.numero, antes, depois: { ...antes, valor: novo, quitadaEm: novo <= 0.009 ? p.data : null } })
   }
   return { ...base, valorTotal: valor, efeitos: [...base.efeitos, { tipo: 'AMORTIZA', valor: excedente, capitalRestante }], amortizacao: excedente, capitalRestante, ajustes }
+}
+
+
+export type PlanoQuitacao = {
+  /** o que cobrar de cada parcela em aberto (juro vencido; sem juro por vencer, a menos que se escolha cobrar) */
+  cobrancas: { parcela: ParcelaAberta; cobrar: number }[]
+  capital: number
+  /** tudo que se cobra para quitar: os juros acima + o capital em aberto */
+  cobrado: number
+  /** juro de parcelas que ainda não venceram e ficam de fora */
+  perdoado: number
+  /** a próxima parcela ainda não vencida (só juros): dá para escolher cobrar o juro dela */
+  proxima: { numero: number; vencimento: string; valor: number } | null
+}
+
+/**
+ * O que quitar um empréstimo custa. Só juros (`capitalAberto` informado): juros das parcelas JÁ VENCIDAS em aberto + o capital;
+ * o juro de quem ainda não venceu fica de fora, salvo `cobrarProximo` (cobra o da próxima). Os demais empréstimos: tudo que falta.
+ */
+export function planoQuitacao(parcelas: ParcelaAberta[], o: { data: string; cobrarProximo?: boolean; capitalAberto?: number | null }): PlanoQuitacao {
+  const ordenadas = parcelas.slice().sort((a, b) => a.numero - b.numero)
+  const abertas = ordenadas.filter((x) => falta(x) > 0.009)
+  const juros = o.capitalAberto !== null && o.capitalAberto !== undefined
+  const capital = juros ? arred2(Math.max(0, o.capitalAberto!)) : 0
+  const ultima = ordenadas[ordenadas.length - 1]
+  const proxima = juros ? (abertas.find((x) => x.vencimento > o.data) ?? null) : null
+  // a última parcela leva o capital junto: o juro dela é o que passa do capital
+  const soJuro = (x: ParcelaAberta) => (juros && x.id === ultima.id ? Math.max(0, arred2(falta(x) - capital)) : falta(x))
+  let perdoado = 0
+  const cobrancas = abertas.map((x) => {
+    const entra = !juros || x.vencimento <= o.data || (o.cobrarProximo === true && proxima?.id === x.id)
+    if (!entra) perdoado = arred2(perdoado + soJuro(x))
+    return { parcela: x, cobrar: entra ? soJuro(x) : 0 }
+  })
+  const jurosCobrados = arred2(cobrancas.reduce((t, c) => t + c.cobrar, 0))
+  return { cobrancas, capital, cobrado: arred2(jurosCobrados + capital), perdoado, proxima: proxima ? { numero: proxima.numero, vencimento: proxima.vencimento, valor: soJuro(proxima) } : null }
+}
+
+export type ResultadoQuitacao = ResultadoJuros & { cobrado: number; desconto: number; perdoado: number }
+
+/**
+ * Quita o empréstimo de uma vez. Recebe `valor` (até o `cobrado` do plano; menos que isso, a diferença é desconto e sai do lucro).
+ * O valor paga os juros em ordem e depois o capital (amortização); a falta fica como desconto, do fim para o começo.
+ * Todas as parcelas em aberto terminam zeradas: o juro por vencer que ficou de fora some do valor delas (não é desconto).
+ */
+export function calcularQuitacao(parcelas: ParcelaAberta[], p: { valor?: number; data: string; cobrarProximo?: boolean }, o: { capitalAberto: number | null }): ResultadoQuitacao {
+  const plano = planoQuitacao(parcelas, { data: p.data, cobrarProximo: p.cobrarProximo, capitalAberto: o.capitalAberto })
+  if (plano.cobrado <= 0.009) throw new ErroRecebimento('PARCELA_PAGA', 'Não há nada a quitar neste empréstimo')
+  const valor = arred2(p.valor ?? plano.cobrado)
+  if (!Number.isFinite(valor) || valor <= 0) throw new ErroRecebimento('VALOR_INVALIDO', 'Informe quanto foi recebido')
+  if (valor > plano.cobrado + 0.009) throw new ErroRecebimento('EXCEDE_DIVIDA', `O valor passa do que falta pagar (faltam ${plano.cobrado.toFixed(2).replace('.', ',')})`)
+
+  let resto = valor
+  const linhas = plano.cobrancas.map(({ parcela: x, cobrar }) => {
+    const pago = arred2(Math.min(cobrar, resto)); resto = arred2(resto - pago)
+    const desconto = arred2(cobrar - pago)
+    const novoValor = arred2(x.pago + x.desconto + pago + desconto) // falta zero depois
+    const mudaValor = Math.abs(novoValor - x.valor) > 0.004
+    const antes: EstadoParcela = { vencimento: x.vencimento, vencimentoOriginal: x.vencimentoOriginal, desconto: x.desconto, quitadaEm: x.quitadaEm, ...(mudaValor ? { valor: x.valor } : {}) }
+    const depois: EstadoParcela = { ...antes, desconto: arred2(x.desconto + desconto), quitadaEm: p.data, ...(mudaValor ? { valor: novoValor } : {}) }
+    return { x, pago, desconto, antes, depois }
+  })
+  const amortizacao = arred2(Math.min(plano.capital, resto))
+
+  // pelo menos uma parcela leva o recebimento (é ela que liga o pagamento ao empréstimo); as outras que mudam entram como ajuste
+  const mudam = linhas.filter((l) => l.pago > 0.009 || l.desconto > 0.009 || l.depois.valor !== undefined)
+  const comPagamento = mudam.filter((l) => l.pago > 0.009)
+  const doRecibo = comPagamento.length ? comPagamento : mudam.slice(0, 1)
+  const itens: ItemRecebimento[] = doRecibo.map((l) => ({ parcelaId: l.x.id, numero: l.x.numero, valorPago: l.pago, antes: l.antes, depois: l.depois, faltaDepois: 0 }))
+  const ajustes: AjusteParcela[] = mudam.filter((l) => !doRecibo.includes(l)).map((l) => ({ parcelaId: l.x.id, numero: l.x.numero, antes: l.antes, depois: l.depois }))
+  if (!itens.length) throw new ErroRecebimento('PARCELA_PAGA', 'Não há nada a quitar neste empréstimo')
+
+  const desconto = arred2(plano.cobrado - valor)
+  const efeitos: EfeitoRecebimento[] = [
+    ...itens.map((i): EfeitoRecebimento => ({ tipo: 'QUITA', numero: i.numero })),
+    ...linhas.filter((l) => l.desconto > 0.009).map((l): EfeitoRecebimento => ({ tipo: 'DESCONTO', numero: l.x.numero, valor: l.desconto })),
+    ...(amortizacao > 0.009 ? [{ tipo: 'AMORTIZA', valor: amortizacao, capitalRestante: 0 } as EfeitoRecebimento] : []),
+    { tipo: 'QUITACAO', desconto, perdoado: plano.perdoado },
+  ]
+  return { itens, efeitos, valorTotal: valor, amortizacao, capitalRestante: 0, ajustes, cobrado: plano.cobrado, desconto, perdoado: plano.perdoado }
 }

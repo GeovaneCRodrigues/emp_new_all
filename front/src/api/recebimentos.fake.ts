@@ -5,7 +5,7 @@ import { soDigitos } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
 import { nomeEmprestimo } from '@/domain/emprestimo'
 import { arred2 } from '@/domain/format'
-import { calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
+import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
 import { ErroApi } from './clientes'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
 import type { AbaCobranca, AlvoApi, CobrancaApi, EntradaRecebimento, PagamentoApi, ReciboApi, RecebimentosApi, RegistradoApi } from './recebimentos'
@@ -138,6 +138,12 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (!dataValida(data)) throw new ErroApi(400, 'data precisa ser uma data válida (AAAA-MM-DD)')
       if (data > hoje) throw new ErroApi(400, 'A data do recebimento não pode ser no futuro')
       if (e.resto !== undefined && e.resto !== 'FICA' && e.resto !== 'DESCONTO') throw new ErroApi(400, 'resto deve ser FICA ou DESCONTO')
+      if (e.quitar !== undefined && typeof e.quitar !== 'boolean') throw new ErroApi(400, 'quitar deve ser verdadeiro ou falso')
+      if (e.cobrarProximo !== undefined && typeof e.cobrarProximo !== 'boolean') throw new ErroApi(400, 'cobrarProximo deve ser verdadeiro ou falso')
+      const quitar = e.quitar === true
+      if (quitar && alvo !== 'EMPRESTIMO') throw new ErroApi(400, 'Só empréstimo se quita assim')
+      if (quitar && s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador quita um empréstimo', 'SEM_PERMISSAO')
+      if (quitar && (e.resto !== undefined || e.pedirDesconto !== undefined)) throw new ErroApi(400, 'Na quitação o desconto é a diferença do valor: não envie resto nem pedido de desconto')
       if (s.perfil === 'COBRADOR' && data !== hoje) throw new ErroApi(403, 'O cobrador só lança o que recebeu hoje', 'SEM_PERMISSAO')
       if (s.perfil === 'COBRADOR' && e.resto === 'DESCONTO') throw new ErroApi(403, 'Desconto precisa da aprovação do administrador: use "pedir desconto"', 'SEM_PERMISSAO')
       let motivoPedido: string | null = null
@@ -159,8 +165,13 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       let capitalRestante = 0
       try {
         // só juros segue a regra própria (excedente abate o capital) enquanto não houve acordo; depois do acordo são parcelas comuns
-        if (o.emp && o.emp.modalidade === 'JUROS' && !o.emp.parcelas.some((x) => x.acordoId && !x.encerradaId)) {
-          const j = calcularRecebimentoJuros(comoAberta(o), pedidoCalc, { capitalAberto: capitalAberto(o.emp), taxa: o.emp.taxa })
+        const emp = o.emp
+        const soJuros = !!emp && emp.modalidade === 'JUROS' && !emp.parcelas.some((x) => x.acordoId && !x.encerradaId)
+        if (quitar) {
+          const q = calcularQuitacao(comoAberta(o), { valor: e.valor, data, cobrarProximo: e.cobrarProximo === true }, { capitalAberto: soJuros && emp ? capitalAberto(emp) : null })
+          res = q; ajustes = q.ajustes; amortizacao = q.amortizacao; capitalRestante = 0
+        } else if (soJuros && emp) {
+          const j = calcularRecebimentoJuros(comoAberta(o), pedidoCalc, { capitalAberto: capitalAberto(emp), taxa: emp.taxa })
           res = j; ajustes = j.ajustes; amortizacao = j.amortizacao; capitalRestante = j.capitalRestante
         } else res = calcularRecebimento(comoAberta(o), pedidoCalc)
       } catch (err) { if (err instanceof ErroRecebimento) throw new ErroApi(HTTP[err.codigo], err.message, err.codigo); throw err }
@@ -177,11 +188,12 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         const p = o.parcelas.find((x) => x.numero === it.numero)!
         p.pago = arred2(p.pago + it.valorPago)
         p.vencimento = it.depois.vencimento; p.vencimentoOriginal = it.depois.vencimentoOriginal; p.desconto = it.depois.desconto; p.quitadaEm = it.depois.quitadaEm
+        if (it.depois.valor !== undefined) p.valor = it.depois.valor
       }
       // só juros: o juro seguinte, recalculado sobre o capital que sobrou
       for (const a of ajustes) {
         const p = o.parcelas.find((x) => x.numero === a.numero)!
-        p.valor = a.depois.valor ?? p.valor; p.quitadaEm = a.depois.quitadaEm
+        p.valor = a.depois.valor ?? p.valor; p.quitadaEm = a.depois.quitadaEm; p.desconto = a.depois.desconto
       }
       if (o.emp && amortizacao > 0) o.emp.amortizado = arred2(o.emp.amortizado + amortizacao)
       const aberta = abertas(o).sort((a, b) => a.numero - b.numero)
@@ -268,11 +280,12 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         const p = o.parcelas.find((x) => x.numero === it.numero)!
         p.pago = arred2(p.pago - it.valorPago)
         p.vencimento = it.antes.vencimento || p.vencimento; p.vencimentoOriginal = it.antes.vencimentoOriginal; p.desconto = it.antes.desconto; p.quitadaEm = it.antes.quitadaEm
+        if (it.antes.valor !== undefined) p.valor = it.antes.valor
       }
       // só juros: as parcelas recalculadas voltam ao valor de antes e o capital amortizado volta
       for (const a of t.ajustes?.parcelas ?? []) {
         const p = o.parcelas.find((x) => x.numero === a.numero)!
-        p.valor = a.antes.valor ?? p.valor; p.quitadaEm = a.antes.quitadaEm
+        p.valor = a.antes.valor ?? p.valor; p.quitadaEm = a.antes.quitadaEm; p.desconto = a.antes.desconto
       }
       if (o.emp && t.ajustes) o.emp.amortizado = arred2(o.emp.amortizado - t.ajustes.amortizacao)
       t.desfeita = true
