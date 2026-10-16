@@ -355,6 +355,53 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
       await acordoE('admin', e, { capitalAdicional: 200 })
       expect((await fichaE(e)).capital).toBe(3700)
     })
+    describe('periodicidade das parcelas novas', () => {
+      const vencs = async (e: number, acordoId: number) => (await db!('emprestimo_parcelas').where({ emprestimo_id: e, acordo_id: acordoId }).orderBy('numero')).map((p: Record<string, unknown>) => String(p.vencimento instanceof Date ? p.vencimento.toISOString() : p.vencimento).slice(0, 10))
+      const fazer = async (periodicidade: string | undefined, primeiraParcela = '2026-12-01') => {
+        const e = await emprestimo()
+        const r = await acordoE('admin', e, { valorTotal: 3600, parcelas: 4, primeiraParcela, ...(periodicidade ? { periodicidade } : {}) })
+        expect(r.statusCode).toBe(201)
+        return { e, r: r.json(), v: await vencs(e, r.json().acordoId) }
+      }
+      it('mensal (padrão), semanal, quinzenal e diária de segunda a sábado', async () => {
+        expect((await fazer(undefined)).v).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
+        expect((await fazer('MENSAL', '2026-12-31')).v).toEqual(['2026-12-31', '2027-01-31', '2027-02-28', '2027-03-31'])
+        expect((await fazer('SEMANAL')).v).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22'])
+        expect((await fazer('QUINZENAL')).v).toEqual(['2026-12-01', '2026-12-15', '2026-12-29', '2027-01-12'])
+        // 2026-12-04 é sexta: sexta, sábado, (domingo pulado) segunda, terça
+        expect((await fazer('DIARIA', '2026-12-04')).v).toEqual(['2026-12-04', '2026-12-05', '2026-12-07', '2026-12-08'])
+        // 1ª num domingo (06/12) vai para a segunda
+        expect((await fazer('DIARIA', '2026-12-06')).v).toEqual(['2026-12-07', '2026-12-08', '2026-12-09', '2026-12-10'])
+      })
+      it('a soma continua fechando e o histórico mostra a periodicidade', async () => {
+        const { e, r } = await fazer('SEMANAL')
+        expect(r.periodicidade).toBe('SEMANAL')
+        const novas = await db!('emprestimo_parcelas').where({ emprestimo_id: e, acordo_id: r.acordoId })
+        expect(novas.reduce((x: number, p: Record<string, unknown>) => x + Number(p.valor), 0)).toBeCloseTo(3600, 2)
+        expect((await req('GET', `/api/emprestimos/${e}/acordos`, 'admin')).json()[0].periodicidade).toBe('SEMANAL')
+        expect((await fazer(undefined)).r.periodicidade).toBe('MENSAL')
+      })
+      it('periodicidade inválida → 400; em venda de iPhone só mensal', async () => {
+        const e = await emprestimo()
+        for (const periodicidade of ['ANUAL', 'semanal', 7, '']) expect((await acordoE('admin', e, { periodicidade })).statusCode, String(periodicidade)).toBe(400)
+        expect(await db!('acordos').where({ emprestimo_id: e })).toHaveLength(0)
+        const v = await vendaComSaldo()
+        expect((await acordoV('admin', v, { periodicidade: 'SEMANAL' })).statusCode).toBe(400)
+        expect((await acordoV('admin', v, { periodicidade: 'MENSAL' })).statusCode).toBe(201)
+      })
+      it('o cobrador propõe semanal e, ao aprovar, as parcelas saem semanais', async () => {
+        const e = await emprestimo()
+        const p = await pedir('cobrador', e, { alvo: 'EMPRESTIMO', valorTotal: 3600, parcelas: 3, periodicidade: 'SEMANAL' })
+        expect(p.statusCode).toBe(201)
+        expect(p.json().acordo.periodicidade).toBe('SEMANAL')
+        expect((await pedir('cobrador', await emprestimo(), { alvo: 'EMPRESTIMO', periodicidade: 'ANUAL' })).statusCode).toBe(400)
+        const ok = await aprovar('admin', p.json().id)
+        expect(ok.statusCode).toBe(200)
+        const a = (await req('GET', `/api/emprestimos/${e}/acordos`, 'admin')).json()[0]
+        expect(a.periodicidade).toBe('SEMANAL')
+        expect(await vencs(e, a.id)).toEqual(['2026-12-01', '2026-12-08', '2026-12-15'])
+      })
+    })
     it('dinheiro novo inválido → 400 (negativo, texto, enorme) e não grava nada; em venda → 400', async () => {
       const e = await emprestimo()
       for (const capitalAdicional of [-1, '1500', 1e9]) expect((await acordoE('admin', e, { capitalAdicional })).statusCode, String(capitalAdicional)).toBe(400)

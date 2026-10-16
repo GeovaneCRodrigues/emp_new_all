@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distribuirAcordo, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from './acordo'
+import { distribuirAcordo, indicadoresDiferentes, resumoUnificacao, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from './acordo'
 
 describe('divisão do acordo', () => {
   it('a soma fecha no centavo: 1.000,01 em 3x → 333,33 + 333,33 + 333,35', () => {
@@ -16,6 +16,14 @@ describe('datas do acordo', () => {
   it('mês a mês no dia da 1ª parcela; dia 31 cai no fim dos meses curtos', () => {
     expect(vencimentosAcordo('2026-12-01', 4)).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
     expect(vencimentosAcordo('2026-12-31', 3)).toEqual(['2026-12-31', '2027-01-31', '2027-02-28'])
+  })
+  it('semanal (7 dias) e quinzenal (14 dias)', () => {
+    expect(vencimentosAcordo('2026-12-01', 4, 'SEMANAL')).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22'])
+    expect(vencimentosAcordo('2026-12-01', 4, 'QUINZENAL')).toEqual(['2026-12-01', '2026-12-15', '2026-12-29', '2027-01-12'])
+  })
+  it('diária de segunda a sábado: pula o domingo e uma 1ª num domingo vai para a segunda', () => {
+    expect(vencimentosAcordo('2026-12-04', 4, 'DIARIA')).toEqual(['2026-12-04', '2026-12-05', '2026-12-07', '2026-12-08'])
+    expect(vencimentosAcordo('2026-12-06', 3, 'DIARIA')).toEqual(['2026-12-07', '2026-12-08', '2026-12-09'])
   })
 })
 
@@ -38,5 +46,20 @@ describe('valorSugeridoAcordo', () => {
   it('negativo conta como zero e arredonda no centavo', () => {
     expect(valorSugeridoAcordo(100, -5, -1)).toBe(100)
     expect(valorSugeridoAcordo(100.1, 0.2, 0.3)).toBe(100.6)
+  })
+})
+
+describe('unificar empréstimos', () => {
+  it('soma o que deve e o capital que ainda está na rua', () => {
+    expect(resumoUnificacao([{ falta: 3720, capital: 3000, capitalDeVolta: 360 }, { falta: 4080, capital: 3000, capitalDeVolta: 0 }])).toEqual({ saldo: 7800, capitalNaRua: 5640 })
+    expect(resumoUnificacao([])).toEqual({ saldo: 0, capitalNaRua: 0 })
+    expect(resumoUnificacao([{ falta: 100 }])).toEqual({ saldo: 100, capitalNaRua: 0 })
+  })
+  it('indicador igual herda; diferente (ou % diferente, ou um sem indicador) pede escolha', () => {
+    const r = { id: 1, nome: 'Roberto' }
+    expect(indicadoresDiferentes([{ indicador: r, percentualIndicador: 0.5 }, { indicador: r, percentualIndicador: 0.5 }])).toBe(false)
+    expect(indicadoresDiferentes([{ indicador: r, percentualIndicador: 0.5 }, { indicador: r, percentualIndicador: 0.4 }])).toBe(true)
+    expect(indicadoresDiferentes([{ indicador: r, percentualIndicador: 0.5 }, { indicador: null, percentualIndicador: 0 }])).toBe(true)
+    expect(indicadoresDiferentes([{ indicador: null }, { indicador: null }])).toBe(false)
   })
 })

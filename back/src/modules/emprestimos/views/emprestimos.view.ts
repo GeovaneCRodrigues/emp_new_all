@@ -28,6 +28,7 @@ export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
   if (perfil !== 'ADMIN') return base
   return {
     ...base,
+    unificadoDe: e.unificadoDe, unificadoEm: e.unificadoEm,
     indicador: e.indicador, capital: e.capital, taxa: e.taxa, modoDivisao: e.modoDivisao,
     // só juros: o capital que ainda não foi amortizado (a prévia do recebimento precisa dele)
     capitalAberto: arred2(e.capital - e.amortizado),

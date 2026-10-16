@@ -38,6 +38,9 @@ export interface EmprestimoApi {
   /** só o indicador: a parte dele no lucro (prevista) e a que já foi liberada */
   suaParte?: number
   jaLiberado?: number
+  /** unificação (só o administrador): os empréstimos que este juntou, ou o empréstimo novo em que este foi juntado */
+  unificadoDe?: number[]
+  unificadoEm?: number | null
 }
 
 export interface ResumoEmprestimosApi { aReceber: number; capitalNaRua?: number; lucroPorVir?: number }

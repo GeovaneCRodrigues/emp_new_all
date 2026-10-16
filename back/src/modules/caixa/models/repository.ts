@@ -51,8 +51,9 @@ const UNIAO = `
   select 'P' || r.id, r.data_repasse, r.valor, false, 'REPASSE', 'Repasse · ' || i.nome, 'parte do lucro', null
   from repasses_indicador r join indicadores i on i.id = r.indicador_id where r.data_repasse <= :hoje
  union all
-  select 'E' || e.id, e.data_emprestimo, e.capital - coalesce((select sum(a.capital_adicional) from acordos a where a.emprestimo_id = e.id), 0), false, 'EMPRESTIMO', 'Empréstimo liberado · ' || c.nome, ${NOME_EMPRESTIMO_SQL}, null
+  select 'E' || e.id, e.data_emprestimo, e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0), false, 'EMPRESTIMO', 'Empréstimo liberado · ' || c.nome, ${NOME_EMPRESTIMO_SQL}, null
   from emprestimos e join clientes c on c.id = e.cliente_id where e.status <> 'CANCELADA' and e.data_emprestimo <= :hoje
+    and e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0) > 0
  union all
   select 'D' || a.id, a.data_acordo, a.capital_adicional, false, 'EMPRESTIMO', 'Dinheiro novo no acordo · ' || c.nome, ${NOME_EMPRESTIMO_SQL}, null
   from acordos a join emprestimos e on e.id = a.emprestimo_id join clientes c on c.id = e.cliente_id

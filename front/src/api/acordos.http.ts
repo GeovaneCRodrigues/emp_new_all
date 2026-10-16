@@ -17,6 +17,7 @@ export function criarAcordosHttp(baseUrl: string, requisicao: Requisicao): Acord
     return corpo as T
   }
   return {
+    unificar: (_s, e) => chamar('/emprestimos/unificar', { method: 'POST', body: JSON.stringify(e) }),
     fazer: (_s, alvo, id, e) => chamar(`/${CAMINHO[alvo]}/${id}/acordos`, { method: 'POST', body: JSON.stringify(e) }),
     listar: (_s, alvo, id) => chamar(`/${CAMINHO[alvo]}/${id}/acordos`),
   }

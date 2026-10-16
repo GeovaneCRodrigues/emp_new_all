@@ -1,6 +1,6 @@
 import type { Knex } from 'knex'
 import { nomeEmprestimo, PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '../../../shared/sql.js'
-import { fazerAcordo, type ResultadoAcordo } from '../../acordos/models/acordo.js'
+import { fazerAcordo, type PeriodicidadeAcordo, type ResultadoAcordo } from '../../acordos/models/acordo.js'
 import { retomarVenda, type ResultadoRetomada } from '../../vendas/models/retomada.js'
 import type { Alvo, Aprovacao, EscopoAprovacoes, OperacaoDoPedido, ParcelaDaOperacao, StatusAprovacao, TipoAprovacao } from './types.js'
 
@@ -15,13 +15,13 @@ export interface AprovacoesTx {
   /** Pedido de retomada do aparelho de uma venda. */
   criarRetomada(d: { vendaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
   /** Pedido de acordo (a proposta do cobrador vai em `dados`). */
-  criarAcordo(d: { alvo: Alvo; operacaoId: number; solicitadoPor: number; valorTotal: number; motivo: string; parcelas: number; primeiraParcela: string; saldoNoPedido: number }): Promise<number>
+  criarAcordo(d: { alvo: Alvo; operacaoId: number; solicitadoPor: number; valorTotal: number; motivo: string; parcelas: number; primeiraParcela: string; periodicidade: PeriodicidadeAcordo; saldoNoPedido: number }): Promise<number>
   /** Faz o acordo (a operação já está travada nesta transação). */
-  fazerAcordo(d: { alvo: Alvo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId: number; saldoEsperado: number }): Promise<ResultadoAcordo>
+  fazerAcordo(d: { alvo: Alvo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId: number; saldoEsperado: number; periodicidade?: PeriodicidadeAcordo }): Promise<ResultadoAcordo>
   /** Retoma o aparelho (a venda já está travada nesta transação). */
   retomar(d: { vendaId: number; usuarioId: number; motivo: string | null; dia: string; excetoPedidoId: number }): Promise<ResultadoRetomada>
   /** Pedido travado até o fim da transação. */
-  travarPedido(id: number): Promise<{ id: number; tipo: TipoAprovacao; status: StatusAprovacao; alvo: Alvo; operacaoId: number; parcelaId: number | null; valor: number; motivo: string | null; dados: { parcelas: number; primeiraParcela: string; saldoNoPedido: number } | null } | null>
+  travarPedido(id: number): Promise<{ id: number; tipo: TipoAprovacao; status: StatusAprovacao; alvo: Alvo; operacaoId: number; parcelaId: number | null; valor: number; motivo: string | null; dados: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null } | null>
   aplicarDesconto(alvo: Alvo, parcelaId: number, novoDesconto: number, quitadaEm: string | null): Promise<void>
   definirStatus(alvo: Alvo, id: number, status: 'ATIVA' | 'QUITADA'): Promise<void>
   responder(id: number, status: 'APROVADO' | 'RECUSADO', usuarioId: number, resposta: string | null): Promise<void>
@@ -43,7 +43,7 @@ const T = {
 
 type Linha = {
   id: number; tipo: TipoAprovacao; status: StatusAprovacao; venda_id: number | null; emprestimo_id: number | null; numero: number | null; n_parcelas: string; valor: string; motivo: string | null
-  solicitado_por: number; solicitante: string; cliente_id: number; cliente_nome: string; modelo: string | null; modalidade: string | null; periodicidade: string | null; created_at: Date; dados: { parcelas: number; primeiraParcela: string; saldoNoPedido: number } | null
+  solicitado_por: number; solicitante: string; cliente_id: number; cliente_nome: string; modelo: string | null; modalidade: string | null; periodicidade: string | null; created_at: Date; dados: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null
   respondente: string | null; respondido_em: Date | null; resposta: string | null
 }
 const paraAprovacao = (l: Linha): Aprovacao => ({
@@ -110,7 +110,7 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
             const t = T[d.alvo]
             const [{ id }] = await trx('aprovacoes').insert({
               tipo: 'ACORDO', solicitado_por: d.solicitadoPor, [t.pedidoOp]: d.operacaoId, valor: d.valorTotal, motivo: d.motivo,
-              dados: JSON.stringify({ parcelas: d.parcelas, primeiraParcela: d.primeiraParcela, saldoNoPedido: d.saldoNoPedido }),
+              dados: JSON.stringify({ parcelas: d.parcelas, primeiraParcela: d.primeiraParcela, periodicidade: d.periodicidade, saldoNoPedido: d.saldoNoPedido }),
             }).returning('id')
             return id
           },
@@ -118,7 +118,7 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
           async retomar(d) { return retomarVenda(trx, d) },
           async travarPedido(id) {
             const l = await trx('aprovacoes').where({ id }).forUpdate()
-              .first<{ id: number; tipo: TipoAprovacao; status: StatusAprovacao; venda_id: number | null; emprestimo_id: number | null; venda_parcela_id: number | null; emprestimo_parcela_id: number | null; valor: string; motivo: string | null; dados: { parcelas: number; primeiraParcela: string; saldoNoPedido: number } | null } | undefined>('id', 'tipo', 'status', 'venda_id', 'emprestimo_id', 'venda_parcela_id', 'emprestimo_parcela_id', 'valor', 'motivo', 'dados')
+              .first<{ id: number; tipo: TipoAprovacao; status: StatusAprovacao; venda_id: number | null; emprestimo_id: number | null; venda_parcela_id: number | null; emprestimo_parcela_id: number | null; valor: string; motivo: string | null; dados: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null } | undefined>('id', 'tipo', 'status', 'venda_id', 'emprestimo_id', 'venda_parcela_id', 'emprestimo_parcela_id', 'valor', 'motivo', 'dados')
             if (!l) return null
             const alvo: Alvo = l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO'
             return { id: l.id, tipo: l.tipo, status: l.status, alvo, operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcelaId: l.venda_parcela_id ?? l.emprestimo_parcela_id, valor: Number(l.valor), motivo: l.motivo, dados: l.dados }

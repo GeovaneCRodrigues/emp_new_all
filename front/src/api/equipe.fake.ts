@@ -148,6 +148,8 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (!Number.isInteger(e.operacaoId) || e.operacaoId < 1) throw erro(alvo === 'VENDA' ? 'Informe a venda' : 'Informe o empréstimo')
       const motivo = (e.motivo ?? '').trim()
       if (motivo.length < 3 || motivo.length > 500) throw erro('Explique o motivo do pedido (de 3 a 500 letras)')
+      if (e.periodicidade !== undefined && !['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA'].includes(e.periodicidade)) throw erro('periodicidade deve ser MENSAL, QUINZENAL, SEMANAL ou DIARIA')
+      if (alvo === 'VENDA' && e.periodicidade && e.periodicidade !== 'MENSAL') throw erro('O acordo de venda de iPhone é mensal')
       const problema = problemaDoAcordo({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, hoje)
       if (problema) throw erro(problema)
       const o = opDe(alvo, e.operacaoId, s)
@@ -156,7 +158,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       const saldo = arred2(o.parcelas.reduce((x, p) => x + Math.max(0, falta(p)), 0))
       if (o.status !== 'ATIVA' || saldo <= 0.009) throw new ErroApi(409, 'Não há nada em aberto para renegociar', 'SEM_SALDO')
       if (pedidos.some((x) => x.tipo === 'ACORDO' && x.alvo === alvo && x.operacaoId === o.id && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um pedido de acordo esperando para esta operação', 'PEDIDO_JA_EXISTE')
-      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'ACORDO', alvo, operacaoId: o.id, parcela: null, valor: arred2(e.valorTotal), motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null, dados: { parcelas: e.parcelas, primeiraParcela: e.primeiraParcela, saldoNoPedido: saldo } }
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'ACORDO', alvo, operacaoId: o.id, parcela: null, valor: arred2(e.valorTotal), motivo, solicitanteId: s.usuarioId ?? 0, solicitanteNome: 'Diego Ramos', status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null, dados: { parcelas: e.parcelas, primeiraParcela: e.primeiraParcela, periodicidade: e.periodicidade ?? 'MENSAL', saldoNoPedido: saldo } }
       pedidos.push(novo)
       return visao(novo)
     },
@@ -189,7 +191,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (p.tipo === 'ACORDO') {
         if (!acordos || !p.dados) throw new ErroApi(409, 'Pedido de acordo sem proposta', 'PEDIDO_DESATUALIZADO')
         if (p.dados.primeiraParcela < hoje) throw new ErroApi(409, 'A data da 1ª parcela proposta já passou. Recuse o pedido e peça de novo.', 'PEDIDO_DESATUALIZADO')
-        acordos._interno.fazerAcordo({ alvo: p.alvo, operacaoId: o.id, usuarioNome: 'Geovane Cataneo', valorTotal: p.valor, n: p.dados.parcelas, primeira: p.dados.primeiraParcela, motivo: p.motivo, aprovacaoId: p.id, saldoEsperado: p.dados.saldoNoPedido })
+        acordos._interno.fazerAcordo({ alvo: p.alvo, operacaoId: o.id, usuarioNome: 'Geovane Cataneo', valorTotal: p.valor, n: p.dados.parcelas, primeira: p.dados.primeiraParcela, motivo: p.motivo, aprovacaoId: p.id, saldoEsperado: p.dados.saldoNoPedido, periodicidade: p.dados.periodicidade })
         p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
         return visao(p)
       }
