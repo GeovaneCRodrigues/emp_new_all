@@ -32,7 +32,9 @@ beforeEach(() => {
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: ErroApi) => e)
 const tudo = async (): Promise<CaixaLojaApi> => { const a = await api.ver(ADMIN, { limite: 100 }); return { ...a, itens: a.itens, total: a.total } }
 async function todos() { const itens = []; for (let p = 1; ; p++) { const r = await api.ver(ADMIN, { pagina: p, limite: 100 }); itens.push(...r.itens); if (itens.length >= r.total) return itens } }
-const lanc = (e: Partial<EntradaLancamento>) => api.lancar(ADMIN, { tipo: 'APORTE', valor: 100, ...e })
+/** Apaga os dois saldos de abertura da demonstração (de empréstimos e de iPhones). */
+const apagarAberturas = async () => { for (const m of (await tudo()).itens.filter((x) => x.titulo === 'Saldo de abertura')) await api.excluir(ADMIN, m.manualId!) }
+const lanc = (e: Partial<EntradaLancamento>) => api.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 100, ...e })
 const venda = async (cliente = 3) => {
   const a = await estoque.criar(ADMIN, { modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco: 3000, custo: 2000 })
   return (await vendas.criar(ADMIN, { aparelhoId: a.id, clienteId: cliente, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })).id
@@ -42,7 +44,8 @@ describe('caixa da loja (demonstração)', () => {
   it('começa com o saldo de abertura como aporte, e o resumo é do mês de hoje', async () => {
     const c = await tudo()
     expect(c).toMatchObject({ hoje: HOJE, mes: '2026-10', marcoZero: '2026-01-01' })
-    expect(c.itens.some((m) => m.categoria === 'APORTE' && m.titulo === 'Saldo de abertura' && m.valor === 100000 && m.manualId !== null)).toBe(true)
+    const aberturas = c.itens.filter((m) => m.categoria === 'APORTE' && m.titulo === 'Saldo de abertura' && m.manualId !== null)
+    expect(aberturas.map((m) => [m.lado, m.valor]).sort()).toEqual([['EMPRESTIMO', 60000], ['IPHONE', 40000]])
   })
   it('o saldo é entradas − saídas do extrato inteiro, sem erro de centavos', async () => {
     const itens = await todos()
@@ -64,7 +67,7 @@ describe('caixa da loja (demonstração)', () => {
   it('só o administrador: vendedor, cobrador e indicador levam 403 em tudo', async () => {
     for (const s of OUTROS) {
       expect((await falha(api.ver(s)))?.status).toBe(403)
-      expect((await falha(api.lancar(s, { tipo: 'APORTE', valor: 1 })))?.status).toBe(403)
+      expect((await falha(api.lancar(s, { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1 })))?.status).toBe(403)
       expect((await falha(api.editar(s, 1, { valor: 1 })))?.status).toBe(403)
       expect((await falha(api.excluir(s, 1)))?.status).toBe(403)
     }
@@ -122,8 +125,8 @@ describe('caixa da loja (demonstração)', () => {
   describe('marco zero: só conta a partir do primeiro aporte ou retirada', () => {
     it('apagando o aporte de abertura e lançando outro mais novo, o que veio antes sai da conta', async () => {
       const antes = await tudo()
-      const abertura = antes.itens.find((m) => m.titulo === 'Saldo de abertura')!
-      await api.excluir(ADMIN, abertura.manualId!)
+      void antes
+      await apagarAberturas()
       expect((await api.ver(ADMIN)).marcoZero).toBeNull() // sem lançamento, conta tudo
       await lanc({ tipo: 'APORTE', valor: 1000, data: '2026-10-01' })
       const c = await tudo()
@@ -131,8 +134,7 @@ describe('caixa da loja (demonstração)', () => {
       expect(c.itens.every((m) => m.data >= '2026-10-01')).toBe(true)
     })
     it('despesa não define o marco; retirada define', async () => {
-      const abertura = (await tudo()).itens.find((m) => m.titulo === 'Saldo de abertura')!
-      await api.excluir(ADMIN, abertura.manualId!)
+      await apagarAberturas()
       await lanc({ tipo: 'DESPESA', valor: 50, data: '2026-02-01', obs: 'aluguel' })
       expect((await api.ver(ADMIN)).marcoZero).toBeNull()
       await lanc({ tipo: 'RETIRADA', valor: 10, data: '2026-03-01' })
@@ -143,7 +145,7 @@ describe('caixa da loja (demonstração)', () => {
   describe('lançar, editar e excluir', () => {
     it('lança com a data de hoje por padrão e mexe no saldo', async () => {
       const antes = (await api.ver(ADMIN)).saldo
-      const l = await api.lancar(ADMIN, { tipo: 'APORTE', valor: 7500.5, obs: '  reforço ' })
+      const l = await api.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 7500.5, obs: '  reforço ' })
       expect(l).toMatchObject({ tipo: 'APORTE', valor: 7500.5, data: HOJE, obs: 'reforço' })
       expect((await api.ver(ADMIN)).saldo).toBe(Math.round((antes + 7500.5) * 100) / 100)
     })
@@ -181,15 +183,49 @@ describe('caixa da loja (demonstração)', () => {
       ['despesa sem descrição', { tipo: 'DESPESA', valor: 1 }],
     ])('lançamento inválido (%s) é 400 e não grava nada', async (_n, corpo) => {
       const antes = (await api.ver(ADMIN)).total
-      expect((await falha(api.lancar(ADMIN, corpo as never)))?.status).toBe(400)
+      expect((await falha(api.lancar(ADMIN, { lado: 'IPHONE', ...(corpo as object) } as never)))?.status).toBe(400)
       expect((await api.ver(ADMIN)).total).toBe(antes)
     })
     it('hoje e 200 letras são aceitos; edição inválida não altera', async () => {
-      await api.lancar(ADMIN, { tipo: 'APORTE', valor: 1, data: HOJE, obs: 'x'.repeat(200) })
+      await api.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: HOJE, obs: 'x'.repeat(200) })
       const l = await lanc({ valor: 100 })
       for (const c of [{ valor: -1 }, { data: '2027-01-01' }, { tipo: 'X' as never }]) expect((await falha(api.editar(ADMIN, l.id, c)))?.status).toBe(400)
       expect((await api.editar(ADMIN, l.id, {})).valor).toBe(100)
     })
+  })
+  describe('os dois lados: empréstimos e iPhones', () => {
+    it('a demonstração começa com um saldo de abertura em cada lado; os lados + sem lado somam o total', async () => {
+      const c = await api.ver(ADMIN)
+      expect(c.porLado.SEM_LADO.saldo).toBeLessThanOrEqual(0) // só os repasses pagos a indicadores
+      const soma = (['EMPRESTIMO', 'IPHONE', 'SEM_LADO'] as const).reduce((t, l) => t + c.porLado[l].saldo, 0)
+      expect(Math.round(soma * 100) / 100).toBe(c.saldo)
+    })
+    it('o extrato filtra por lado, com o saldo do lado', async () => {
+      const emp = await api.ver(ADMIN, { lado: 'EMPRESTIMO', limite: 100 }), iph = await api.ver(ADMIN, { lado: 'IPHONE', limite: 100 })
+      expect(emp.total).toBeGreaterThan(0); expect(iph.total).toBeGreaterThan(0)
+      expect(emp.itens.every((m) => m.lado === 'EMPRESTIMO')).toBe(true); expect(iph.itens.every((m) => m.lado === 'IPHONE')).toBe(true)
+      expect(emp.saldo).toBe(emp.porLado.EMPRESTIMO.saldo); expect(iph.saldo).toBe(iph.porLado.IPHONE.saldo)
+      expect(emp.itens.some((m) => m.categoria === 'EMPRESTIMO')).toBe(true); expect(iph.itens.some((m) => m.categoria === 'COMPRA')).toBe(true)
+    })
+    it('lançar exige o lado; trocar o lado de um lançamento move o dinheiro de caixa', async () => {
+      for (const lado of [undefined, 'LOJA', 'SEM_LADO']) expect((await falha(api.lancar(ADMIN, { tipo: 'APORTE', valor: 1, lado: lado as never })))?.status, String(lado)).toBe(400)
+      const l = await lanc({ lado: 'IPHONE', valor: 10, data: '2026-01-01' })
+      const antes = await api.ver(ADMIN)
+      expect(await api.editar(ADMIN, l.id, { lado: 'EMPRESTIMO' })).toMatchObject({ lado: 'EMPRESTIMO', valor: 10 })
+      const depois = await api.ver(ADMIN)
+      expect(depois.porLado.EMPRESTIMO.saldo).toBe(Math.round((antes.porLado.EMPRESTIMO.saldo + 10) * 100) / 100)
+      expect(depois.porLado.IPHONE.saldo).toBe(Math.round((antes.porLado.IPHONE.saldo - 10) * 100) / 100)
+      expect(depois.saldo).toBe(antes.saldo)
+    })
+    it('o marco zero é de cada lado', async () => {
+      const a = (await tudo()).itens.find((m) => m.titulo === 'Saldo de abertura' && m.lado === 'IPHONE')!
+      await api.excluir(ADMIN, a.manualId!)
+      await lanc({ lado: 'IPHONE', valor: 10, data: '2026-10-01' })
+      const c = await api.ver(ADMIN)
+      expect(c.porLado.EMPRESTIMO.marcoZero).toBe('2026-01-01'); expect(c.porLado.IPHONE.marcoZero).toBe('2026-10-01')
+      expect((await api.ver(ADMIN, { lado: 'IPHONE', limite: 100 })).itens.every((m) => m.data >= '2026-10-01')).toBe(true)
+    })
+    it('filtro de lado inválido é 400', async () => { expect((await falha(api.ver(ADMIN, { lado: 'X' as never })))?.status).toBe(400) })
   })
 })
 
@@ -218,5 +254,4 @@ describe('busca no extrato (mesmas regras do backend)', () => {
     const cliente = todo.itens.find((m) => m.categoria === 'ENTRADA_VENDA')!.titulo.replace('Entrada · ', '').split(' ')[0]
     const r = await api.ver(ADMIN, { busca: cliente, limite: 100 })
     expect(r.itens.some((m) => m.categoria === 'ENTRADA_VENDA')).toBe(true)
-  })
-})
+  })})

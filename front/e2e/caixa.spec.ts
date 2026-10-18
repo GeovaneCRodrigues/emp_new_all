@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { entrar, navegar } from './helpers'
 
-// Demonstração: "hoje" é 08/10/2026 e o caixa abre com um aporte de R$ 100.000 de saldo de abertura (01/01/2026).
+// Demonstração: "hoje" é 08/10/2026 e o caixa abre com um saldo de abertura (01/01/2026) em cada lado: R$ 60.000 de empréstimos e R$ 40.000 de iPhones.
 /** "R$ 1.234,50" → 1234.5; "−R$ 5,00" → -5 (o menos do sistema é o sinal de menos tipográfico). */
 const numero = (t: string) => (/^[−-]/.test(t.trim()) ? -1 : 1) * Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 const saldo = async (page: Page) => numero((await page.getByTestId('caixa-saldo').textContent()) ?? '')
@@ -98,11 +98,74 @@ test.describe('caixa da loja (administrador)', () => {
   })
 
   test('sem aporte nem retirada, avisa que o saldo soma tudo e sugere o saldo de abertura', async ({ page }) => {
-    // apaga o saldo de abertura da demonstração
-    await (await achar(page, 'Saldo de abertura')).click()
-    await page.getByTestId('lanc-excluir').click(); await page.getByTestId('lanc-excluir').click()
+    // apaga os dois saldos de abertura da demonstração
+    for (let i = 0; i < 2; i++) {
+      await (await achar(page, 'Saldo de abertura')).first().click()
+      await page.getByTestId('lanc-excluir').click(); await page.getByTestId('lanc-excluir').click()
+      await expect(page.getByTestId('lanc-salvar')).toHaveCount(0)
+    }
     await expect(page.getByTestId('caixa-sem-marco')).toContainText('Ainda não há aporte nem retirada')
     await expect(page.getByTestId('caixa-marco')).toHaveCount(0)
+  })
+})
+
+test.describe('caixa por lado: empréstimos e iPhones', () => {
+  test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/caixa'); await expect(page.getByTestId('caixa-saldo')).toBeVisible() })
+  const aba = (page: Page, nome: string) => page.getByTestId('caixa-abas').getByRole('button', { name: nome, exact: true })
+  const abrir = async (page: Page, nome: string) => { await aba(page, nome).click(); await expect(aba(page, nome)).toHaveClass(/on/); await expect(page.getByTestId('lista-carregando')).toHaveCount(0) }
+
+  test('tem as abas Tudo, Empréstimos e iPhones; em "Tudo" mostra o saldo de cada lado', async ({ page }) => {
+    for (const n of ['Tudo', 'Empréstimos', 'iPhones']) await expect(aba(page, n)).toBeVisible()
+    await expect(page.getByTestId('caixa-saldo-rotulo')).toHaveText('Saldo em caixa')
+    await expect(page.getByTestId('caixa-lados')).toContainText('Empréstimos')
+    await expect(page.getByTestId('caixa-lados')).toContainText('iPhones')
+  })
+
+  test('a aba iPhones mostra só o que é de iPhone; a de Empréstimos, só o que é de empréstimo', async ({ page }) => {
+    const extrato = page.getByTestId('caixa-extrato')
+    await abrir(page, 'iPhones')
+    await expect(page.getByTestId('caixa-saldo-rotulo')).toHaveText('Saldo · iPhones')
+    await expect(extrato.locator('[data-categoria="COMPRA"]').first()).toBeVisible()
+    await expect(extrato.locator('[data-categoria="EMPRESTIMO"]')).toHaveCount(0)
+    await expect(extrato.locator('[data-categoria="REPASSE"]')).toHaveCount(0)
+    await abrir(page, 'Empréstimos')
+    await expect(page.getByTestId('caixa-saldo-rotulo')).toHaveText('Saldo · Empréstimos')
+    await expect(extrato.locator('[data-categoria="EMPRESTIMO"]').first()).toBeVisible()
+    await expect(extrato.locator('[data-categoria="COMPRA"]')).toHaveCount(0)
+    await expect(extrato.locator('[data-categoria="ENTRADA_VENDA"]')).toHaveCount(0)
+  })
+
+  test('lançar uma despesa na aba iPhones já vem com o lado iPhones e mexe só no saldo dele', async ({ page }) => {
+    await abrir(page, 'iPhones')
+    const iph = await saldo(page)
+    await abrirLancar(page)
+    await expect(page.getByTestId('lanc-lado').getByRole('button', { name: 'iPhones' })).toHaveClass(/on/)
+    await page.getByTestId('lanc-tipo').getByRole('button', { name: 'Despesa' }).click()
+    await page.locator('#lcValor').fill('9000'); await page.locator('#lcObs').fill('frete do lote')
+    await page.getByTestId('lanc-salvar').click()
+    await expect.poll(() => saldo(page)).toBe(Math.round((iph - 90) * 100) / 100)
+    await expect(page.locator('[data-categoria="DESPESA"]', { hasText: 'frete do lote' })).toBeVisible()
+    await abrir(page, 'Empréstimos')
+    await expect(page.locator('[data-categoria="DESPESA"]', { hasText: 'frete do lote' })).toHaveCount(0)
+  })
+
+  test('o lado é escolhido no formulário e pode ser trocado ao corrigir', async ({ page }) => {
+    await abrirLancar(page)
+    await page.getByTestId('lanc-lado').getByRole('button', { name: 'iPhones' }).click()
+    await page.locator('#lcValor').fill('5000'); await page.locator('#lcObs').fill('aporte do lado iphone')
+    await page.getByTestId('lanc-salvar').click()
+    await abrir(page, 'iPhones')
+    await expect(page.locator('[data-categoria="APORTE"]', { hasText: 'aporte do lado iphone' })).toBeVisible()
+    await page.locator('[data-categoria="APORTE"]', { hasText: 'aporte do lado iphone' }).click()
+    await page.getByTestId('lanc-lado').getByRole('button', { name: 'Empréstimos' }).click()
+    await page.getByTestId('lanc-salvar').click()
+    await expect(page.locator('[data-categoria="APORTE"]', { hasText: 'aporte do lado iphone' })).toHaveCount(0)
+    await abrir(page, 'Empréstimos')
+    await expect(page.locator('[data-categoria="APORTE"]', { hasText: 'aporte do lado iphone' })).toBeVisible()
+  })
+
+  test('a aba "Sem lado" só aparece quando há algo sem lado (na demonstração não há)', async ({ page }) => {
+    await expect(aba(page, 'Sem lado')).toHaveCount(0)
   })
 })
 

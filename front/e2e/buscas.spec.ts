@@ -167,7 +167,7 @@ test.describe('busca em Cobranças, Contratos, Indicadores e Caixa (administrado
     const extrato = page.getByTestId('caixa-extrato').locator('[data-movimento]')
     const todos = await extrato.count()
     await campo(page, 'Buscar no extrato').fill('SALDO de abertura')
-    await expect(extrato).toHaveCount(1)
+    await expect(extrato).toHaveCount(2) // um saldo de abertura em cada lado
     await expect(extrato.first()).toContainText('Saldo de abertura')
     expect(await page.getByTestId('caixa-saldo').innerText()).toBe(saldo)
     await campo(page, 'Buscar no extrato').fill('zzzxyz')

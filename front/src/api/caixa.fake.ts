@@ -4,7 +4,7 @@ import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import { todasAsPaginas } from './paginar'
 import { ErroApi } from './clientes'
-import type { CaixaApi, CaixaLojaApi, EntradaLancamento, LancamentoApi, MovimentoApi, TipoLancamento } from './caixa'
+import type { CaixaApi, CaixaLojaApi, EntradaLancamento, FiltroLadoCaixa, LadoCaixa, LancamentoApi, MovimentoApi, SaldoLadoApi, TipoLancamento } from './caixa'
 import type { EmprestimosFake } from './emprestimos.fake'
 import type { EstoqueApi } from './estoque'
 import type { RepassesApi } from './repasses'
@@ -12,6 +12,8 @@ import type { VendasFake } from './vendas.fake'
 
 const ADM: Sessao = { perfil: 'ADMIN', usuarioId: 1 }
 const TIPOS: TipoLancamento[] = ['APORTE', 'RETIRADA', 'DESPESA']
+const LADOS: LadoCaixa[] = ['EMPRESTIMO', 'IPHONE']
+const FILTROS: FiltroLadoCaixa[] = ['EMPRESTIMO', 'IPHONE', 'SEM_LADO']
 const DINHEIRO_MAX = 1_000_000_000
 const LIMITE_MAX = 100
 const erro = (m: string) => new ErroApi(400, m)
@@ -33,7 +35,10 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
   const hoje = dep.vendas._interno.hoje
   let seq = 1
   // a demonstração começa com o saldo de abertura, como o dono faria
-  const manuais: LancamentoApi[] = [{ id: seq++, tipo: 'APORTE', valor: 100000, data: '2026-01-01', obs: 'Saldo de abertura' }]
+  const manuais: LancamentoApi[] = [
+    { id: seq++, tipo: 'APORTE', valor: 60000, data: '2026-01-01', obs: 'Saldo de abertura', lado: 'EMPRESTIMO' },
+    { id: seq++, tipo: 'APORTE', valor: 40000, data: '2026-01-01', obs: 'Saldo de abertura', lado: 'IPHONE' },
+  ]
   const exigirAdmin = (s: Sessao) => { if (s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador mexe no caixa da loja', 'SEM_PERMISSAO') }
 
   function ler(corpo: Partial<EntradaLancamento>, base: LancamentoApi | null) {
@@ -48,10 +53,13 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
     const obs = bruta?.trim() || null
     if (obs && obs.length > 200) throw erro('obs: no máximo 200 letras')
     if (tipo === 'DESPESA' && !obs) throw erro('Diga com o que foi a despesa')
-    return { tipo, valor: arred2(v), data, obs }
+    // um lançamento antigo (sem lado) só se corrige escolhendo o lado
+    const lado = corpo.lado !== undefined || !base?.lado ? corpo.lado : base.lado
+    if (typeof lado !== 'string' || !LADOS.includes(lado)) throw erro('lado precisa ser EMPRESTIMO ou IPHONE')
+    return { tipo, valor: arred2(v), data, obs, lado }
   }
 
-  async function movimentos(): Promise<{ lista: MovimentoApi[]; marcoZero: string | null }> {
+  async function movimentos(): Promise<{ lista: MovimentoApi[]; marcos: Record<FiltroLadoCaixa, string | null>; geral: string | null }> {
     const m: MovimentoApi[] = []
     const reg = dep.vendas._interno.registros
     for (const t of dep.vendas._interno.transacoes) {
@@ -60,28 +68,36 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
       const venda = t.alvo === 'VENDA' ? reg.find((r) => r.id === t.operacaoId) : undefined
       const emp = t.alvo === 'EMPRESTIMO' ? dep.emprestimos._interno.registros.find((r) => r.id === t.operacaoId) : undefined
       const descricao = venda ? venda.aparelho.modelo : emp ? nomeEmprestimo(emp.modalidade, emp.periodicidade) : ''
-      m.push({ chave: 'R' + t.id, data: t.data, valor: t.valor, entrada: true, categoria: entrada ? 'ENTRADA_VENDA' : 'RECEBIMENTO', titulo: entrada ? `Entrada · ${t.clienteNome}` : t.clienteNome, sub: [descricao, entrada ? '' : t.resumo?.referencia ?? '', FORMA[t.forma]].filter(Boolean).join(' · '), manualId: null })
+      m.push({ chave: 'R' + t.id, data: t.data, valor: t.valor, entrada: true, categoria: entrada ? 'ENTRADA_VENDA' : 'RECEBIMENTO', titulo: entrada ? `Entrada · ${t.clienteNome}` : t.clienteNome, sub: [descricao, entrada ? '' : t.resumo?.referencia ?? '', FORMA[t.forma]].filter(Boolean).join(' · '), lado: t.alvo === 'EMPRESTIMO' ? 'EMPRESTIMO' : 'IPHONE', manualId: null })
     }
     for (const r of dep.emprestimos._interno.registros) {
       if (r.status === 'CANCELADA' || r.dataEmprestimo > hoje) continue
-      m.push({ chave: 'E' + r.id, data: r.dataEmprestimo, valor: r.capital, entrada: false, categoria: 'EMPRESTIMO', titulo: `Empréstimo liberado · ${r.cliente.nome}`, sub: nomeEmprestimo(r.modalidade, r.periodicidade), manualId: null })
+      m.push({ chave: 'E' + r.id, data: r.dataEmprestimo, valor: r.capital, entrada: false, categoria: 'EMPRESTIMO', titulo: `Empréstimo liberado · ${r.cliente.nome}`, sub: nomeEmprestimo(r.modalidade, r.periodicidade), lado: 'EMPRESTIMO', manualId: null })
     }
     for (const a of await todasAsPaginas((p) => dep.estoque.listar(ADM, { pagina: p, limite: 100 }))) {
       const custo = arred2((a.custo ?? 0) + (a.extras ?? 0))
       if (a.origem !== 'COMPRA' || a.estado === 'ENCOMENDADO' || custo <= 0 || a.dataCompra > hoje) continue
-      m.push({ chave: 'B' + a.id, data: a.dataCompra, valor: custo, entrada: false, categoria: 'COMPRA', titulo: `Compra · ${a.modelo}${a.gb > 0 ? ` ${a.gb} GB` : ''}`, sub: a.cor === 'A DEFINIR' ? '' : a.cor, manualId: null })
+      m.push({ chave: 'B' + a.id, data: a.dataCompra, valor: custo, entrada: false, categoria: 'COMPRA', titulo: `Compra · ${a.modelo}${a.gb > 0 ? ` ${a.gb} GB` : ''}`, sub: a.cor === 'A DEFINIR' ? '' : a.cor, lado: 'IPHONE', manualId: null })
     }
     for (const r of await dep.repasses.jaPagos(ADM)) {
       if (r.data > hoje) continue
-      m.push({ chave: 'P' + r.id, data: r.data, valor: r.valor, entrada: false, categoria: 'REPASSE', titulo: `Repasse · ${r.indicadorNome}`, sub: 'parte do lucro', manualId: null })
+      m.push({ chave: 'P' + r.id, data: r.data, valor: r.valor, entrada: false, categoria: 'REPASSE', titulo: `Repasse · ${r.indicadorNome}`, sub: 'parte do lucro', lado: null, manualId: null })
     }
     for (const x of manuais) {
       if (x.data > hoje) continue
-      m.push({ chave: 'M' + x.id, data: x.data, valor: x.valor, entrada: x.tipo === 'APORTE', categoria: x.tipo, titulo: x.obs ?? ROTULO[x.tipo], sub: ROTULO[x.tipo], manualId: x.id })
+      m.push({ chave: 'M' + x.id, data: x.data, valor: x.valor, entrada: x.tipo === 'APORTE', categoria: x.tipo, titulo: x.obs ?? ROTULO[x.tipo], sub: ROTULO[x.tipo], lado: x.lado, manualId: x.id })
     }
-    const datas = manuais.filter((x) => x.tipo !== 'DESPESA').map((x) => x.data).sort()
-    const marcoZero = datas[0] ?? null
-    return { lista: m.filter((x) => !marcoZero || x.data >= marcoZero).sort((a, b) => b.data.localeCompare(a.data) || (a.chave < b.chave ? 1 : a.chave > b.chave ? -1 : 0)), marcoZero }
+    // o marco zero é de cada lado; o lado sem aporte nem retirada usa o primeiro de todos (o total não muda antes de classificar)
+    const proprio: Partial<Record<FiltroLadoCaixa, string>> = {}
+    for (const x of manuais) {
+      if (x.tipo === 'DESPESA') continue
+      const k = x.lado ?? 'SEM_LADO'
+      if (!proprio[k] || x.data < proprio[k]!) proprio[k] = x.data
+    }
+    const geral = Object.values(proprio).sort()[0] ?? null
+    const marcos = { EMPRESTIMO: proprio.EMPRESTIMO ?? geral, IPHONE: proprio.IPHONE ?? geral, SEM_LADO: proprio.SEM_LADO ?? geral }
+    const contados = m.filter((x) => { const mc = marcos[x.lado ?? 'SEM_LADO']; return !mc || x.data >= mc })
+    return { lista: contados.sort((a, b) => b.data.localeCompare(a.data) || (a.chave < b.chave ? 1 : a.chave > b.chave ? -1 : 0)), marcos, geral }
   }
 
   return {
@@ -89,15 +105,19 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
       exigirAdmin(s)
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 25) || 25, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
-      const { lista: todos, marcoZero } = await movimentos()
-      // o saldo e o resumo do mês são sempre os de tudo; a busca só filtra o extrato
-      const lista = todos
-      const achados = todos.filter((x) => casaBusca([x.titulo, x.sub], q.busca))
+      const { lista: todos, marcos, geral } = await movimentos()
       const mes = hoje.slice(0, 7)
-      const doMes = lista.filter((x) => x.data.slice(0, 7) === mes)
       const soma = (xs: MovimentoApi[]) => arred2(xs.reduce((t, x) => t + x.valor, 0))
+      const resumir = (xs: MovimentoApi[], marcoZero: string | null): SaldoLadoApi => {
+        const doMes = xs.filter((x) => x.data.slice(0, 7) === mes)
+        return { saldo: arred2(xs.reduce((t, x) => t + (x.entrada ? x.valor : -x.valor), 0)), entrouMes: soma(doMes.filter((x) => x.entrada)), saiuMes: soma(doMes.filter((x) => !x.entrada)), marcoZero }
+      }
+      const porLado = Object.fromEntries(FILTROS.map((l) => [l, resumir(todos.filter((x) => (x.lado ?? 'SEM_LADO') === l), marcos[l])])) as Record<FiltroLadoCaixa, SaldoLadoApi>
+      if (q.lado !== undefined && !FILTROS.includes(q.lado)) throw erro('lado precisa ser EMPRESTIMO, IPHONE ou SEM_LADO')
+      const doLado = q.lado ? todos.filter((x) => (x.lado ?? 'SEM_LADO') === q.lado) : todos
+      const achados = doLado.filter((x) => casaBusca([x.titulo, x.sub], q.busca))
       return {
-        saldo: arred2(lista.reduce((t, x) => t + (x.entrada ? x.valor : -x.valor), 0)), marcoZero, entrouMes: soma(doMes.filter((x) => x.entrada)), saiuMes: soma(doMes.filter((x) => !x.entrada)),
+        ...(q.lado ? porLado[q.lado] : resumir(todos, geral)), porLado,
         hoje, mes, itens: achados.slice((pagina - 1) * limite, pagina * limite), total: achados.length, pagina, limite,
       }
     },
