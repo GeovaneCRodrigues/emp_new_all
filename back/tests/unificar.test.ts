@@ -222,7 +222,7 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
     it('proposta inválida → 400 e nada muda', async () => {
       const [a, b] = await dois()
       const antes = await contaEmprestimos()
-      for (const corpo of [{ valorTotal: 0 }, { valorTotal: -5 }, { parcelas: 0 }, { parcelas: 121 }, { primeiraParcela: '2026-10-01' }, { primeiraParcela: 'xx' }, { capitalAdicional: -1 }, { periodicidade: 'ANUAL' }]) {
+      for (const corpo of [{ valorTotal: 0 }, { valorTotal: -5 }, { parcelas: 0 }, { parcelas: 241 }, { primeiraParcela: '2026-10-01' }, { primeiraParcela: 'xx' }, { capitalAdicional: -1 }, { periodicidade: 'ANUAL' }]) {
         expect((await unificar('admin', [a, b], corpo)).statusCode, JSON.stringify(corpo)).toBe(400)
       }
       expect(await contaEmprestimos()).toBe(antes)

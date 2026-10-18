@@ -2,7 +2,7 @@ import { addDia, pulaDomingo, somaDiasUteis, somaMes } from './datas'
 import { arred2 } from './format'
 import type { Iso } from './types'
 
-export const ACORDO_MAX_PARCELAS = 120
+export const ACORDO_MAX_PARCELAS = 240
 
 /** Divide o total em n parcelas: as primeiras com o valor arredondado para baixo e a última com o resto (a soma fecha no centavo). */
 export function distribuirAcordo(total: number, n: number): number[] {

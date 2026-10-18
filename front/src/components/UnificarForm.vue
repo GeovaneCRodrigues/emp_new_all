@@ -5,7 +5,7 @@ import type { EmprestimoApi } from '@/api/emprestimos'
 import { acordosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { distribuirAcordo, indicadoresDiferentes, PERIODICIDADES_ACORDO, problemaDoAcordo, resumoUnificacao, valorSugeridoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
+import { ACORDO_MAX_PARCELAS, distribuirAcordo, indicadoresDiferentes, PERIODICIDADES_ACORDO, problemaDoAcordo, resumoUnificacao, valorSugeridoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
 import { addDia } from '@/domain/datas'
 import { arred2, dmy, fmt } from '@/domain/format'
 import { nomeEmprestimo } from '@/domain/emprestimo'
@@ -60,7 +60,7 @@ function alternar(id: number) {
 }
 
 const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n))
-const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= 120 ? vencimentosAcordo(f.primeira, f.n, f.periodicidade) : []))
+const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= ACORDO_MAX_PARCELAS ? vencimentosAcordo(f.primeira, f.n, f.periodicidade) : []))
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
 const ajudaPeriodicidade = computed(() => PERIODICIDADES_ACORDO.find((x) => x.valor === f.periodicidade)?.ajuda ?? '')
 const problema = computed(() => {
@@ -124,7 +124,7 @@ async function confirmar() {
         </div>
         <div class="field"><label for="uParcelas">Em quantas parcelas?</label>
           <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
-          <div class="inp"><input id="uParcelas" v-model.number="f.n" type="number" min="1" max="120" step="1" inputmode="numeric" /></div>
+          <div class="inp"><input id="uParcelas" v-model.number="f.n" type="number" min="1" :max="ACORDO_MAX_PARCELAS" step="1" inputmode="numeric" /></div>
         </div>
         <div class="field"><label>De quanto em quanto tempo?</label>
           <div class="pills" data-testid="unificar-periodicidade"><button v-for="o in PERIODICIDADES_ACORDO" :key="o.valor" type="button" class="pill" :class="{ on: f.periodicidade === o.valor }" :data-periodicidade="o.valor" @click="f.periodicidade = o.valor">{{ o.rotulo }}</button></div>

@@ -31,7 +31,7 @@ describe('validação da proposta', () => {
   const ok = { valorTotal: 3000, parcelas: 4, primeiraParcela: '2026-12-01' }
   it('proposta certa não tem problema', () => { expect(problemaDoAcordo(ok, '2026-11-30')).toBe('') })
   it.each([
-    ['valor zero', { valorTotal: 0 }], ['valor negativo', { valorTotal: -5 }], ['parcelas zero', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 121 }],
+    ['valor zero', { valorTotal: 0 }], ['valor negativo', { valorTotal: -5 }], ['parcelas zero', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 241 }],
     ['sem data', { primeiraParcela: '' }], ['data que já passou', { primeiraParcela: '2026-11-29' }], ['data a mais de um ano', { primeiraParcela: '2027-12-02' }], ['pequeno demais', { valorTotal: 0.04, parcelas: 5 }],
   ])('recusa %s', (_n, m) => { expect(problemaDoAcordo({ ...ok, ...m }, '2026-11-30')).not.toBe('') })
   it('a data de hoje é aceita', () => { expect(problemaDoAcordo({ ...ok, primeiraParcela: '2026-11-30' }, '2026-11-30')).toBe('') })

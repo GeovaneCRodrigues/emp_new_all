@@ -51,7 +51,7 @@ describe('administrador faz o acordo (venda)', () => {
     expect((await falha(fazer(ADMIN, 999999)))?.status).toBe(404)
   })
   it.each([
-    ['valor zero', { valorTotal: 0 }], ['parcelas zero', { parcelas: 0 }], ['parcelas demais', { parcelas: 121 }], ['1ª data que já passou', { primeiraParcela: '2026-10-07' }],
+    ['valor zero', { valorTotal: 0 }], ['parcelas zero', { parcelas: 0 }], ['parcelas demais', { parcelas: 241 }], ['1ª data que já passou', { primeiraParcela: '2026-10-07' }],
     ['1ª data inválida', { primeiraParcela: 'amanhã' }], ['motivo enorme', { motivo: 'x'.repeat(501) }],
   ])('recusa %s (400) e não mexe em nada', async (_n, m) => {
     const antes = await saldoDe(carlos)
