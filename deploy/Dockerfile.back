@@ -1,0 +1,13 @@
+# Back-end do Mundo dos iPhones (Fastify). Contexto: a pasta back/.
+FROM node:22-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+# com as dependências de desenvolvimento: o migrate usa o tsx
+RUN npm ci
+COPY tsconfig.json tsconfig.build.json knexfile.ts ./
+COPY src ./src
+RUN npm run build
+ENV NODE_ENV=production
+EXPOSE 3000
+USER node
+CMD ["node", "dist/server.js"]
