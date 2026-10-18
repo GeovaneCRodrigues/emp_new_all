@@ -139,7 +139,9 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
       ])
       const n = await fichaE(j.emprestimoId)
       // a parcela paga (360) veio da origem e é a nº 1; as 4 do acordo vêm depois
-      expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160, status: 'ATIVA', nParcelas: 5, unificadoDe: [a, b], unificadoEm: null })
+      expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160, status: 'ATIVA', nParcelas: 4, valorParcela: 1950, renegociado: true, unificadoDe: [a, b], unificadoEm: null }) // o plano é o que vem pela frente: as 4 do acordo (a paga de antes é histórico)
+      expect(n.parcelas).toHaveLength(5)
+      expect(await fichaE(a)).toMatchObject({ renegociado: true })
       expect(n.parcelas.map((p: { valor: number }) => p.valor)).toEqual([360, 1950, 1950, 1950, 1950])
       expect(n.parcelas[0]).toMatchObject({ numero: 1, pago: 360 })
       expect((await vencs(j.emprestimoId)).slice(1)).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
@@ -154,6 +156,11 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
       // as parcelas abertas ficam encerradas por acordo; o que foi pago foi para o novo
       expect(fa.parcelas.map((p: { acordo: string | null; pago: number }) => [p.acordo, p.pago])).toEqual([['ENCERRADA', 0], ['ENCERRADA', 0]])
       expect((await req('GET', `/api/emprestimos/${a}/pagamentos`, 'admin')).json()).toEqual([])
+    })
+
+    it('empréstimo comum não é "renegociado": o plano continua sendo todas as parcelas', async () => {
+      const a = await emprestimo()
+      expect(await fichaE(a)).toMatchObject({ renegociado: false, nParcelas: 3, valorParcela: 360 })
     })
 
     it('com dinheiro novo e juros dele: soma no capital, o Caixa mostra a saída na data e nada em dobro', async () => {

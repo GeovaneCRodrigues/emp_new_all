@@ -15,8 +15,10 @@ export interface EmprestimoApi {
   pulaDomingo: boolean
   dataEmprestimo: string
   observacoes: string | null
+  /** o plano: todas as parcelas; depois de um acordo ou unificação (`renegociado`), só as que ainda vêm pela frente e o valor da próxima */
   nParcelas: number
   valorParcela: number
+  renegociado?: boolean
   /** o que o cliente paga no total */
   total: number
   recebido: number

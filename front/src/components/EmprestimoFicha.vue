@@ -69,7 +69,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
       <div v-if="emprestimo.capital !== undefined" class="dl card pad" style="margin-top: 10px" data-testid="dados-admin">
         <div><div class="lbl">Capital emprestado</div><div class="val num">{{ fmt(emprestimo.capital) }}</div></div>
         <div><div class="lbl">Taxa</div><div class="val num">{{ taxaTexto(emprestimo.modalidade, emprestimo.periodicidade, emprestimo.taxa ?? 0) }}</div></div>
-        <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div><div v-if="emprestimo.modalidade === 'JUROS'" class="small">só o juro; o capital vem na última</div><div v-if="emprestimo.modalidade === 'DIARIA'" class="small">uma por dia útil, sem domingo</div></div>
+        <div><div class="lbl">{{ emprestimo.renegociado ? 'Parcelas por vir' : 'Parcelas' }}</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div><div v-if="emprestimo.modalidade === 'JUROS'" class="small">só o juro; o capital vem na última</div><div v-if="emprestimo.modalidade === 'DIARIA'" class="small">uma por dia útil, sem domingo</div></div>
         <div><div class="lbl">Indicador</div><div class="val">{{ emprestimo.indicador?.nome ?? '—' }}</div></div>
         <div><div class="lbl">Lucro total</div><div class="val num" style="color: var(--ok)">{{ fmt(emprestimo.lucroTotal ?? 0) }}</div></div>
         <div v-if="emprestimo.indicador"><div class="lbl">Parte do indicador ({{ Math.round((emprestimo.percentualIndicador ?? 0) * 100) }}%)</div><div class="val num">{{ fmt(emprestimo.parteIndicador ?? 0) }}</div></div>
@@ -77,7 +77,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div style="grid-column: 1 / -1"><div class="between small"><span>Seu capital de volta</span><span class="num">{{ capPct }}%</span></div><div class="bar" style="margin-top: 5px"><i :style="{ width: capPct + '%', background: 'var(--gold)' }"></i></div></div>
       </div>
       <div v-else class="dl card pad" style="margin-top: 10px">
-        <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
+        <div><div class="lbl">{{ emprestimo.renegociado ? 'Parcelas por vir' : 'Parcelas' }}</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
       <div v-if="podeQuitar || podeAcordo || podeUnificar || podeDetalhar" class="acoes-ficha" data-acoes-ficha>

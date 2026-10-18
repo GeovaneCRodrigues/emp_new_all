@@ -64,6 +64,7 @@ test.describe('unificar empréstimos (administrador)', () => {
     await expect(ficha).toContainText('7.500,00')
     await expect(page.getByTestId('unificado-de')).toContainText('Unificado a partir dos empréstimos')
     await expect(page.locator('.timeline i')).toHaveCount(4)
+    await expect(ficha).toContainText('Parcelas por vir') // o plano é o que vem pela frente, não o histórico
     // botão para consultar os empréstimos de antes (só leitura)
     await page.locator('[data-consultar]').first().click()
     await expect(page.getByTestId('consulta-titulo')).toContainText('só consulta')
