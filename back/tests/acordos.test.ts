@@ -123,7 +123,7 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
     })
     it.each([
       ['sem valor', { valorTotal: undefined }], ['valor zero', { valorTotal: 0 }], ['valor negativo', { valorTotal: -1 }], ['valor como texto', { valorTotal: '3000' }], ['valor gigante', { valorTotal: 1e9 }],
-      ['sem parcelas', { parcelas: undefined }], ['zero parcelas', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 121 }], ['parcelas como texto', { parcelas: '4' }],
+      ['sem parcelas', { parcelas: undefined }], ['zero parcelas', { parcelas: 0 }], ['parcelas quebradas', { parcelas: 2.5 }], ['parcelas demais', { parcelas: 241 }], ['parcelas como texto', { parcelas: '4' }],
       ['sem 1ª data', { primeiraParcela: undefined }], ['1ª data inválida', { primeiraParcela: '2026-02-31' }], ['1ª data que já passou', { primeiraParcela: '2026-11-29' }], ['1ª data daqui a mais de um ano', { primeiraParcela: '2027-12-02' }],
       ['valor pequeno demais para as parcelas', { valorTotal: 0.04, parcelas: 5 }], ['motivo enorme', { motivo: 'x'.repeat(501) }],
     ])('recusa %s (400) e não mexe em nada', async (_n, m) => {

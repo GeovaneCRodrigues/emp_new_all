@@ -31,7 +31,7 @@ export function vencimentoDoAcordo(primeira: string, i: number, periodicidade: P
   return somaMes(primeira, i, Number(primeira.slice(8, 10)))
 }
 
-export const ACORDO_MAX_PARCELAS = 120
+export const ACORDO_MAX_PARCELAS = 240
 const DINHEIRO_MAX = 100_000_000
 
 /** Divide o total em n parcelas: as primeiras com o valor arredondado para baixo e a última com o resto, para a soma fechar no centavo. */
