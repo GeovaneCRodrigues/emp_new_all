@@ -20,7 +20,9 @@ const chip = computed(() => {
 const resumo = computed(() => {
   const e = props.e
   const nome = nomeEmprestimo(e.modalidade, e.periodicidade).replace('Empréstimo ', '')
-  const base = e.modalidade === 'DIARIA' ? `${nome} · ${e.nParcelas} dias úteis de ${fmt0(e.valorParcela)}` : e.modalidade === 'JUROS' ? `${nome} · ${e.nParcelas}x, juro ${fmt0(e.valorParcela)}` : `${nome} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
+  // depois de acordo/unificação o que vale é o que ainda vem pela frente
+  const por = e.renegociado ? ' por vir' : ''
+  const base = e.renegociado ? `${nome} · ${e.nParcelas}${e.modalidade === 'DIARIA' ? ' dias úteis' : 'x'}${por} de ${fmt0(e.valorParcela)}` : e.modalidade === 'DIARIA' ? `${nome} · ${e.nParcelas} dias úteis de ${fmt0(e.valorParcela)}` : e.modalidade === 'JUROS' ? `${nome} · ${e.nParcelas}x, juro ${fmt0(e.valorParcela)}` : `${nome} · ${e.nParcelas}x ${fmt0(e.valorParcela)}`
   return e.capital !== undefined && e.taxa !== undefined ? `${base} · capital ${fmt0(e.capital)} a ${taxaTexto(e.modalidade, e.periodicidade, e.taxa)}` : base
 })
 </script>

@@ -61,9 +61,13 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
     const abertas = r.parcelas.filter((p) => arred2(p.valor - p.pago - p.desconto) > 0.009)
     const lucroTotal = arred2(total - r.capital)
     const status: StatusEmprestimo = r.status === 'CANCELADA' ? 'CANCELADA' : falta <= 0.009 ? 'QUITADA' : 'ATIVA'
+    // empréstimo comum: o plano são todas as parcelas; depois de acordo/unificação, só o que ainda vem pela frente (o resto é histórico)
+    const renegociado = r.parcelas.some((p) => p.acordoId != null || p.encerradaId != null)
+    const vindouras = r.parcelas.filter((p) => p.encerradaId == null && arred2(p.valor - p.pago - p.desconto) > 0.009)
+    const plano = renegociado && vindouras.length ? vindouras : r.parcelas
     const base: EmprestimoApi = {
-      id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, pulaDomingo: r.pulaDomingo, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: r.parcelas.length,
-      valorParcela: r.parcelas[0]?.valor ?? 0, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
+      id: r.id, cliente: r.cliente, modalidade: r.modalidade, periodicidade: r.periodicidade, pulaDomingo: r.pulaDomingo, dataEmprestimo: r.dataEmprestimo, observacoes: r.observacoes, nParcelas: plano.length,
+      valorParcela: plano[0]?.valor ?? 0, renegociado, total, recebido, falta, atrasadas: abertas.filter((p) => p.vencimento < hoje).length, status,
       parcelas: r.parcelas.map((p) => ({ numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, falta: arred2(p.valor - p.pago - p.desconto), quitadaEm: p.quitadaEm, acordo: p.encerradaId ? 'ENCERRADA' : p.acordoId ? 'NOVA' : null })),
     }
     // o indicador vê a parte dele (prevista e já liberada), nunca capital, taxa nem lucro da loja

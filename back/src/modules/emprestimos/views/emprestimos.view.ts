@@ -8,11 +8,24 @@ import type { EmprestimoCalculado, ResultadoLista, ResumoEmprestimos } from '../
  * Só o admin recebe capital, taxa, lucro e a parte do indicador: para o cobrador esses campos
  * nem existem na resposta (não vêm zerados).
  */
+/**
+ * O "plano" que o cartão e a ficha mostram. Empréstimo comum: todas as parcelas e o valor da primeira.
+ * Depois de um acordo ou de uma unificação (`renegociado`): só o que ainda vem pela frente (as em aberto) e o valor da próxima,
+ * porque o resto é histórico (o que já foi pago, vindo de antes). Quitado: volta ao plano inteiro.
+ */
+function planoDoEmprestimo(parcelas: EmprestimoCalculado['emprestimo']['parcelas']) {
+  const renegociado = parcelas.some((p) => p.acordo !== null)
+  const abertas = parcelas.filter((p) => p.acordo !== 'ENCERRADA' && arred2(p.valor - p.pago - p.desconto) > 0.009)
+  const usa = renegociado && abertas.length ? abertas : parcelas
+  return { renegociado, nParcelas: usa.length, valorParcela: usa[0]?.valor ?? 0 }
+}
+
 export function emprestimoView(c: EmprestimoCalculado, perfil: Perfil) {
   const e = c.emprestimo
+  const plano = planoDoEmprestimo(e.parcelas)
   const base = {
     id: e.id, cliente: e.cliente, modalidade: e.modalidade, periodicidade: e.periodicidade, pulaDomingo: e.pulaDomingo, dataEmprestimo: e.dataEmprestimo, observacoes: e.observacoes,
-    nParcelas: e.parcelas.length, valorParcela: e.parcelas[0]?.valor ?? 0,
+    nParcelas: plano.nParcelas, valorParcela: plano.valorParcela, renegociado: plano.renegociado,
     total: c.total, recebido: c.recebido, falta: c.falta, atrasadas: c.atrasadas, status: c.status,
     parcelas: e.parcelas.map((p) => ({
       numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago,

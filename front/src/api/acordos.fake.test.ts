@@ -202,14 +202,20 @@ describe('cobrador pede o acordo', () => {
 })
 
 describe('unificar traz o histórico (empréstimo)', () => {
+  it('empréstimo comum não é renegociado: o plano continua sendo todas as parcelas', async () => {
+    expect(await emp.obter(ADMIN, await jurosEmp())).toMatchObject({ renegociado: false, nParcelas: 3, valorParcela: 360 })
+  })
   it('as parcelas pagas e os recebimentos vão para o novo, que fica com o capital inteiro; a origem zera', async () => {
     const a = await jurosEmp(); const b = await jurosEmp()
     await rec.registrar(ADMIN, 'EMPRESTIMO', a, { parcela: 1, valor: 360, forma: 'PIX' } as never)
     const r = await acordos.unificar(ADMIN, { emprestimoIds: [a, b], valorTotal: 7800, parcelas: 4, primeiraParcela: PRIMEIRA } as never)
     expect(r).toMatchObject({ saldoAntes: 7800, capitalHerdado: 6000, capital: 6000 })
     const n = await emp.obter(ADMIN, r.emprestimoId)
-    expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160, nParcelas: 5 })
+    expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160 })
     expect(n.parcelas.map((p) => p.numero)).toEqual([1, 2, 3, 4, 5])
+    // o plano é o que vem pela frente (as 4 do acordo); a paga de antes é histórico
+    expect(n).toMatchObject({ nParcelas: 4, valorParcela: 1950, renegociado: true })
+    expect(await emp.obter(ADMIN, a)).toMatchObject({ renegociado: true })
     expect(n.parcelas[0]).toMatchObject({ pago: 360 })
     const pag = await rec.pagamentos(ADMIN, 'EMPRESTIMO', r.emprestimoId)
     expect(pag).toHaveLength(1); expect(pag[0].valor).toBe(360)
