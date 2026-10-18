@@ -6,11 +6,13 @@ import { ErroApi } from '@/api/clientes'
 import type { AparelhoApi } from '@/api/estoque'
 import { todasAsPaginas } from '@/api/paginar'
 import type { CobrancaApi } from '@/api/recebimentos'
-import { aprovacoesApi, emprestimosApi, estoqueApi, fechamentosApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import type { RelatoriosDados } from '@/api/relatorios'
+import { aprovacoesApi, emprestimosApi, estoqueApi, fechamentosApi, recebimentosApi, relatoriosApi, vendasApi } from '@/api/recursos'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import FichasOperacao from '@/components/FichasOperacao.vue'
 import Icon from '@/components/Icon.vue'
 import MiniFone from '@/components/MiniFone.vue'
+import RelBarras from '@/components/RelBarras.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
@@ -32,6 +34,8 @@ const lucroRealizado = ref(0)
 const pedidos = ref<AprovacaoApi[]>([])
 const fechamentosPendentes = ref(0)
 const parados = ref<{ a: AparelhoApi; dias: number }[]>([])
+// o gráfico dos últimos 6 meses vem dos relatórios; se falhar, o Início segue sem ele
+const grafico = ref<RelatoriosDados['investimentoELucro'] | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
@@ -60,6 +64,7 @@ async function carregar() {
     fechamentosPendentes.value = fech.pendentes
     parados.value = disponiveis.map((a) => ({ a, dias: diasEntre(a.dataCompra, hoje.value) })).sort((x, y) => y.dias - x.dias).slice(0, 4)
     atualizarAtrasadas(s); atualizarEquipe(s)
+    grafico.value = await relatoriosApi.ver(s).then((r) => r.investimentoELucro, () => null)
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o início.'
   } finally {
@@ -105,6 +110,12 @@ const custoDe = (a: AparelhoApi) => (a.custo ?? 0) + (a.extras ?? 0)
         <button @click="router.push('/operacoes')">
           <div class="lbl">A receber</div><div class="val num" data-testid="a-receber">{{ fmt0(aReceber) }}</div><div class="small">vendas e empréstimos</div>
         </button>
+      </div>
+
+      <div v-if="grafico" class="card pad" data-testid="grafico-meses">
+        <div class="between"><h2 style="margin: 0; font-size: 15px">Últimos 6 meses</h2><button class="btn b-ghost b-sm" @click="router.push('/relatorios')">Relatórios</button></div>
+        <div class="small" style="margin: 2px 0 10px">Colocado na rua, recebido e seu lucro, mês a mês · recebido no período <b class="num" style="color: var(--strong)">{{ fmt0(grafico.recebido.reduce((x, v) => x + v, 0)) }}</b></div>
+        <RelBarras :meses="grafico.meses" :hoje="hoje" :alt="120" :series="[{ l: 'Colocado', v: grafico.investido, c: 'var(--dim)' }, { l: 'Recebido', v: grafico.recebido, c: 'var(--primary)' }, { l: 'Seu lucro', v: grafico.lucro, c: 'var(--gold)' }]" />
       </div>
 
       <div class="sec-t"><h2>Atrasadas</h2><button @click="router.push('/cobrancas')">Ver todas</button></div>

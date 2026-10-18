@@ -13,6 +13,17 @@ test.describe('Início do administrador', () => {
     await expect(page.getByTestId('a-receber')).toContainText('R$')
   })
 
+  test('gráfico de barras dos últimos 6 meses (colocado, recebido, seu lucro) e o botão leva aos relatórios', async ({ page }) => {
+    const g = page.getByTestId('grafico-meses')
+    await expect(g).toBeVisible()
+    await expect(g).toContainText('Últimos 6 meses')
+    await expect(g.locator('[data-mes]')).toHaveCount(6)
+    for (const serie of ['Colocado', 'Recebido', 'Seu lucro']) await expect(g.locator(`[data-serie="${serie}"]`)).toHaveCount(6)
+    await expect(g.locator('[data-mes="2026-10"]')).toBeVisible() // o mês de hoje (08/10/2026) é o último
+    await g.getByRole('button', { name: 'Relatórios' }).click()
+    await expect(page).toHaveURL(/\/relatorios/)
+  })
+
   test('as atrasadas têm WhatsApp e Recebi; receber abre o recibo e o total a cobrar cai', async ({ page }) => {
     const numero = (t: string) => Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
     const antes = numero(await page.getByTestId('cobrar-hoje').innerText())
