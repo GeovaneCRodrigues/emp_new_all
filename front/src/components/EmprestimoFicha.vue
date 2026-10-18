@@ -8,6 +8,7 @@ import { useApp } from '@/composables/useApp'
 import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
 import AcordoForm from './AcordoForm.vue'
+import DetalhamentoSheet from './DetalhamentoSheet.vue'
 import Icon from './Icon.vue'
 import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
@@ -33,6 +34,9 @@ const podeUnificar = computed(() => sessao.value.perfil === 'ADMIN' && props.emp
 const primeiraAberta = computed(() => props.emprestimo?.parcelas.find((p) => situacao(p) !== 'paga' && situacao(p) !== 'acordo') ?? null)
 const podeQuitar = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009 && primeiraAberta.value !== null)
 const acordando = ref(false)
+// detalhamento para o cliente (texto simplificado ou extenso): administrador e cobrador
+const detalhando = ref(false)
+const podeDetalhar = computed(() => sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR')
 // consulta: abre um dos empréstimos que foram unificados neste (só para ler)
 const consulta = ref<{ emp: EmprestimoApi; unificacao: AcordoApi | null } | null>(null)
 async function consultar(id: number) {
@@ -76,10 +80,11 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
-      <div v-if="podeQuitar || podeAcordo || podeUnificar" class="acoes-ficha" data-acoes-ficha>
+      <div v-if="podeQuitar || podeAcordo || podeUnificar || podeDetalhar" class="acoes-ficha" data-acoes-ficha>
         <button v-if="podeQuitar" class="btn b-ok acao-quad" data-quitar title="Quitou · receber tudo e encerrar" aria-label="Quitou · receber tudo e encerrar" @click="primeiraAberta && emit('receber', primeiraAberta.numero, true)"><Icon name="check" /><span>Quitou</span></button>
         <button v-if="podeAcordo" class="btn b-out acao-quad" data-acordo :title="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" :aria-label="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" @click="acordando = true"><Icon name="handshake" /><span>{{ ehCobrador ? 'Pedir acordo' : 'Acordo' }}</span></button>
         <button v-if="podeUnificar" class="btn b-out acao-quad" data-unificar title="Unificar com outro empréstimo" aria-label="Unificar com outro empréstimo" @click="emit('unificar', emprestimo)"><Icon name="layers" /><span>Unificar</span></button>
+        <button v-if="podeDetalhar" class="btn b-out acao-quad" data-detalhamento title="Detalhamento para mandar ao cliente" aria-label="Detalhamento para o cliente" @click="detalhando = true"><Icon name="share-2" /><span>Detalhes</span></button>
       </div>
       <div v-if="emprestimo.unificadoDe?.length" class="aviso aviso-un" data-testid="unificado-de"><span>Unificado a partir dos empréstimos</span><button v-for="i in emprestimo.unificadoDe" :key="i" type="button" class="chip c-neu" :data-consultar="i" @click="consultar(i)">#{{ i }}</button></div>
       <div v-if="emprestimo.unificadoEm" class="aviso" style="margin-top: 8px" data-testid="unificado-em">Unificado no empréstimo #{{ emprestimo.unificadoEm }}.</div>
@@ -108,6 +113,8 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
       </template>
     </template>
   </Sheet>
+
+  <DetalhamentoSheet :aberto="detalhando" :emprestimo="emprestimo" :pagamentos="pagamentos" :hoje="hoje" @fechar="detalhando = false" />
 
   <Sheet :aberto="consulta !== null" @fechar="consulta = null">
     <template v-if="consulta">

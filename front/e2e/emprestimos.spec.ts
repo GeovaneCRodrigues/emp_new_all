@@ -48,6 +48,22 @@ test.describe('baixas de empréstimo', () => {
     await expect(page.locator('[data-parcela="3"]')).toContainText('2.643,20')
   })
 
+  test('botão Detalhes: texto simplificado e extenso para mandar ao cliente, sem capital nem lucro', async ({ page }) => {
+    await criarSoJuros(page)
+    await page.locator('[data-detalhamento]').click()
+    const texto = page.getByTestId('detalhamento-texto')
+    await expect(texto).toContainText('Já pago: R$ 0,00')
+    await expect(texto).toContainText('Falta pagar: R$ 4.080,00')
+    await expect(texto).toContainText('Próxima parcela')
+    await expect(texto).not.toContainText('Parcelas em aberto')
+    await expect(texto).not.toContainText(/capital|lucro|indicador/i)
+    await page.locator('[data-modo="EXTENSO"]').click()
+    await expect(texto).toContainText('Parcelas em aberto')
+    await expect(texto).not.toContainText(/lucro|indicador/i)
+    await expect(page.locator('[data-whatsapp]')).toHaveAttribute('href', /^https:\/\/wa\.me\/\?text=/)
+    await expect(page.locator('[data-copiar]')).toBeVisible()
+  })
+
   test('botão Quitou (só juros em dia): cobra só o capital, o juro que não venceu fica de fora e quita tudo', async ({ page }) => {
     await criarSoJuros(page)
     await page.locator('[data-quitar]').click()
