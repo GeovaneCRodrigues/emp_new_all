@@ -21,8 +21,9 @@ const db: Knex | null = await bancoDeTeste()
 const SENHA = 'senha-forte-123'
 const HOJE = '2026-10-15'
 
-type Mov = { chave: string; data: string; valor: number; entrada: boolean; categoria: string; titulo: string; sub: string; manualId: number | null }
-type Caixa = { saldo: number; marcoZero: string | null; entrouMes: number; saiuMes: number; hoje: string; mes: string; itens: Mov[]; total: number; pagina: number; limite: number }
+type Mov = { chave: string; data: string; valor: number; entrada: boolean; categoria: string; titulo: string; sub: string; lado: string | null; manualId: number | null }
+type Saldo = { saldo: number; entrouMes: number; saiuMes: number; marcoZero: string | null }
+type Caixa = { saldo: number; marcoZero: string | null; entrouMes: number; saiuMes: number; porLado: Record<'EMPRESTIMO' | 'IPHONE' | 'SEM_LADO', Saldo>; hoje: string; mes: string; itens: Mov[]; total: number; pagina: number; limite: number }
 
 describe.skipIf(!db)('caixa da loja (Postgres de verdade)', () => {
   let app: FastifyInstance
