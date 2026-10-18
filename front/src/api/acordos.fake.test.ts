@@ -200,3 +200,24 @@ describe('cobrador pede o acordo', () => {
     expect((await apr.listar(ADMIN, { limite: 100 })).itens.find((x) => x.id === p.id)).toMatchObject({ status: 'RECUSADO', resposta: 'Venda retomada' })
   })
 })
+
+describe('unificar traz o histórico (empréstimo)', () => {
+  it('as parcelas pagas e os recebimentos vão para o novo, que fica com o capital inteiro; a origem zera', async () => {
+    const a = await jurosEmp(); const b = await jurosEmp()
+    await rec.registrar(ADMIN, 'EMPRESTIMO', a, { parcela: 1, valor: 360, forma: 'PIX' } as never)
+    const r = await acordos.unificar(ADMIN, { emprestimoIds: [a, b], valorTotal: 7800, parcelas: 4, primeiraParcela: PRIMEIRA } as never)
+    expect(r).toMatchObject({ saldoAntes: 7800, capitalHerdado: 6000, capital: 6000 })
+    const n = await emp.obter(ADMIN, r.emprestimoId)
+    expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160, nParcelas: 5 })
+    expect(n.parcelas.map((p) => p.numero)).toEqual([1, 2, 3, 4, 5])
+    expect(n.parcelas[0]).toMatchObject({ pago: 360 })
+    const pag = await rec.pagamentos(ADMIN, 'EMPRESTIMO', r.emprestimoId)
+    expect(pag).toHaveLength(1); expect(pag[0].valor).toBe(360)
+    expect(await rec.pagamentos(ADMIN, 'EMPRESTIMO', a)).toEqual([])
+    expect(await emp.obter(ADMIN, a)).toMatchObject({ capital: 0, recebido: 0, falta: 0, status: 'QUITADA' })
+    // a 2ª parcela do novo recebe como qualquer outra; a nº 1 já veio paga
+    expect((await falha(rec.registrar(ADMIN, 'EMPRESTIMO', r.emprestimoId, { parcela: 1, valor: 360, forma: 'PIX' } as never)))?.status).toBe(409)
+    await rec.registrar(ADMIN, 'EMPRESTIMO', r.emprestimoId, { parcela: 2, valor: 1950, forma: 'PIX' } as never)
+    expect(await emp.obter(ADMIN, r.emprestimoId)).toMatchObject({ recebido: 2310, falta: 5850 })
+  })
+})

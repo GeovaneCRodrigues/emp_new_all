@@ -21,7 +21,7 @@ export interface AcordosFake extends AcordosApi {
  * que já foi pago), as novas continuam a numeração e a soma fecha no centavo; o acordo anterior é substituído.
  */
 export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFake): AcordosFake {
-  const { hoje, pedidos } = vendas._interno
+  const { hoje, pedidos, transacoes } = vendas._interno
   const acordos: Reg[] = []
   let seq = 0
   const faltaDe = (p: Parcela) => arred2(p.valor - p.pago - p.desconto)
@@ -88,8 +88,9 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     if (cancelado) throw new ErroApi(409, `O empréstimo #${cancelado.id} foi cancelado`, 'VENDA_ENCERRADA')
     const dados = origens.map((r) => {
       const abertas = r.parcelas.filter((p) => faltaDe(p) > 0.009)
-      const recebido = arred2(r.amortizado + r.parcelas.reduce((x, p) => x + p.pago, 0))
-      return { r, abertas, saldo: arred2(abertas.reduce((x, p) => x + faltaDe(p), 0)), cedido: arred2(r.capital - Math.min(r.capital, recebido)) }
+      // pagou ou ganhou desconto: é histórico e vai para o novo (o que ficou só aberto é encerrado e fica na origem, zerado)
+      const pagas = r.parcelas.filter((p) => p.pago > 0.009 || p.desconto > 0.009)
+      return { r, abertas, pagas, saldo: arred2(abertas.reduce((x, p) => x + faltaDe(p), 0)), cedido: r.capital }
     })
     const vazio = dados.find((d) => !d.abertas.length)
     if (vazio) throw new ErroApi(409, `O empréstimo #${vazio.r.id} não tem nada em aberto para unificar`, 'SEM_SALDO')
@@ -106,15 +107,20 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     const capitalHerdado = arred2(dados.reduce((x, d) => x + d.cedido, 0))
     const capital = arred2(capitalHerdado + novo)
     const valorTotal = arred2(e.valorTotal)
-    const taxa = capital > 0 ? Math.min(999.9999, Math.max(0, Math.round((valorTotal / capital - 1) * 1e6) / 1e4)) : 0
+    // o histórico que vem junto: ordem de vencimento (empate: empréstimo e número de origem); as do acordo novo vêm depois
+    const trazidas = dados.flatMap((d) => d.pagas.map((p) => ({ d, p, aberta: d.abertas.includes(p) })))
+      .sort((a, b) => a.p.vencimento.localeCompare(b.p.vencimento) || a.d.r.id - b.d.r.id || a.p.numero - b.p.numero)
+    const valorTrazido = (t: (typeof trazidas)[number]) => (t.aberta ? t.p.pago + t.p.desconto : t.p.valor)
+    const taxa = capital > 0 ? Math.min(999.9999, Math.max(0, Math.round(((valorTotal + trazidas.reduce((x, t) => x + valorTrazido(t), 0)) / capital - 1) * 1e6) / 1e4)) : 0
+    const dataEmprestimo = origens.map((r) => r.dataEmprestimo).sort()[0]
     const novoId = emprestimos._interno.novoId()
     const acordoNovo = ++seq
     const valores = distribuirAcordo(valorTotal, e.parcelas)
     const venc = vencimentosAcordo(e.primeiraParcela, e.parcelas, periodicidade)
     emprestimos._interno.registros.push({
-      id: novoId, cliente: origens[0].cliente, indicador, pct, dataEmprestimo: hoje, capital, modalidade: periodicidade === 'DIARIA' ? 'DIARIA' : 'PARCELADO', taxa, periodicidade, pulaDomingo: true, status: 'ATIVA',
-      observacoes: `Unificação dos empréstimos ${ids.map((i) => '#' + i).join(', ')}`, amortizado: 0, unificadoDe: [...ids].sort((a, b) => a - b), unificadoEm: null,
-      parcelas: valores.map((valor, i) => ({ numero: i + 1, vencimento: venc[i], vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, acordoId: acordoNovo })),
+      id: novoId, cliente: origens[0].cliente, indicador, pct, dataEmprestimo, capital, modalidade: periodicidade === 'DIARIA' ? 'DIARIA' : 'PARCELADO', taxa, periodicidade, pulaDomingo: true, status: 'ATIVA',
+      observacoes: `Unificação dos empréstimos ${ids.map((i) => '#' + i).join(', ')}`, amortizado: arred2(origens.reduce((x, r) => x + r.amortizado, 0)), unificadoDe: [...ids].sort((a, b) => a - b), unificadoEm: null,
+      parcelas: valores.map((valor, i) => ({ numero: trazidas.length + i + 1, vencimento: venc[i], vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, acordoId: acordoNovo })),
     })
     acordos.push({ id: acordoNovo, alvo: 'EMPRESTIMO', operacaoId: novoId, dataAcordo: hoje, saldoAntes, valorTotal, nParcelas: e.parcelas, primeiraParcela: e.primeiraParcela, periodicidade, motivo: e.motivo?.trim() || null, capitalAdicional: novo, status: 'ATIVO', feitoPor: 'Geovane Cataneo', aprovacaoId: null, unificadoEmId: null, capitalCedido: 0, capitalHerdado })
     const saida: ResultadoUnificarApi['origens'] = []
@@ -123,11 +129,24 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
       if (anterior) anterior.status = 'SUBSTITUIDO'
       const id = ++seq
       for (const p of d.abertas) { p.valor = arred2(p.pago + p.desconto); p.quitadaEm = hoje; p.encerradaId = id }
-      d.r.capital = arred2(d.r.capital - d.cedido); d.r.status = 'QUITADA'; d.r.unificadoEm = novoId
+      d.r.capital = arred2(d.r.capital - d.cedido); d.r.amortizado = 0; d.r.status = 'QUITADA'; d.r.unificadoEm = novoId
       acordos.push({ id, alvo: 'EMPRESTIMO', operacaoId: d.r.id, dataAcordo: hoje, saldoAntes: d.saldo, valorTotal: d.saldo, nParcelas: e.parcelas, primeiraParcela: e.primeiraParcela, periodicidade, motivo: e.motivo?.trim() || null, capitalAdicional: 0, status: 'ATIVO', feitoPor: 'Geovane Cataneo', aprovacaoId: null, unificadoEmId: novoId, capitalCedido: d.cedido, capitalHerdado: 0 })
       for (const p of pedidos) if (p.alvo === 'EMPRESTIMO' && p.operacaoId === d.r.id && p.status === 'PENDENTE' && (p.tipo === 'DESCONTO' || p.tipo === 'ACORDO')) { p.status = 'RECUSADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`; p.resposta = 'Empréstimo unificado' }
+      // o histórico (parcelas pagas, com os recebimentos) muda para o novo e é renumerado
+      const destino = emprestimos._interno.registros.find((x) => x.id === novoId)!
+      for (const t of trazidas.filter((x) => x.d === d)) {
+        const antigo = t.p.numero; const numero = trazidas.indexOf(t) + 1
+        d.r.parcelas.splice(d.r.parcelas.indexOf(t.p), 1)
+        t.p.numero = numero; destino.parcelas.push(t.p)
+        for (const tr of transacoes.filter((x) => x.alvo === 'EMPRESTIMO' && x.operacaoId === d.r.id)) {
+          tr.itens.forEach((it) => { if (it.numero === antigo && !(it as { _m?: boolean })._m) { it.numero = numero; (it as { _m?: boolean })._m = true } })
+          tr.ajustes?.parcelas.forEach((it) => { if (it.numero === antigo && !(it as { _m?: boolean })._m) { it.numero = numero; (it as { _m?: boolean })._m = true } })
+        }
+      }
+      for (const tr of transacoes.filter((x) => x.alvo === 'EMPRESTIMO' && x.operacaoId === d.r.id && x.itens.length && x.itens.every((it) => (it as { _m?: boolean })._m))) tr.operacaoId = novoId
       saida.push({ emprestimoId: d.r.id, saldo: d.saldo, capitalCedido: d.cedido, parcelasEncerradas: d.abertas.length, acordoId: id })
     }
+    emprestimos._interno.registros.find((x) => x.id === novoId)!.parcelas.sort((x, y) => x.numero - y.numero)
     return { emprestimoId: novoId, acordoId: acordoNovo, origens: saida, saldoAntes, valorTotal, nParcelas: e.parcelas, primeiraParcela: e.primeiraParcela, periodicidade, capitalAdicional: novo, capitalHerdado, capital }
   }
 

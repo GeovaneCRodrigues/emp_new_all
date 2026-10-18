@@ -43,11 +43,11 @@ export function problemaDoAcordo(a: { valorTotal: number; parcelas: number; prim
   return ''
 }
 
-/** A conta de unificar vários empréstimos: o que ele deve em todos e o capital que ainda está na rua (passa para o novo). */
-export function resumoUnificacao(emps: { falta: number; capital?: number; capitalDeVolta?: number }[]): { saldo: number; capitalNaRua: number } {
+/** A conta de unificar vários empréstimos: o que ele deve em todos e o capital inteiro (passa para o novo, junto com o que já foi pago). */
+export function resumoUnificacao(emps: { falta: number; capital?: number }[]): { saldo: number; capital: number } {
   return {
     saldo: arred2(emps.reduce((x, e) => x + e.falta, 0)),
-    capitalNaRua: arred2(emps.reduce((x, e) => x + Math.max(0, (e.capital ?? 0) - (e.capitalDeVolta ?? 0)), 0)),
+    capital: arred2(emps.reduce((x, e) => x + (e.capital ?? 0), 0)),
   }
 }
 

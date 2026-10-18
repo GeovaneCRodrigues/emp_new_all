@@ -64,6 +64,11 @@ test.describe('unificar empréstimos (administrador)', () => {
     await expect(ficha).toContainText('7.500,00')
     await expect(page.getByTestId('unificado-de')).toContainText('Unificado a partir dos empréstimos')
     await expect(page.locator('.timeline i')).toHaveCount(4)
+    // botão para consultar os empréstimos de antes (só leitura)
+    await page.locator('[data-consultar]').first().click()
+    await expect(page.getByTestId('consulta-titulo')).toContainText('só consulta')
+    await expect(page.getByTestId('consulta-dados')).toContainText('3.000,00') // capital que passou para o novo
+    await expect(page.getByTestId('consulta-dados')).toContainText('4.080,00') // em aberto na unificação
   })
 
   test('com um marcado, os empréstimos de outro cliente ficam apagados; Cancelar sai do modo', async ({ page }) => {

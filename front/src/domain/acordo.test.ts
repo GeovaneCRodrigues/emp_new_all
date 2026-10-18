@@ -50,10 +50,10 @@ describe('valorSugeridoAcordo', () => {
 })
 
 describe('unificar empréstimos', () => {
-  it('soma o que deve e o capital que ainda está na rua', () => {
-    expect(resumoUnificacao([{ falta: 3720, capital: 3000, capitalDeVolta: 360 }, { falta: 4080, capital: 3000, capitalDeVolta: 0 }])).toEqual({ saldo: 7800, capitalNaRua: 5640 })
-    expect(resumoUnificacao([])).toEqual({ saldo: 0, capitalNaRua: 0 })
-    expect(resumoUnificacao([{ falta: 100 }])).toEqual({ saldo: 100, capitalNaRua: 0 })
+  it('soma o que deve e o capital inteiro (o que já voltou vai junto)', () => {
+    expect(resumoUnificacao([{ falta: 3720, capital: 3000 }, { falta: 4080, capital: 3000 }])).toEqual({ saldo: 7800, capital: 6000 })
+    expect(resumoUnificacao([])).toEqual({ saldo: 0, capital: 0 })
+    expect(resumoUnificacao([{ falta: 100 }])).toEqual({ saldo: 100, capital: 0 })
   })
   it('indicador igual herda; diferente (ou % diferente, ou um sem indicador) pede escolha', () => {
     const r = { id: 1, nome: 'Roberto' }

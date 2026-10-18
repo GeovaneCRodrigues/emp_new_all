@@ -125,28 +125,35 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
   }
 
   describe('a conta', () => {
-    it('junta o aberto num empréstimo novo; capital na rua vai para o novo e o lucro de todos não muda', async () => {
+    it('junta tudo num empréstimo novo: o que já foi pago vem junto, o capital inteiro vai para o novo e o lucro de todos não muda', async () => {
       const [a, b] = await dois()
       const lucroAntes = (await fichaE(a)).lucroTotal + (await fichaE(b)).lucroTotal
       hoje = '2026-11-20'
       const r = await unificar('admin', [a, b])
       expect(r.statusCode).toBe(201)
       const j = r.json()
-      expect(j).toMatchObject({ saldoAntes: 7800, valorTotal: 7800, nParcelas: 4, capitalHerdado: 5640, capitalAdicional: 0, capital: 5640, periodicidade: 'MENSAL' })
+      expect(j).toMatchObject({ saldoAntes: 7800, valorTotal: 7800, nParcelas: 4, capitalHerdado: 6000, capitalAdicional: 0, capital: 6000, periodicidade: 'MENSAL' })
       expect(j.origens).toEqual([
-        expect.objectContaining({ emprestimoId: a, saldo: 3720, capitalCedido: 2640, parcelasEncerradas: 2 }),
+        expect.objectContaining({ emprestimoId: a, saldo: 3720, capitalCedido: 3000, parcelasEncerradas: 2 }),
         expect.objectContaining({ emprestimoId: b, saldo: 4080, capitalCedido: 3000, parcelasEncerradas: 3 }),
       ])
       const n = await fichaE(j.emprestimoId)
-      expect(n).toMatchObject({ capital: 5640, total: 7800, recebido: 0, falta: 7800, lucroTotal: 2160, status: 'ATIVA', nParcelas: 4, unificadoDe: [a, b], unificadoEm: null })
-      expect(n.parcelas.map((p: { valor: number }) => p.valor)).toEqual([1950, 1950, 1950, 1950])
-      expect(await vencs(j.emprestimoId)).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
+      // a parcela paga (360) veio da origem e é a nº 1; as 4 do acordo vêm depois
+      expect(n).toMatchObject({ capital: 6000, total: 8160, recebido: 360, falta: 7800, lucroTotal: 2160, status: 'ATIVA', nParcelas: 5, unificadoDe: [a, b], unificadoEm: null })
+      expect(n.parcelas.map((p: { valor: number }) => p.valor)).toEqual([360, 1950, 1950, 1950, 1950])
+      expect(n.parcelas[0]).toMatchObject({ numero: 1, pago: 360 })
+      expect((await vencs(j.emprestimoId)).slice(1)).toEqual(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01'])
+      // o recebimento (e o recibo) mudou de empréstimo junto com a parcela
+      const pag = (await req('GET', `/api/emprestimos/${j.emprestimoId}/pagamentos`, 'admin')).json()
+      expect(pag).toHaveLength(1)
+      expect(pag[0]).toMatchObject({ valor: 360, desfeita: false })
       const fa = await fichaE(a); const fb = await fichaE(b)
-      expect(fa).toMatchObject({ capital: 360, status: 'QUITADA', falta: 0, recebido: 360, lucroTotal: 0, unificadoEm: j.emprestimoId, unificadoDe: [] })
+      expect(fa).toMatchObject({ capital: 0, status: 'QUITADA', falta: 0, recebido: 0, lucroTotal: 0, unificadoEm: j.emprestimoId, unificadoDe: [] })
       expect(fb).toMatchObject({ capital: 0, status: 'QUITADA', falta: 0, recebido: 0, lucroTotal: 0, unificadoEm: j.emprestimoId })
       expect(fa.lucroTotal + fb.lucroTotal + n.lucroTotal).toBe(lucroAntes)
-      // as parcelas abertas ficam encerradas por acordo; o que foi pago continua
-      expect(fa.parcelas.map((p: { acordo: string | null; pago: number }) => [p.acordo, p.pago])).toEqual([[null, 360], ['ENCERRADA', 0], ['ENCERRADA', 0]])
+      // as parcelas abertas ficam encerradas por acordo; o que foi pago foi para o novo
+      expect(fa.parcelas.map((p: { acordo: string | null; pago: number }) => [p.acordo, p.pago])).toEqual([['ENCERRADA', 0], ['ENCERRADA', 0]])
+      expect((await req('GET', `/api/emprestimos/${a}/pagamentos`, 'admin')).json()).toEqual([])
     })
 
     it('com dinheiro novo e juros dele: soma no capital, o Caixa mostra a saída na data e nada em dobro', async () => {
@@ -155,9 +162,9 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
       const r = await unificar('admin', [a, b], { capitalAdicional: 1500, valorTotal: 9800 })
       expect(r.statusCode).toBe(201)
       const j = r.json()
-      expect(j).toMatchObject({ capitalHerdado: 5640, capitalAdicional: 1500, capital: 7140 })
+      expect(j).toMatchObject({ capitalHerdado: 6000, capitalAdicional: 1500, capital: 7500 })
       const n = await fichaE(j.emprestimoId)
-      expect(n).toMatchObject({ capital: 7140, total: 9800, lucroTotal: 2660 })
+      expect(n).toMatchObject({ capital: 7500, total: 10160, lucroTotal: 2660 })
       const c = await createCaixaRepository(db!).extrato({ hoje: '2026-12-31', limite: 500, offset: 0 })
       const por = (chave: string) => c.itens.find((i) => i.chave === chave)
       expect(por(`E${a}`)).toMatchObject({ valor: 3000 }) // o valor original, na data original
@@ -173,20 +180,38 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
       const [a, b] = await dois()
       hoje = '2026-12-01'
       const j = (await unificar('admin', [a, b], { primeiraParcela: '2026-12-01' })).json()
-      const r = await receberE('admin', j.emprestimoId, { parcela: 1, valor: 1950 })
+      expect((await receberE('admin', j.emprestimoId, { parcela: 1, valor: 360 })).statusCode).toBe(409) // a nº 1 já veio paga
+      const r = await receberE('admin', j.emprestimoId, { parcela: 2, valor: 1950 })
       expect(r.statusCode).toBe(201)
-      expect(await fichaE(j.emprestimoId)).toMatchObject({ recebido: 1950, falta: 5850 })
+      expect(await fichaE(j.emprestimoId)).toMatchObject({ recebido: 2310, falta: 5850 })
       expect((await receberE('admin', b, { parcela: 2, valor: 100 })).statusCode).toBeGreaterThanOrEqual(400)
+    })
+
+    it('o indicador fica com a parte do total no novo (histórico dentro); a soma da parte dele não muda', async () => {
+      const a = await emprestimo({ indicadorId: id.ind })
+      const b = await emprestimo({ indicadorId: id.ind })
+      expect((await receberE('admin', a, { parcela: 1, valor: 360 })).statusCode).toBe(201)
+      const parte = async (e: number) => (await fichaE(e)).parteIndicador as number
+      const antes = (await parte(a)) + (await parte(b))
+      hoje = '2026-11-20'
+      const j = (await unificar('admin', [a, b])).json()
+      const n = await fichaE(j.emprestimoId)
+      expect(n).toMatchObject({ percentualIndicador: 0.5, recebido: 360, capital: 6000, lucroTotal: 2160 })
+      expect(await parte(j.emprestimoId)).toBe(1080)
+      expect((await parte(a)) + (await parte(b)) + (await parte(j.emprestimoId))).toBe(antes)
+      // a visão do próprio indicador é a do novo, sobre tudo
+      const vi = (await req('GET', `/api/emprestimos/${j.emprestimoId}`, 'indicador')).json()
+      expect(vi).toMatchObject({ suaParte: 1080 })
     })
 
     it('periodicidade semanal e diária (seg a sáb) valem na unificação', async () => {
       const [a, b] = await dois()
       const j = (await unificar('admin', [a, b], { periodicidade: 'SEMANAL' })).json()
-      expect(await vencs(j.emprestimoId)).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22'])
+      expect((await vencs(j.emprestimoId)).slice(1)).toEqual(['2026-12-01', '2026-12-08', '2026-12-15', '2026-12-22'])
       expect((await fichaE(j.emprestimoId)).periodicidade).toBe('SEMANAL')
       const [c, d] = await dois()
       const k = (await unificar('admin', [c, d], { periodicidade: 'DIARIA', primeiraParcela: '2026-12-05' })).json()
-      expect(await vencs(k.emprestimoId)).toEqual(['2026-12-05', '2026-12-07', '2026-12-08', '2026-12-09'])
+      expect((await vencs(k.emprestimoId)).slice(1)).toEqual(['2026-12-05', '2026-12-07', '2026-12-08', '2026-12-09'])
       const f = await fichaE(k.emprestimoId)
       expect(f).toMatchObject({ modalidade: 'DIARIA', periodicidade: 'DIARIA' })
     })
@@ -196,11 +221,11 @@ describe.skipIf(!db)('unificar empréstimos (Postgres de verdade)', () => {
       const c = await emprestimo()
       const j = (await unificar('admin', [a, b, c], { valorTotal: 11000, parcelas: 5 })).json()
       expect(j.saldoAntes).toBe(11880)
-      expect(j.capitalHerdado).toBe(8640)
+      expect(j.capitalHerdado).toBe(9000)
       const h = (await req('GET', `/api/emprestimos/${c}/acordos`, 'admin')).json()
       expect(h[0]).toMatchObject({ unificadoEmId: j.emprestimoId, capitalCedido: 3000, valorTotal: 4080 })
       const hn = (await req('GET', `/api/emprestimos/${j.emprestimoId}/acordos`, 'admin')).json()
-      expect(hn[0]).toMatchObject({ capitalHerdado: 8640, valorTotal: 11000, nParcelas: 5 })
+      expect(hn[0]).toMatchObject({ capitalHerdado: 9000, valorTotal: 11000, nParcelas: 5 })
     })
   })
 

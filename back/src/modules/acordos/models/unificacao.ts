@@ -26,9 +26,11 @@ const dia = (x: Date | string | null) => (x === null ? null : (typeof x === 'str
 /**
  * Junta o que vários empréstimos do mesmo cliente ainda têm em aberto num empréstimo NOVO, com um acordo só, tudo na mesma transação
  * (as linhas de origem são travadas aqui, em ordem de id).
- *  - o aberto de cada origem fica "encerrado por acordo"; o que já foi pago continua nela;
- *  - o capital que ainda estava na rua em cada origem (capital − o que já voltou) passa para o novo; a origem fica com o capital que voltou,
- *    então o lucro dela é o que já ganhou e o do novo é só o que vem daqui para a frente. A soma do lucro de todos não muda;
+ *  - o aberto de cada origem fica "encerrado por acordo";
+ *  - o que já foi pago (as parcelas com pagamento ou desconto, com seus recebimentos e recibos) passa para o novo, em ordem de vencimento:
+ *    o novo carrega o histórico inteiro e a divisão do indicador é calculada nele, sobre tudo;
+ *  - o capital inteiro de cada origem passa para o novo (a origem fica com 0 e sem parcelas; o Caixa continua mostrando a saída original dela,
+ *    pelo `capital_cedido`). A soma do lucro de todos não muda;
  *  - o dinheiro novo soma no capital do novo e sai do Caixa hoje.
  */
 export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnificacao): Promise<ResultadoUnificacao> {
@@ -37,7 +39,7 @@ export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnific
   if (ids.length < UNIFICAR_MIN || ids.length > UNIFICAR_MAX) throw requisicaoInvalida(`Escolha de ${UNIFICAR_MIN} a ${UNIFICAR_MAX} empréstimos para unificar`)
 
   const linhas = await trx('emprestimos').whereIn('id', ids).orderBy('id').forUpdate()
-    .select<{ id: number; cliente_id: number; indicador_id: number | null; percentual_indicador: string; status: string; capital: string }[]>('id', 'cliente_id', 'indicador_id', 'percentual_indicador', 'status', 'capital')
+    .select<{ id: number; cliente_id: number; indicador_id: number | null; percentual_indicador: string; status: string; capital: string; data_emprestimo: Date | string }[]>('id', 'cliente_id', 'indicador_id', 'percentual_indicador', 'status', 'capital', 'data_emprestimo')
   if (linhas.length !== ids.length) throw naoEncontrado('Empréstimo não encontrado')
   if (new Set(linhas.map((l) => l.cliente_id)).size !== 1) throw new HttpError(400, 'Só dá para unificar empréstimos do mesmo cliente', 'CLIENTES_DIFERENTES')
   const bloqueado = linhas.find((l) => l.status === 'CANCELADA')
@@ -46,18 +48,13 @@ export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnific
   const ps = await trx('emprestimo_parcelas as p').whereIn('p.emprestimo_id', ids).orderBy(['p.emprestimo_id', 'p.numero'])
     .select<{ id: number; emprestimo_id: number; numero: number; valor: string; desconto: string; vencimento: Date | string; vencimento_original: Date | string | null; pago: string }[]>(
       'p.id', 'p.emprestimo_id', 'p.numero', 'p.valor', 'p.desconto', 'p.vencimento', 'p.vencimento_original', trx.raw(`${PAGO_PARCELA_EMPRESTIMO_SQL} as pago`))
-  // capital que já voltou por amortização adiantada (só juros): conta como dinheiro recebido, como em toda a ficha
-  const am = await trx('transacoes_recebimento as t').whereNull('t.desfeita_em').whereNotNull('t.ajustes')
-    .join(trx('recebimentos as r').join('emprestimo_parcelas as p', 'p.id', 'r.emprestimo_parcela_id').whereIn('p.emprestimo_id', ids).distinct('r.transacao_id', 'p.emprestimo_id').as('x'), 'x.transacao_id', 't.id')
-    .groupBy('x.emprestimo_id').select<{ emprestimo_id: number; soma: string | null }[]>('x.emprestimo_id', trx.raw("sum((t.ajustes->>'amortizacao')::numeric) as soma"))
-  const amortizado = new Map(am.map((a) => [a.emprestimo_id, Number(a.soma ?? 0)]))
-
   const origens = linhas.map((l) => {
     const todas = ps.filter((p) => p.emprestimo_id === l.id)
     const abertas = todas.map((p) => ({ ...p, falta: arred2(Number(p.valor) - Number(p.pago) - Number(p.desconto)) })).filter((p) => p.falta > 0.009)
-    const recebido = arred2((amortizado.get(l.id) ?? 0) + todas.reduce((x, p) => x + Number(p.pago), 0))
     const capital = Number(l.capital)
-    return { l, abertas, saldo: arred2(abertas.reduce((x, p) => x + p.falta, 0)), capital, capitalCedido: arred2(capital - Math.min(capital, recebido)) }
+    // pagou ou ganhou desconto: é histórico e vai para o novo (o que ficou só aberto é encerrado e fica aqui, zerado)
+    const pagas = todas.filter((p) => Number(p.pago) > 0.009 || Number(p.desconto) > 0.009)
+    return { l, abertas, pagas, saldo: arred2(abertas.reduce((x, p) => x + p.falta, 0)), capital, capitalCedido: capital }
   })
   const semSaldo = origens.find((o) => !o.abertas.length)
   if (semSaldo) throw new HttpError(409, `O empréstimo #${semSaldo.l.id} não tem nada em aberto para unificar`, 'SEM_SALDO')
@@ -77,12 +74,16 @@ export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnific
   const saldoAntes = arred2(origens.reduce((x, o) => x + o.saldo, 0))
   const capitalHerdado = arred2(origens.reduce((x, o) => x + o.capitalCedido, 0))
   const capital = arred2(capitalHerdado + d.capitalAdicional)
-  // juro "no total" do novo, só para a ficha: quanto o total passa do capital (a conta de lucro não depende dele)
-  const taxa = capital > 0 ? Math.min(999.9999, Math.max(0, Math.round(((d.valorTotal / capital) - 1) * 1e6) / 1e4)) : 0
   const diaria = d.periodicidade === 'DIARIA'
+  // o histórico que vem junto: ordem de vencimento (empate: empréstimo e número de origem); as do acordo novo vêm depois
+  const trazidas = origens.flatMap((o) => o.pagas.map((p) => ({ p, aberta: o.abertas.some((a) => a.id === p.id) })))
+    .sort((a, b) => dia(a.p.vencimento)!.localeCompare(dia(b.p.vencimento)!) || a.p.emprestimo_id - b.p.emprestimo_id || a.p.numero - b.p.numero)
+  const valorTrazido = (t: { p: (typeof ps)[number]; aberta: boolean }) => (t.aberta ? Number(t.p.pago) + Number(t.p.desconto) : Number(t.p.valor))
+  const taxa = capital > 0 ? Math.min(999.9999, Math.max(0, Math.round((((d.valorTotal + trazidas.reduce((x, t) => x + valorTrazido(t), 0)) / capital) - 1) * 1e6) / 1e4)) : 0
+  const dataEmprestimo = origens.map((o) => dia(o.l.data_emprestimo)!).sort()[0]
 
   const [{ id: novoId }] = await trx('emprestimos').insert({
-    cliente_id: origens[0].l.cliente_id, indicador_id: indicadorId, percentual_indicador: pct, data_emprestimo: d.dia, capital, modalidade: diaria ? 'DIARIA' : 'PARCELADO', taxa,
+    cliente_id: origens[0].l.cliente_id, indicador_id: indicadorId, percentual_indicador: pct, data_emprestimo: dataEmprestimo, capital, modalidade: diaria ? 'DIARIA' : 'PARCELADO', taxa,
     periodicidade: d.periodicidade, pula_domingo: true, modo_divisao: 'CAPITAL_PRIMEIRO',
     observacoes: `Unificação dos empréstimos ${ids.map((i) => '#' + i).join(', ')}`,
   }).returning('id')
@@ -92,7 +93,7 @@ export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnific
     periodicidade: d.periodicidade, n_parcelas: d.n, primeira_parcela: d.primeira, motivo: d.motivo, parcelas_antes: JSON.stringify([]),
   }).returning('id')
   const valores = distribuir(d.valorTotal, d.n)
-  await trx('emprestimo_parcelas').insert(valores.map((valor, i) => ({ emprestimo_id: novoId, numero: i + 1, vencimento: vencimentoDoAcordo(d.primeira, i, d.periodicidade), valor, acordo_id: acordoNovoId })))
+  await trx('emprestimo_parcelas').insert(valores.map((valor, i) => ({ emprestimo_id: novoId, numero: trazidas.length + i + 1, vencimento: vencimentoDoAcordo(d.primeira, i, d.periodicidade), valor, acordo_id: acordoNovoId })))
 
   const saida: OrigemUnificada[] = []
   for (const o of origens) {
@@ -104,7 +105,10 @@ export async function unificarEmprestimos(trx: Knex.Transaction, d: PedidoUnific
       parcelas_antes: JSON.stringify(o.abertas.map((p) => ({ numero: p.numero, valor: Number(p.valor), desconto: Number(p.desconto), pago: Number(p.pago), falta: p.falta, vencimento: dia(p.vencimento), vencimentoOriginal: dia(p.vencimento_original) }))),
     }).returning('id')
     for (const p of o.abertas) await trx('emprestimo_parcelas').where({ id: p.id }).update({ valor: arred2(Number(p.pago) + Number(p.desconto)), quitada_em: d.dia, encerrada_acordo_id: acordoId, updated_at: trx.fn.now() })
-    // a origem fica com o capital que já voltou (o resto foi para o novo) e sai das em andamento
+    // o histórico (parcelas pagas, com seus recebimentos) muda para o novo e é renumerado; a origem fica sem capital e sai das em andamento
+    for (const t of trazidas.filter((x) => x.p.emprestimo_id === o.l.id)) {
+      await trx('emprestimo_parcelas').where({ id: t.p.id }).update({ emprestimo_id: novoId, numero: trazidas.indexOf(t) + 1, updated_at: trx.fn.now() })
+    }
     await trx('emprestimos').where({ id: o.l.id }).update({ capital: arred2(o.capital - o.capitalCedido), status: 'QUITADA', updated_at: trx.fn.now() })
     await trx('aprovacoes').where({ emprestimo_id: o.l.id, status: 'PENDENTE' }).whereIn('tipo', ['DESCONTO', 'ACORDO'])
       .update({ status: 'RECUSADO', respondido_por: d.usuarioId, respondido_em: trx.fn.now(), resposta: 'Empréstimo unificado', updated_at: trx.fn.now() })
