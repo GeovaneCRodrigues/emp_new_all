@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { carregarCadeia, PAGINA_CHEIA } from '@/api/paginar'
 import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
-import type { CaixaLojaApi, CategoriaMovimentoApi, LancamentoApi, MovimentoApi } from '@/api/caixa'
+import type { CaixaLojaApi, CategoriaMovimentoApi, FiltroLadoCaixa, LadoCaixa, LancamentoApi, MovimentoApi } from '@/api/caixa'
 import { caixaApi } from '@/api/recursos'
 import CampoBusca from '@/components/CampoBusca.vue'
 import Icon from '@/components/Icon.vue'
+import Seg from '@/components/Seg.vue'
 import LancamentoCaixaForm from '@/components/LancamentoCaixaForm.vue'
 import { useApp } from '@/composables/useApp'
 import { useBusca } from '@/composables/useBusca'
@@ -23,15 +24,26 @@ const carregando = ref(true)
 const erro = ref('')
 const formAberto = ref(false)
 const editando = ref<LancamentoApi | null>(null)
+// a aba aberta: 'TUDO' soma os lados; cada lado tem o seu saldo e o seu extrato
+const aba = ref<'TUDO' | FiltroLadoCaixa>('TUDO')
+const NOME_ABA: Record<'TUDO' | FiltroLadoCaixa, string> = { TUDO: 'Tudo', EMPRESTIMO: 'Empréstimos', IPHONE: 'iPhones', SEM_LADO: 'Sem lado' }
+// "Sem lado" (repasses e lançamentos antigos) só aparece quando há algo nela, ou enquanto está aberta
+const abas = computed(() => (['TUDO', 'EMPRESTIMO', 'IPHONE', 'SEM_LADO'] as const)
+  .filter((a) => a !== 'SEM_LADO' || aba.value === 'SEM_LADO' || (caixa.value?.porLado.SEM_LADO.saldo ?? 0) !== 0)
+  .map((a) => ({ id: a, label: NOME_ABA[a] })))
+const saldosPorLado = computed(() => (['EMPRESTIMO', 'IPHONE', 'SEM_LADO'] as const)
+  .map((id) => ({ id, nome: NOME_ABA[id], saldo: caixa.value?.porLado[id].saldo ?? 0 }))
+  .filter((l) => l.id !== 'SEM_LADO' || l.saldo !== 0))
+const ladoDaAba = computed<LadoCaixa | undefined>(() => (aba.value === 'EMPRESTIMO' || aba.value === 'IPHONE' ? aba.value : undefined))
 
 // uma resposta antiga que chega atrasada não pode sobrescrever a mais nova
 let pedido = 0
 async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
-  const [termo, s] = [busca.value.trim() || undefined, sessao.value] // fixa o filtro desta carga
+  const [termo, s, filtro] = [busca.value.trim() || undefined, sessao.value, aba.value === 'TUDO' ? undefined : aba.value] // fixa o filtro desta carga
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => caixaApi.ver(s, { pagina: p, limite: PAGINA_CHEIA, busca: termo }),
+    buscar: (p) => caixaApi.ver(s, { pagina: p, limite: PAGINA_CHEIA, busca: termo, lado: filtro }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     // o resumo e o saldo vêm em toda página e são os mesmos; o extrato vai se juntando
     aplicar: (r, p) => { caixa.value = r; itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens] },
@@ -40,6 +52,7 @@ async function carregar() {
   await primeira.catch(() => undefined)
 }
 onMounted(() => carregar())
+watch(aba, () => { itens.value = []; carregar() })
 onBeforeUnmount(() => { pedido++ }) // sair da tela cancela o que ainda está chegando
 
 const ICONE: Record<CategoriaMovimentoApi, string> = {
@@ -52,7 +65,7 @@ function editar(m: MovimentoApi) {
   if (m.manualId === null || (m.categoria !== 'APORTE' && m.categoria !== 'RETIRADA' && m.categoria !== 'DESPESA')) return
   // o título de um lançamento manual é a própria observação (ou o nome do tipo, quando não tem)
   const sem = m.titulo === m.sub
-  editando.value = { id: m.manualId, tipo: m.categoria, valor: m.valor, data: m.data, obs: sem ? null : m.titulo }
+  editando.value = { id: m.manualId, tipo: m.categoria, valor: m.valor, data: m.data, obs: sem ? null : m.titulo, lado: m.lado }
   formAberto.value = true
 }
 async function aposSalvar() { formAberto.value = false; await carregar() }
@@ -64,15 +77,21 @@ async function aposSalvar() { formAberto.value = false; await carregar() }
   <template v-if="caixa">
     <div class="hero" style="gap: 8px">
       <div class="between" style="gap: 8px; align-items: flex-start">
-        <div class="lbl">Saldo em caixa</div>
+        <div class="lbl" data-testid="caixa-saldo-rotulo">{{ aba === 'TUDO' ? 'Saldo em caixa' : `Saldo · ${NOME_ABA[aba]}` }}</div>
         <button class="btn b-sm" style="background: rgba(255, 255, 255, 0.16); color: #fff" data-testid="caixa-lancar" @click="novo"><Icon name="plus" small />Lançar</button>
       </div>
       <div class="big disp num" data-testid="caixa-saldo" :style="caixa.saldo < 0 ? 'color: #ffd6cf' : ''">{{ fmt(caixa.saldo) }}</div>
       <div class="row" style="gap: 18px; flex-wrap: wrap">
+        <span v-if="aba === 'TUDO'" class="lbl" data-testid="caixa-lados">
+          <template v-for="(l, i) in saldosPorLado" :key="l.id">{{ i ? ' · ' : '' }}{{ l.nome }} <b>{{ fmt0(l.saldo) }}</b></template>
+        </span>
         <span class="lbl" data-testid="caixa-mes"><span style="text-transform: capitalize">{{ mesNome(caixa.mes) }}</span>: <b style="color: #d8f5c0">+ {{ fmt0(caixa.entrouMes) }}</b> entrou · <b style="color: #ffd6cf">− {{ fmt0(caixa.saiuMes) }}</b> saiu</span>
       </div>
     </div>
-    <div v-if="caixa.marcoZero" class="small" data-testid="caixa-marco">Contando a partir de {{ dmyA(caixa.marcoZero) }}, o primeiro aporte ou retirada lançado. O que veio antes não entra na conta.</div>
+    <Seg v-model="aba as string" :itens="abas" data-testid="caixa-abas" />
+    <div v-if="aba === 'SEM_LADO'" class="small" data-testid="caixa-sem-lado">Repasses de indicador e lançamentos de antes dos lados. Abra um lançamento daqui e escolha se é de empréstimos ou de iPhones.</div>
+    <div v-if="aba !== 'TUDO' && caixa.marcoZero" class="small" data-testid="caixa-marco">Contando a partir de {{ dmyA(caixa.marcoZero) }}, o primeiro aporte ou retirada lançado{{ aba === 'SEM_LADO' ? '' : ' deste lado' }}. O que veio antes não entra na conta.</div>
+    <div v-else-if="aba === 'TUDO' && caixa.marcoZero" class="small" data-testid="caixa-marco">Cada caixa conta a partir do primeiro aporte ou retirada dele (o mais antigo é de {{ dmyA(caixa.marcoZero) }}). O que veio antes não entra na conta.</div>
     <div v-else class="small" data-testid="caixa-sem-marco">Ainda não há aporte nem retirada: o saldo soma tudo. Lance o seu saldo de abertura como um aporte para começar a contar dali.</div>
 
     <CampoBusca v-model="busca" placeholder="Buscar no extrato (cliente, despesa, aparelho)" rotulo="Buscar no extrato" />
@@ -91,5 +110,5 @@ async function aposSalvar() { formAberto.value = false; await carregar() }
   </template>
   <div v-else-if="carregando" class="empty">Carregando…</div>
 
-  <LancamentoCaixaForm :aberto="formAberto" :lancamento="editando" @fechar="formAberto = false" @salvo="aposSalvar" @excluido="aposSalvar" />
+  <LancamentoCaixaForm :aberto="formAberto" :lancamento="editando" :lado-padrao="ladoDaAba" @fechar="formAberto = false" @salvo="aposSalvar" @excluido="aposSalvar" />
 </template>

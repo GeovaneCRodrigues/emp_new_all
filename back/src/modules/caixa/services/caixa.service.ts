@@ -4,13 +4,14 @@ import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { CaixaRepository } from '../models/repository.js'
-import type { LancamentoManual, Movimento, ResumoCaixa, TipoManual } from '../models/types.js'
+import { FILTROS_LADO, LADOS, type FiltroLado, type Lado, type LancamentoManual, type Movimento, type ResumoCaixa, type SaldoLado, type TipoManual } from '../models/types.js'
 
+/** `saldo`, `entrouMes`, `saiuMes` e `marcoZero` são do lado pedido (sem filtro, de tudo); `porLado` traz sempre os três. */
 export type ResultadoCaixa = ResumoCaixa & { hoje: string; mes: string; itens: Movimento[]; total: number; pagina: number; limite: number }
 
 export type CaixaService = {
   /** O caixa da loja: saldo, o que entrou e saiu no mês e o extrato. */
-  ver(s: Sessao, q: { pagina?: number; limite?: number; busca?: string }): Promise<ResultadoCaixa>
+  ver(s: Sessao, q: { pagina?: number; limite?: number; busca?: string; lado?: string }): Promise<ResultadoCaixa>
   lancar(s: Sessao, corpo: Record<string, unknown>): Promise<LancamentoManual>
   editar(s: Sessao, id: number, corpo: Record<string, unknown>): Promise<LancamentoManual>
   excluir(s: Sessao, id: number): Promise<void>
@@ -21,6 +22,11 @@ const DINHEIRO_MAX = 1_000_000_000
 const arred = (v: number) => Math.round(v * 100) / 100 + 0
 const TIPOS: TipoManual[] = ['APORTE', 'RETIRADA', 'DESPESA']
 const exigirAdmin = (s: Sessao) => { if (s.perfil !== 'ADMIN') throw semPermissao('Só o administrador mexe no caixa da loja') }
+
+const ladoValido = (v: unknown): Lado => {
+  if (typeof v !== 'string' || !LADOS.includes(v as Lado)) throw requisicaoInvalida('lado precisa ser EMPRESTIMO ou IPHONE')
+  return v as Lado
+}
 
 function diaValido(v: unknown): string {
   if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw requisicaoInvalida('data precisa ser AAAA-MM-DD')
@@ -34,7 +40,7 @@ export function createCaixaService(dep: { repo: CaixaRepository; auditoria: Audi
   const hoje = dep.hoje ?? (() => hojeBR())
 
   /** Lê e valida um lançamento. Em `parcial` (edição), o que não veio fica como estava. */
-  function ler(corpo: Record<string, unknown>, base: LancamentoManual | null): { tipo: TipoManual; valor: number; data: string; obs: string | null } {
+  function ler(corpo: Record<string, unknown>, base: LancamentoManual | null): { tipo: TipoManual; valor: number; data: string; obs: string | null; lado: Lado } {
     const tipo = corpo.tipo !== undefined || !base ? corpo.tipo : base.tipo
     if (typeof tipo !== 'string' || !TIPOS.includes(tipo as TipoManual)) throw requisicaoInvalida('tipo precisa ser APORTE, RETIRADA ou DESPESA')
     const v = corpo.valor !== undefined || !base ? corpo.valor : base.valor
@@ -46,7 +52,9 @@ export function createCaixaService(dep: { repo: CaixaRepository; auditoria: Audi
     const obs = bruta?.trim() || null
     if (obs && obs.length > 200) throw requisicaoInvalida('obs: no máximo 200 letras')
     if (tipo === 'DESPESA' && !obs) throw requisicaoInvalida('Diga com o que foi a despesa')
-    return { tipo: tipo as TipoManual, valor: arred(v), data, obs }
+    // um lançamento antigo (sem lado) só se corrige escolhendo o lado
+    const lado = ladoValido(corpo.lado !== undefined || !base?.lado ? corpo.lado : base.lado)
+    return { tipo: tipo as TipoManual, valor: arred(v), data, obs, lado }
   }
 
   return {
@@ -55,11 +63,19 @@ export function createCaixaService(dep: { repo: CaixaRepository; auditoria: Audi
       const dia = hoje()
       const limite = Math.min(Math.max(Math.trunc(q.limite ?? 25) || 25, 1), LIMITE_MAX)
       const pagina = Math.max(Math.trunc(q.pagina ?? 1) || 1, 1)
+      let lado: FiltroLado | undefined
+      if (q.lado !== undefined && q.lado !== '') {
+        if (!FILTROS_LADO.includes(q.lado as FiltroLado)) throw requisicaoInvalida('lado precisa ser EMPRESTIMO, IPHONE ou SEM_LADO')
+        lado = q.lado as FiltroLado
+      }
       const mes = dia.slice(0, 7)
       const [ano, m] = mes.split('-').map(Number)
       const mesFim = `${mes}-${String(new Date(Date.UTC(ano, m, 0)).getUTCDate()).padStart(2, '0')}`
-      const [resumo, extrato] = await Promise.all([dep.repo.resumo({ hoje: dia, mesIni: `${mes}-01`, mesFim }), dep.repo.extrato({ hoje: dia, limite, offset: (pagina - 1) * limite, busca: termoBusca(q.busca) })])
-      return { ...resumo, saldo: arred(resumo.saldo), entrouMes: arred(resumo.entrouMes), saiuMes: arred(resumo.saiuMes), hoje: dia, mes, ...extrato, pagina, limite }
+      const [resumo, extrato] = await Promise.all([dep.repo.resumo({ hoje: dia, mesIni: `${mes}-01`, mesFim }), dep.repo.extrato({ hoje: dia, limite, offset: (pagina - 1) * limite, busca: termoBusca(q.busca), lado })])
+      const arrLado = (x: SaldoLado): SaldoLado => ({ saldo: arred(x.saldo), entrouMes: arred(x.entrouMes), saiuMes: arred(x.saiuMes), marcoZero: x.marcoZero })
+      const porLado = Object.fromEntries(FILTROS_LADO.map((l) => [l, arrLado(resumo.porLado[l])])) as Record<FiltroLado, SaldoLado>
+      const foco = lado ? porLado[lado] : arrLado({ ...resumo })
+      return { ...foco, porLado, hoje: dia, mes, ...extrato, pagina, limite }
     },
 
     async lancar(s, corpo) {

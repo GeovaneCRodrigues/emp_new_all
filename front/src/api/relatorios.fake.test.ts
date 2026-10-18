@@ -131,7 +131,7 @@ describe('relatórios (demonstração)', () => {
     expect(r.investimentoELucro.investido[5]).toBe(soma([antes.investimentoELucro.investido[5], 2000]))
   })
   it('retirada diminui o "você colocou"; aporte aumenta; despesa não mexe nele', async () => {
-    await caixa.lancar(ADMIN, { tipo: 'APORTE', valor: 5000 }); await caixa.lancar(ADMIN, { tipo: 'RETIRADA', valor: 1200 }); await caixa.lancar(ADMIN, { tipo: 'DESPESA', valor: 300, obs: 'internet' })
+    await caixa.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 5000 }); await caixa.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'RETIRADA', valor: 1200 }); await caixa.lancar(ADMIN, { lado: 'EMPRESTIMO', tipo: 'DESPESA', valor: 300, obs: 'internet' })
     expect((await api.ver(ADMIN)).balancete.aportes).toBe(100000 + 5000 - 1200)
   })
   it('venda retomada sai das contas e o aparelho volta ao estoque', async () => {

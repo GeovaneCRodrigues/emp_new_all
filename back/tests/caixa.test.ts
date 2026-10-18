@@ -221,6 +221,65 @@ describe.skipIf(!db)('caixa da loja (Postgres de verdade)', () => {
     })
   })
 
+  describe('os dois lados: empréstimos e iPhones', () => {
+    const lanc = (tipo: string, valor: number, data: string, lado: string | null, obs: string | null = null) => db!('movimentacoes_caixa').insert({ tipo, valor, data, obs, lado })
+    async function cenario() {
+      const b = await bem({ modelo: 'IPHONE 12', valor_compra: 1000, data_compra: '2026-10-02' })               // iPhone: sai 1000
+      const [v] = await db!('vendas').insert({ bem_id: b, cliente_id: id.cli, data_venda: '2026-10-02', valor_investido: 1000, valor_total: 3000, preco_acordado: 3000 }).returning('id')
+      const [vp] = await db!('venda_parcelas').insert({ venda_id: v.id, numero: 1, vencimento: '2026-10-10', valor: 500 }).returning('id')
+      await recibo(id.cli, 800, '2026-10-02', { entradaVendaId: v.id })                                          // iPhone: entra 800 (entrada)
+      await recibo(id.cli, 500, '2026-10-10', { parcelaVenda: vp.id })                                           // iPhone: entra 500
+      const [e] = await db!('emprestimos').insert({ cliente_id: id.cli, data_emprestimo: '2026-10-01', capital: 2000, modalidade: 'PARCELADO', taxa: 30 }).returning('id') // empréstimo: sai 2000
+      const [ep] = await db!('emprestimo_parcelas').insert({ emprestimo_id: e.id, numero: 1, vencimento: '2026-10-12', valor: 300 }).returning('id')
+      await recibo(id.cli, 300, '2026-10-12', { parcelaEmp: ep.id })                                             // empréstimo: entra 300
+      await lanc('APORTE', 10000, '2026-09-30', 'EMPRESTIMO'); await lanc('DESPESA', 70, '2026-10-05', 'EMPRESTIMO', 'cobrança')
+      await lanc('APORTE', 5000, '2026-09-30', 'IPHONE'); await lanc('DESPESA', 120, '2026-10-06', 'IPHONE', 'frete')
+      await db!('repasses_indicador').insert({ indicador_id: id.ind, valor: 200, data_repasse: '2026-10-07', forma_pagamento: 'PIX' }) // sem lado: sai 200
+    }
+    it('cada movimento cai no seu lado e cada lado tem o seu saldo', async () => {
+      await cenario()
+      const c = await caixa()
+      expect(c.porLado.EMPRESTIMO).toMatchObject({ saldo: 10000 - 2000 + 300 - 70, entrouMes: 300, saiuMes: 2070 })
+      expect(c.porLado.IPHONE).toMatchObject({ saldo: 5000 - 1000 + 800 + 500 - 120, entrouMes: 1300, saiuMes: 1120 })
+      expect(c.porLado.SEM_LADO).toMatchObject({ saldo: -200, saiuMes: 200 })
+      expect(c.saldo).toBe(8230 + 5180 - 200)
+    })
+    it('o extrato filtra por lado e o saldo da resposta é o do lado pedido', async () => {
+      await cenario()
+      const emp = await caixa('?lado=EMPRESTIMO'), iph = await caixa('?lado=IPHONE'), sem = await caixa('?lado=SEM_LADO')
+      expect(emp.itens.every((i) => i.lado === 'EMPRESTIMO')).toBe(true); expect(emp.total).toBe(4); expect(emp.saldo).toBe(8230)
+      expect(iph.itens.every((i) => i.lado === 'IPHONE')).toBe(true); expect(iph.total).toBe(5); expect(iph.saldo).toBe(5180)
+      expect(sem.itens.map((i) => i.categoria)).toEqual(['REPASSE']); expect(sem.saldo).toBe(-200)
+      expect((await caixa()).total).toBe(10)
+      expect((await req('GET', '/api/caixa?lado=LOJA', 'admin')).statusCode).toBe(400)
+    })
+    it('o marco zero é de cada lado: o aporte de um lado não corta o histórico do outro', async () => {
+      await recibo(id.cli, 100, '2026-08-01') // venda sem parcela de empréstimo: iPhone
+      const [e] = await db!('emprestimos').insert({ cliente_id: id.cli, data_emprestimo: '2026-08-01', capital: 400, modalidade: 'PARCELADO', taxa: 30 }).returning('id')
+      void e
+      await lanc('APORTE', 1000, '2026-09-01', 'EMPRESTIMO'); await lanc('APORTE', 50, '2026-07-01', 'IPHONE')
+      const c = await caixa()
+      expect(c.porLado.EMPRESTIMO).toMatchObject({ saldo: 1000, marcoZero: '2026-09-01' }) // o empréstimo de agosto é de antes do marco dele
+      expect(c.porLado.IPHONE).toMatchObject({ saldo: 150, marcoZero: '2026-07-01' })        // o recebimento de agosto conta
+    })
+    it('sem lançamento classificado o total é o mesmo de antes (o lado sem marco usa o primeiro de todos)', async () => {
+      await recibo(id.cli, 100, '2026-09-17'); await recibo(id.cli, 400, '2026-10-05')
+      await lanc('APORTE', 7500, '2026-09-18', null)
+      const c = await caixa()
+      expect(c.saldo).toBe(7900); expect(c.marcoZero).toBe('2026-09-18'); expect(c.porLado.SEM_LADO.saldo).toBe(7500); expect(c.porLado.IPHONE.saldo).toBe(400)
+    })
+    it('transferência do indicador e lançamento antigo ficam sem lado até serem classificados', async () => {
+      await db!('movimentacoes_caixa').insert({ tipo: 'TRANSFERENCIA_INDICADOR', valor: 90, data: '2026-10-03', indicador_id: id.ind })
+      await lanc('APORTE', 10, '2026-10-01', null)
+      expect((await caixa('?lado=SEM_LADO')).itens.map((i) => i.lado)).toEqual([null, null])
+    })
+    it('a busca respeita o lado', async () => {
+      await cenario()
+      expect((await caixa('?lado=IPHONE&busca=frete')).total).toBe(1)
+      expect((await caixa('?lado=EMPRESTIMO&busca=frete')).total).toBe(0)
+    })
+  })
+
   describe('quem pode', () => {
     it('só o administrador: cobrador, vendedor e indicador levam 403; sem login, 401', async () => {
       for (const papel of ['cobrador', 'vendedor', 'indicador']) {
@@ -240,37 +299,37 @@ describe.skipIf(!db)('caixa da loja (Postgres de verdade)', () => {
 
   describe('lançar, editar e excluir (aporte, retirada, despesa)', () => {
     it('lança com data de hoje por padrão, mexe no saldo e fica na auditoria', async () => {
-      const r = await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 7500.5, obs: '  saldo de abertura ' })
+      const r = await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 7500.5, obs: '  saldo de abertura ' })
       expect(r.statusCode).toBe(201)
-      expect(r.json()).toMatchObject({ tipo: 'APORTE', valor: 7500.5, data: HOJE, obs: 'saldo de abertura' })
+      expect(r.json()).toMatchObject({ lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 7500.5, data: HOJE, obs: 'saldo de abertura' })
       expect((await caixa()).saldo).toBe(7500.5)
       expect(await db!('movimentacoes_caixa').first()).toMatchObject({ usuario_id: id.admin })
       expect(await db!('auditoria').where({ acao: 'CAIXA_LANCADO' }).count('* as n').first()).toMatchObject({ n: '1' })
     })
     it('o lançamento aparece no extrato com o id para editar; o título é a observação', async () => {
-      await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'DESPESA', valor: 90, obs: 'internet do escritório' })
+      await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'DESPESA', valor: 90, obs: 'internet do escritório' })
       const m = (await caixa()).itens[0]
       expect(m).toMatchObject({ categoria: 'DESPESA', entrada: false, titulo: 'internet do escritório', sub: 'Despesa' }); expect(m.manualId).toBeGreaterThan(0)
-      await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'RETIRADA', valor: 10 })
+      await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'RETIRADA', valor: 10 })
       expect(cat(await caixa(), 'RETIRADA')[0]).toMatchObject({ titulo: 'Retirada', sub: 'Retirada' })
     })
     it('edita só o que veio (valor, data, obs, tipo) e guarda antes e depois', async () => {
-      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 100, data: '2026-10-01', obs: 'a' })).json()
+      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 100, data: '2026-10-01', obs: 'a' })).json()
       const r = await req('PATCH', `/api/caixa/movimentos/${mid}`, 'admin', { valor: 250 })
-      expect(r.json()).toMatchObject({ tipo: 'APORTE', valor: 250, data: '2026-10-01', obs: 'a' })
-      expect((await req('PATCH', `/api/caixa/movimentos/${mid}`, 'admin', { tipo: 'RETIRADA', obs: 'virou saída' })).json()).toMatchObject({ tipo: 'RETIRADA', valor: 250, obs: 'virou saída' })
+      expect(r.json()).toMatchObject({ lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 250, data: '2026-10-01', obs: 'a' })
+      expect((await req('PATCH', `/api/caixa/movimentos/${mid}`, 'admin', { tipo: 'RETIRADA', obs: 'virou saída' })).json()).toMatchObject({ lado: 'EMPRESTIMO', tipo: 'RETIRADA', valor: 250, obs: 'virou saída' })
       expect((await caixa()).saldo).toBe(-250)
       const aud = await db!('auditoria').where({ acao: 'CAIXA_EDITADO' }).orderBy('id')
       expect(aud).toHaveLength(2); expect(aud[0].antes).toMatchObject({ valor: 100 }); expect(aud[0].depois).toMatchObject({ valor: 250 })
     })
     it('apagar a observação de um aporte é permitido; de uma despesa, não', async () => {
-      const a = (await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 1, obs: 'x' })).json().id
+      const a = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, obs: 'x' })).json().id
       expect((await req('PATCH', `/api/caixa/movimentos/${a}`, 'admin', { obs: '' })).json().obs).toBeNull()
-      const d = (await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'DESPESA', valor: 1, obs: 'x' })).json().id
+      const d = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'DESPESA', valor: 1, obs: 'x' })).json().id
       expect((await req('PATCH', `/api/caixa/movimentos/${d}`, 'admin', { obs: '  ' })).statusCode).toBe(400)
     })
     it('exclui (204), o saldo volta e a auditoria guarda o que foi apagado', async () => {
-      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 300 })).json()
+      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 300 })).json()
       expect((await req('DELETE', `/api/caixa/movimentos/${mid}`, 'admin')).statusCode).toBe(204)
       expect((await caixa()).saldo).toBe(0)
       expect((await db!('auditoria').where({ acao: 'CAIXA_EXCLUIDO' }).first()).antes).toMatchObject({ valor: 300, tipo: 'APORTE' })
@@ -287,20 +346,36 @@ describe.skipIf(!db)('caixa da loja (Postgres de verdade)', () => {
       for (const i of ['abc', '0', '-3', '1.5']) expect((await req('DELETE', `/api/caixa/movimentos/${i}`, 'admin')).statusCode, i).toBe(400)
     })
     it.each([
-      ['tipo ausente', { valor: 1 }], ['tipo inválido', { tipo: 'DOACAO', valor: 1 }], ['tipo de transferência não vale', { tipo: 'TRANSFERENCIA_INDICADOR', valor: 1 }],
-      ['valor ausente', { tipo: 'APORTE' }], ['valor zero', { tipo: 'APORTE', valor: 0 }], ['valor negativo', { tipo: 'APORTE', valor: -5 }], ['valor em texto', { tipo: 'APORTE', valor: '10' }],
-      ['valor enorme', { tipo: 'APORTE', valor: 2e9 }], ['valor infinito', { tipo: 'APORTE', valor: null }], ['data mal escrita', { tipo: 'APORTE', valor: 1, data: '10/10/2026' }],
-      ['data impossível', { tipo: 'APORTE', valor: 1, data: '2026-02-30' }], ['data no futuro', { tipo: 'APORTE', valor: 1, data: '2026-10-16' }], ['data antiga demais', { tipo: 'APORTE', valor: 1, data: '1999-12-31' }],
-      ['obs longa', { tipo: 'APORTE', valor: 1, obs: 'x'.repeat(201) }], ['obs que não é texto', { tipo: 'APORTE', valor: 1, obs: 7 }], ['despesa sem descrição', { tipo: 'DESPESA', valor: 1 }],
+      ['tipo ausente', { lado: 'IPHONE', valor: 1 }], ['tipo inválido', { lado: 'IPHONE', tipo: 'DOACAO', valor: 1 }], ['tipo de transferência não vale', { lado: 'IPHONE', tipo: 'TRANSFERENCIA_INDICADOR', valor: 1 }],
+      ['valor ausente', { lado: 'IPHONE', tipo: 'APORTE' }], ['valor zero', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 0 }], ['valor negativo', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: -5 }], ['valor em texto', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: '10' }],
+      ['valor enorme', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 2e9 }], ['valor infinito', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: null }], ['data mal escrita', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: '10/10/2026' }],
+      ['data impossível', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: '2026-02-30' }], ['data no futuro', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: '2026-10-16' }], ['data antiga demais', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: '1999-12-31' }],
+      ['obs longa', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, obs: 'x'.repeat(201) }], ['obs que não é texto', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, obs: 7 }], ['despesa sem descrição', { lado: 'EMPRESTIMO', tipo: 'DESPESA', valor: 1 }],
     ])('lançamento inválido (%s) é 400 e não grava nada', async (_n, corpo) => {
       expect((await req('POST', '/api/caixa/movimentos', 'admin', corpo as object)).statusCode).toBe(400)
       expect(await db!('movimentacoes_caixa').count('* as n').first()).toMatchObject({ n: '0' })
     })
+    it.each([['sem lado', {}], ['lado inventado', { lado: 'LOJA' }], ['lado em minúsculas', { lado: 'iphone' }], ['SEM_LADO não se escolhe', { lado: 'SEM_LADO' }]])('lançamento %s é 400', async (_n, extra) => {
+      expect((await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 1, ...extra })).statusCode).toBe(400)
+      expect(await db!('movimentacoes_caixa').count('* as n').first()).toMatchObject({ n: '0' })
+    })
+    it('o lado fica gravado, volta no lançamento e pode ser trocado; sem mandar o lado na edição, ele fica', async () => {
+      const r = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'IPHONE', tipo: 'DESPESA', valor: 40, obs: 'frete' })).json()
+      expect(r.lado).toBe('IPHONE')
+      expect((await req('PATCH', `/api/caixa/movimentos/${r.id}`, 'admin', { valor: 45 })).json()).toMatchObject({ lado: 'IPHONE', valor: 45 })
+      expect((await req('PATCH', `/api/caixa/movimentos/${r.id}`, 'admin', { lado: 'EMPRESTIMO' })).json().lado).toBe('EMPRESTIMO')
+      expect((await req('PATCH', `/api/caixa/movimentos/${r.id}`, 'admin', { lado: 'XX' })).statusCode).toBe(400)
+    })
+    it('lançamento antigo (sem lado) só se corrige escolhendo o lado', async () => {
+      const [m] = await manual('DESPESA', 30, '2026-10-01', 'luz').returning('id')
+      expect((await req('PATCH', `/api/caixa/movimentos/${m.id}`, 'admin', { valor: 31 })).statusCode).toBe(400)
+      expect((await req('PATCH', `/api/caixa/movimentos/${m.id}`, 'admin', { lado: 'IPHONE' })).json()).toMatchObject({ lado: 'IPHONE', valor: 30 })
+    })
     it('hoje e o limite de 200 letras são aceitos', async () => {
-      expect((await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 1, data: HOJE, obs: 'x'.repeat(200) })).statusCode).toBe(201)
+      expect((await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 1, data: HOJE, obs: 'x'.repeat(200) })).statusCode).toBe(201)
     })
     it('edição inválida não altera o lançamento', async () => {
-      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { tipo: 'APORTE', valor: 100 })).json()
+      const { id: mid } = (await req('POST', '/api/caixa/movimentos', 'admin', { lado: 'EMPRESTIMO', tipo: 'APORTE', valor: 100 })).json()
       for (const corpo of [{ valor: -1 }, { data: '2027-01-01' }, { tipo: 'X' }]) expect((await req('PATCH', `/api/caixa/movimentos/${mid}`, 'admin', corpo)).statusCode).toBe(400)
       expect(await db!('movimentacoes_caixa').where({ id: mid }).first()).toMatchObject({ valor: '100.00' })
     })
