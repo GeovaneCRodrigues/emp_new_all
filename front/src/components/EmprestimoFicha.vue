@@ -2,7 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import type { EmprestimoApi } from '@/api/emprestimos'
 import type { PagamentoApi } from '@/api/recebimentos'
-import { recebimentosApi } from '@/api/recursos'
+import type { AcordoApi } from '@/api/acordos'
+import { acordosApi, emprestimosApi, recebimentosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
@@ -32,6 +33,15 @@ const podeUnificar = computed(() => sessao.value.perfil === 'ADMIN' && props.emp
 const primeiraAberta = computed(() => props.emprestimo?.parcelas.find((p) => situacao(p) !== 'paga' && situacao(p) !== 'acordo') ?? null)
 const podeQuitar = computed(() => sessao.value.perfil === 'ADMIN' && props.emprestimo?.status === 'ATIVA' && (props.emprestimo?.falta ?? 0) > 0.009 && primeiraAberta.value !== null)
 const acordando = ref(false)
+// consulta: abre um dos empréstimos que foram unificados neste (só para ler)
+const consulta = ref<{ emp: EmprestimoApi; unificacao: AcordoApi | null } | null>(null)
+async function consultar(id: number) {
+  try {
+    const emp = await emprestimosApi.obter(sessao.value, id)
+    const unificacao = (await acordosApi.listar(sessao.value, 'EMPRESTIMO', id).catch(() => [])).find((a) => a.unificadoEmId !== null) ?? null
+    consulta.value = { emp, unificacao }
+  } catch { consulta.value = null }
+}
 function aoFazerAcordo() { acordando.value = false; emit('mudou') }
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 
@@ -71,7 +81,7 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <button v-if="podeAcordo" class="btn b-out acao-quad" data-acordo :title="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" :aria-label="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" @click="acordando = true"><Icon name="handshake" /><span>{{ ehCobrador ? 'Pedir acordo' : 'Acordo' }}</span></button>
         <button v-if="podeUnificar" class="btn b-out acao-quad" data-unificar title="Unificar com outro empréstimo" aria-label="Unificar com outro empréstimo" @click="emit('unificar', emprestimo)"><Icon name="layers" /><span>Unificar</span></button>
       </div>
-      <div v-if="emprestimo.unificadoDe?.length" class="aviso" style="margin-top: 8px" data-testid="unificado-de">Unificado a partir dos empréstimos {{ emprestimo.unificadoDe.map((i) => '#' + i).join(', ') }}.</div>
+      <div v-if="emprestimo.unificadoDe?.length" class="aviso aviso-un" data-testid="unificado-de"><span>Unificado a partir dos empréstimos</span><button v-for="i in emprestimo.unificadoDe" :key="i" type="button" class="chip c-neu" :data-consultar="i" @click="consultar(i)">#{{ i }}</button></div>
       <div v-if="emprestimo.unificadoEm" class="aviso" style="margin-top: 8px" data-testid="unificado-em">Unificado no empréstimo #{{ emprestimo.unificadoEm }}.</div>
 
       <div class="lbl" style="margin: 14px 0 6px">Parcelas</div>
@@ -99,6 +109,20 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
     </template>
   </Sheet>
 
+  <Sheet :aberto="consulta !== null" @fechar="consulta = null">
+    <template v-if="consulta">
+      <h3 data-testid="consulta-titulo">Empréstimo #{{ consulta.emp.id }} · só consulta</h3>
+      <div class="small">{{ consulta.emp.cliente.nome }} · {{ nomeEmprestimo(consulta.emp.modalidade, consulta.emp.periodicidade) }} · emprestado em {{ dmyA(consulta.emp.dataEmprestimo) }}</div>
+      <div class="aviso" style="margin-top: 10px">Incorporado no empréstimo #{{ emprestimo?.id }}: as parcelas pagas e o capital foram para lá. Aqui fica só o registro.</div>
+      <div class="dl card pad" style="margin-top: 10px" data-testid="consulta-dados">
+        <div v-if="consulta.unificacao"><div class="lbl">Capital que passou para o novo</div><div class="val num">{{ fmt(consulta.unificacao.capitalCedido) }}</div></div>
+        <div v-if="consulta.unificacao"><div class="lbl">Em aberto na unificação</div><div class="val num">{{ fmt(consulta.unificacao.saldoAntes) }}</div></div>
+        <div v-if="consulta.unificacao"><div class="lbl">Unificado em</div><div class="val num">{{ dmyA(consulta.unificacao.dataAcordo) }}</div></div>
+        <div><div class="lbl">Indicador</div><div class="val">{{ consulta.emp.indicador?.nome ?? '—' }}</div></div>
+      </div>
+    </template>
+  </Sheet>
+
   <PedirDescontoForm :aberto="descontando !== null" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) } : null" :parcela="descontando" @fechar="descontando = null" @feito="aoPedirDesconto" />
   <AcordoForm :aberto="acordando" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade), saldo: emprestimo.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 </template>
@@ -107,4 +131,6 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
 /* quitar / acordo / unificar: uma linha só, três quadradinhos com ícone */
 .acoes-ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .acao-quad { flex-direction: column; gap: 4px; height: auto; min-height: 62px; padding: 8px 6px; font-size: 13px; line-height: 1.2; text-align: center; }
+.aviso-un { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.aviso-un .chip { cursor: pointer; border: 0; }
 </style>
