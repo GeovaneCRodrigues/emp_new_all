@@ -15,7 +15,7 @@ import Sheet from './Sheet.vue'
 
 /**
  * Unificar empréstimos: junta o que o cliente ainda deve em vários empréstimos num empréstimo NOVO, com um acordo só.
- * O aberto de cada um fica "encerrado por acordo"; o capital que ainda estava na rua passa para o novo. Só o administrador.
+ * O aberto de cada um fica "encerrado por acordo"; o que já foi pago e o capital inteiro passam para o novo. Só o administrador.
  */
 const props = defineProps<{ aberto: boolean; selecionados: number[]; candidatos: EmprestimoApi[] }>()
 const emit = defineEmits<{ fechar: []; feito: [novoId: number] }>()
@@ -39,7 +39,7 @@ const conta = computed(() => resumoUnificacao(escolhidos.value))
 const novo = computed(() => arred2(f.novo))
 const jurosNovo = computed(() => (novo.value > 0 ? arred2(f.jurosNovo) : 0))
 const sugerido = computed(() => valorSugeridoAcordo(conta.value.saldo, novo.value, jurosNovo.value))
-const capitalNovo = computed(() => arred2(conta.value.capitalNaRua + novo.value))
+const capitalNovo = computed(() => arred2(conta.value.capital + novo.value))
 const diferenca = computed(() => arred2(f.valor - sugerido.value))
 const pedeIndicador = computed(() => indicadoresDiferentes(escolhidos.value))
 const indicadoresEscolhidos = computed(() => [...new Map(escolhidos.value.filter((e) => e.indicador).map((e) => [e.indicador!.id, e.indicador!])).values()])
@@ -100,7 +100,7 @@ async function confirmar() {
           <input type="checkbox" :checked="marcados.includes(e.id)" :aria-label="`Empréstimo ${e.id}`" style="width: 18px; height: 18px; flex: none" @change="alternar(e.id)" />
           <div class="mid">
             <div class="t">#{{ e.id }} · {{ nomeEmprestimo(e.modalidade, e.periodicidade) }}</div>
-            <div class="s">{{ dmy(e.dataEmprestimo) }} · capital na rua {{ fmt(Math.max(0, (e.capital ?? 0) - (e.capitalDeVolta ?? 0))) }}<template v-if="e.indicador"> · {{ e.indicador.nome }}</template></div>
+            <div class="s">{{ dmy(e.dataEmprestimo) }} · capital {{ fmt(e.capital ?? 0) }}<template v-if="e.indicador"> · {{ e.indicador.nome }}</template></div>
           </div>
           <b class="num">{{ fmt(e.falta) }}</b>
         </label>
@@ -109,7 +109,7 @@ async function confirmar() {
 
       <div class="card pad" style="margin-top: 12px; background: var(--elevated)" data-testid="unificar-saldo">
         <div class="lbl">Ele deve nos {{ escolhidos.length }} marcados</div><div class="val num">{{ fmt(conta.saldo) }}</div>
-        <div class="small" data-testid="unificar-capital">Capital na rua que passa para o novo: {{ fmt(conta.capitalNaRua) }}</div>
+        <div class="small" data-testid="unificar-capital">Capital que passa para o novo (junto com o que já foi pago): {{ fmt(conta.capital) }}</div>
       </div>
 
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">

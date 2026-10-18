@@ -7,6 +7,7 @@ import { useApp } from '@/composables/useApp'
 import { nomeEmprestimo, taxaTexto } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt } from '@/domain/format'
 import AcordoForm from './AcordoForm.vue'
+import Icon from './Icon.vue'
 import PedirDescontoForm from './PedirDescontoForm.vue'
 import Sheet from './Sheet.vue'
 
@@ -65,9 +66,11 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
         <div><div class="lbl">Parcelas</div><div class="val num">{{ emprestimo.nParcelas }}x {{ fmt(emprestimo.valorParcela) }}</div></div>
       </div>
       <div v-if="emprestimo.observacoes" class="small" style="margin-top: 8px">{{ emprestimo.observacoes }}</div>
-      <button v-if="podeQuitar" class="btn b-ok b-block" style="margin-top: 10px" data-quitar @click="primeiraAberta && emit('receber', primeiraAberta.numero, true)">Quitou · receber tudo e encerrar</button>
-      <button v-if="podeAcordo" class="btn b-out b-block" style="margin-top: 10px" data-acordo @click="acordando = true">{{ ehCobrador ? 'Pedir acordo' : 'Fazer acordo' }}</button>
-      <button v-if="podeUnificar" class="btn b-out b-block" style="margin-top: 8px" data-unificar @click="emit('unificar', emprestimo)">Unificar com outro empréstimo</button>
+      <div v-if="podeQuitar || podeAcordo || podeUnificar" class="acoes-ficha" data-acoes-ficha>
+        <button v-if="podeQuitar" class="btn b-ok acao-quad" data-quitar title="Quitou · receber tudo e encerrar" aria-label="Quitou · receber tudo e encerrar" @click="primeiraAberta && emit('receber', primeiraAberta.numero, true)"><Icon name="check" /><span>Quitou</span></button>
+        <button v-if="podeAcordo" class="btn b-out acao-quad" data-acordo :title="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" :aria-label="ehCobrador ? 'Pedir acordo' : 'Fazer acordo'" @click="acordando = true"><Icon name="handshake" /><span>{{ ehCobrador ? 'Pedir acordo' : 'Acordo' }}</span></button>
+        <button v-if="podeUnificar" class="btn b-out acao-quad" data-unificar title="Unificar com outro empréstimo" aria-label="Unificar com outro empréstimo" @click="emit('unificar', emprestimo)"><Icon name="layers" /><span>Unificar</span></button>
+      </div>
       <div v-if="emprestimo.unificadoDe?.length" class="aviso" style="margin-top: 8px" data-testid="unificado-de">Unificado a partir dos empréstimos {{ emprestimo.unificadoDe.map((i) => '#' + i).join(', ') }}.</div>
       <div v-if="emprestimo.unificadoEm" class="aviso" style="margin-top: 8px" data-testid="unificado-em">Unificado no empréstimo #{{ emprestimo.unificadoEm }}.</div>
 
@@ -99,3 +102,9 @@ const situacao = (p: EmprestimoApi['parcelas'][number]) => (p.acordo === 'ENCERR
   <PedirDescontoForm :aberto="descontando !== null" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade) } : null" :parcela="descontando" @fechar="descontando = null" @feito="aoPedirDesconto" />
   <AcordoForm :aberto="acordando" alvo="EMPRESTIMO" :operacao="emprestimo ? { id: emprestimo.id, cliente: emprestimo.cliente.nome, descricao: nomeEmprestimo(emprestimo.modalidade, emprestimo.periodicidade), saldo: emprestimo.falta } : null" @fechar="acordando = false" @feito="aoFazerAcordo" />
 </template>
+
+<style scoped>
+/* quitar / acordo / unificar: uma linha só, três quadradinhos com ícone */
+.acoes-ficha { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.acao-quad { flex-direction: column; gap: 4px; height: auto; min-height: 62px; padding: 8px 6px; font-size: 13px; line-height: 1.2; text-align: center; }
+</style>
