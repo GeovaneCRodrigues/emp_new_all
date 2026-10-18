@@ -205,6 +205,11 @@ input,select{font:inherit;color:var(--strong)}
 .kpis>button,.kpis>div{background:var(--surface);padding:11px 12px;text-align:left;min-width:0;display:flex;flex-direction:column;justify-content:flex-start}
 .kpis .lbl,.kpis .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kpis .val{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* no celular a linha de apoio das listas e os rótulos dos quadrinhos quebram em vez de terminar em "..." (a informação some cortada) */
+@media(max-width:600px){
+  .li .t,.li .s{white-space:normal;overflow:visible;text-overflow:clip}
+  .kpis .lbl,.kpis .small{white-space:normal;overflow:visible;text-overflow:clip}
+}
 @container (min-width:880px){
   .inicio{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
   .kpis .val{font-size:18px}
