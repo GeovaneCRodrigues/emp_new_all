@@ -11,6 +11,7 @@ import { modoDemo, useAuth } from '@/composables/useAuth'
 import { iniciais } from '@/domain/format'
 import type { Perfil } from '@/domain/types'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
+import { usePulso } from '@/composables/usePulso'
 import { GRUPOS_ADMIN, ITENS_ADMIN, MENUS, TITULOS, TITULOS_INDICADOR, type ItemMenu } from '@/layouts/menus'
 
 const route = useRoute()
@@ -58,6 +59,8 @@ const nomeLogado = computed(() => {
 // o contador do menu vem do servidor (parcelas atrasadas) e é atualizado a cada recebimento
 // (no sistema de verdade só depois de entrar: antes disso o servidor responderia 401)
 watch([() => sessao.value, auth.usuario], ([s]) => { if (modoDemo || auth.usuario.value) { atualizarAtrasadas(s); atualizarEquipe(s) } }, { immediate: true, deep: true })
+// e se atualizam sozinhos (pedido novo de um indicador, parcela que atrasou) enquanto o sistema está aberto
+usePulso(() => { if (!ehLogin.value && (modoDemo || auth.usuario.value)) { atualizarAtrasadas(sessao.value); atualizarEquipe(sessao.value) } })
 const contador = (id: string) => {
   if (id === 'equipe') return equipePendentes.value
   return (id === 'cobrancas' || id === 'cobranca' || id === 'hoje') && sessao.value.perfil !== 'INDICADOR' && atrasadas.value ? atrasadas.value : 0

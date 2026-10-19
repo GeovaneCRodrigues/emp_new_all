@@ -15,6 +15,7 @@ import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
+import { usePulso } from '@/composables/usePulso'
 import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
 
 const { sessao } = useApp()
@@ -39,8 +40,8 @@ const criado = ref<{ email: string; senhaTemporaria: string } | null>(null)
 
 const msg = (e: unknown, padrao: string) => (e instanceof ErroApi ? e.message : padrao)
 
-async function carregar() {
-  erro.value = ''
+async function carregar(silencioso = false) {
+  if (!silencioso) erro.value = ''
   try {
     const [p, a, f, pr] = await Promise.all([
       equipeApi.listar(sessao.value),
@@ -51,12 +52,14 @@ async function carregar() {
     pessoas.value = p; pedidos.value = a.itens; fechamentos.value = f.itens; propostas.value = pr.itens
     atualizarBadge(sessao.value)
   } catch (e) {
-    erro.value = msg(e, 'Não consegui carregar a equipe.')
+    if (!silencioso) erro.value = msg(e, 'Não consegui carregar a equipe.')
   } finally {
     carregando.value = false
   }
 }
-onMounted(carregar)
+onMounted(() => carregar())
+// pedido novo chega sozinho; não mexe na lista no meio de uma confirmação ou recusa
+usePulso(() => { if (ocupado.value === null && !recusando.value && !convidando.value) return carregar(true) })
 
 async function executar(chave: string, fn: () => Promise<unknown>, ok: string) {
   if (ocupado.value) return
@@ -157,7 +160,7 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
 </script>
 
 <template>
-  <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar">Tentar de novo</button></div>
+  <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
   <div v-if="carregando" class="card empty">Carregando…</div>
 
   <template v-else>
