@@ -304,6 +304,14 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     })
   })
 
+  it('parcela zerada (virou acordo sem nada pago) não aparece; a paga e a em aberto continuam', async () => {
+    const e = await emprestimo(id.ana, null, [['2027-06-01', 0], ['2027-06-02', 100], ['2027-06-03', 200]])
+    await db!('emprestimo_parcelas').where({ id: e.parcelaIds[0] }).update({ quitada_em: '2027-05-20' })
+    await pagar('E', e.parcelaIds[1], id.ana, 100)
+    const r = await cron('?mes=2027-06')
+    expect(chave(r).filter((c) => c.startsWith(`E${e.id}.`))).toEqual([`E${e.id}.2@06-02`, `E${e.id}.3@06-03`])
+  })
+
   it('passou do limite: devolve até o limite e avisa que cortou', async () => {
     const repo = createRecebimentosRepository(db!)
     const r = await repo.cronograma({ tipo: 'TODOS' }, { de: '2026-10-01', ate: '2026-10-31', limite: 2 })
