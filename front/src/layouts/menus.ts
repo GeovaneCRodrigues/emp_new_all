@@ -54,7 +54,7 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
     abas: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('clientes', 'Clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
     lateral: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('clientes', 'Meus clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
     // no computador ficam na lateral; no celular, no fim do Início
-    mais: [i('vendas', 'Operações', 'layers'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],
+    mais: [i('cronograma', 'Cronograma', 'calendar-range'), i('vendas', 'Operações', 'layers'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],
   },
 }
 

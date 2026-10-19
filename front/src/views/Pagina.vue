@@ -28,6 +28,7 @@ import IndicadorClientes from './indicador/Clientes.vue'
 import IndicadorCobranca from './indicador/Cobranca.vue'
 import IndicadorNiveis from './indicador/Niveis.vue'
 import IndicadorRepasse from './indicador/Repasse.vue'
+import IndicadorCronograma from './indicador/Cronograma.vue'
 import IndicadorVendas from './indicador/MinhasVendas.vue'
 import EmBreve from './EmBreve.vue'
 
@@ -39,7 +40,7 @@ const TELAS: Record<string, Record<string, unknown>> = {
   ADMIN: { inicio: Inicio, cobrancas: Cobrancas, cronograma: Cronograma, caixa: Caixa, relatorios: Relatorios, contratos: Contratos, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe },
   COBRADOR: { hoje: CobradorHoje, carteira: CobradorCarteira, recebi: CobradorRecebi, caixa: CobradorCaixa, pedidos: CobradorPedidos },
   // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil; o indicador não vê estoque
-  INDICADOR: { inicio: IndicadorInicio, indicar: Indicar, clientes: IndicadorClientes, cobranca: IndicadorCobranca, repasse: IndicadorRepasse, niveis: IndicadorNiveis, vendas: IndicadorVendas, simulador: Simulador },
+  INDICADOR: { inicio: IndicadorInicio, indicar: Indicar, clientes: IndicadorClientes, cobranca: IndicadorCobranca, cronograma: IndicadorCronograma, repasse: IndicadorRepasse, niveis: IndicadorNiveis, vendas: IndicadorVendas, simulador: Simulador },
   VENDEDOR: { inicio: InicioVendedor, simulador: Simulador, clientes: Clientes, estoque: Estoque, vender: Vender, vendas: Operacoes },
 }
 

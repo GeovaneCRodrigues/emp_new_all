@@ -7,7 +7,7 @@ async function ir(page: Page, nome: string) {
   if (ehComputador()) { await page.locator('aside.side').getByRole('button', { name: new RegExp('^' + nome) }).click(); return }
   const aba = page.locator('nav.tabs').getByRole('button', { name: new RegExp('^' + nome) })
   if (await aba.count()) await aba.click()
-  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ Operações: 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
+  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ Cronograma: 'cronograma', Operações: 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
 }
 const numero = (t: string) => Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 
@@ -17,7 +17,7 @@ test.describe('portal do indicador (demonstração)', () => {
   test('menu do design: Início, Cobrança, Meus clientes e Repasse, e o grupo Mais no computador', async ({ page }) => {
     test.skip(!ehComputador(), 'só no computador')
     const lateral = page.locator('aside.side')
-    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Operações', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
+    for (const n of ['Início', 'Cobrança', 'Meus clientes', 'Repasse', 'Cronograma', 'Operações', 'Simulador', 'Níveis']) await expect(lateral.getByRole('button', { name: new RegExp('^' + n) })).toBeVisible()
     await expect(lateral.locator('.titulo')).toHaveText('Mais')
   })
 
@@ -25,7 +25,7 @@ test.describe('portal do indicador (demonstração)', () => {
     test.skip(ehComputador(), 'só no celular')
     const barra = page.locator('nav.tabs')
     for (const n of ['Início', 'Cobrança', 'Novo', 'Clientes', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
-    await expect(page.locator('[data-mais]')).toHaveCount(3)
+    await expect(page.locator('[data-mais]')).toHaveCount(4)
   })
 
   test('Início: pra cobrar hoje, quanto devem, já recebi, vai ganhar e o nível', async ({ page }) => {
