@@ -16,6 +16,7 @@ import RelBarras from '@/components/RelBarras.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
+import { usePulso } from '@/composables/usePulso'
 import { diasEntre } from '@/domain/datas'
 import { fmt, fmt0, gbTxt } from '@/domain/format'
 
@@ -72,6 +73,12 @@ async function carregar() {
   }
 }
 onMounted(carregar)
+// o cartão "Esperando você" confere os pedidos sozinho (o resto do início só muda quando você volta a abrir)
+usePulso(async () => {
+  const s = sessao.value
+  const [ped, fech] = await Promise.all([aprovacoesApi.listar(s, { status: 'PENDENTE', limite: 100 }), fechamentosApi.listar(s, { status: 'PENDENTE', limite: 1 })])
+  pedidos.value = ped.itens; fechamentosPendentes.value = fech.pendentes
+})
 
 const soma = (l: CobrancaApi[]) => Math.round(l.reduce((x, c) => x + c.falta, 0) * 100) / 100
 const cobrarHoje = computed(() => soma(atrasadas.value) + soma(venceHoje.value))
