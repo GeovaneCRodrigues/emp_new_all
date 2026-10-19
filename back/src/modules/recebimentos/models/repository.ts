@@ -272,6 +272,8 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
       const tipos: Alvo[] = f.tipo ? [f.tipo] : ['VENDA', 'EMPRESTIMO']
       const q = db.from(db.raw('(' + tipos.map((a) => `(${linhasDeCobranca(a, escopo).toQuery()})`).join(' union all ') + ') as u')).whereRaw('u.vencimento between ? and ?', [f.de, f.ate])
       filtrarPorTexto(q, colunasDeBusca(escopo), f.busca)
+      // parcela zerada (virou acordo/unificação sem nada pago, ou desconto de tudo): não há o que receber nem recebido a mostrar
+      q.whereRaw('(u.falta > 0.009 or u.pago > 0.009)')
       if (f.indicador === 'SEM') q.whereNull('u.indicador_id')
       else if (f.indicador !== undefined) q.where('u.indicador_id', f.indicador)
       if (f.modalidade?.length) q.whereIn('u.modalidade', f.modalidade)
