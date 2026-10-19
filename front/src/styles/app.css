@@ -13,7 +13,12 @@ html{background:var(--surface)}
 html,body,#app{height:100%;height:100dvh}
 /* iPhone (Safari e app instalado): o 100% / 100dvh pode parar antes do fim da tela, deixando uma faixa embaixo da barra de abas.
    Preso nas quatro bordas, o app ocupa a tela inteira, inclusive a área do indicador de início. */
-@supports (-webkit-touch-callout: none) { #app{position:fixed;top:0;right:0;bottom:0;left:0;height:auto} }
+@supports (-webkit-touch-callout: none) {
+  #app{position:fixed;top:0;right:0;bottom:0;left:0;height:auto;overflow-y:auto}
+  /* a página em si não rola nem "estica" (o efeito elástico é o que deixava a barra de abas subir e descer ao arrastar); quem rola são as listas dentro do app */
+  html,body{height:-webkit-fill-available;overflow:hidden}
+}
+html,body{overscroll-behavior:none}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
 input,select{font:inherit;color:var(--strong)}
