@@ -117,9 +117,10 @@ test.describe('cronograma: o calendário do mês (administrador)', () => {
 })
 
 test.describe('cronograma: o indicador vê só o calendário dele', () => {
-  test('Cobrança > Calendário mostra o mês com as parcelas dele, sem botão de receber', async ({ page }) => {
-    await entrar(page, 'indicador'); await navegar(page, '/cobranca')
-    await page.getByTestId('vista-cobranca').getByRole('button', { name: 'Calendário' }).click()
+  test('Cronograma tem menu próprio: mostra o mês com as parcelas dele, sem botão de receber', async ({ page }) => {
+    await entrar(page, 'indicador')
+    if (test.info().project.name === 'computador') await page.locator('aside.side').getByRole('button', { name: /^Cronograma/ }).click()
+    else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator('[data-mais="cronograma"]').click() }
     await expect(page.getByTestId('cron-mes')).toHaveText(/outubro 2026/i)
     await expect(page.locator('[data-testid="cron-grade"] button.d')).toHaveCount(31)
     const c = celulaComParcela(page).first()
@@ -128,7 +129,5 @@ test.describe('cronograma: o indicador vê só o calendário dele', () => {
       await expect(page.getByTestId('cron-lista-dia')).toBeVisible()
       await expect(page.getByRole('button', { name: /^Receber$/ })).toHaveCount(0) // quem dá a baixa é a loja
     }
-    await page.getByTestId('vista-cobranca').getByRole('button', { name: 'Lista' }).click()
-    await expect(page.getByTestId('cron-grade')).toHaveCount(0)
   })
 })
