@@ -13,6 +13,7 @@ import IndicarFluxo from '@/components/IndicarFluxo.vue'
 import { COR_NIVEL } from '@/data/niveis'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
+import { usePulso } from '@/composables/usePulso'
 import { fmt, fmt0 } from '@/domain/format'
 
 /** O Início do indicador: o que cobrar hoje, quanto os clientes devem, o que já recebeu e vai ganhar, e o nível. */
@@ -30,7 +31,7 @@ const eu = ref<IndicadorApi | null>(null)
 const carregando = ref(true)
 const erro = ref('')
 
-async function carregar() {
+async function carregar(silencioso = false) {
   try {
     const s = sessao.value
     const [atr, ho, rv, re, rep, ind] = await Promise.all([
@@ -43,12 +44,13 @@ async function carregar() {
     repasse.value = rep; eu.value = ind
     atualizar(s)
   } catch (e) {
-    erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o início.'
+    if (!silencioso) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o início.'
   } finally {
     carregando.value = false
   }
 }
-onMounted(carregar)
+onMounted(() => carregar())
+usePulso(() => carregar(true)) // a confirmação da loja aparece sozinha
 
 const prax = computed(() => [...atrasadas.value, ...venceHoje.value])
 const praCobrarHoje = computed(() => Math.round(prax.value.reduce((x, c) => x + c.falta, 0) * 100) / 100)
@@ -62,7 +64,7 @@ const progressoNivel = computed(() => {
   return Math.max(0, Math.min(100, Math.round(((n.operacoes - base) / (n.proximoNivel.minOperacoes - base)) * 100)))
 })
 const MAIS = [
-  { id: 'cronograma', label: 'Cronograma', icon: 'calendar-range' },
+  { id: 'clientes', label: 'Meus clientes', icon: 'users' },
   { id: 'vendas', label: 'Operações', icon: 'layers' },
   { id: 'simulador', label: 'Simulador', icon: 'calculator' }, { id: 'niveis', label: 'Níveis', icon: 'award' },
 ]

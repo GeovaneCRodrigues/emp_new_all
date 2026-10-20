@@ -34,7 +34,7 @@ const linkWhatsApp = computed(() => {
         {{ c.aparelho }} · parcela {{ c.parcela }}/{{ c.nParcelas }}
       </div>
       <div v-if="c.vencimentoOriginal && aberta" class="s" style="margin-top: 2px" data-remarcada><span class="chip c-warn">Data alterada · remarcada (era {{ dmy(c.vencimentoOriginal) }})</span></div>
-      <div v-if="c.indicador" class="s" style="font-size: 12px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap" data-indicador>indicado por {{ c.indicador }}</div>
+      <div v-if="c.indicador" style="margin: 2px 0"><span class="chip" data-indicador style="background: var(--primary-soft); color: var(--primary); font-size: 12px; white-space: normal; text-align: left"><Icon name="share-2" small />indicado por <b>{{ c.indicador }}</b></span></div>
       <div class="s" style="font-size: 12px; font-weight: 600">
         <span v-if="recebida" style="color: var(--ok)" data-situacao="recebida">recebido {{ c.ultimoRecebimentoEm ? dmy(c.ultimoRecebimentoEm) : '' }}</span>
         <span v-else-if="c.atrasoDias" style="color: var(--bad)" data-situacao="atrasada">venceu {{ dmy(c.vencimento) }} · {{ c.atrasoDias }} {{ c.atrasoDias === 1 ? 'dia' : 'dias' }}</span>

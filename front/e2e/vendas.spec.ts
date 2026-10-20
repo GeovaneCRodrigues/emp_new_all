@@ -61,7 +61,8 @@ test.describe('nova venda', () => {
     await expect(page.locator('.fones').getByText('Juliana Prado').first()).toBeVisible()
 
     // pelo menu (um page.goto recarregaria a página e a demonstração esqueceria a venda)
-    await page.getByRole('button', { name: 'Estoque', exact: true }).click()
+    if (test.info().project.name === 'computador') await page.getByRole('button', { name: 'Estoque', exact: true }).click()
+    else { await page.locator('nav.tabs').getByRole('button', { name: /^Mais/ }).click(); await page.getByRole('dialog').locator('[data-menu="estoque"]').click() }
     await expect(page.getByRole('button', { name: /Disponível · 5/ })).toBeVisible()
   })
 

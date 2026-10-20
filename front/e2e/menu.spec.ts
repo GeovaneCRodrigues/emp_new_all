@@ -27,16 +27,16 @@ test.describe('menu do administrador', () => {
     await expect(page.locator('aside.side [data-menu="equipe"] .cnt')).toHaveText('4') // 3 pedidos + 1 fechamento de exemplo
   })
 
-  test('celular: a barra tem Início, Cobranças, Novo, Estoque e Mais; o Mais mostra os grupos sem repetir a barra', async ({ page }) => {
+  test('celular: a barra tem Início, Cobranças, Novo, Cronograma e Mais; o Mais mostra os grupos sem repetir a barra', async ({ page }) => {
     test.skip(ehComputador(), 'só no celular')
     const barra = page.locator('nav.tabs')
-    for (const n of ['Início', 'Cobranças', 'Novo', 'Estoque', 'Mais']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
+    for (const n of ['Início', 'Cobranças', 'Novo', 'Cronograma', 'Mais']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
     await barra.getByRole('button', { name: /^Mais/ }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo.locator('.mais-grupo')).toHaveText(['Dia a dia', 'Cadastros', 'Gestão'])
     const itens = await dialogo.locator('[data-menu]').evaluateAll((bs) => bs.map((b) => b.getAttribute('data-menu')))
-    expect(itens).toEqual(['cronograma', 'caixa', 'simulador', 'clientes', 'operacoes', 'contratos', 'indicadores', 'equipe', 'relatorios', 'config'])
-    for (const repetido of ['inicio', 'cobrancas', 'estoque']) expect(itens).not.toContain(repetido)
+    expect(itens).toEqual(['caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'equipe', 'relatorios', 'config'])
+    for (const repetido of ['inicio', 'cobrancas', 'cronograma']) expect(itens).not.toContain(repetido)
     await expect(dialogo.getByRole('button', { name: 'Sair do sistema' })).toBeVisible()
   })
 

@@ -25,7 +25,7 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
   ADMIN: {
     nomePerfil: 'Administrador',
     inicio: 'inicio',
-    abas: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('estoque', 'Estoque', 'smartphone')],
+    abas: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('cronograma', 'Cronograma', 'calendar-range')],
     lateral: [i('inicio', 'Início', 'house'), i('cobrancas', 'Cobranças', 'hand-coins'), i('estoque', 'Estoque', 'smartphone'), i('operacoes', 'Operações', 'receipt-text')],
     mais: [
       i('operacoes', 'Operações', 'receipt-text'), i('simulador', 'Simulador', 'calculator'), i('clientes', 'Clientes', 'users'),
@@ -51,7 +51,7 @@ export const MENUS: Record<Perfil, MenuPerfil> = {
   INDICADOR: {
     nomePerfil: 'Indicador',
     inicio: 'inicio',
-    abas: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('clientes', 'Clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
+    abas: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('novo', 'Novo', 'plus', true), i('cronograma', 'Cronograma', 'calendar-range'), i('repasse', 'Repasse', 'wallet')],
     lateral: [i('inicio', 'Início', 'house'), i('cobranca', 'Cobrança', 'hand-coins'), i('clientes', 'Meus clientes', 'users'), i('repasse', 'Repasse', 'wallet')],
     // no computador ficam na lateral; no celular, no fim do Início
     mais: [i('cronograma', 'Cronograma', 'calendar-range'), i('vendas', 'Operações', 'layers'), i('simulador', 'Simulador', 'calculator'), i('niveis', 'Níveis', 'award')],

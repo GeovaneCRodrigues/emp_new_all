@@ -16,6 +16,7 @@ import Seg from '@/components/Seg.vue'
 import VendaFicha from '@/components/VendaFicha.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
+import { usePulso } from '@/composables/usePulso'
 import { gradeDoMes, kfmt, mesLabel, mesNome, resumoDoMes, somaYm } from '@/domain/cronograma'
 import { fmt0 } from '@/domain/format'
 
@@ -62,18 +63,18 @@ const remarcar = ref<InstanceType<typeof RemarcarForm> | null>(null)
 
 // uma resposta antiga que chega atrasada não pode sobrescrever a mais nova
 let pedido = 0
-async function carregar() {
+async function carregar(silencioso = false) {
   const meu = ++pedido
-  carregando.value = true; erro.value = ''
+  if (!silencioso) { carregando.value = true; erro.value = '' }
   try {
     const termo = busca.value.trim()
     const r = await recebimentosApi.cronograma(sessao.value, { mes: mes.value, ...(tipo.value ? { tipo: tipo.value } : {}), ...(termo ? { busca: termo } : {}), ...(podeFiltrar.value && filtroIndicador.value ? { indicador: filtroIndicador.value === 'SEM' ? ('SEM' as const) : Number(filtroIndicador.value) } : {}), ...(podeFiltrar.value && filtroSituacao.value ? { situacao: filtroSituacao.value } : {}), ...(mostraModalidade.value && filtroModalidade.value.length ? { modalidade: [...filtroModalidade.value] } : {}) })
     if (meu !== pedido) return
     itens.value = r.itens; cortado.value = r.cortado; buscaDosItens.value = termo
   } catch (e) {
-    if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o calendário.'
+    if (meu === pedido && !silencioso) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o calendário.'
   } finally {
-    if (meu === pedido) carregando.value = false
+    if (meu === pedido && !silencioso) carregando.value = false
   }
 }
 let espera: ReturnType<typeof setTimeout> | undefined
@@ -84,6 +85,8 @@ onMounted(() => {
   if (podeFiltrar.value) indicadoresApi.listar(sessao.value).then((l) => { indicadores.value = l }).catch(() => undefined) // sem a lista o filtro de indicador fica só com "Todos" e "Sem indicador"
 })
 onBeforeUnmount(() => clearTimeout(espera))
+// o que a loja baixa aparece sozinho (o indicador não recebe: só acompanha)
+usePulso(() => { if (props.indicador) return carregar(true) })
 
 const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { id: 'EMPRESTIMO', label: 'Empréstimos' }]
 const resumo = computed(() => resumoDoMes(itens.value, hoje.value))
