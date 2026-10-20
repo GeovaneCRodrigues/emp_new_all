@@ -116,5 +116,5 @@ export interface RecebimentosApi {
   /** Só o administrador: muda o vencimento de uma parcela em aberto (o cliente combinou outro dia). A data original fica guardada. */
   remarcar(s: Sessao, alvo: AlvoApi, operacaoId: number, parcela: number, e: { vencimento: string; motivo?: string }): Promise<RemarcadaApi>
   cronograma(s: Sessao, q: { mes?: string; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; /** número = só as operações desse indicador; 'SEM' = vendas/empréstimos sem indicador */ indicador?: number | 'SEM'; /** só empréstimos de alguma dessas modalidades (vazio = todas) */ modalidade?: ('PARCELADO' | 'JUROS' | 'DIARIA')[]; /** só o que falta receber, ou só o que já foi recebido (omitido = tudo) */ situacao?: 'ABERTAS' | 'RECEBIDAS' }): Promise<CronogramaApi>
-  cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
+  cobrancas(s: Sessao, q: { aba?: AbaCobranca; tipo?: AlvoApi; /** parte do nome do cliente (sem acento e sem maiúscula) */ busca?: string; /** número = só as operações desse indicador; 'SEM' = sem indicador */ indicador?: number | 'SEM'; pagina?: number; limite?: number }): Promise<ListaCobrancasApi>
 }

@@ -7,7 +7,7 @@ async function ir(page: Page, nome: string) {
   if (ehComputador()) { await page.locator('aside.side').getByRole('button', { name: new RegExp('^' + nome) }).click(); return }
   const aba = page.locator('nav.tabs').getByRole('button', { name: new RegExp('^' + nome) })
   if (await aba.count()) await aba.click()
-  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ Cronograma: 'cronograma', Operações: 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
+  else { await page.locator('nav.tabs').getByRole('button', { name: /^Início/ }).click(); await page.locator(`[data-mais="${{ 'Meus clientes': 'clientes', Operações: 'vendas', Simulador: 'simulador', Níveis: 'niveis' }[nome]}"]`).click() }
 }
 const numero = (t: string) => Number(t.replace(/[^\d,]/g, '').replace(',', '.'))
 
@@ -21,10 +21,10 @@ test.describe('portal do indicador (demonstração)', () => {
     await expect(lateral.locator('.titulo')).toHaveText('Mais')
   })
 
-  test('celular: barra Início, Cobrança, Novo, Clientes, Repasse; o resto fica no fim do Início', async ({ page }) => {
+  test('celular: barra Início, Cobrança, Novo, Cronograma, Repasse; o resto fica no fim do Início', async ({ page }) => {
     test.skip(ehComputador(), 'só no celular')
     const barra = page.locator('nav.tabs')
-    for (const n of ['Início', 'Cobrança', 'Novo', 'Clientes', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
+    for (const n of ['Início', 'Cobrança', 'Novo', 'Cronograma', 'Repasse']) await expect(barra.getByRole('button', { name: new RegExp('^' + n) }).first()).toBeVisible()
     await expect(page.locator('[data-mais]')).toHaveCount(4)
   })
 
@@ -62,7 +62,7 @@ test.describe('portal do indicador (demonstração)', () => {
   })
 
   test('Meus clientes: lista com o que cada um deve e a sua parte; busca e filtros; ficha com Mandar proposta', async ({ page }) => {
-    await ir(page, test.info().project.name === 'computador' ? 'Meus clientes' : 'Clientes')
+    await ir(page, 'Meus clientes')
     await expect(page.locator('h1')).toHaveText('Meus clientes')
     const lista = page.getByTestId('meus-clientes')
     await expect(lista.locator('[data-cliente]').first()).toBeVisible()

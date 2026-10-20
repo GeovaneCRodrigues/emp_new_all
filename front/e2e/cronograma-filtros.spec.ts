@@ -103,3 +103,23 @@ test('indicador no portal: sem filtros de indicador nem de modalidade', async ({
   await entrar(page, 'indicador'); await navegar(page, '/cronograma')
   await expect(page.getByTestId('cron-filtros')).toHaveCount(0)
 })
+
+test.describe('cobranças: filtro de indicador (administrador)', () => {
+  test('um indicador só, "Sem indicador" e voltar para todos', async ({ page }) => {
+    await entrar(page, 'admin'); await navegar(page, '/cobrancas')
+    const lista = page.locator('[data-cobranca]')
+    await expect(lista.first()).toBeVisible()
+    const todas = await lista.count()
+    const sel = page.getByTestId('cob-filtro-indicador')
+    await expect(sel.locator('option')).not.toHaveCount(2) // além de "Todos" e "Sem indicador" vêm os indicadores
+    await sel.selectOption({ label: 'Sem indicador' })
+    await expect.poll(async () => await page.locator('[data-cobranca] [data-indicador]').count()).toBe(0)
+    await sel.selectOption({ label: 'Todos os indicadores' })
+    await expect(lista).toHaveCount(todas)
+    const nome = ((await page.locator('[data-cobranca] [data-indicador]').first().innerText()).replace('indicado por', '')).trim() // um indicador que tem parcela nesta lista
+    await sel.selectOption({ label: nome })
+    await expect.poll(async () => (await lista.count()) > 0 && (await lista.count()) < todas && (await page.locator('[data-cobranca]').filter({ hasNotText: nome }).count()) === 0).toBe(true)
+    await sel.selectOption({ label: 'Todos os indicadores' })
+    await expect(lista).toHaveCount(todas)
+  })
+})

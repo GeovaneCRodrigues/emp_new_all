@@ -5,7 +5,8 @@ import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi } from '@/api/clientes'
 import type { AbaCobranca, AlvoApi, CobrancaApi, ListaCobrancasApi } from '@/api/recebimentos'
 import type { EmprestimoApi } from '@/api/emprestimos'
-import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import type { IndicadorApi } from '@/api/indicadores'
+import { emprestimosApi, indicadoresApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { VendaApi } from '@/api/vendas'
 import CampoBusca from '@/components/CampoBusca.vue'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
@@ -25,6 +26,9 @@ const { atualizar } = useAtrasadas()
 const aba = ref<AbaCobranca>('atrasadas')
 /** '' = tudo (iPhones e empréstimos juntos) */
 const tipo = ref<'' | AlvoApi>('')
+/** '' = todos os indicadores, 'SEM' = sem indicador, ou o id do indicador */
+const filtroIndicador = ref('')
+const indicadores = ref<IndicadorApi[]>([])
 const { busca } = useBusca(() => carregar())
 const itens = ref<CobrancaApi[]>([])
 const total = ref(0)
@@ -41,17 +45,20 @@ async function carregar() {
   const meu = ++pedido
   carregando.value = true; erro.value = ''
   // fixa os filtros desta carga: as páginas seguintes não podem usar um filtro que mudou no meio
-  const [a, t, termo, s] = [aba.value, tipo.value, busca.value.trim(), sessao.value]
+  const [a, t, termo, s, ind] = [aba.value, tipo.value, busca.value.trim(), sessao.value, filtroIndicador.value]
   const { primeira, fim } = carregarCadeia({
-    buscar: (p) => recebimentosApi.cobrancas(s, { aba: a, ...(t ? { tipo: t } : {}), ...(termo ? { busca: termo } : {}), pagina: p, limite: PAGINA_CHEIA }),
+    buscar: (p) => recebimentosApi.cobrancas(s, { aba: a, ...(t ? { tipo: t } : {}), ...(termo ? { busca: termo } : {}), ...(ind ? { indicador: ind === 'SEM' ? ('SEM' as const) : Number(ind) } : {}), pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens },
   })
   fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.' }).finally(() => { if (meu === pedido) carregando.value = false })
   await primeira.catch(() => undefined)
 }
-watch([aba, tipo], () => carregar())
-onMounted(() => { carregar(); atualizar(sessao.value) })
+watch([aba, tipo, filtroIndicador], () => carregar())
+onMounted(() => {
+  carregar(); atualizar(sessao.value)
+  indicadoresApi.listar(sessao.value).then((l) => { indicadores.value = l }).catch(() => undefined) // sem a lista o filtro fica só com "Todos" e "Sem indicador"
+})
 onBeforeUnmount(() => { pedido++ }) // sair da tela cancela o que ainda está chegando
 
 const abas = computed(() => [
@@ -81,6 +88,7 @@ const verRecibo = (id: number) => fluxo.value?.abrirRecibo(id)
 <template>
   <CampoBusca v-model="busca" placeholder="Buscar cliente ou indicador" />
   <Seg v-model="tipo as string" :itens="tipos" data-testid="filtro-tipo" />
+  <div class="inp" style="max-width: 280px"><select v-model="filtroIndicador" aria-label="Filtrar por indicador" data-testid="cob-filtro-indicador"><option value="">Todos os indicadores</option><option value="SEM">Sem indicador</option><option v-for="i in indicadores" :key="i.id" :value="String(i.id)">{{ i.nome }}</option></select></div>
   <Seg v-model="aba as string" :itens="abas" />
   <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); justify-content: space-between"><span>{{ erro }}</span><button class="btn b-ghost b-sm" @click="carregar()">Tentar de novo</button></div>
   <div class="card">

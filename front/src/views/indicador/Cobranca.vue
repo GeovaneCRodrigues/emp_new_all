@@ -10,6 +10,7 @@ import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import Seg from '@/components/Seg.vue'
 import { useApp } from '@/composables/useApp'
 import { useAtrasadas } from '@/composables/useAtrasadas'
+import { usePulso } from '@/composables/usePulso'
 import { fmt } from '@/domain/format'
 
 /** As parcelas dos clientes do indicador: ele cobra pelo WhatsApp e acompanha. Quem dá a baixa é a loja. */
@@ -27,20 +28,22 @@ const erro = ref('')
 const aviso = ref<InstanceType<typeof AvisarRecebiForm> | null>(null)
 
 let pedido = 0
-async function carregar() {
+async function carregar(silencioso = false) {
   const meu = ++pedido
-  carregando.value = true; erro.value = ''
+  if (!silencioso) { carregando.value = true; erro.value = '' }
   const [a, t, s] = [aba.value, tipo.value, sessao.value] // fixa os filtros desta carga
   const { primeira, fim } = carregarCadeia({
     buscar: (p) => recebimentosApi.cobrancas(s, { aba: a, ...(t ? { tipo: t } : {}), pagina: p, limite: PAGINA_CHEIA }),
     ativo: () => meu === pedido, mostrados: () => itens.value.length,
     aplicar: (r, p) => { itens.value = p === 1 ? r.itens : [...itens.value, ...r.itens]; total.value = r.total; valorTotal.value = r.valorTotal; contagens.value = r.contagens },
   })
-  fim.catch((e) => { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.' }).finally(() => { if (meu === pedido) carregando.value = false })
+  fim.catch((e) => { if (meu === pedido && !silencioso) erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as cobranças.' }).finally(() => { if (meu === pedido && !silencioso) carregando.value = false })
   await primeira.catch(() => undefined)
 }
 watch([aba, tipo], () => carregar())
 onMounted(() => { carregar(); atualizar(sessao.value) })
+// a loja confirma ou recusa o "Recebi" e a lista muda sozinha, sem o indicador precisar sair e voltar
+usePulso(() => carregar(true))
 onBeforeUnmount(() => { pedido++ }) // sair da tela cancela o que ainda está chegando
 
 const abas = computed(() => [

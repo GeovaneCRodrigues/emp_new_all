@@ -43,7 +43,7 @@ export interface RecebimentosRepository {
   /** Operação dentro do escopo (fora dele é como se não existisse). */
   operacaoNoEscopo(alvo: Alvo, id: number, escopo: EscopoRecebimentos): Promise<{ id: number } | null>
   pagamentosDaOperacao(alvo: Alvo, id: number): Promise<PagamentoDaOperacao[]>
-  cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; busca?: string; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
+  cobrancas(escopo: EscopoRecebimentos, f: { aba: Aba; tipo?: Alvo; busca?: string; /** número = só as operações desse indicador; 'SEM' = sem indicador */ indicador?: number | 'SEM'; hoje: string; limite: number; offset: number }): Promise<ResultadoCobrancas>
   /** As parcelas (pagas e em aberto) que vencem entre `de` e `ate`, para o calendário; `cortado` avisa que passou do limite. */
   cronograma(escopo: EscopoRecebimentos, f: { de: string; ate: string; tipo?: Alvo; busca?: string; /** número = só as operações desse indicador; 'SEM' = vendas/empréstimos sem indicador */ indicador?: number | 'SEM'; /** só empréstimos de alguma dessas modalidades */ modalidade?: ('PARCELADO' | 'JUROS' | 'DIARIA')[]; /** ABERTAS = ainda falta receber; RECEBIDAS = parcela quitada */ situacao?: 'ABERTAS' | 'RECEBIDAS'; limite: number }): Promise<{ itens: LinhaCobranca[]; cortado: boolean }>
   empresa(): Promise<{ nome: string; cnpj: string | null }>
@@ -254,7 +254,13 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
         else q.whereRaw('u.ultima_data >= ?', [menos30])
         return q
       }
-      const fonte = () => db.from(db.raw('(' + tipos.map((a) => `(${linhas(a).toQuery()})`).join(' union all ') + ') as u'))
+      // o indicador escolhido vale para a lista, o total e as contagens das abas
+      const fonte = () => {
+        const q = db.from(db.raw('(' + tipos.map((a) => `(${linhas(a).toQuery()})`).join(' union all ') + ') as u'))
+        if (f.indicador === 'SEM') q.whereNull('u.indicador_id')
+        else if (f.indicador !== undefined) q.where('u.indicador_id', f.indicador)
+        return q
+      }
       const [soma] = await filtroAba(fonte()).select<{ n: string; total: string }[]>(db.raw('count(*) as n'), db.raw(f.aba === 'recebidas' ? 'coalesce(sum(u.pago), 0) as total' : 'coalesce(sum(u.falta), 0) as total'))
       const ordem = f.aba === 'recebidas' ? 'u.ultima_data desc, u.operacao_id desc, u.numero desc' : 'u.vencimento asc, u.tipo asc, u.operacao_id asc, u.numero asc'
       const ls = await filtroAba(fonte()).select<LinhaBruta[]>('u.*')

@@ -255,6 +255,19 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
       const c = await cobr('aba=atrasadas&limite=100')
       expect(c.itens.map((i) => `${i.tipo[0]}.${i.operacaoId}.${i.parcela}=${i.indicador}`).sort()).toEqual([`E.${EA()}.1=null`, `V.${V()}.1=Roberto`, `V.${V()}.3=Roberto`].sort()) // a venda tem a parcela de 30/09 e a de 10/10 em aberto
     })
+    it('filtro de indicador nas cobranças: um indicador, "SEM", e as contagens das abas acompanham; valor inválido é 400', async () => {
+      const ind = (await db!('indicadores').where({ nome: 'Roberto' }).first()).id
+      const todas = await cobr('aba=atrasadas&limite=100')
+      const dele = await cobr(`aba=atrasadas&limite=100&indicador=${ind}`)
+      expect(dele.itens.length).toBeGreaterThan(0); expect(dele.itens.length).toBeLessThan(todas.itens.length)
+      expect(dele.itens.every((i) => i.indicador === 'Roberto')).toBe(true)
+      const sem = await cobr('aba=atrasadas&limite=100&indicador=SEM')
+      expect(sem.itens.every((i) => i.indicador === null)).toBe(true)
+      expect(dele.total + sem.total).toBeLessThanOrEqual(todas.total)
+      const conts = (await (await req(`/api/cobrancas?aba=atrasadas&indicador=${ind}`, 'admin')).json()).contagens
+      expect(conts.atrasadas).toBe(dele.total)
+      for (const q of ['indicador=abc', 'indicador=0', 'indicador=-1', 'indicador=1.5']) expect((await req(`/api/cobrancas?${q}`, 'admin')).statusCode).toBe(400)
+    })
     it('o cobrador vê o indicador das parcelas da carteira dele', async () => {
       expect((await cobr('aba=hoje&limite=100', 'cobrador2')).itens.map((i) => i.indicador)).toEqual(['Outro'])
     })

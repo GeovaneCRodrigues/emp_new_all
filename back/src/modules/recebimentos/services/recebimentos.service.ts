@@ -50,7 +50,7 @@ export type RecebimentosService = {
   desfazer(s: Sessao, transacaoId: number): Promise<void>
   /** O administrador muda a data de vencimento de uma parcela em aberto (o cliente combinou outro dia). A data original fica guardada. */
   remarcar(s: Sessao, alvo: Alvo, operacaoId: number, parcela: number, e: Entrada): Promise<Remarcada>
-  cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
+  cobrancas(s: Sessao, q: { aba?: string; tipo?: string; busca?: string; indicador?: string; pagina?: number; limite?: number }): Promise<ListaCobrancas>
   /** O calendário do mês: as parcelas (pagas e em aberto) que vencem no mês, no escopo de quem pergunta. */
   cronograma(s: Sessao, q: { mes?: string; tipo?: string; busca?: string; indicador?: string; modalidade?: string; situacao?: string }): Promise<ResultadoCronograma>
 }
@@ -392,8 +392,14 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw requisicaoInvalida('tipo deve ser VENDA ou EMPRESTIMO')
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw requisicaoInvalida('busca: no máximo 80 letras')
       const busca = termoBusca(q.busca)
+      let indicador: number | 'SEM' | undefined
+      if (q.indicador !== undefined) {
+        if (q.indicador === 'SEM') indicador = 'SEM'
+        else if (/^[1-9]\d{0,9}$/.test(q.indicador)) indicador = Number(q.indicador)
+        else throw requisicaoInvalida('indicador deve ser um número ou SEM')
+      }
       const dia = hoje()
-      const r = await dep.repo.cobrancas(escopo, { aba, tipo: q.tipo as Alvo | undefined, busca, hoje: dia, limite, offset: (pagina - 1) * limite })
+      const r = await dep.repo.cobrancas(escopo, { aba, tipo: q.tipo as Alvo | undefined, busca, indicador, hoje: dia, limite, offset: (pagina - 1) * limite })
       const atraso = (l: LinhaCobranca) => (l.falta > 0.009 && l.vencimento < dia ? Math.round((Date.parse(dia) - Date.parse(l.vencimento)) / 864e5) : 0)
       return { ...r, itens: r.itens.map((l) => ({ ...l, indicador: escopo.tipo === 'INDICADOR' ? null : l.indicador, atrasoDias: atraso(l) })), pagina, limite }
     },

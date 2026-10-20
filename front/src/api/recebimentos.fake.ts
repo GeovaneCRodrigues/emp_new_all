@@ -299,9 +299,10 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
       if (!ABAS.includes(aba)) throw new ErroApi(400, 'aba inválida')
       if (q.tipo !== undefined && q.tipo !== 'VENDA' && q.tipo !== 'EMPRESTIMO') throw new ErroApi(400, 'tipo deve ser VENDA ou EMPRESTIMO')
       if (q.busca !== undefined && (typeof q.busca !== 'string' || q.busca.length > 80)) throw new ErroApi(400, 'busca: no máximo 80 letras')
+      if (q.indicador !== undefined && q.indicador !== 'SEM' && !(typeof q.indicador === 'number' && Number.isInteger(q.indicador) && q.indicador > 0)) throw new ErroApi(400, 'indicador deve ser um número ou SEM')
       const limite = Math.min(Math.max(q.limite ?? 20, 1), 100)
       const pagina = Math.max(q.pagina ?? 1, 1)
-      const todas = parcelasDoEscopo(s, q.tipo)
+      const todas = parcelasDoEscopo(s, q.tipo, { indicador: q.indicador })
       const aberta = (c: CobrancaApi) => c.falta > 0.009
       const daBusca = (c: CobrancaApi) => casaBusca([c.cliente.nome, c.indicador], q.busca)
       const daAba: Record<AbaCobranca, (c: CobrancaApi) => boolean> = {
