@@ -53,7 +53,7 @@ export interface Pedido {
   id: number
   tipo: 'DESCONTO' | 'RETOMADA' | 'ACORDO' | 'BAIXA'
   /** só no aviso de baixa do indicador */
-  baixa?: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null }
+  baixa?: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; quitou?: boolean }
   /** o que o pedido mexe: uma venda ou um empréstimo */
   alvo: 'VENDA' | 'EMPRESTIMO'
   /** id da venda ou do empréstimo */

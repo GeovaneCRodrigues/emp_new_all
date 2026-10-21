@@ -260,9 +260,16 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       const b = await dep.repo.baixaDoPedido(id)
       if (!b) throw naoEncontrado('Aviso não encontrado')
       if (b.status !== 'PENDENTE') throw new HttpError(409, 'Este aviso já foi respondido', 'PEDIDO_JA_RESPONDIDO')
+      // o indicador avisou que o cliente quitou: a loja confirma como quitação, com o valor que ela mesma calculou (desconto incluso)
+      if (e.quitar !== undefined && typeof e.quitar !== 'boolean') throw requisicaoInvalida('quitar deve ser verdadeiro ou falso')
+      if (e.quitar === true && !b.quitou) throw requisicaoInvalida('O indicador não avisou que o cliente quitou: confirme como baixa da parcela')
+      if (e.quitar === true && (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0)) throw requisicaoInvalida('Informe quanto o cliente pagou na quitação')
+      const quitando = e.quitar === true
       const r = await registrarCore(
         { escopo: { tipo: 'TODOS' }, perfil: 'ADMIN', usuarioId: b.solicitanteId, sessaoRecibo: s, baixaId: id, confirmadoPor: s.usuarioId },
-        b.alvo, b.operacaoId, { parcela: b.parcela, valor: b.valor, forma: b.forma, data: b.data, ...(e.resto !== undefined ? { resto: e.resto } : {}), ...(e.novoVencimento !== undefined ? { novoVencimento: e.novoVencimento } : {}) },
+        b.alvo, b.operacaoId, quitando
+          ? { parcela: b.parcela, valor: e.valor as number, forma: b.forma, data: b.data, quitar: true, ...(e.cobrarProximo !== undefined ? { cobrarProximo: e.cobrarProximo } : {}) }
+          : { parcela: b.parcela, valor: b.valor, forma: b.forma, data: b.data, ...(e.resto !== undefined ? { resto: e.resto } : {}), ...(e.novoVencimento !== undefined ? { novoVencimento: e.novoVencimento } : {}) },
       )
       await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_CONFIRMADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo: b.alvo, operacaoId: b.operacaoId, parcela: b.parcela, valor: b.valor } })
       return r

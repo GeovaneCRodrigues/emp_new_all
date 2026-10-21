@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
-import { emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
+import { aprovacoesApi, emprestimosApi, recebimentosApi, vendasApi } from '@/api/recursos'
 import type { AlvoApi, RegistradoApi } from '@/api/recebimentos'
 import type { FormaPagamentoApi, ParcelaVendaApi } from '@/api/vendas'
 import { useApp } from '@/composables/useApp'
@@ -10,11 +10,15 @@ import { nomeEmprestimo } from '@/domain/emprestimo'
 import { dmy, dmyA, fmt, iniciais } from '@/domain/format'
 import { arred2 } from '@/domain/format'
 import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, planoQuitacao, ErroRecebimento, falta, vencPadraoResto, type RestoPagamento } from '@/domain/recebimento'
+import Icon from './Icon.vue'
 import MoneyInput from './MoneyInput.vue'
 import Sheet from './Sheet.vue'
 import DateField from './DateField.vue'
 
-const props = defineProps<{ alvo: { tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean } | null }>()
+const props = defineProps<{
+  /** `aviso`: o indicador avisou que o cliente quitou; a loja confirma por aqui (a data e a forma são as do aviso) */
+  alvo: { tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean; aviso?: { id: number; data: string; forma: FormaPagamentoApi; valor: number } } | null
+}>()
 const emit = defineEmits<{ fechar: []; registrado: [r: RegistradoApi] }>()
 
 const { sessao, hoje } = useApp()
@@ -57,10 +61,10 @@ watch(() => props.alvo, async (a) => {
       }
     }
     const p = venda.value.parcelas.find((x) => x.numero === a.parcela)
-    f.data = hoje.value
+    f.data = a.aviso?.data ?? hoje.value
     f.valor = p ? falta({ valor: p.valor, pago: p.pago, desconto: p.desconto }) : 0
-    quitarEstado.proximo = false; quitarEstado.desconto = 0
-    f.forma = 'PIX'; f.resto = 'FICA'; f.pedir = false; f.motivo = ''; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
+    quitarEstado.proximo = false; quitarEstado.desconto = 0; quitarLocal.value = false
+    f.forma = a.aviso?.forma ?? 'PIX'; f.resto = 'FICA'; f.pedir = false; f.motivo = ''; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir a venda.'
   } finally {
@@ -70,7 +74,15 @@ watch(() => props.alvo, async (a) => {
 
 /** Quitação: cobra juro vencido + capital (só juros) ou tudo que falta; o desconto é a diferença do que ele paga. */
 const quitarEstado = reactive({ proximo: false, desconto: 0 })
-const quitando = computed(() => props.alvo?.quitar === true)
+// o administrador pode virar a tela para "quitou tudo" (só empréstimo); quem abriu já como quitação não volta
+const quitarLocal = ref(false)
+const quitando = computed(() => props.alvo?.quitar === true || quitarLocal.value)
+const podeQuitar = computed(() => ehAdmin.value && props.alvo?.tipo === 'EMPRESTIMO' && !props.alvo.quitar && !props.alvo.aviso)
+function virarQuitacao(sim: boolean) {
+  quitarLocal.value = sim
+  quitarEstado.proximo = false; quitarEstado.desconto = 0
+  if (!sim) f.valor = faltaAlvo.value
+}
 
 const abertasQ = computed(() => (venda.value?.parcelas ?? []).map((p) => ({ id: p.numero, numero: p.numero, vencimento: p.vencimento, vencimentoOriginal: p.vencimentoOriginal, valor: p.valor, desconto: p.desconto, pago: p.pago, quitadaEm: p.quitadaEm })))
 const plano = computed(() => (quitando.value && venda.value ? planoQuitacao(abertasQ.value, { data: f.data || hoje.value, cobrarProximo: quitarEstado.proximo, capitalAberto: venda.value.juros?.capitalAberto ?? null }) : null))
@@ -116,6 +128,13 @@ async function confirmar() {
   enviando.value = true
   erro.value = ''
   try {
+    if (props.alvo.aviso) {
+      // o aviso do indicador vira a quitação: a loja manda o valor que calculou (desconto incluso)
+      const a = await aprovacoesApi.aprovar(sessao.value, props.alvo.aviso.id, { quitar: true, valor: f.valor, cobrarProximo: quitarEstado.proximo })
+      if (!a.recibo) throw new ErroApi(500, 'A quitação foi confirmada, mas o recibo não veio.', 'ERRO')
+      emit('registrado', { recibo: a.recibo, efeitos: [], quitada: true, pedidoDescontoId: null })
+      return
+    }
     const r = await recebimentosApi.registrar(sessao.value, props.alvo.tipo, props.alvo.operacaoId, {
       parcela: props.alvo.parcela, valor: f.valor, forma: f.forma, data: f.data || hoje.value,
       ...(quitando.value ? { quitar: true, cobrarProximo: quitarEstado.proximo } : {}),
@@ -144,7 +163,8 @@ async function confirmar() {
       </div>
 
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">
-        <div v-if="ehAdmin" class="field">
+        <div v-if="alvo?.aviso" class="aviso" data-testid="quitar-aviso">O indicador avisou que o cliente quitou tudo e recebeu {{ fmt(alvo.aviso.valor) }} ({{ dmy(alvo.aviso.data) }}). Confira o valor abaixo.</div>
+        <div v-if="ehAdmin && !alvo?.aviso" class="field">
           <label>Quando recebeu?</label>
           <div class="pills">
             <button v-for="o in opcoesData" :key="o.valor" type="button" class="pill" :class="{ on: f.data === o.valor }" @click="f.data = o.valor">{{ o.rotulo }}</button>
@@ -163,13 +183,14 @@ async function confirmar() {
           <MoneyInput id="rDesc" v-model="quitarEstado.desconto" />
           <div class="small">O desconto sai do seu lucro. Deixe R$ 0,00 para cobrar o valor cheio.</div>
         </div>
+        <button v-if="quitarLocal" type="button" class="btn b-ghost b-sm" data-so-parcela @click="virarQuitacao(false)">Não, só esta parcela</button>
         <div v-if="quitando && plano" class="between" style="font-weight: 600"><span>Cliente paga agora</span><span class="num" data-testid="quitar-receber">{{ fmt(f.valor) }}</span></div>
         <div v-if="!quitando" class="field">
           <label for="rValor">Quanto recebeu?</label>
           <MoneyInput id="rValor" v-model="f.valor" />
-          <div class="pills"><button type="button" class="pill" @click="f.valor = faltaAlvo">Valor cheio</button><button type="button" class="pill" @click="f.valor = Math.round(faltaAlvo * 50) / 100">Metade</button></div>
+          <div class="pills"><button type="button" class="pill" @click="f.valor = faltaAlvo">Valor cheio</button><button type="button" class="pill" @click="f.valor = Math.round(faltaAlvo * 50) / 100">Metade</button><button v-if="podeQuitar" type="button" class="pill" data-quitou-tudo @click="virarQuitacao(true)"><Icon name="check" small />Quitou tudo</button></div>
         </div>
-        <div class="field"><label>Como pagou?</label><div class="pills"><button v-for="o in ([['PIX', 'Pix'], ['DINHEIRO', 'Dinheiro'], ['CARTAO', 'Cartão']] as const)" :key="o[0]" type="button" class="pill" :class="{ on: f.forma === o[0] }" @click="f.forma = o[0]">{{ o[1] }}</button></div></div>
+        <div v-if="!alvo?.aviso" class="field"><label>Como pagou?</label><div class="pills"><button v-for="o in ([['PIX', 'Pix'], ['DINHEIRO', 'Dinheiro'], ['CARTAO', 'Cartão']] as const)" :key="o[0]" type="button" class="pill" :class="{ on: f.forma === o[0] }" @click="f.forma = o[0]">{{ o[1] }}</button></div></div>
 
         <!-- pagou menos: o que fazer com o resto -->
         <div v-if="parcial" class="field" data-testid="resto">

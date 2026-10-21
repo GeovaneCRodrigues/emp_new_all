@@ -117,10 +117,14 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (!p) throw new ErroApi(404, 'Parcela não encontrada', 'NAO_ENCONTRADO')
       const f = falta(p)
       if (f <= 0.009) throw new ErroApi(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
+      if (e.quitou !== undefined && typeof e.quitou !== 'boolean') throw erro('quitou deve ser verdadeiro ou falso')
+      const quitou = e.quitou === true
+      if (quitou && alvo !== 'EMPRESTIMO') throw erro('Só empréstimo se quita assim')
       const valor = arred2(e.valor)
-      if (valor > f + 0.009) throw erro('O valor não pode passar do que falta na parcela')
+      const limite = quitou ? o.parcelas.reduce((t, x) => t + Math.max(0, falta(x)), 0) : f
+      if (valor > limite + 0.009) throw erro(quitou ? 'O valor não pode passar do que falta no empréstimo' : 'O valor não pode passar do que falta na parcela')
       if (pedidos.some((x) => x.tipo === 'BAIXA' && x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um aviso de recebimento esperando a loja para esta parcela', 'PEDIDO_JA_EXISTE')
-      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'BAIXA', alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, baixa: { forma: e.forma, data, comprovante }, solicitanteId: idSolicitante(s), solicitanteNome: nomeSolicitante(s), status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'BAIXA', alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, baixa: { forma: e.forma, data, comprovante, ...(quitou ? { quitou: true } : {}) }, solicitanteId: idSolicitante(s), solicitanteNome: nomeSolicitante(s), status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
       pedidos.push(novo)
       return visao(novo)
     },
@@ -183,8 +187,13 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       if (p.tipo === 'BAIXA') {
         // vira recebimento (recebido pelo indicador) e o recibo sai; a loja decide o resto se veio menos que a parcela
         if (!recebimentos || !p.baixa) throw new ErroApi(409, 'Confirmação de baixa indisponível', 'PEDIDO_DESATUALIZADO')
+        if (e?.quitar !== undefined && typeof e.quitar !== 'boolean') throw erro('quitar deve ser verdadeiro ou falso')
+        if (e?.quitar === true && !p.baixa.quitou) throw erro('O indicador não avisou que o cliente quitou: confirme como baixa da parcela')
+        if (e?.quitar === true && (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0)) throw erro('Informe quanto o cliente pagou na quitação')
         const r = await recebimentos._interno.registrarComo({ perfil: 'ADMIN', usuarioId: 1 }, { id: p.solicitanteId, nome: p.solicitanteNome }, p.alvo, p.operacaoId,
-          { parcela: p.parcela!, valor: p.valor, forma: p.baixa.forma, data: p.baixa.data, ...(e?.resto ? { resto: e.resto } : {}), ...(e?.novoVencimento ? { novoVencimento: e.novoVencimento } : {}) }, p.id)
+          e?.quitar === true
+            ? { parcela: p.parcela!, valor: e.valor!, forma: p.baixa.forma, data: p.baixa.data, quitar: true, ...(e.cobrarProximo !== undefined ? { cobrarProximo: e.cobrarProximo } : {}) }
+            : { parcela: p.parcela!, valor: p.valor, forma: p.baixa.forma, data: p.baixa.data, ...(e?.resto ? { resto: e.resto } : {}), ...(e?.novoVencimento ? { novoVencimento: e.novoVencimento } : {}) }, p.id)
         p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
         return { ...visao(p), recibo: r.recibo }
       }

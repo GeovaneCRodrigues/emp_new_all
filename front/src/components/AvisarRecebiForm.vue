@@ -26,12 +26,13 @@ const forma = ref<'PIX' | 'DINHEIRO' | 'CARTAO'>('PIX')
 const data = ref('')
 const comprovante = ref('')
 const obs = ref('')
+const quitou = ref(false)
 const erro = ref('')
 const enviando = ref(false)
 
 function abrir(c: CobrancaApi) {
   parcela.value = c
-  valor.value = c.falta; forma.value = 'PIX'; data.value = hoje.value; comprovante.value = ''; obs.value = ''; erro.value = ''
+  valor.value = c.falta; forma.value = 'PIX'; data.value = hoje.value; comprovante.value = ''; obs.value = ''; erro.value = ''; quitou.value = false
 }
 defineExpose({ abrir })
 
@@ -39,11 +40,11 @@ const problema = computed(() => {
   const c = parcela.value
   if (!c) return ''
   if (valor.value <= 0) return 'Informe quanto você recebeu'
-  if (valor.value > c.falta + 0.009) return `Esta parcela só tem ${fmt(c.falta)} em aberto`
+  if (!quitou.value && valor.value > c.falta + 0.009) return `Esta parcela só tem ${fmt(c.falta)} em aberto`
   if (!data.value) return 'Informe a data em que recebeu'
   return ''
 })
-const menos = computed(() => !!parcela.value && valor.value > 0 && valor.value < parcela.value.falta - 0.009)
+const menos = computed(() => !quitou.value && !!parcela.value && valor.value > 0 && valor.value < parcela.value.falta - 0.009)
 
 async function enviar() {
   const c = parcela.value
@@ -52,7 +53,7 @@ async function enviar() {
   try {
     await aprovacoesApi.pedirBaixa(sessao.value, {
       alvo: c.tipo, operacaoId: c.operacaoId, parcela: c.parcela, valor: valor.value, forma: forma.value, data: data.value,
-      ...(comprovante.value.trim() ? { comprovante: comprovante.value.trim() } : {}), ...(obs.value.trim() ? { motivo: obs.value.trim() } : {}),
+      ...(quitou.value ? { quitou: true } : {}), ...(comprovante.value.trim() ? { comprovante: comprovante.value.trim() } : {}), ...(obs.value.trim() ? { motivo: obs.value.trim() } : {}),
     })
     parcela.value = null
     mostrar(`Aviso enviado. A loja confirma o recebimento de ${c.cliente.nome.split(' ')[0]}.`)
@@ -75,8 +76,9 @@ async function enviar() {
         <div class="field">
           <label for="avValor">Quanto você recebeu?</label>
           <MoneyInput id="avValor" v-model="valor" />
-          <div class="small">Em aberto na parcela: <b class="num">{{ fmt(parcela.falta) }}</b></div>
+          <div class="small">{{ quitou ? 'Informe o total que o cliente pagou. A loja calcula e confirma a quitação.' : 'Em aberto na parcela:' }}<b v-if="!quitou" class="num"> {{ fmt(parcela.falta) }}</b></div>
         </div>
+        <label v-if="parcela.tipo === 'EMPRESTIMO'" class="between" style="gap: 10px; align-items: center"><span><b>O cliente quitou tudo</b><span class="small" style="display: block">Pagou o empréstimo inteiro, não só esta parcela</span></span><input v-model="quitou" type="checkbox" data-quitou /></label>
         <div v-if="menos" class="small" style="color: var(--warn)" data-testid="menos">É menos que a parcela: a loja decide se o resto fica devendo ou vira desconto.</div>
         <div class="field"><label>Como recebeu</label><Seg v-model="forma" :itens="FORMAS" /></div>
         <div class="field"><label for="avData">Quando recebeu</label><DateField id="avData" v-model="data" :max="hoje" min="2020-01-01" /></div>
@@ -84,7 +86,7 @@ async function enviar() {
         <div class="field"><label for="avObs">Observação (opcional)</label><div class="inp"><input id="avObs" v-model="obs" maxlength="500" placeholder="Ex.: paguei na mão dele" autocomplete="off" /></div></div>
         <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
         <div v-else-if="problema && valor > 0" class="small" style="color: var(--bad)" role="status">{{ problema }}</div>
-        <button class="btn b-pri b-block" type="submit" :disabled="!!problema || enviando">{{ enviando ? 'Enviando…' : 'Avisar a loja que recebi' }}</button>
+        <button class="btn b-pri b-block" type="submit" :disabled="!!problema || enviando">{{ enviando ? 'Enviando…' : quitou ? 'Avisar que o cliente quitou' : 'Avisar a loja que recebi' }}</button>
       </form>
     </template>
   </Sheet>

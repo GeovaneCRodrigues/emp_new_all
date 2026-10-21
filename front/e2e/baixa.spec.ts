@@ -84,6 +84,31 @@ test.describe('a loja responde ao aviso', () => {
     await expect(page.getByTestId('meus-avisos').locator('[data-status]').first()).toHaveText('confirmado')
   })
 
+  test('o indicador avisa que o cliente QUITOU um empréstimo: a loja confere a quitação e o recibo sai', async ({ page }) => {
+    await entrar(page, 'indicador')
+    await navegar(page, '/cobranca')
+    await page.getByTestId('filtro-tipo').getByRole('button', { name: 'Empréstimos' }).click()
+    const linha = page.locator('.cob').filter({ has: page.getByRole('button', { name: 'Recebi' }) }).first()
+    test.skip(!(await linha.count()), 'o indicador da demonstração não tem empréstimo para cobrar')
+    const nome = (await linha.locator('.t').first().innerText()).trim()
+    await linha.getByRole('button', { name: 'Recebi' }).click()
+    await page.locator('[data-quitou]').check()
+    await expect(page.getByRole('button', { name: 'Avisar que o cliente quitou' })).toBeVisible()
+    await page.getByRole('button', { name: 'Avisar que o cliente quitou' }).click()
+    await expect(page.getByText(/Aviso enviado/)).toBeVisible()
+    await verComo(page, 'Admin')
+    await navegar(page, '/equipe')
+    const card = cardBaixa(page, nome)
+    await expect(card).toContainText('quitou tudo')
+    await card.locator('[data-confirmar]').click()
+    await expect(page.getByRole('heading', { name: 'Quitar empréstimo' })).toBeVisible()
+    await expect(page.getByTestId('quitar-aviso')).toContainText('quitou tudo')
+    await page.getByRole('button', { name: 'Confirmar quitação' }).click()
+    await expect(page.getByTestId('recibo')).toContainText('Tudo quitado')
+    await page.keyboard.press('Escape')
+    await expect(card).toHaveCount(0)
+  })
+
   test('veio menos que a parcela: a loja escolhe o que fazer com o resto (fica devendo, com a data nova)', async ({ page }) => {
     await entrar(page, 'indicador')
     const nome = await avisar(page, '10000') // R$ 100,00

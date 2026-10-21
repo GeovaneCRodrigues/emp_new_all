@@ -36,7 +36,7 @@ export interface RecebimentosTx {
 export interface RecebimentosRepository {
   emTransacao<T>(fn: (tx: RecebimentosTx) => Promise<T>): Promise<T>
   /** O aviso de baixa do indicador, para a loja confirmar. */
-  baixaDoPedido(id: number): Promise<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; alvo: Alvo; operacaoId: number; parcela: number; valor: number; solicitanteId: number; forma: FormaPagamento; data: string; comprovante: string | null } | null>
+  baixaDoPedido(id: number): Promise<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; alvo: Alvo; operacaoId: number; parcela: number; valor: number; solicitanteId: number; forma: FormaPagamento; data: string; comprovante: string | null; quitou: boolean } | null>
   /** A venda/empréstimo que a transação paga (pelas parcelas), antes de abrir a transação de desfazer. */
   operacaoDaTransacao(transacaoId: number): Promise<{ alvo: Alvo; id: number } | null>
   buscarRecibo(id: number): Promise<ReciboRegistro | null>
@@ -200,9 +200,9 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
     async baixaDoPedido(id) {
       const l = await db('aprovacoes as a').leftJoin('venda_parcelas as vp', 'vp.id', 'a.venda_parcela_id').leftJoin('emprestimo_parcelas as ep', 'ep.id', 'a.emprestimo_parcela_id')
         .where('a.id', id).where('a.tipo', 'BAIXA')
-        .first<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; venda_id: number | null; emprestimo_id: number | null; numero: number; valor: string; solicitado_por: number; dados: { forma: FormaPagamento; data: string; comprovante: string | null } } | undefined>('a.id', 'a.status', 'a.venda_id', 'a.emprestimo_id', db.raw('coalesce(vp.numero, ep.numero) as numero'), 'a.valor', 'a.solicitado_por', 'a.dados')
+        .first<{ id: number; status: 'PENDENTE' | 'APROVADO' | 'RECUSADO'; venda_id: number | null; emprestimo_id: number | null; numero: number; valor: string; solicitado_por: number; dados: { forma: FormaPagamento; data: string; comprovante: string | null; quitou?: boolean } } | undefined>('a.id', 'a.status', 'a.venda_id', 'a.emprestimo_id', db.raw('coalesce(vp.numero, ep.numero) as numero'), 'a.valor', 'a.solicitado_por', 'a.dados')
       if (!l) return null
-      return { id: l.id, status: l.status, alvo: l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO', operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcela: l.numero, valor: Number(l.valor), solicitanteId: l.solicitado_por, forma: l.dados.forma, data: l.dados.data, comprovante: l.dados.comprovante ?? null }
+      return { id: l.id, status: l.status, alvo: l.venda_id !== null ? 'VENDA' : 'EMPRESTIMO', operacaoId: (l.venda_id ?? l.emprestimo_id)!, parcela: l.numero, valor: Number(l.valor), solicitanteId: l.solicitado_por, forma: l.dados.forma, data: l.dados.data, comprovante: l.dados.comprovante ?? null, quitou: l.dados.quitou === true }
     },
     async operacaoDaTransacao(transacaoId) {
       const r = await db('recebimentos as r').leftJoin('venda_parcelas as vp', 'vp.id', 'r.venda_parcela_id').leftJoin('emprestimo_parcelas as ep', 'ep.id', 'r.emprestimo_parcela_id')

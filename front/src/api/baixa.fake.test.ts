@@ -139,3 +139,30 @@ describe('a loja confirma ou recusa', () => {
     expect((await falha(apr.pedirAcordo(IND1, { alvo: 'VENDA', operacaoId: v.id, valorTotal: 100, parcelas: 2, primeiraParcela: '2026-11-01', motivo: 'abc' })))?.status).toBe(403)
   })
 })
+
+describe('o indicador avisa que o cliente quitou o empréstimo', () => {
+  const emp = async () => (await emprestimos.criar(ADMIN, { clienteId: 3, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, indicadorId: 1 })).id
+  const avisarQuitou = (op: number, e: object = {}) => apr.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: op, parcela: 1, valor: 1, forma: 'PIX', quitou: true, ...e } as never)
+  const total = async (op: number) => (await emprestimos.obter(ADMIN, op)).parcelas.reduce((t, p) => t + p.valor - p.desconto, 0)
+
+  it('guarda a marca "quitou", aceita até o empréstimo todo e recusa mais que isso; em venda é 400', async () => {
+    const e = await emp(); const t = await total(e)
+    expect((await falha(avisarQuitou(e, { valor: t + 1 })))?.status).toBe(400)
+    expect((await avisarQuitou(e, { valor: t })).baixa).toMatchObject({ quitou: true })
+    const v = await venda()
+    expect((await falha(avisar(IND1, v.id, { valor: 10, quitou: true })))?.status).toBe(400)
+  })
+  it('a loja confirma como quitação (com desconto): encerra o empréstimo e devolve o recibo; sem o aviso de quitou, 400', async () => {
+    const e = await emp(); const t = await total(e)
+    const p = await avisarQuitou(e, { valor: t })
+    const r = await apr.aprovar(ADMIN, p.id, { quitar: true, valor: t - 50 })
+    expect(r.status).toBe('APROVADO'); expect(r.recibo?.valor).toBe(t - 50)
+    expect((await emprestimos.obter(ADMIN, e)).status).toBe('QUITADA')
+
+    const e2 = await emp()
+    const simples = await apr.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: e2, parcela: 1, valor: 100, forma: 'PIX' })
+    expect((await falha(apr.aprovar(ADMIN, simples.id, { quitar: true, valor: 500 })))?.status).toBe(400)
+    const q = await avisarQuitou(e2, { valor: 100, parcela: 2 })
+    expect((await falha(apr.aprovar(ADMIN, q.id, { quitar: true })))?.status).toBe(400) // sem o valor
+  })
+})
