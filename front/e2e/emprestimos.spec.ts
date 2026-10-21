@@ -90,6 +90,23 @@ test.describe('baixas de empréstimo', () => {
     await expect(page.getByTestId('quitar-perdoado')).toContainText('720,00')
   })
 
+  test('Registrar recebimento: "Quitou tudo" vira a quitação na própria tela, e dá para voltar para só a parcela', async ({ page }) => {
+    await entrar(page)
+    await preencherEmprestimo(page, { capital: '300000', n: 3, taxa: 10 })
+    await confirmarEmprestimo(page)
+    await page.locator('[data-receber="1"]').click()
+    await expect(page.getByRole('heading', { name: 'Registrar recebimento' })).toBeVisible()
+    await page.locator('[data-quitou-tudo]').click()
+    await expect(page.getByRole('heading', { name: 'Quitar empréstimo' })).toBeVisible()
+    await expect(page.getByTestId('quitar-cheio')).toHaveText('R$ 3.300,00')
+    await page.locator('[data-so-parcela]').click()
+    await expect(page.getByRole('heading', { name: 'Registrar recebimento' })).toBeVisible()
+    await expect(page.locator('#rValor')).toHaveValue('1.100,00')
+    await page.locator('[data-quitou-tudo]').click()
+    await page.getByRole('button', { name: 'Confirmar quitação' }).click()
+    await expect(page.getByTestId('recibo')).toContainText('Tudo quitado')
+  })
+
   test('Quitou com desconto: o cliente paga o valor cheio menos o desconto e a prévia avisa', async ({ page }) => {
     await criarSoJuros(page)
     await page.locator('[data-quitar]').click()

@@ -269,6 +269,51 @@ describe.skipIf(!db)('o indicador avisa que recebeu e a loja confirma (Postgres 
     })
   })
 
+  describe('o indicador avisa que o cliente quitou o empréstimo', () => {
+    const avisarQuitou = (op: number, corpo: object = {}) => req('POST', '/api/aprovacoes', 'indicador', { tipo: 'BAIXA', alvo: 'EMPRESTIMO', operacaoId: op, parcela: 1, forma: 'PIX', quitou: true, ...corpo })
+    const faltaTotal = async (e: number) => (await db!('emprestimo_parcelas').where({ emprestimo_id: e })).reduce((t: number, p: { valor: string; desconto: string }) => t + Number(p.valor) - Number(p.desconto), 0)
+
+    it('o aviso guarda a marca "quitou"; aceita o valor do empréstimo todo, mas não mais que isso', async () => {
+      const e = await emprestimo(); const total = await faltaTotal(e)
+      expect((await avisarQuitou(e, { valor: total + 1 })).statusCode).toBe(400)
+      const r = await avisarQuitou(e, { valor: total })
+      expect(r.statusCode, r.body).toBe(201)
+      expect(r.json().baixa).toMatchObject({ forma: 'PIX', quitou: true })
+      expect(r.json().valor).toBe(total)
+    })
+    it('quitou só vale em empréstimo e precisa ser verdadeiro/falso', async () => {
+      const v = await venda()
+      expect((await avisar('indicador', v, { quitou: true })).statusCode).toBe(400)
+      const e = await emprestimo()
+      expect((await avisarQuitou(e, { valor: 10, quitou: 'sim' })).statusCode).toBe(400)
+    })
+    it('a loja confirma como QUITAÇÃO com o valor que ela calcula (desconto incluso): encerra o empréstimo e gera o recibo', async () => {
+      const e = await emprestimo(); const total = await faltaTotal(e)
+      const pid = (await avisarQuitou(e, { valor: total })).json().id
+      const pago = total - 50 // a loja dá R$ 50 de desconto na quitação
+      const r = await confirmar('admin', pid, { quitar: true, valor: pago })
+      expect(r.statusCode, r.body).toBe(200)
+      expect(r.json()).toMatchObject({ id: pid, status: 'APROVADO' })
+      expect(r.json().recibo.valor).toBe(pago)
+      expect((await db!('emprestimos').where({ id: e }).first()).status).toBe('QUITADA')
+      expect((await db!('emprestimo_parcelas').where({ emprestimo_id: e })).every((p: { quitada_em: unknown }) => p.quitada_em)).toBe(true)
+      expect((await db!('transacoes_recebimento').orderBy('id', 'desc').first()).recebido_por).toBe(id.indicador)
+    })
+    it('quitar sem o indicador ter avisado "quitou" é recusado (400) e nada é lançado', async () => {
+      const e = await emprestimo(); const total = await faltaTotal(e)
+      const pid = (await avisar('indicador', e, { alvo: 'EMPRESTIMO', parcela: 1, valor: 100 })).json().id
+      const n0 = await nRecebimentos()
+      expect((await confirmar('admin', pid, { quitar: true, valor: total })).statusCode).toBe(400)
+      expect(await nRecebimentos()).toBe(n0)
+      expect((await db!('aprovacoes').where({ id: pid }).first()).status).toBe('PENDENTE')
+    })
+    it('o aviso "quitou" pode ser confirmado só como baixa da parcela (sem quitar) e a quitação exige o valor', async () => {
+      const e = await emprestimo(); const total = await faltaTotal(e)
+      const pid = (await avisarQuitou(e, { valor: total })).json().id
+      expect((await confirmar('admin', pid, { quitar: true })).statusCode).toBe(400)
+    })
+  })
+
   describe('o indicador pede desconto (igual ao cobrador)', () => {
     it('pede desconto de uma parcela de operação dele; de outra, 404; e a loja aprova ou recusa', async () => {
       const v = await venda(); const dela = await venda(id.carla)

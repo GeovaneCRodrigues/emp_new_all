@@ -6,11 +6,12 @@ import { ErroApi } from '@/api/clientes'
 import type { PessoaApi } from '@/api/equipe'
 import type { FechamentoApi } from '@/api/fechamentos'
 import type { PropostaApi } from '@/api/propostas'
-import type { ReciboApi } from '@/api/recebimentos'
+import type { AlvoApi, ReciboApi, RegistradoApi } from '@/api/recebimentos'
 import { aprovacoesApi, equipeApi, fechamentosApi, propostasApi } from '@/api/recursos'
 import DateField from '@/components/DateField.vue'
 import Icon from '@/components/Icon.vue'
 import ReciboSheet from '@/components/ReciboSheet.vue'
+import ReceberSheet from '@/components/ReceberSheet.vue'
 import Sheet from '@/components/Sheet.vue'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
@@ -128,6 +129,18 @@ async function confirmarBaixa(p: AprovacaoApi, decisao?: { resto: 'FICA' | 'DESC
     ocupado.value = null
   }
 }
+// o indicador avisou que o cliente quitou: abre a quitação já com o valor calculado, e a loja ajusta o desconto
+const alvoQuitacao = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number; quitar: true; aviso: { id: number; data: string; forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; valor: number } } | null>(null)
+function conferirQuitacao(p: AprovacaoApi) {
+  if (!p.baixa || p.parcela === null) return
+  alvoQuitacao.value = { tipo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, quitar: true, aviso: { id: p.id, data: p.baixa.data, forma: p.baixa.forma, valor: p.valor } }
+}
+async function aoQuitar(r: RegistradoApi) {
+  alvoQuitacao.value = null
+  mostrar(`Quitação confirmada: ${fmt(r.recibo.valor)} de ${r.recibo.cliente.nome}.`)
+  reciboAberto.value = r.recibo
+  await carregar()
+}
 const decidir = () => decidindo.value && confirmarBaixa(decidindo.value, resto.value === 'FICA' ? { resto: 'FICA', novoVencimento: novaData.value || undefined } : { resto: 'DESCONTO' })
 
 const total = computed(() => pedidos.value.length + fechamentos.value.length + propostas.value.length)
@@ -172,7 +185,7 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
         <div class="row" style="gap: 10px; align-items: flex-start">
           <span class="ini">{{ iniciais(p.solicitante.nome) }}</span>
           <div style="flex: 1; min-width: 0">
-            <div v-if="p.tipo === 'BAIXA'" class="val" data-tipo="BAIXA">{{ p.solicitante.nome.split(' ')[0] }} avisou que recebeu <span class="num">{{ fmt(p.valor) }}</span></div>
+            <div v-if="p.tipo === 'BAIXA'" class="val" data-tipo="BAIXA">{{ p.solicitante.nome.split(' ')[0] }} avisou que {{ p.baixa?.quitou ? 'o cliente quitou tudo e recebeu' : 'recebeu' }} <span class="num">{{ fmt(p.valor) }}</span></div>
             <div v-else-if="p.tipo === 'RETOMADA'" class="val" data-tipo="RETOMADA">{{ p.solicitante.nome }} pede para <b>retomar</b> o {{ p.aparelho }}</div>
             <div v-else-if="p.tipo === 'ACORDO'" class="val" data-tipo="ACORDO">{{ p.solicitante.nome }} propõe um <b>acordo</b> de <span class="num">{{ fmt(p.valor) }}</span> em {{ p.acordo?.parcelas }}x</div>
             <div v-else class="val" data-tipo="DESCONTO">{{ p.solicitante.nome }} pede <span class="num">{{ fmt(p.valor) }}</span> de desconto</div>
@@ -184,7 +197,8 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
           </div>
         </div>
         <div class="row" style="gap: 8px; margin-top: 10px">
-          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" :data-confirmar="p.tipo === 'BAIXA' ? '' : undefined" @click="p.tipo === 'BAIXA' ? confirmarBaixa(p) : aprovar(p)">{{ p.tipo === 'BAIXA' ? 'Confirmar baixa' : 'Aprovar' }}</button>
+          <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" :data-confirmar="p.tipo === 'BAIXA' ? '' : undefined" @click="p.tipo === 'BAIXA' ? (p.baixa?.quitou ? conferirQuitacao(p) : confirmarBaixa(p)) : aprovar(p)">{{ p.tipo === 'BAIXA' ? (p.baixa?.quitou ? 'Conferir quitação' : 'Confirmar baixa') : 'Aprovar' }}</button>
+          <button v-if="p.tipo === 'BAIXA' && p.baixa?.quitou" class="btn b-ghost" :disabled="!!ocupado" data-so-parcela @click="confirmarBaixa(p)">Só a parcela</button>
           <button class="btn b-out" style="flex: 1" :disabled="!!ocupado" @click="recusar(p)">Recusar</button>
         </div>
       </div>
@@ -263,6 +277,7 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
       </form>
     </template>
   </Sheet>
+  <ReceberSheet :alvo="alvoQuitacao" @fechar="alvoQuitacao = null" @registrado="aoQuitar" />
   <ReciboSheet :recibo="reciboAberto" @fechar="reciboAberto = null" />
 
   <Sheet :aberto="recusandoProposta !== null" @fechar="recusandoProposta = null">

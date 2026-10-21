@@ -110,6 +110,9 @@ export function createAprovacoesService(dep: {
       if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('observação: no máximo 500 letras')
       motivo = e.motivo.trim() || null
     }
+    if (e.quitou !== undefined && typeof e.quitou !== 'boolean') throw requisicaoInvalida('quitou deve ser verdadeiro ou falso')
+    const quitou = e.quitou === true
+    if (quitou && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('Só empréstimo se quita assim')
     const valor = arred2(e.valor)
 
     const id = await dep.repo
@@ -121,12 +124,14 @@ export function createAprovacoesService(dep: {
         if (!p) throw naoEncontrado('Parcela não encontrada')
         const f = falta(p)
         if (f <= 0.009) throw new HttpError(409, 'Esta parcela já está paga', 'PARCELA_PAGA')
-        if (valor > f + 0.009) throw requisicaoInvalida(`O valor não pode passar do que falta na parcela (${brl(f)})`)
-        return tx.criarBaixa({ alvo, operacaoId: op.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo, forma: e.forma as string, data, comprovante })
+        // quitou: o que ele recebeu é o empréstimo todo, então o limite é o que falta em todas as parcelas
+        const limite = quitou ? (await tx.parcelas(alvo, op.id)).reduce((t, x) => t + Math.max(0, falta(x)), 0) : f
+        if (valor > limite + 0.009) throw requisicaoInvalida(quitou ? `O valor não pode passar do que falta no empréstimo (${brl(limite)})` : `O valor não pode passar do que falta na parcela (${brl(f)})`)
+        return tx.criarBaixa({ alvo, operacaoId: op.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo, forma: e.forma as string, data, comprovante, quitou })
       })
       .catch((err) => duplicado(err, 'Já existe um aviso de recebimento esperando a loja para esta parcela'))
 
-    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_AVISADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, forma: e.forma, data } })
+    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_AVISADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, forma: e.forma, data, ...(quitou ? { quitou: true } : {}) } })
     return reler(id)
   }
 
