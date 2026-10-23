@@ -414,6 +414,27 @@ test.describe('acordo', () => {
     await page.locator('.card', { hasText: 'Carlos Henrique' }).first().click()
   }
 
+  test('acordo: o valor da parcela calcula o número de parcelas (arredonda para cima, divisão igual) e mexer no número limpa o valor', async ({ page }) => {
+    await abrirCarlos(page)
+    await page.locator('[data-acordo]').click()
+    await page.locator('#aValor').fill('300000') // R$ 3.000,00
+    await page.locator('#aParcela').fill('100000') // R$ 1.000,00 por parcela
+    await expect(page.locator('#aParcelas')).toHaveValue('3')
+    await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(3)
+    await expect(page.getByTestId('acordo-parcela-aviso')).toHaveText('3x de R$ 1.000,00')
+    await page.locator('#aParcela').fill('120000') // R$ 1.200,00: 2,5 → 3x de 1.000
+    await expect(page.locator('#aParcelas')).toHaveValue('3')
+    await expect(page.getByTestId('acordo-parcela-aviso')).toContainText('Fica 3x de R$ 1.000,00')
+    await page.locator('#aParcela').fill('50000') // R$ 500,00 → 6x
+    await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(6)
+    await page.locator('#aValor').fill('200000') // mudou o acordo: R$ 2.000,00 / 500 → 4x
+    await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(4)
+    await page.getByRole('button', { name: '2x', exact: true }).click() // o número direto manda e limpa o valor
+    await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(2)
+    await expect(page.locator('#aParcela')).toHaveValue('0,00')
+    await expect(page.getByTestId('acordo-parcela-aviso')).toHaveCount(0)
+  })
+
   test('o administrador faz o acordo pela ficha: prévia das parcelas, parcelas antigas viram "acordo" e o atraso some', async ({ page }) => {
     await abrirCarlos(page)
     await page.locator('[data-acordo]').click()
