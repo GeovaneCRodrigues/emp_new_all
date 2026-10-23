@@ -5,7 +5,7 @@ import { soDigitos } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
 import { nomeEmprestimo } from '@/domain/emprestimo'
 import { arred2 } from '@/domain/format'
-import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
+import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, referenciaQuitacao, type AjusteParcela, type EfeitoRecebimento, type ParcelaAberta } from '@/domain/recebimento'
 import { ErroApi } from './clientes'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
 import type { AbaCobranca, AlvoApi, CobrancaApi, EntradaRecebimento, PagamentoApi, ReciboApi, RecebimentosApi, RegistradoApi } from './recebimentos'
@@ -204,7 +204,7 @@ export function criarRecebimentosFake(vendas: VendasFake, emprestimos?: Empresti
         itens: res.itens.map((i) => ({ numero: i.numero, valorPago: i.valorPago, antes: i.antes })),
         ...(ajustes.length || amortizacao > 0 ? { ajustes: { amortizacao, parcelas: ajustes.map((a) => ({ numero: a.numero, antes: a.antes })) } } : {}),
         resumo: {
-          referencia: referencia(res.itens.map((i) => i.numero), o.parcelas.length), faltaDepois: arred2(o.parcelas.reduce((x, p) => x + Math.max(0, falta(p)), 0)),
+          referencia: e.quitar === true ? referenciaQuitacao(res.itens.map((i) => i.numero), o.parcelas.length, amortizacao > 0) : referencia(res.itens.map((i) => i.numero), o.parcelas.length), faltaDepois: arred2(o.parcelas.reduce((x, p) => x + Math.max(0, falta(p)), 0)),
           proxima: aberta[0] ? { numero: aberta[0].numero, valor: falta(aberta[0]), vencimento: aberta[0].vencimento } : null, restantes: aberta.length,
           ficaDevendo: fica ? { numero: fica.numero, valor: fica.resta, vencimento: fica.vencimento } : null,
           ...(amortizacao > 0 ? { amortizacao: { valor: amortizacao, capitalRestante } } : {}),

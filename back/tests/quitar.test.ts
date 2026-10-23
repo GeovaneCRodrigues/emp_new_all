@@ -132,6 +132,15 @@ describe.skipIf(!db)('quitar empréstimo (Postgres de verdade)', () => {
       expect((await parc(e)).every((p) => p.quitada && p.desconto === 0)).toBe(true)
     })
 
+    it('o recibo e a lista de pagamentos dizem "quitação", e não "parcela N" com o valor todo', async () => {
+      const e = await emprestimo()
+      hoje = await venc(e, 1) // a 1ª vence hoje: juro de 360 + capital de 3.000
+      const r = await quitar('admin', e, { valor: 3360 })
+      expect(r.statusCode).toBe(201)
+      expect(r.json().recibo.referencia).toBe('quitação (parcela 1/3 + capital)')
+      const t = await db!('transacoes_recebimento').orderBy('id', 'desc').first()
+      expect(t.resumo.referencia).toBe('quitação (parcela 1/3 + capital)')
+    })
     it('depois de pagar a 1ª parcela, quitar custa só o capital: o lucro é só o juro da 1ª (360)', async () => {
       const e = await emprestimo()
       hoje = await venc(e, 1)
