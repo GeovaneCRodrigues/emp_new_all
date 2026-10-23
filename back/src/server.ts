@@ -15,6 +15,8 @@ import { createConfigService } from './modules/config/services/config.service.js
 import { createAcordosRepository } from './modules/acordos/models/repository.js'
 import { createPropostasRepository } from './modules/propostas/models/repository.js'
 import { createPropostasService } from './modules/propostas/services/propostas.service.js'
+import { createContaIndicadorRepository } from './modules/conta-indicador/models/repository.js'
+import { createContaIndicadorService } from './modules/conta-indicador/services/conta-indicador.service.js'
 import { createRepassesRepository } from './modules/repasses/models/repository.js'
 import { createRepassesService } from './modules/repasses/services/repasses.service.js'
 import { createAcordosService } from './modules/acordos/services/acordos.service.js'
@@ -73,6 +75,8 @@ const repasses = createRepassesService({
   emprestimos: createEmprestimosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex),
 })
 
+const contaIndicador = createContaIndicadorService({ repo: createContaIndicadorRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
+
 const propostas = createPropostasService({ repo: createPropostasRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
 
 const recebimentos = createRecebimentosService({ repo: createRecebimentosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex) })
@@ -87,7 +91,7 @@ const relatorios = createRelatoriosService({
   repo: createRelatoriosRepository(db.knex), vendas: createVendasRepository(db.knex), emprestimos: createEmprestimosRepository(db.knex), caixa: createCaixaRepository(db.knex),
   indicadores: createIndicadoresRepository(db.knex), repasses,
 })
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, propostas, caixa, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

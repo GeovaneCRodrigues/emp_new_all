@@ -43,6 +43,8 @@ import type { ContratosService } from './modules/contratos/services/contratos.se
 import { relatoriosRoutes } from './modules/relatorios/routes.js'
 import type { RelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import type { CaixaService } from './modules/caixa/services/caixa.service.js'
+import { contaIndicadorRoutes } from './modules/conta-indicador/routes.js'
+import type { ContaIndicadorService } from './modules/conta-indicador/services/conta-indicador.service.js'
 import { healthRoutes } from './modules/health/routes.js'
 
 /** Tudo o que o app precisa vem de fora (injeção), assim os testes trocam o banco por um falso. */
@@ -59,6 +61,7 @@ export type Deps = {
   emprestimos?: EmprestimosService
   acordos?: AcordosService
   repasses?: RepassesService
+  contaIndicador?: ContaIndicadorService
   propostas?: PropostasService
   caixa?: CaixaService
   relatorios?: RelatoriosService
@@ -108,6 +111,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   if (deps.acordos) await app.register(acordosRoutes(deps.acordos, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   if (deps.propostas) await app.register(propostasRoutes(deps.propostas, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   if (deps.repasses) await app.register(repassesRoutes(deps.repasses, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
+  if (deps.contaIndicador) await app.register(contaIndicadorRoutes(deps.contaIndicador, exigir), { prefix: '/api' })
   if (deps.emprestimos) await app.register(emprestimosRoutes(deps.emprestimos, exigir, deps.limites?.vendasPorMinuto), { prefix: '/api' })
   await app.register(configRoutes(deps.config, exigir), { prefix: '/api' })
   await app.register(aprovacoesRoutes(deps.aprovacoes, exigir), { prefix: '/api' })
