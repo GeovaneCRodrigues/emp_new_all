@@ -65,6 +65,8 @@ export interface EntradaEmprestimo {
   primeiroVencimento?: string
   indicadorId?: number | null
   observacoes?: string
+  /** o dinheiro (ou parte) saiu da conta de um indicador, não do Caixa da loja; não pode passar do capital */
+  saiuDaConta?: { indicadorId: number; valor: number }
 }
 
 /** Modalidades já liberadas no sistema (as outras entram uma de cada vez). */

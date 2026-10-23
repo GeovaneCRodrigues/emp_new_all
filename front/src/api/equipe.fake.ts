@@ -10,6 +10,7 @@ import { ErroApi } from './clientes'
 import type { EquipeApi, PessoaApi } from './equipe'
 import type { CaixaApi, FechamentoApi, FechamentosApi } from './fechamentos'
 import { valorParcelaValido, type AcordosFake } from './acordos.fake'
+import type { ContaIndicadorFake } from './contaIndicador.fake'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
 import type { AlvoApi } from './recebimentos'
 import type { RecebimentosFake } from './recebimentos.fake'
@@ -34,7 +35,7 @@ interface OpPedido {
 }
 
 /** Pedidos de desconto de demonstração: mesmas regras do backend (só o cobrador pede, só o admin responde, um pendente por parcela). */
-export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake, acordos?: AcordosFake, recebimentos?: RecebimentosFake): AprovacoesApi {
+export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake, acordos?: AcordosFake, recebimentos?: RecebimentosFake, conta?: ContaIndicadorFake): AprovacoesApi {
   const { pedidos, hoje } = vendas._interno
   const comoOp = (r: Registro): OpPedido => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, descricao: r.aparelho.modelo, status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
   const comoOpEmp = (r: RegistroEmprestimo): OpPedido => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
@@ -110,6 +111,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw erro('observação: no máximo 500 letras')
         motivo = e.motivo.trim()
       }
+      if (e.naContaDoIndicador !== undefined && typeof e.naContaDoIndicador !== 'boolean') throw erro('naContaDoIndicador deve ser verdadeiro ou falso')
       const o = opDe(alvo, e.operacaoId, s) // fora das operações dele: 404
       if (!o) throw new ErroApi(404, alvo === 'VENDA' ? 'Venda não encontrada' : 'Empréstimo não encontrado', 'NAO_ENCONTRADO')
       if (encerrada(o.status)) throw new ErroApi(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
@@ -124,7 +126,7 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
       const limite = quitou ? o.parcelas.reduce((t, x) => t + Math.max(0, falta(x)), 0) : f
       if (valor > limite + 0.009) throw erro(quitou ? 'O valor não pode passar do que falta no empréstimo' : 'O valor não pode passar do que falta na parcela')
       if (pedidos.some((x) => x.tipo === 'BAIXA' && x.alvo === alvo && x.operacaoId === o.id && x.parcela === e.parcela && x.status === 'PENDENTE')) throw new ErroApi(409, 'Já existe um aviso de recebimento esperando a loja para esta parcela', 'PEDIDO_JA_EXISTE')
-      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'BAIXA', alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, baixa: { forma: e.forma, data, comprovante, ...(quitou ? { quitou: true } : {}) }, solicitanteId: idSolicitante(s), solicitanteNome: nomeSolicitante(s), status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
+      const novo: Pedido = { id: vendas._interno.proximoPedido(), tipo: 'BAIXA', alvo, operacaoId: o.id, parcela: e.parcela, valor, motivo, baixa: { forma: e.forma, data, comprovante, ...(quitou ? { quitou: true } : {}), ...(e.naContaDoIndicador ? { naContaDoIndicador: true } : {}) }, solicitanteId: idSolicitante(s), solicitanteNome: nomeSolicitante(s), status: 'PENDENTE', criadaEm: `${hoje}T12:00:00.000Z`, respondidoPor: null, respondidoEm: null, resposta: null }
       pedidos.push(novo)
       return visao(novo)
     },
@@ -191,10 +193,13 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
         if (e?.quitar !== undefined && typeof e.quitar !== 'boolean') throw erro('quitar deve ser verdadeiro ou falso')
         if (e?.quitar === true && !p.baixa.quitou) throw erro('O indicador não avisou que o cliente quitou: confirme como baixa da parcela')
         if (e?.quitar === true && (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0)) throw erro('Informe quanto o cliente pagou na quitação')
+        if (e?.naContaDoIndicador !== undefined && typeof e.naContaDoIndicador !== 'boolean') throw erro('naContaDoIndicador deve ser verdadeiro ou falso')
+        const naConta = typeof e?.naContaDoIndicador === 'boolean' ? e.naContaDoIndicador : p.baixa.naContaDoIndicador === true
         const r = await recebimentos._interno.registrarComo({ perfil: 'ADMIN', usuarioId: 1 }, { id: p.solicitanteId, nome: p.solicitanteNome }, p.alvo, p.operacaoId,
           e?.quitar === true
             ? { parcela: p.parcela!, valor: e.valor!, forma: p.baixa.forma, data: p.baixa.data, quitar: true, ...(e.cobrarProximo !== undefined ? { cobrarProximo: e.cobrarProximo } : {}) }
             : { parcela: p.parcela!, valor: p.valor, forma: p.baixa.forma, data: p.baixa.data, ...(e?.resto ? { resto: e.resto } : {}), ...(e?.novoVencimento ? { novoVencimento: e.novoVencimento } : {}) }, p.id)
+        if (naConta) conta?._interno.cobrou(p.solicitanteId - 10_000, { data: p.baixa.data, valor: r.recibo.valor, titulo: r.recibo.cliente.nome, sub: r.recibo.referencia })
         p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
         return { ...visao(p), recibo: r.recibo }
       }

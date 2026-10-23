@@ -7,6 +7,7 @@ import { arred2 } from '@/domain/format'
 import { partesDoIndicador } from '@/domain/repasseIndicador'
 import { ErroApi, type ClientesApi } from './clientes'
 import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type PeriodicidadeApi, type StatusEmprestimo } from './emprestimos'
+import type { ContaIndicadorFake } from './contaIndicador.fake'
 import type { IndicadoresFake } from './indicadores.fake'
 
 export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
@@ -33,7 +34,7 @@ const inteiro = (v: unknown, c: string, min: number, max: number) => { if (typeo
  * Versão de demonstração: mesmas regras do backend (só o admin empresta, o cobrador só vê a carteira dele e
  * sem capital/taxa/lucro, % do indicador congelado, o servidor refaz as parcelas).
  */
-export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: IndicadoresFake }): EmprestimosFake {
+export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: IndicadoresFake; conta?: ContaIndicadorFake }): EmprestimosFake {
   const seed = criarSeed()
   const hoje = seed.hoje
   let proximoId = 1000
@@ -134,12 +135,24 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
         if (!indicador) throw erro('Indicador não encontrado ou desativado')
       }
       const capital = arred2(e.capital)
+      let saiuDaConta: { indicadorId: number; valor: number } | null = null
+      if (e.saiuDaConta !== undefined && e.saiuDaConta !== null) {
+        const s0 = e.saiuDaConta as unknown as Record<string, unknown>
+        if (typeof s0 !== 'object' || Array.isArray(s0)) throw erro('saiuDaConta deve ter o indicador e o valor')
+        const indId = inteiro(s0.indicadorId, 'saiuDaConta.indicadorId', 1, 2 ** 31 - 1)
+        if (typeof s0.valor !== 'number' || !Number.isFinite(s0.valor) || s0.valor <= 0) throw erro('saiuDaConta.valor precisa ser maior que zero')
+        const valor = arred2(s0.valor)
+        if (valor > capital) throw erro('O que saiu da conta do indicador não pode passar do valor emprestado')
+        if (!dep.indicadores._interno.ativo(indId)) throw erro('O indicador da conta não foi encontrado ou está desativado')
+        saiuDaConta = { indicadorId: indId, valor }
+      }
       const reg: RegistroEmprestimo = {
         id: ++proximoId, cliente: { id: cliente.id, nome: cliente.nome }, indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null, pct: indicador?.pct ?? 0,
         dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, pulaDomingo, status: 'ATIVA', observacoes, amortizado: 0,
         parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
       registros.push(reg)
+      if (saiuDaConta) dep.conta?._interno.emprestou(saiuDaConta.indicadorId, { data, valor: saiuDaConta.valor, titulo: `Empréstimo · ${cliente.nome}` })
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)
       return calcular(reg, s.perfil)
     },
