@@ -113,6 +113,8 @@ export function createAprovacoesService(dep: {
     if (e.quitou !== undefined && typeof e.quitou !== 'boolean') throw requisicaoInvalida('quitou deve ser verdadeiro ou falso')
     const quitou = e.quitou === true
     if (quitou && alvo !== 'EMPRESTIMO') throw requisicaoInvalida('Só empréstimo se quita assim')
+    if (e.naContaDoIndicador !== undefined && typeof e.naContaDoIndicador !== 'boolean') throw requisicaoInvalida('naContaDoIndicador deve ser verdadeiro ou falso')
+    const naContaDoIndicador = e.naContaDoIndicador === true
     const valor = arred2(e.valor)
 
     const id = await dep.repo
@@ -127,11 +129,11 @@ export function createAprovacoesService(dep: {
         // quitou: o que ele recebeu é o empréstimo todo, então o limite é o que falta em todas as parcelas
         const limite = quitou ? (await tx.parcelas(alvo, op.id)).reduce((t, x) => t + Math.max(0, falta(x)), 0) : f
         if (valor > limite + 0.009) throw requisicaoInvalida(quitou ? `O valor não pode passar do que falta no empréstimo (${brl(limite)})` : `O valor não pode passar do que falta na parcela (${brl(f)})`)
-        return tx.criarBaixa({ alvo, operacaoId: op.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo, forma: e.forma as string, data, comprovante, quitou })
+        return tx.criarBaixa({ alvo, operacaoId: op.id, parcelaId: p.id, solicitadoPor: s.usuarioId, valor, motivo, forma: e.forma as string, data, comprovante, quitou, naContaDoIndicador })
       })
       .catch((err) => duplicado(err, 'Já existe um aviso de recebimento esperando a loja para esta parcela'))
 
-    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_AVISADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, forma: e.forma, data, ...(quitou ? { quitou: true } : {}) } })
+    await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_AVISADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo, operacaoId: e.operacaoId, parcela: e.parcela, valor, forma: e.forma, data, ...(quitou ? { quitou: true } : {}), ...(naContaDoIndicador ? { naContaDoIndicador: true } : {}) } })
     return reler(id)
   }
 

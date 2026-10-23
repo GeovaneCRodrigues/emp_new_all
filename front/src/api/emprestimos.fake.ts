@@ -17,6 +17,8 @@ export interface RegistroEmprestimo {
   amortizado: number; parcelas: Parcela[]
   /** unificação */
   unificadoDe?: number[]; unificadoEm?: number | null
+  /** o dinheiro (ou parte) saiu da conta de um indicador, não do Caixa da loja */
+  saiuDaConta?: { indicadorId: number; valor: number }
 }
 
 export interface EmprestimosFake extends EmprestimosApi {
@@ -134,11 +136,23 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
         if (!indicador) throw erro('Indicador não encontrado ou desativado')
       }
       const capital = arred2(e.capital)
+      let saiuDaConta: { indicadorId: number; valor: number } | null = null
+      if (e.saiuDaConta !== undefined && e.saiuDaConta !== null) {
+        const s0 = e.saiuDaConta as unknown as Record<string, unknown>
+        if (typeof s0 !== 'object' || Array.isArray(s0)) throw erro('saiuDaConta deve ter o indicador e o valor')
+        const indId = inteiro(s0.indicadorId, 'saiuDaConta.indicadorId', 1, 2 ** 31 - 1)
+        if (typeof s0.valor !== 'number' || !Number.isFinite(s0.valor) || s0.valor <= 0) throw erro('saiuDaConta.valor precisa ser maior que zero')
+        const valor = arred2(s0.valor)
+        if (valor > capital) throw erro('O que saiu da conta do indicador não pode passar do valor emprestado')
+        if (!dep.indicadores._interno.ativo(indId)) throw erro('O indicador da conta não foi encontrado ou está desativado')
+        saiuDaConta = { indicadorId: indId, valor }
+      }
       const reg: RegistroEmprestimo = {
         id: ++proximoId, cliente: { id: cliente.id, nome: cliente.nome }, indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null, pct: indicador?.pct ?? 0,
         dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, pulaDomingo, status: 'ATIVA', observacoes, amortizado: 0,
         parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
+      if (saiuDaConta) reg.saiuDaConta = saiuDaConta
       registros.push(reg)
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)
       return calcular(reg, s.perfil)

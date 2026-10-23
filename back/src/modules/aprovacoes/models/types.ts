@@ -20,7 +20,7 @@ export type Aprovacao = {
   /** só no pedido de acordo: o que o cobrador propôs */
   acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number; /** parcelas no valor dito, com a diferença na última */ valorParcela?: number } | null
   /** só no aviso de baixa do indicador: como e quando ele diz que recebeu (o `valor` é o que ele recebeu) */
-  baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; /** o indicador diz que o cliente quitou o empréstimo todo */ quitou?: boolean } | null
+  baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; /** o indicador diz que o cliente quitou o empréstimo todo */ quitou?: boolean; /** o dinheiro ficou na conta do indicador (não foi para a loja) */ naContaDoIndicador?: boolean } | null
   motivo: string | null
   solicitante: { id: number; nome: string }
   cliente: { id: number; nome: string }

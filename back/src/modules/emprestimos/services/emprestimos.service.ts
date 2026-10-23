@@ -110,6 +110,17 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
         observacoes = e.observacoes.trim()
       }
       const capital = arred2(e.capital)
+      // de onde saiu o dinheiro: do Caixa da loja (padrão) ou, em parte ou todo, da conta de um indicador
+      let saiuDaConta: { indicadorId: number; valor: number } | null = null
+      if (e.saiuDaConta !== undefined && e.saiuDaConta !== null) {
+        const s0 = e.saiuDaConta as Record<string, unknown>
+        if (typeof s0 !== 'object' || Array.isArray(s0)) throw requisicaoInvalida('saiuDaConta deve ter o indicador e o valor')
+        const indId = inteiro(s0.indicadorId, 'saiuDaConta.indicadorId', 1, 2 ** 31 - 1)
+        if (typeof s0.valor !== 'number' || !Number.isFinite(s0.valor) || s0.valor <= 0) throw requisicaoInvalida('saiuDaConta.valor precisa ser maior que zero')
+        const valor = arred2(s0.valor)
+        if (valor > capital) throw requisicaoInvalida('O que saiu da conta do indicador não pode passar do valor emprestado')
+        saiuDaConta = { indicadorId: indId, valor }
+      }
 
       const id = await d.emprestimos.emTransacao(async (tx) => {
         const cliente = await tx.clienteExiste(clienteId)
@@ -119,10 +130,11 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
           indicador = await tx.indicadorAtivo(indicadorId)
           if (!indicador) throw requisicaoInvalida('Indicador não encontrado ou desativado')
         }
+        if (saiuDaConta && !(await tx.indicadorAtivo(saiuDaConta.indicadorId))) throw requisicaoInvalida('O indicador da conta não foi encontrado ou está desativado')
         const id = await tx.criar({
           clienteId: cliente.id, indicadorId: indicador?.id ?? null,
           // o % do indicador fica congelado neste empréstimo
-          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, pulaDomingo, observacoes, modoDivisao,
+          pct: indicador?.pct ?? 0, dataEmprestimo: data, capital, modalidade, taxa, periodicidade, pulaDomingo, observacoes, modoDivisao, saiuDaConta,
         })
         await tx.criarParcelas(id, planoEmprestimo({ capital, modalidade, taxa, n, data, periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, ...p })))
         return id
@@ -132,7 +144,7 @@ export function createEmprestimosService(d: Dependencias): EmprestimosService {
       const calc = calcular(emp)
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'EMPRESTIMO_CRIADO', entidade: 'emprestimo', entidadeId: id,
-        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, periodicidade, dataEmprestimo: data, modoDivisao, primeiroVencimento: emp.parcelas[0]?.vencimento ?? null, parcelas: emp.parcelas.length, total: calc.total },
+        depois: { clienteId: emp.cliente.id, indicadorId: emp.indicador?.id ?? null, pct: emp.pct, capital, modalidade, taxa: emp.taxa, periodicidade, dataEmprestimo: data, modoDivisao, saiuDaConta, primeiroVencimento: emp.parcelas[0]?.vencimento ?? null, parcelas: emp.parcelas.length, total: calc.total },
       })
       await d.sincronizarNiveis?.().catch((err) => d.log?.('Falha ao sincronizar os níveis dos indicadores', err))
       return calc

@@ -29,6 +29,9 @@ import type { VendasApi } from './vendas'
 import { criarVendasFake } from './vendas.fake'
 import { criarVendasHttp } from './vendas.http'
 import { criarEstoqueHttp } from './estoque.http'
+import type { ContasIndicadorApi } from './contaIndicador'
+import { criarContaIndicadorFake } from './contaIndicador.fake'
+import { criarContaIndicadorHttp } from './contaIndicador.http'
 import type { IndicadoresApi } from './indicadores'
 import { criarIndicadoresFake } from './indicadores.fake'
 import { criarIndicadoresHttp } from './indicadores.http'
@@ -59,6 +62,8 @@ const vendasFake = modoDemo ? criarVendasFake({ estoque: estoqueFake!, indicador
 export const vendasApi: VendasApi = vendasFake ?? criarVendasHttp(URL_API, requisicao)
 const emprestimosFake = modoDemo ? criarEmprestimosFake({ clientes: clientesFake!, indicadores: indicadoresFake! }) : null
 export const emprestimosApi: EmprestimosApi = emprestimosFake ?? criarEmprestimosHttp(URL_API, requisicao)
+const contaFake = vendasFake ? criarContaIndicadorFake({ indicadores: indicadoresApi, hoje: () => vendasFake._interno.hoje, transacoes: () => vendasFake._interno.transacoes, emprestimos: () => emprestimosFake!._interno.registros }) : null
+export const contaIndicadorApi: ContasIndicadorApi = contaFake ?? criarContaIndicadorHttp(URL_API, requisicao)
 const recebimentosFake = vendasFake ? criarRecebimentosFake(vendasFake, emprestimosFake!) : null
 export const recebimentosApi: RecebimentosApi = recebimentosFake ?? criarRecebimentosHttp(URL_API, requisicao)
 
@@ -69,6 +74,6 @@ export const fechamentosApi: FechamentosApi = vendasFake ? criarFechamentosFake(
 export const repassesApi: RepassesApi = vendasFake ? criarRepassesFake({ vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarRepassesHttp(URL_API, requisicao)
 export const propostasApi: PropostasApi = vendasFake ? criarPropostasFake({ clientes: clientesApi, estoque: estoqueApi, vendas: vendasApi, emprestimos: emprestimosApi, indicadores: indicadoresApi, hoje: vendasFake._interno.hoje }) : criarPropostasHttp(URL_API, requisicao)
 export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : criarEquipeHttp(URL_API, requisicao)
-export const caixaApi: CaixaApi = vendasFake ? criarCaixaFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, repasses: repassesApi }) : criarCaixaHttp(URL_API, requisicao)
+export const caixaApi: CaixaApi = vendasFake ? criarCaixaFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, repasses: repassesApi, ...(contaFake ? { conta: contaFake } : {}) }) : criarCaixaHttp(URL_API, requisicao)
 export const relatoriosApi: RelatoriosApi = vendasFake ? criarRelatoriosFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, caixa: caixaApi, repasses: repassesApi }) : criarRelatoriosHttp(URL_API, requisicao)
 export const contratosApi: ContratosApi = vendasFake ? criarContratosFake({ vendas: vendasFake, clientes: clientesApi, estoque: estoqueApi }) : criarContratosHttp(URL_API, requisicao)

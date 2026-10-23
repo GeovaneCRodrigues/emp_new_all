@@ -125,7 +125,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
   }
 
   /** Quem está lançando: o perfil define as regras (cobrador só lança o de hoje); `usuarioId` é quem recebeu; `baixaId`/`confirmadoPor`: o aviso do indicador que a loja confirma. */
-  type Contexto = { escopo: EscopoRecebimentos; perfil: Sessao['perfil']; usuarioId: number; sessaoRecibo: Sessao; baixaId?: number; confirmadoPor?: number }
+  type Contexto = { escopo: EscopoRecebimentos; perfil: Sessao['perfil']; usuarioId: number; sessaoRecibo: Sessao; baixaId?: number; confirmadoPor?: number; cobradoPorIndicadorId?: number }
   async function registrarCore(ctx: Contexto, alvo: Alvo, operacaoId: number, e: Entrada) {
       const escopo = ctx.escopo
       const numero = e.parcela
@@ -220,6 +220,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         const t = await tx.criarTransacao({
           clienteId: venda.clienteId, valorTotal: r.valorTotal, forma, data, recebidoPor: ctx.usuarioId, resumo,
           ajustes: ajustes.length || amortizacao > 0 ? { amortizacao, parcelas: ajustes.map((a) => ({ parcelaId: a.parcelaId, numero: a.numero, antes: a.antes })) } : null,
+          cobradoPorIndicadorId: ctx.cobradoPorIndicadorId ?? null,
         })
         for (const it of r.itens) {
           await tx.criarRecebimento(alvo, { transacaoId: t.id, parcelaId: it.parcelaId, valor: it.valorPago, antes: it.antes })
@@ -265,13 +266,17 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
       if (e.quitar === true && !b.quitou) throw requisicaoInvalida('O indicador não avisou que o cliente quitou: confirme como baixa da parcela')
       if (e.quitar === true && (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0)) throw requisicaoInvalida('Informe quanto o cliente pagou na quitação')
       const quitando = e.quitar === true
+      // o dinheiro ficou na conta do indicador? A decisão da loja vale mais que a marca do aviso
+      if (e.naContaDoIndicador !== undefined && typeof e.naContaDoIndicador !== 'boolean') throw requisicaoInvalida('naContaDoIndicador deve ser verdadeiro ou falso')
+      const naConta = typeof e.naContaDoIndicador === 'boolean' ? e.naContaDoIndicador : b.naConta
+      if (naConta && b.indicadorId === null) throw requisicaoInvalida('Quem avisou não é um indicador: o dinheiro não pode ficar na conta dele')
       const r = await registrarCore(
-        { escopo: { tipo: 'TODOS' }, perfil: 'ADMIN', usuarioId: b.solicitanteId, sessaoRecibo: s, baixaId: id, confirmadoPor: s.usuarioId },
+        { escopo: { tipo: 'TODOS' }, perfil: 'ADMIN', usuarioId: b.solicitanteId, sessaoRecibo: s, baixaId: id, confirmadoPor: s.usuarioId, ...(naConta ? { cobradoPorIndicadorId: b.indicadorId! } : {}) },
         b.alvo, b.operacaoId, quitando
           ? { parcela: b.parcela, valor: e.valor as number, forma: b.forma, data: b.data, quitar: true, ...(e.cobrarProximo !== undefined ? { cobrarProximo: e.cobrarProximo } : {}) }
           : { parcela: b.parcela, valor: b.valor, forma: b.forma, data: b.data, ...(e.resto !== undefined ? { resto: e.resto } : {}), ...(e.novoVencimento !== undefined ? { novoVencimento: e.novoVencimento } : {}) },
       )
-      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_CONFIRMADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo: b.alvo, operacaoId: b.operacaoId, parcela: b.parcela, valor: b.valor } })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'BAIXA_CONFIRMADA', entidade: 'aprovacao', entidadeId: id, depois: { alvo: b.alvo, operacaoId: b.operacaoId, parcela: b.parcela, valor: b.valor, ...(naConta ? { naContaDoIndicador: true } : {}) } })
       return r
     },
 

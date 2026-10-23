@@ -41,6 +41,8 @@ export interface Transacao {
   recebidoPorId: number | null
   recebidoPorNome: string
   desfeita: boolean
+  /** o dinheiro ficou com este indicador (fora do Caixa até ele repassar) */
+  cobradoPorIndicadorId?: number
   resumo: { referencia: string; faltaDepois: number; proxima: { numero: number; valor: number; vencimento: string } | null; restantes: number; ficaDevendo: { numero: number; valor: number; vencimento: string } | null; amortizacao?: { valor: number; capitalRestante: number } }
   /** só juros: o que mudou fora da parcela paga (para o "desfazer") */
   ajustes?: { amortizacao: number; parcelas: { numero: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number } }[] }
@@ -53,7 +55,7 @@ export interface Pedido {
   id: number
   tipo: 'DESCONTO' | 'RETOMADA' | 'ACORDO' | 'BAIXA'
   /** só no aviso de baixa do indicador */
-  baixa?: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; quitou?: boolean }
+  baixa?: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; quitou?: boolean; naContaDoIndicador?: boolean }
   /** o que o pedido mexe: uma venda ou um empréstimo */
   alvo: 'VENDA' | 'EMPRESTIMO'
   /** id da venda ou do empréstimo */

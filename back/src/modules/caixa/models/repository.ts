@@ -20,6 +20,9 @@ const paraManual = (l: { id: number; tipo: TipoManual; valor: string; data: Date
 const FORMA_SQL = `case t.forma_pagamento when 'PIX' then 'Pix' when 'DINHEIRO' then 'dinheiro' else 'cartão' end`
 const E_ENTRADA_SQL = `exists (select 1 from recebimentos r where r.transacao_id = t.id and r.tipo = 'ENTRADA')`
 
+/** "R$ 1.234,50" escrito no banco, para o extrato dizer quanto veio da conta do indicador. */
+const BRL_SQL = (col: string) => `'R$ ' || replace(replace(replace(to_char(${col}, 'FM999,999,999,990.00'), ',', '#'), '.', ','), '#', '.')`
+
 /**
  * Tudo o que mexe no dinheiro da loja, uma linha por movimento (`entrada` diz se entrou ou saiu), sem corte de data:
  *  entra: recebimento cobrado pela loja (o que o indicador cobrou direto só entra quando ele repassa), repasse do indicador, aporte;
@@ -52,9 +55,12 @@ const UNIAO = `
   select 'P' || r.id, r.data_repasse, r.valor, false, 'REPASSE', 'Repasse · ' || i.nome, 'parte do lucro', null, null::text
   from repasses_indicador r join indicadores i on i.id = r.indicador_id where r.data_repasse <= :hoje
  union all
-  select 'E' || e.id, e.data_emprestimo, e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0), false, 'EMPRESTIMO', 'Empréstimo liberado · ' || c.nome, ${NOME_EMPRESTIMO_SQL}, null, 'EMPRESTIMO'
+  select 'E' || e.id, e.data_emprestimo,
+    e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0) - e.saiu_da_conta_valor,
+    false, 'EMPRESTIMO', 'Empréstimo liberado · ' || c.nome,
+    concat_ws(' · ', ${NOME_EMPRESTIMO_SQL}, case when e.saiu_da_conta_valor > 0 then ${BRL_SQL('e.saiu_da_conta_valor')} || ' da conta do indicador' end), null, 'EMPRESTIMO'
   from emprestimos e join clientes c on c.id = e.cliente_id where e.status <> 'CANCELADA' and e.data_emprestimo <= :hoje
-    and e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0) > 0
+    and e.capital + coalesce((select sum(a.capital_cedido - a.capital_adicional - a.capital_herdado) from acordos a where a.emprestimo_id = e.id), 0) - e.saiu_da_conta_valor > 0
  union all
   select 'D' || a.id, a.data_acordo, a.capital_adicional, false, 'EMPRESTIMO', 'Dinheiro novo no acordo · ' || c.nome, ${NOME_EMPRESTIMO_SQL}, null, 'EMPRESTIMO'
   from acordos a join emprestimos e on e.id = a.emprestimo_id join clientes c on c.id = e.cliente_id

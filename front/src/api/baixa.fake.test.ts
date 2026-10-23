@@ -166,3 +166,26 @@ describe('o indicador avisa que o cliente quitou o empréstimo', () => {
     expect((await falha(apr.aprovar(ADMIN, q.id, { quitar: true })))?.status).toBe(400) // sem o valor
   })
 })
+
+describe('baixa "na conta do indicador" (demonstração)', () => {
+  it('confirmar com a marca coloca o valor na conta do indicador; sem marca, não; a loja pode desmarcar', async () => {
+    const { criarContaIndicadorFake } = await import('./contaIndicador.fake')
+    const indicadores = criarIndicadoresFake()
+    const clientes = criarClientesFake(); const est = criarEstoqueFake()
+    const v2 = criarVendasFake({ estoque: est, indicadores, clientes })
+    const e2 = criarEmprestimosFake({ clientes, indicadores })
+    const conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08', transacoes: () => v2._interno.transacoes, emprestimos: () => e2._interno.registros })
+    const r2 = criarRecebimentosFake(v2, e2)
+    const a2 = criarAprovacoesFake(v2, e2, undefined, r2)
+    const op = (await e2.criar(ADMIN, { clienteId: 3, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, indicadorId: 1 })).id
+    const antes = (await conta.ver(ADMIN, 1)).saldo
+    const p1 = await a2.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: op, parcela: 1, valor: 650, forma: 'PIX', naContaDoIndicador: true })
+    expect(p1.baixa).toMatchObject({ naContaDoIndicador: true })
+    await a2.aprovar(ADMIN, p1.id)
+    expect((await conta.ver(ADMIN, 1)).saldo).toBe(antes + 650)
+    const p2 = await a2.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: op, parcela: 2, valor: 650, forma: 'PIX', naContaDoIndicador: true })
+    await a2.aprovar(ADMIN, p2.id, { naContaDoIndicador: false })
+    expect((await conta.ver(ADMIN, 1)).saldo).toBe(antes + 650) // desmarcou: nada na conta
+    expect((await falha(a2.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: op, parcela: 2, valor: 1, forma: 'PIX', naContaDoIndicador: 'sim' } as never)))?.status).toBe(400)
+  })
+})
