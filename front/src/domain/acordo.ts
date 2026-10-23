@@ -4,9 +4,13 @@ import type { Iso } from './types'
 
 export const ACORDO_MAX_PARCELAS = 240
 
-/** Divide o total em n parcelas: as primeiras com o valor arredondado para baixo e a última com o resto (a soma fecha no centavo). */
-export function distribuirAcordo(total: number, n: number): number[] {
+/**
+ * Divide o total em n parcelas: as primeiras com o valor arredondado para baixo e a última com o resto (a soma fecha no centavo).
+ * Com `valorParcela`, as n-1 primeiras saem exatamente nele e a última leva a diferença (como o servidor faz).
+ */
+export function distribuirAcordo(total: number, n: number, valorParcela?: number): number[] {
   if (!(n >= 1) || !(total > 0)) return []
+  if (valorParcela !== undefined && valorParcela > 0) return [...Array.from({ length: n - 1 }, () => valorParcela), arred2(total - valorParcela * (n - 1))]
   const base = Math.floor((total / n) * 100) / 100
   const valores = Array.from({ length: n - 1 }, () => base)
   valores.push(arred2(total - base * (n - 1)))

@@ -70,7 +70,7 @@ export interface Pedido {
   respondidoEm: string | null
   resposta: string | null
   /** pedido de acordo: a proposta do cobrador */
-  dados?: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number }
+  dados?: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number; valorParcela?: number }
 }
 
 /** O dia de um cobrador, fechado por ele e (depois) conferido pelo administrador. */

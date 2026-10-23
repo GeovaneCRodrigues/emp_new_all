@@ -414,7 +414,7 @@ test.describe('acordo', () => {
     await page.locator('.card', { hasText: 'Carlos Henrique' }).first().click()
   }
 
-  test('acordo: o valor da parcela calcula o número de parcelas (arredonda para cima, divisão igual) e mexer no número limpa o valor', async ({ page }) => {
+  test('acordo: o valor da parcela calcula o número de parcelas (arredonda para cima; a última leva a diferença) e mexer no número limpa o valor', async ({ page }) => {
     await abrirCarlos(page)
     await page.locator('[data-acordo]').click()
     await page.locator('#aValor').fill('300000') // R$ 3.000,00
@@ -422,9 +422,11 @@ test.describe('acordo', () => {
     await expect(page.locator('#aParcelas')).toHaveValue('3')
     await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(3)
     await expect(page.getByTestId('acordo-parcela-aviso')).toHaveText('3x de R$ 1.000,00')
-    await page.locator('#aParcela').fill('120000') // R$ 1.200,00: 2,5 → 3x de 1.000
+    await page.locator('#aParcela').fill('120000') // R$ 1.200,00: 2,5 → 3 parcelas, as duas primeiras de 1.200 e a última de 600
     await expect(page.locator('#aParcelas')).toHaveValue('3')
-    await expect(page.getByTestId('acordo-parcela-aviso')).toContainText('Fica 3x de R$ 1.000,00')
+    await expect(page.getByTestId('acordo-parcela-aviso')).toHaveText('2x de R$ 1.200,00 e a última de R$ 600,00')
+    await expect(page.locator('[data-parcela-acordo="1"]')).toContainText('1.200,00')
+    await expect(page.locator('[data-parcela-acordo="3"]')).toContainText('600,00')
     await page.locator('#aParcela').fill('50000') // R$ 500,00 → 6x
     await expect(page.getByTestId('lista-acordo').locator('.li')).toHaveCount(6)
     await page.locator('#aValor').fill('200000') // mudou o acordo: R$ 2.000,00 / 500 → 4x

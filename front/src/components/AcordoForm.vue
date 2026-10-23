@@ -41,12 +41,15 @@ watch(() => props.aberto, (a) => {
 // o valor da parcela digitado manda no número de parcelas (e acompanha o valor do acordo); mexer no número direto limpa o valor
 watch([() => f.parcela, () => f.valor], () => { if (f.parcela > 0) f.n = parcelasParaValor(arred2(f.valor), f.parcela) || f.n })
 const escolher = (q: number) => { f.parcela = 0; f.n = q }
+/** o valor da parcela digitado vale quando bate com o número de parcelas: as primeiras saem nele e a última leva a diferença */
+const valorParcela = computed(() => (f.parcela > 0 && parcelasParaValor(arred2(f.valor), f.parcela) === f.n ? arred2(f.parcela) : undefined))
+const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n, valorParcela.value))
 const avisoParcela = computed(() => {
-  if (!(f.parcela > 0) || !valores.value.length) return ''
-  const igual = valores.value.every((v) => Math.abs(v - valores.value[0]) < 0.02)
-  return igual && Math.abs(valores.value[0] - f.parcela) < 0.005 ? `${f.n}x de ${fmt(f.parcela)}` : `Fica ${f.n}x de ${fmt(valores.value[0])}${igual ? '' : ' (a última acerta o centavo)'}: a divisão é igual entre as parcelas`
+  if (valorParcela.value === undefined || !valores.value.length) return ''
+  const ultima = valores.value[valores.value.length - 1]
+  if (f.n === 1 || Math.abs(ultima - valorParcela.value) < 0.005) return `${f.n}x de ${fmt(valorParcela.value)}`
+  return `${f.n - 1}x de ${fmt(valorParcela.value)} e a última de ${fmt(ultima)}`
 })
-const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n))
 const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= ACORDO_MAX_PARCELAS ? vencimentosAcordo(f.primeira, f.n, f.periodicidade) : []))
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
 const novo = computed(() => (podeDinheiroNovo.value ? arred2(f.novo) : 0))
@@ -66,7 +69,7 @@ async function confirmar() {
   if (enviando.value || problema.value || !props.operacao) return
   enviando.value = true; erro.value = ''
   try {
-    const base = { valorTotal: arred2(f.valor), parcelas: f.n, primeiraParcela: f.primeira, ...(f.periodicidade !== 'MENSAL' ? { periodicidade: f.periodicidade } : {}) }
+    const base = { valorTotal: arred2(f.valor), parcelas: f.n, primeiraParcela: f.primeira, ...(f.periodicidade !== 'MENSAL' ? { periodicidade: f.periodicidade } : {}), ...(valorParcela.value !== undefined ? { valorParcela: valorParcela.value } : {}) }
     if (ehCobrador.value) {
       await aprovacoesApi.pedirAcordo(sessao.value, { alvo: props.alvo, operacaoId: props.operacao.id, ...base, motivo: f.motivo.trim() })
       mostrar('Pedido de acordo enviado. O administrador vai responder.')

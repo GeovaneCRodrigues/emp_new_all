@@ -29,7 +29,7 @@ export type EscopoAcordos = { tipo: 'TODOS' } | { tipo: 'CARTEIRA'; usuarioId: n
 
 export interface AcordosRepository {
   /** Trava a operação e faz o acordo numa transação só. */
-  fazer(d: { alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo }): Promise<ResultadoAcordo>
+  fazer(d: { alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo; valorParcela?: number }): Promise<ResultadoAcordo>
   /** Junta empréstimos do mesmo cliente num novo (tudo numa transação só). */
   unificar(d: PedidoUnificacao): Promise<ResultadoUnificacao>
   /** O histórico de acordos da operação (do mais novo ao mais antigo); null se ela não existe no escopo. */

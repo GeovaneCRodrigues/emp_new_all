@@ -18,7 +18,7 @@ export interface AprovacaoApi {
   /** desconto: o valor pedido. Retomada: o que estava em aberto na venda quando pediu. */
   valor: number
   /** só no pedido de acordo: o que o cobrador propôs */
-  acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null
+  acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number; valorParcela?: number } | null
   /** só no aviso de baixa do indicador: como e quando ele diz que recebeu (o `valor` é o que ele recebeu) */
   baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; /** o indicador diz que o cliente quitou o empréstimo todo */ quitou?: boolean } | null
   motivo: string | null
@@ -46,7 +46,7 @@ export interface AprovacoesApi {
   /** O cobrador pede a retomada do aparelho de uma venda com parcela atrasada. */
   pedirRetomada(s: Sessao, e: { operacaoId: number; motivo: string }): Promise<AprovacaoApi>
   /** O cobrador propõe um acordo (renegociar o que falta em parcelas novas). */
-  pedirAcordo(s: Sessao, e: { alvo: AlvoApi; operacaoId: number; valorTotal: number; parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; motivo: string }): Promise<AprovacaoApi>
+  pedirAcordo(s: Sessao, e: { alvo: AlvoApi; operacaoId: number; valorTotal: number; parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; valorParcela?: number; motivo: string }): Promise<AprovacaoApi>
   /** O indicador avisa que recebeu uma parcela: só vira recebimento quando a loja confirma. */
   pedirBaixa(s: Sessao, e: { alvo: AlvoApi; operacaoId: number; parcela: number; valor: number; forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data?: string; comprovante?: string; motivo?: string; /** o cliente quitou o empréstimo todo (só empréstimo) */ quitou?: boolean }): Promise<AprovacaoApi>
   listar(s: Sessao, q: { status?: StatusAprovacao; pagina?: number; limite?: number }): Promise<ListaAprovacoes>

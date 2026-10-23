@@ -3,7 +3,7 @@ import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { AlvoAcordo, ResultadoAcordo } from '../models/acordo.js'
-import { validarCapitalAdicional, validarPeriodicidade, validarProposta } from '../models/acordo.js'
+import { validarCapitalAdicional, validarPeriodicidade, validarProposta, validarValorParcela } from '../models/acordo.js'
 import type { AcordoRegistro, AcordosRepository } from '../models/repository.js'
 import { UNIFICAR_MAX, UNIFICAR_MIN, type ResultadoUnificacao } from '../models/unificacao.js'
 
@@ -27,12 +27,13 @@ export function createAcordosService(d: { repo: AcordosRepository; auditoria: Au
       const p = validarProposta({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, dia)
       const capitalAdicional = validarCapitalAdicional(e.capitalAdicional, alvo)
       const periodicidade = validarPeriodicidade(e.periodicidade, alvo)
+      const valorParcela = validarValorParcela(e.valorParcela, p.valorTotal, p.n)
       let motivo: string | null = null
       if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw requisicaoInvalida('motivo: no máximo 500 letras')
         motivo = e.motivo.trim() || null
       }
-      const r = await d.repo.fazer({ alvo, operacaoId, usuarioId: s.usuarioId, valorTotal: p.valorTotal, n: p.n, primeira: p.primeira, motivo, dia, capitalAdicional, periodicidade })
+      const r = await d.repo.fazer({ alvo, operacaoId, usuarioId: s.usuarioId, valorTotal: p.valorTotal, n: p.n, primeira: p.primeira, motivo, dia, capitalAdicional, periodicidade, ...(valorParcela !== undefined ? { valorParcela } : {}) })
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'ACORDO_FEITO', entidade: alvo === 'VENDA' ? 'venda' : 'emprestimo', entidadeId: operacaoId,
         antes: { saldo: r.saldoAntes, parcelasEncerradas: r.parcelasEncerradas }, depois: { acordoId: r.acordoId, valorTotal: r.valorTotal, parcelas: r.nParcelas, primeiraParcela: r.primeiraParcela, periodicidade: r.periodicidade, capitalAdicional: r.capitalAdicional, substituiuAcordoId: r.substituiuAcordoId, motivo },
