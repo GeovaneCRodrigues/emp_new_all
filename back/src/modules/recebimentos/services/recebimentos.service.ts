@@ -7,7 +7,7 @@ import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { RecebimentosRepository } from '../models/repository.js'
 import type { Aba, Alvo, EscopoRecebimentos, FormaPagamento, LinhaCobranca, ParcelaAberta, ResumoRecibo, ReciboRegistro } from '../models/types.js'
-import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, type AjusteParcela, type EfeitoRecebimento } from './calculo.js'
+import { calcularQuitacao, calcularRecebimento, calcularRecebimentoJuros, ErroRecebimento, falta, referencia, referenciaQuitacao, type AjusteParcela, type EfeitoRecebimento } from './calculo.js'
 
 export type Entrada = Record<string, unknown>
 
@@ -205,7 +205,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
         const abertas = depois.filter((p) => falta(p) > 0.009).sort((a, b) => a.numero - b.numero)
         const fica = r.efeitos.find((x): x is Extract<EfeitoRecebimento, { tipo: 'FICA' }> => x.tipo === 'FICA')
         const resumo: ResumoRecibo = {
-          tipo: 'PARCELAS', referencia: referencia(r.itens.map((i) => i.numero), venda.nParcelas), faltaDepois: arred2(depois.reduce((x, p) => x + Math.max(0, falta(p)), 0)),
+          tipo: 'PARCELAS', referencia: quitar ? referenciaQuitacao(r.itens.map((i) => i.numero), venda.nParcelas, amortizacao > 0) : referencia(r.itens.map((i) => i.numero), venda.nParcelas), faltaDepois: arred2(depois.reduce((x, p) => x + Math.max(0, falta(p)), 0)),
           proxima: abertas[0] ? { numero: abertas[0].numero, valor: falta(abertas[0]), vencimento: abertas[0].vencimento } : null, restantes: abertas.length,
           ficaDevendo: fica ? { numero: fica.numero, valor: fica.resta, vencimento: fica.vencimento } : null,
           ...(amortizacao > 0 ? { amortizacao: { valor: amortizacao, capitalRestante } } : {}),

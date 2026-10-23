@@ -76,6 +76,7 @@ test.describe('baixas de empréstimo', () => {
     await expect(page.getByTestId('previa')).toContainText('abate R$ 3.000,00 do capital')
     await page.getByRole('button', { name: 'Confirmar quitação' }).click()
     await expect(page.getByTestId('recibo')).toContainText('Tudo quitado')
+    await expect(page.getByTestId('recibo')).toContainText('quitação (parcela 1/3 + capital)')
     await page.keyboard.press('Escape')
     for (const n of [1, 2, 3]) await expect(page.locator(`[data-parcela="${n}"]`)).toContainText('paga')
     await expect(page.locator('[data-quitar]')).toHaveCount(0) // já quitado: o botão some

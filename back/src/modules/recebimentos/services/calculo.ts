@@ -112,6 +112,11 @@ export function referencia(numeros: number[], total: number): string {
   return ns.length > 1 ? `parcelas ${ns[0]} a ${ns[ns.length - 1]} de ${total}` : `parcela ${ns[0]}/${total}`
 }
 
+/** Na quitação: "quitação (parcela 2/14 + capital)" quando parte do valor abateu o capital, senão "quitação (parcelas 2 a 14 de 14)". */
+export function referenciaQuitacao(numeros: number[], total: number, comCapital: boolean): string {
+  return `quitação (${referencia(numeros, total)}${comCapital ? ' + capital' : ''})`
+}
+
 
 export type AjusteParcela = { parcelaId: number; numero: number; antes: EstadoParcela; depois: EstadoParcela }
 export type ResultadoJuros = ResultadoRecebimento & { amortizacao: number; capitalRestante: number; ajustes: AjusteParcela[] }

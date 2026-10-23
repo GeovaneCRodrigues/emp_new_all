@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, referencia, type ParcelaAberta, calcularQuitacao, planoQuitacao } from './recebimento'
+import { calcularRecebimento, calcularRecebimentoJuros, descreverEfeitos, ErroRecebimento, referencia, referenciaQuitacao, type ParcelaAberta, calcularQuitacao, planoQuitacao } from './recebimento'
 
 // Mesmos cenários de back/tests/recebimento-calculo.test.ts: a tela e a demonstração têm de prever o que o servidor vai fazer.
 const HOJE = '2026-10-08'
@@ -149,5 +149,12 @@ describe('quitação', () => {
     const comum = [P(1, '2026-11-08', 1100), P(2, '2026-12-08', 1100)]
     expect(planoQuitacao(comum, { data: '2026-11-20', capitalAberto: null }).cobrado).toBe(2200)
     expect(() => calcularQuitacao(comum, { valor: 2300, data: '2026-11-20' }, { capitalAberto: null })).toThrow(/passa do que falta/)
+  })
+})
+
+describe('texto do recibo da quitação', () => {
+  it('com capital: "quitação (parcela 2/14 + capital)"; sem capital: só as parcelas', () => {
+    expect(referenciaQuitacao([2], 14, true)).toBe('quitação (parcela 2/14 + capital)')
+    expect(referenciaQuitacao([2, 3, 4], 14, false)).toBe('quitação (parcelas 2 a 4 de 14)')
   })
 })

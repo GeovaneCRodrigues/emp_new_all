@@ -110,6 +110,11 @@ export function referencia(numeros: number[], total: number): string {
   return ns.length > 1 ? `parcelas ${ns[0]} a ${ns[ns.length - 1]} de ${total}` : `parcela ${ns[0]}/${total}`
 }
 
+/** Na quitação: "quitação (parcela 2/14 + capital)" quando parte do valor abateu o capital, senão "quitação (parcelas 2 a 14 de 14)". */
+export function referenciaQuitacao(numeros: number[], total: number, comCapital: boolean): string {
+  return `quitação (${referencia(numeros, total)}${comCapital ? ' + capital' : ''})`
+}
+
 /** A prévia em português do que o recebimento vai fazer ("Quita a 1ª e abate R$ 150,00 da 3ª"). */
 export function descreverEfeitos(efeitos: EfeitoRecebimento[], fmt: (v: number) => string, dmy: (iso: string) => string): string {
   const partes = efeitos.map((e) => {
