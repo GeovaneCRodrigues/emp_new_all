@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { janela, lucroPorMesTodos, lucroRealizado, lucroRealizadoAte, montarRelatorios, seuLucro, somaMes, type DadosExtras, type OpRelatorio } from '../src/modules/relatorios/services/calculo.js'
+import { janela, lucroDasParcelasAbertas, lucroPorMesTodos, lucroRealizado, lucroRealizadoAte, montarRelatorios, seuLucro, somaMes, type DadosExtras, type OpRelatorio } from '../src/modules/relatorios/services/calculo.js'
 
 const HOJE = '2026-10-10'
 const op = (o: Partial<OpRelatorio> = {}): OpRelatorio => ({
@@ -163,6 +163,36 @@ describe('relatórios montados', () => {
   it('modelos: mais vendas primeiro, depois maior lucro', () => {
     const a = op({ tipo: 'VENDA', id: 1, modelo: 'A', lucroTotal: 100 }), b = op({ tipo: 'VENDA', id: 2, modelo: 'B', lucroTotal: 900 }), c = op({ tipo: 'VENDA', id: 3, modelo: 'A', lucroTotal: 100 })
     expect(montarRelatorios([a, b, c], extras()).resumo.modelos.map((m) => m.modelo)).toEqual(['A', 'B'])
+  })
+})
+
+describe('lucro que ainda vai entrar (base da projeção para reinvestir)', () => {
+  const abertas = (o: Partial<OpRelatorio>) => lucroDasParcelasAbertas(op({ aCobrar: [{ vencimento: '2026-11-10', falta: 600 }, { vencimento: '2026-12-10', falta: 600 }], ...o }))
+  it('o capital volta primeiro: as primeiras parcelas não dão lucro', () => {
+    expect(abertas({})).toEqual([{ vencimento: '2026-11-10', lucro: 0 }, { vencimento: '2026-12-10', lucro: 200 }])
+  })
+  it('conta o que já foi recebido: se o capital já voltou, toda parcela é lucro', () => {
+    expect(abertas({ recebido: 1000 })).toEqual([{ vencimento: '2026-11-10', lucro: 600 }, { vencimento: '2026-12-10', lucro: 600 }])
+  })
+  it('com indicador, só a parte do dono', () => {
+    expect(abertas({ recebido: 1000, pct: 0.5 }).map((a) => a.lucro)).toEqual([300, 300])
+  })
+  it('quitada não tem lucro por vir', () => {
+    expect(abertas({ status: 'QUITADA' })).toEqual([])
+  })
+  it('só juros dividido: o juro é lucro, o capital em aberto da última parcela não', () => {
+    const o = { jurosRecebidos: 200, recebido: 200, capitalDeVolta: 0, aCobrar: [{ vencimento: '2026-11-10', falta: 200 }, { vencimento: '2026-12-10', falta: 1200 }] }
+    expect(abertas(o).map((a) => a.lucro)).toEqual([200, 200])
+    expect(abertas({ ...o, pct: 0.5 }).map((a) => a.lucro)).toEqual([100, 100])
+  })
+  it('montarRelatorios separa o atraso por faixa e põe o a vencer no mês certo', () => {
+    const o = op({ recebido: 1000, aCobrar: [{ vencimento: '2026-10-05', falta: 100 }, { vencimento: '2026-09-01', falta: 50 }, { vencimento: '2026-10-20', falta: 300 }, { vencimento: '2027-06-01', falta: 70 }] })
+    const r = montarRelatorios([o], extras()).reinvestir
+    expect(r.previsto.atraso).toEqual({ ate7: 100, de8a30: 0, mais30: 50 })
+    expect(r.previsto.porMes.map((m) => m.mes)).toEqual(['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03'])
+    expect(r.previsto.porMes[0].lucro).toBe(300)
+    expect(r.previsto.depois).toBe(70)
+    expect(r.meses).toHaveLength(6)
   })
 })
 

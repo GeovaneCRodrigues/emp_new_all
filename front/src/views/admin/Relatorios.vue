@@ -9,6 +9,7 @@ import { useApp } from '@/composables/useApp'
 import { mesLabel } from '@/domain/cronograma'
 import { fmt, fmt0 } from '@/domain/format'
 import { cenario, CENARIOS, lerPerdas, PERDAS_PADRAO, type Perdas } from '@/domain/previsao'
+import { lerRetirada, projetarReinvestir, RETIRADA_PADRAO } from '@/domain/reinvestir'
 
 /** Relatórios da loja: sete visões do mesmo dinheiro (só o administrador). */
 const { sessao } = useApp()
@@ -20,6 +21,7 @@ const ABAS = [
   { id: 'indicador', label: 'Por indicador', icon: 'users' },
   { id: 'mensal', label: 'Controle mensal', icon: 'calendar-days' },
   { id: 'previsao', label: 'Previsão', icon: 'chart-no-axes-combined' },
+  { id: 'reinvestir', label: 'Lucro e reinvestir', icon: 'arrow-up-right' },
   { id: 'balancete', label: 'Balancete', icon: 'landmark' },
 ]
 const aba = ref(lerAba())
@@ -56,6 +58,24 @@ const GRUPOS = [
 ] as const
 const grupoDaPrevisao = (id: (typeof GRUPOS)[number]['id']) => (id === 'aVencer' ? r.value!.previsao.aVencer : r.value!.previsao.atraso[id])
 const esperadoDoGrupo = (id: (typeof GRUPOS)[number]['id']) => Math.round(grupoDaPrevisao(id).valor * (1 - perdas.value[id]) * 100) / 100
+
+// Lucro e reinvestir: a % que você retira é sua escolha (padrão 10%); fica salva neste navegador.
+const CHAVE_RETIRADA = 'relRetirada'
+const retiradaPct = ref((() => { try { return Math.round(lerRetirada(JSON.parse(localStorage.getItem(CHAVE_RETIRADA) ?? 'null')) * 10000) / 100 } catch { return RETIRADA_PADRAO * 100 } })())
+const retirada = computed(() => (typeof retiradaPct.value === 'number' && Number.isFinite(retiradaPct.value) ? Math.min(1, Math.max(0, retiradaPct.value / 100)) : RETIRADA_PADRAO))
+watch(retirada, (v) => { try { localStorage.setItem(CHAVE_RETIRADA, JSON.stringify(v)) } catch { /* sem armazenamento: só não lembra */ } })
+function normalizarRetirada() { retiradaPct.value = Math.round(retirada.value * 10000) / 100 }
+const reinvestirCenarios = computed(() => (r.value ? CENARIOS.map((c) => ({ ...c, ...projetarReinvestir(r.value!.reinvestir, perdas.value, c.fator, retirada.value) })) : []))
+const reinvestirReal = computed(() => reinvestirCenarios.value.find((c) => c.id === 'realista'))
+
+/** Os meses de trás e os da frente no mesmo gráfico (o mês atual aparece nas duas séries). */
+const graficoRei = computed(() => {
+  const x = reinvestirReal.value
+  if (!x) return { meses: [] as string[], realizado: [] as number[], esperado: [] as number[] }
+  const meses = [...new Set([...x.realizado.map((l) => l.mes), ...x.previsto.map((l) => l.mes)])].sort()
+  const de = (ls: { mes: string; lucro: number }[]) => meses.map((m) => ls.find((l) => l.mes === m)?.lucro ?? 0)
+  return { meses, realizado: de(x.realizado), esperado: de(x.previsto) }
+})
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 const totalLucro = computed(() => (r.value ? r.value.resumo.lucroIphones + r.value.resumo.lucroEmprestimos : 0))
@@ -223,6 +243,40 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
         </div>
       </div>
       <p class="small" style="margin: 0">As perdas são suposições suas (começam em 5% a vencer, 10%, 30% e 70% no atraso); o pessimista dobra e o otimista corta pela metade. Só juros conta o capital, não os juros que ainda não venceram. A parte dos indicadores é estimada na mesma proporção do que entra.</p>
+    </template>
+
+    <!-- Lucro e reinvestir -->
+    <template v-else-if="aba === 'reinvestir' && reinvestirReal">
+      <div class="card pad" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap" data-testid="rei-retirada">
+        <b style="color: var(--strong)">Quanto do lucro você retira?</b>
+        <span class="inp" style="display: inline-flex; width: 84px; height: 36px"><input v-model.number="retiradaPct" type="number" min="0" max="100" step="0.5" inputmode="decimal" aria-label="Retirada, em % do lucro" data-testid="rei-pct" style="text-align: right" @change="normalizarRetirada" /></span> %
+        <span class="small">O resto você reinveste. É sobre o seu lucro, já depois do capital e do indicador.</span>
+      </div>
+      <div class="hero" style="gap: 6px" data-testid="rei-hero">
+        <div class="lbl">Nos próximos 6 meses (realista)</div>
+        <div class="big disp num" data-testid="rei-prev-lucro">{{ fmt(reinvestirReal.totalPrevisto.lucro) }}</div>
+        <div class="lbl">você retira <b data-testid="rei-prev-retirada">{{ fmt0(reinvestirReal.totalPrevisto.retirada) }}</b> e reinveste <b data-testid="rei-prev-reinvestir">{{ fmt0(reinvestirReal.totalPrevisto.reinvestir) }}</b></div>
+        <div class="lbl">de {{ fmt0(reinvestirCenarios[0].totalPrevisto.lucro) }} (pessimista) a {{ fmt0(reinvestirCenarios[2].totalPrevisto.lucro) }} (otimista)</div>
+      </div>
+      <div class="card pad" data-testid="rei-grafico">
+        <div class="between"><b style="color: var(--strong)">Seu lucro por mês</b><span class="small">realizado e esperado</span></div>
+        <RelBarras :meses="graficoRei.meses" :hoje="r.hoje" :alt="110" :series="[{ l: 'Já recebido', v: graficoRei.realizado, c: 'var(--primary)' }, { l: 'Esperado', v: graficoRei.esperado, c: 'var(--gold)' }]" />
+      </div>
+      <div v-for="[id, titulo, linhas, tot] in ([['realizado', 'Já recebido (últimos 6 meses)', reinvestirReal.realizado, reinvestirReal.totalRealizado], ['previsto', 'Esperado (próximos 6 meses, realista)', reinvestirReal.previsto, reinvestirReal.totalPrevisto]] as const)" :key="id" class="card" :data-testid="`rei-${id}`">
+        <div class="totbar"><b style="color: var(--strong)">{{ titulo }}</b></div>
+        <div class="tab-x">
+          <table class="tb">
+            <thead><tr><th>Mês</th><th class="r">Lucro</th><th class="r">Você retira</th><th class="r">Reinvestir</th><th class="r">Reinvestido até aqui</th></tr></thead>
+            <tbody>
+              <tr v-for="l in linhas" :key="l.mes" :data-mes="l.mes">
+                <td style="text-transform: capitalize">{{ mesLabel(l.mes) }}</td><td class="r num">{{ fmt0(l.lucro) }}</td><td class="r num">{{ fmt0(l.retirada) }}</td><td class="r num">{{ fmt0(l.reinvestir) }}</td><td class="r num">{{ fmt0(l.acumulado) }}</td>
+              </tr>
+            </tbody>
+            <tfoot><tr><td>Total</td><td class="r num" :data-testid="`rei-${id}-lucro`">{{ fmt0(tot.lucro) }}</td><td class="r num" :data-testid="`rei-${id}-retirada`">{{ fmt0(tot.retirada) }}</td><td class="r num" :data-testid="`rei-${id}-reinvestir`">{{ fmt0(tot.reinvestir) }}</td><td /></tr></tfoot>
+          </table>
+        </div>
+      </div>
+      <p class="small" style="margin: 0">O esperado usa as perdas da aba Previsão e o mesmo critério dela: o que está em aberto, parcela a parcela, com o capital voltando primeiro. O atraso entra no mês atual. Juro de só juros que ainda não venceu não entra. Depois dos 6 meses ainda há {{ fmt0(reinvestirReal.depois) }} de lucro esperado.</p>
     </template>
 
     <!-- Balancete -->

@@ -165,14 +165,36 @@ test.describe('relatórios (administrador)', () => {
     await expect(page.getByTestId('rel-aportes')).toContainText('Você colocou R$ 110.000')
   })
 
+  test('Lucro e reinvestir: 10% de retirada por padrão, o resto reinveste e a conta fecha', async ({ page }) => {
+    await aba(page, 'Lucro e reinvestir').click()
+    await expect(page.getByTestId('rei-pct')).toHaveValue('10')
+    for (const q of ['realizado', 'previsto']) {
+      const lucro = await txt(page, `rei-${q}-lucro`), retirada = await txt(page, `rei-${q}-retirada`), reinvestir = await txt(page, `rei-${q}-reinvestir`)
+      expect(Math.abs(lucro - retirada - reinvestir), q).toBeLessThanOrEqual(1)
+      expect(Math.abs(retirada - lucro * 0.1), q).toBeLessThanOrEqual(2)
+    }
+    await expect(page.getByTestId('rei-realizado').locator('[data-mes]')).toHaveCount(6)
+    await expect(page.getByTestId('rei-previsto').locator('[data-mes]')).toHaveCount(6)
+    expect(await txt(page, 'rei-prev-lucro')).toBeGreaterThan(0)
+  })
+
+  test('Lucro e reinvestir: mudar a retirada para 20% refaz a divisão e fica lembrada', async ({ page }) => {
+    await aba(page, 'Lucro e reinvestir').click()
+    const lucro = await txt(page, 'rei-previsto-lucro')
+    await page.getByTestId('rei-pct').fill('20')
+    expect(Math.abs((await txt(page, 'rei-previsto-retirada')) - lucro * 0.2)).toBeLessThanOrEqual(2)
+    await page.reload(); await aba(page, 'Lucro e reinvestir').click()
+    await expect(page.getByTestId('rei-pct')).toHaveValue('20')
+  })
+
   test('a aba escolhida é lembrada ao voltar para a tela', async ({ page }) => {
     await aba(page, 'Capital').click()
     await navegar(page, '/caixa'); await navegar(page, '/relatorios')
     await expect(page.getByTestId('rel-capital')).toBeVisible()
   })
 
-  test('as sete abas abrem sem rolagem lateral na página (as tabelas rolam por dentro)', async ({ page }) => {
-    for (const nome of ['Resumo', 'Investimento e lucro', 'Capital', 'Por indicador', 'Controle mensal', 'Previsão', 'Balancete']) {
+  test('as oito abas abrem sem rolagem lateral na página (as tabelas rolam por dentro)', async ({ page }) => {
+    for (const nome of ['Resumo', 'Investimento e lucro', 'Capital', 'Por indicador', 'Controle mensal', 'Previsão', 'Lucro e reinvestir', 'Balancete']) {
       await aba(page, nome).click()
       expect(await semRolagemLateral(page), nome).toBe(true)
     }
