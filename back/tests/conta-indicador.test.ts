@@ -81,4 +81,60 @@ describe.skipIf(!db)('conta corrente do indicador (Postgres de verdade)', () => 
       finally { await db!('indicadores').where({ id: m.id.carla }).update({ ativo: true }) }
     })
   })
+
+  describe('confirmar a baixa "na conta do indicador"', () => {
+    const avisar = (corpo: object = {}, papel = 'indicador', op?: number) => m.req('POST', '/api/aprovacoes', papel, { tipo: 'BAIXA', alvo: 'EMPRESTIMO', operacaoId: op, parcela: 1, valor: 650, forma: 'PIX', ...corpo })
+    const confirmar = (pid: number, corpo: object = {}) => m.req('POST', `/api/aprovacoes/${pid}/aprovar`, 'admin', corpo)
+    const ultimaTransacao = async () => db!('transacoes_recebimento').orderBy('id', 'desc').first()
+    const caixa = async () => (await m.req('GET', '/api/caixa', 'admin')).json() as { itens: { chave: string }[] }
+
+    it('o aviso guarda a marca; a loja confirma sem mexer e a transação fica no nome do indicador, FORA do Caixa', async () => {
+      const e = await m.emprestimo()
+      const a = await avisar({ naContaDoIndicador: true }, 'indicador', e)
+      expect(a.statusCode, a.body).toBe(201)
+      expect(a.json().baixa.naContaDoIndicador).toBe(true)
+      expect((await confirmar(a.json().id)).statusCode).toBe(200)
+      const t = await ultimaTransacao()
+      expect(t.cobrado_por_indicador_id).toBe(m.id.roberto)
+      expect((await caixa()).itens.some((i) => i.chave === `R${t.id}`)).toBe(false)
+    })
+    it('a loja pode DESMARCAR na confirmação (o dinheiro foi para a loja): entra no Caixa como sempre', async () => {
+      const e = await m.emprestimo()
+      const a = await avisar({ naContaDoIndicador: true }, 'indicador', e)
+      expect((await confirmar(a.json().id, { naContaDoIndicador: false })).statusCode).toBe(200)
+      const t = await ultimaTransacao()
+      expect(t.cobrado_por_indicador_id).toBeNull()
+      expect((await caixa()).itens.some((i) => i.chave === `R${t.id}`)).toBe(true)
+    })
+    it('a loja pode MARCAR na confirmação mesmo que o indicador não tenha marcado', async () => {
+      const e = await m.emprestimo()
+      const a = await avisar({}, 'indicador', e)
+      expect((await confirmar(a.json().id, { naContaDoIndicador: true })).statusCode).toBe(200)
+      expect((await ultimaTransacao()).cobrado_por_indicador_id).toBe(m.id.roberto)
+    })
+    it('sem marcar nada, continua igual a hoje: entra no Caixa, sem indicador na transação', async () => {
+      const e = await m.emprestimo()
+      const a = await avisar({}, 'indicador', e)
+      expect((await confirmar(a.json().id)).statusCode).toBe(200)
+      const t = await ultimaTransacao()
+      expect(t.cobrado_por_indicador_id).toBeNull()
+      expect((await caixa()).itens.some((i) => i.chave === `R${t.id}`)).toBe(true)
+    })
+    it('quitação vinda do aviso "quitou" + na conta do indicador: a transação da quitação também fica fora do Caixa', async () => {
+      const e = await m.emprestimo()
+      const total = (await db!('emprestimo_parcelas').where({ emprestimo_id: e })).reduce((s: number, p: { valor: string }) => s + Number(p.valor), 0)
+      const a = await avisar({ quitou: true, valor: total, naContaDoIndicador: true }, 'indicador', e)
+      expect(a.statusCode, a.body).toBe(201)
+      const r = await confirmar(a.json().id, { quitar: true, valor: total })
+      expect(r.statusCode, r.body).toBe(200)
+      expect((await ultimaTransacao()).cobrado_por_indicador_id).toBe(m.id.roberto)
+    })
+    it('naContaDoIndicador precisa ser verdadeiro/falso (400) no aviso e na confirmação', async () => {
+      const e = await m.emprestimo()
+      expect((await avisar({ naContaDoIndicador: 'sim' }, 'indicador', e)).statusCode).toBe(400)
+      const a = await avisar({}, 'indicador', e)
+      expect((await confirmar(a.json().id, { naContaDoIndicador: 'sim' })).statusCode).toBe(400)
+      expect((await db!('aprovacoes').where({ id: a.json().id }).first()).status).toBe('PENDENTE')
+    })
+  })
 })

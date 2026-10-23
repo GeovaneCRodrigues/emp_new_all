@@ -11,7 +11,7 @@ export interface AprovacoesTx {
   parcelas(alvo: Alvo, operacaoId: number): Promise<ParcelaDaOperacao[]>
   criar(d: { alvo: Alvo; operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
   /** O indicador avisa que recebeu (o `valor` é o recebido; forma, data e comprovante vão em `dados`). */
-  criarBaixa(d: { alvo: Alvo; operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string | null; forma: string; data: string; comprovante: string | null; quitou?: boolean }): Promise<number>
+  criarBaixa(d: { alvo: Alvo; operacaoId: number; parcelaId: number; solicitadoPor: number; valor: number; motivo: string | null; forma: string; data: string; comprovante: string | null; quitou?: boolean; naContaDoIndicador?: boolean }): Promise<number>
   /** Pedido de retomada do aparelho de uma venda. */
   criarRetomada(d: { vendaId: number; solicitadoPor: number; valor: number; motivo: string }): Promise<number>
   /** Pedido de acordo (a proposta do cobrador vai em `dados`). */
@@ -98,7 +98,7 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
             const t = T[d.alvo]
             const [{ id }] = await trx('aprovacoes').insert({
               tipo: 'BAIXA', solicitado_por: d.solicitadoPor, [t.pedidoOp]: d.operacaoId, [t.pedidoParcela]: d.parcelaId, valor: d.valor, motivo: d.motivo,
-              dados: JSON.stringify({ forma: d.forma, data: d.data, comprovante: d.comprovante, ...(d.quitou ? { quitou: true } : {}) }),
+              dados: JSON.stringify({ forma: d.forma, data: d.data, comprovante: d.comprovante, ...(d.quitou ? { quitou: true } : {}), ...(d.naContaDoIndicador ? { naContaDoIndicador: true } : {}) }),
             }).returning('id')
             return id
           },
