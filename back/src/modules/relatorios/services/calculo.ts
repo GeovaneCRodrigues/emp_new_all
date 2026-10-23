@@ -79,6 +79,32 @@ export function lucroPorMesTodos(ops: OpRelatorio[]): Map<string, number> {
   return m
 }
 
+/**
+ * Lucro do dono em cada parcela ainda devida, SE ela for paga em dia (só a parte dele, depois do capital e do indicador).
+ * Segue a mesma regra do lucro realizado: o que entra primeiro devolve o capital. No só juros dividido a cada pagamento, o juro vale lucro
+ * e o capital em aberto (que a última parcela leva) não vale.
+ */
+export function lucroDasParcelasAbertas(o: OpRelatorio): { vencimento: string; lucro: number }[] {
+  if (o.status !== 'ATIVA') return []
+  const itens = [...o.aCobrar].sort((a, b) => a.vencimento.localeCompare(b.vencimento))
+  if (o.jurosRecebidos !== null) {
+    let capital = Math.max(0, arred2(o.investido - o.capitalDeVolta))
+    const lucroDe = new Map<number, number>()
+    for (let i = itens.length - 1; i >= 0; i--) {
+      const doCapital = Math.min(itens[i].falta, capital)
+      capital = arred2(capital - doCapital)
+      lucroDe.set(i, arred2((itens[i].falta - doCapital) * (1 - o.pct)))
+    }
+    return itens.map((a, i) => ({ vencimento: a.vencimento, lucro: lucroDe.get(i) ?? 0 }))
+  }
+  let acum = o.recebido
+  return itens.map((a) => {
+    const lucro = arred2(lucroRealizadoAte(o, acum + a.falta) - lucroRealizadoAte(o, acum))
+    acum = arred2(acum + a.falta)
+    return { vencimento: a.vencimento, lucro }
+  })
+}
+
 const somar = (xs: number[]) => arred2(xs.reduce((s, x) => s + x, 0))
 const serie = (meses: Janela, f: (mes: string) => number) => meses.map((m) => arred2(f(m)))
 
@@ -168,6 +194,12 @@ export function montarRelatorios(ops: OpRelatorio[], x: DadosExtras) {
   const mesesAVencer: string[] = []
   for (let m = mesDe(x.hoje); m <= ultimoMes; m = somaMes(m, 1)) mesesAVencer.push(m)
 
+  // Lucro que ainda vai entrar (se todos pagarem): o atraso por faixa e o a vencer por mês. As perdas ficam com a tela.
+  const lucroAberto = ops.flatMap(lucroDasParcelasAbertas)
+  const lucroDaFaixa = (de: number, ate: number) => somar(lucroAberto.filter((a) => { if (a.vencimento >= x.hoje) return false; const d = diasEntre(a.vencimento, x.hoje); return d >= de && d <= ate }).map((a) => a.lucro))
+  const lucroAVencer = lucroAberto.filter((a) => a.vencimento >= x.hoje)
+  const mesesLucro = Array.from({ length: 6 }, (_, i) => somaMes(mesDe(x.hoje), i))
+
   return {
     hoje: x.hoje,
     previsao: {
@@ -175,6 +207,15 @@ export function montarRelatorios(ops: OpRelatorio[], x: DadosExtras) {
       atraso: { ate7: doAtraso(1, 7), de8a30: doAtraso(8, 30), mais30: doAtraso(31, Infinity) },
       aVencer: faixa(aVencer),
       porMes: mesesAVencer.map((mes) => ({ mes, valor: somar(aVencer.filter((a) => mesDe(a.vencimento) === mes).map((a) => a.falta)) })),
+    },
+    reinvestir: {
+      meses: m6, lucroPorMes: serie(m6, (mes) => lucroMes.get(mes) ?? 0),
+      previsto: {
+        atraso: { ate7: lucroDaFaixa(1, 7), de8a30: lucroDaFaixa(8, 30), mais30: lucroDaFaixa(31, Infinity) },
+        porMes: mesesLucro.map((mes) => ({ mes, lucro: somar(lucroAVencer.filter((a) => mesDe(a.vencimento) === mes).map((a) => a.lucro)) })),
+        /** o que passa dos 6 meses mostrados */
+        depois: somar(lucroAVencer.filter((a) => mesDe(a.vencimento) > mesesLucro[5]).map((a) => a.lucro)),
+      },
     },
     resumo: {
       meses: m6, lucroPorMes: serie(m6, (mes) => lucroMes.get(mes) ?? 0),
