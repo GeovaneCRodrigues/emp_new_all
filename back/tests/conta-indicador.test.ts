@@ -21,4 +21,27 @@ describe.skipIf(!db)('conta corrente do indicador (Postgres de verdade)', () => 
       await expect(db!('emprestimos').insert({ ...base, saiu_da_conta_valor: 0 })).resolves.toBeDefined()
     })
   })
+
+  describe('o Caixa', () => {
+    const caixa = async () => (await m.req('GET', '/api/caixa', 'admin')).json() as { saldo: number; itens: { chave: string; valor: number; entrada: boolean; categoria: string; sub: string }[] }
+    const saidaDoEmprestimo = async (e: number) => (await caixa()).itens.find((i) => i.chave === `E${e}`)
+
+    it('empréstimo pago só pelo Caixa: sai o capital todo (como sempre)', async () => {
+      const e = await m.emprestimo()
+      expect(await saidaDoEmprestimo(e)).toMatchObject({ valor: 1000, entrada: false, categoria: 'EMPRESTIMO' })
+    })
+    it('empréstimo pago em parte pela conta do indicador: o Caixa só perde o resto, e o extrato diz de quem foi o dinheiro', async () => {
+      const e = await m.emprestimo()
+      await db!('emprestimos').where({ id: e }).update({ saiu_da_conta_indicador_id: m.id.roberto, saiu_da_conta_valor: 600 })
+      const linha = await saidaDoEmprestimo(e)
+      expect(linha).toMatchObject({ valor: 400, entrada: false })
+      expect(linha!.sub).toContain('R$ 600,00 da conta do indicador')
+    })
+    it('empréstimo pago todo pela conta do indicador: não aparece no Caixa', async () => {
+      const e = await m.emprestimo()
+      await db!('emprestimos').where({ id: e }).update({ saiu_da_conta_indicador_id: m.id.roberto, saiu_da_conta_valor: 1000 })
+      expect(await saidaDoEmprestimo(e)).toBeUndefined()
+      expect((await caixa()).saldo).toBe(0)
+    })
+  })
 })

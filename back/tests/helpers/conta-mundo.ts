@@ -8,6 +8,8 @@ import { createSessoesRepository, createUsuariosRepository } from '../../src/mod
 import { createAuthService } from '../../src/modules/auth/services/auth.service.js'
 import { hashSenha } from '../../src/modules/auth/services/password.js'
 import { createTokensService } from '../../src/modules/auth/services/tokens.js'
+import { createCaixaRepository } from '../../src/modules/caixa/models/repository.js'
+import { createCaixaService } from '../../src/modules/caixa/services/caixa.service.js'
 import { createConfigRepository } from '../../src/modules/config/models/repository.js'
 import { createConfigService } from '../../src/modules/config/services/config.service.js'
 import { createEmprestimosRepository } from '../../src/modules/emprestimos/models/repository.js'
@@ -62,6 +64,7 @@ export async function montarMundo(k: Knex, hojeInicial = '2026-10-08'): Promise<
     vendas: createVendasService({ vendas: createVendasRepository(k), config, auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
     emprestimos: createEmprestimosService({ emprestimos: createEmprestimosRepository(k), auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
     recebimentos,
+    caixa: createCaixaService({ repo: createCaixaRepository(k), auditoria: audit, hoje: () => hoje }),
     aprovacoes: createAprovacoesService({ repo: createAprovacoesRepository(k), auditoria: audit, hoje: () => hoje, baixas: { confirmar: (s, pid, e) => recebimentos.confirmarBaixa(s, pid, e) } }),
     fechamentos: {} as never, equipe: {} as never,
     limites: { vendasPorMinuto: 100_000, recebimentosPorMinuto: 100_000 },
