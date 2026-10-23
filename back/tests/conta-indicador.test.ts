@@ -12,11 +12,11 @@ describe.skipIf(!db)('conta corrente do indicador (Postgres de verdade)', () => 
   afterAll(async () => { await m?.app.close(); await db?.destroy() })
 
   describe('o banco', () => {
-    it('empréstimo guarda de onde saiu o dinheiro; o check recusa valor maior que o capital ou sem indicador', async () => {
+    it('empréstimo guarda de onde saiu o dinheiro; o check recusa valor negativo ou sem indicador (o limite do capital é do serviço)', async () => {
       const [e] = await db!('emprestimos').insert({ cliente_id: m.id.ana, data_emprestimo: '2026-10-01', capital: 1000, modalidade: 'PARCELADO', taxa: 10, periodicidade: 'MENSAL', saiu_da_conta_indicador_id: m.id.roberto, saiu_da_conta_valor: 600 }).returning('id')
       expect(Number((await db!('emprestimos').where({ id: e.id }).first()).saiu_da_conta_valor)).toBe(600)
       const base = { cliente_id: m.id.ana, data_emprestimo: '2026-10-01', capital: 1000, modalidade: 'PARCELADO', taxa: 10, periodicidade: 'MENSAL' }
-      await expect(db!('emprestimos').insert({ ...base, saiu_da_conta_indicador_id: m.id.roberto, saiu_da_conta_valor: 1000.01 })).rejects.toThrow()
+      await expect(db!('emprestimos').insert({ ...base, saiu_da_conta_indicador_id: m.id.roberto, saiu_da_conta_valor: -1 })).rejects.toThrow()
       await expect(db!('emprestimos').insert({ ...base, saiu_da_conta_indicador_id: null, saiu_da_conta_valor: 10 })).rejects.toThrow()
       await expect(db!('emprestimos').insert({ ...base, saiu_da_conta_valor: 0 })).resolves.toBeDefined()
     })
@@ -236,6 +236,22 @@ describe.skipIf(!db)('conta corrente do indicador (Postgres de verdade)', () => 
       await envio(m.id.roberto, { valor: 77 })
       const a = await db!('auditoria').where({ acao: 'ENVIO_INDICADOR_LANCADO' }).first()
       expect(a.depois).toMatchObject({ indicadorId: m.id.roberto, valor: 77 })
+    })
+  })
+
+  describe('unificar empréstimo que usou a conta do indicador', () => {
+    it('a unificação passa (o capital da origem vai a zero) e o Caixa continua certo: a origem tira só o resto, o novo não tira nada', async () => {
+      const a = await m.emprestimo({ saiuDaConta: { indicadorId: m.id.roberto, valor: 600 } })
+      const b = await m.emprestimo()
+      const caixa = async () => (await m.req('GET', '/api/caixa', 'admin')).json() as { itens: { chave: string; valor: number }[] }
+      const r = await m.req('POST', '/api/emprestimos/unificar', 'admin', { emprestimoIds: [a, b], valorTotal: 2600, parcelas: 2, primeiraParcela: '2026-12-01' })
+      expect(r.statusCode, r.body).toBe(201)
+      const novo = r.json().emprestimoId as number
+      const itens = (await caixa()).itens
+      expect(itens.find((i) => i.chave === `E${a}`)!.valor).toBe(400)
+      expect(itens.find((i) => i.chave === `E${b}`)!.valor).toBe(1000)
+      expect(itens.some((i) => i.chave === `E${novo}`)).toBe(false)
+      expect(Number((await db!('emprestimos').where({ id: a }).first()).saiu_da_conta_valor)).toBe(600) // a origem mantém de onde saiu
     })
   })
 })

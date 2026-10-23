@@ -1,6 +1,8 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import type { Knex } from 'knex'
 import { buildApp } from '../../src/app.js'
+import { createAcordosRepository } from '../../src/modules/acordos/models/repository.js'
+import { createAcordosService } from '../../src/modules/acordos/services/acordos.service.js'
 import { createAprovacoesRepository } from '../../src/modules/aprovacoes/models/repository.js'
 import { createAprovacoesService } from '../../src/modules/aprovacoes/services/aprovacoes.service.js'
 import { createAuditoriaRepository } from '../../src/modules/auditoria/models/repository.js'
@@ -66,6 +68,7 @@ export async function montarMundo(k: Knex, hojeInicial = '2026-10-08'): Promise<
     vendas: createVendasService({ vendas: createVendasRepository(k), config, auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
     emprestimos: createEmprestimosService({ emprestimos: createEmprestimosRepository(k), auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => hoje }),
     recebimentos,
+    acordos: createAcordosService({ repo: createAcordosRepository(k), auditoria: audit, hoje: () => hoje }),
     caixa: createCaixaService({ repo: createCaixaRepository(k), auditoria: audit, hoje: () => hoje }),
     contaIndicador: createContaIndicadorService({ repo: createContaIndicadorRepository(k), auditoria: audit, hoje: () => hoje }),
     aprovacoes: createAprovacoesService({ repo: createAprovacoesRepository(k), auditoria: audit, hoje: () => hoje, baixas: { confirmar: (s, pid, e) => recebimentos.confirmarBaixa(s, pid, e) } }),
@@ -82,7 +85,7 @@ export async function montarMundo(k: Knex, hojeInicial = '2026-10-08'): Promise<
     setHoje: (d) => { hoje = d },
     limpar: async () => {
       hoje = hojeInicial
-      for (const tb of ['aprovacoes', 'recebimentos', 'transacoes_recebimento', 'movimentacoes_caixa', 'auditoria', 'emprestimo_parcelas', 'emprestimos']) await k(tb).del()
+      for (const tb of ['aprovacoes', 'recebimentos', 'transacoes_recebimento', 'movimentacoes_caixa', 'auditoria', 'acordos', 'emprestimo_parcelas', 'emprestimos']) await k(tb).del()
     },
     emprestimo: async (corpo = {}) => {
       const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: id.ana, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, indicadorId: id.roberto, ...corpo })
