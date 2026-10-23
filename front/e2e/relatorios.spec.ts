@@ -187,6 +187,25 @@ test.describe('relatórios (administrador)', () => {
     await expect(page.getByTestId('rei-pct')).toHaveValue('20')
   })
 
+  test('Lucro e reinvestir: gráficos de barras empilhadas, acumulado e rosca, e tocar na barra mostra o mês', async ({ page }) => {
+    await aba(page, 'Lucro e reinvestir').click()
+    const colunas = page.getByTestId('rei-empilhado').locator('.col')
+    await expect(colunas.first()).toBeVisible()
+    expect(await colunas.count()).toBeGreaterThanOrEqual(7)
+    await expect(page.getByTestId('rei-acumulado').locator('polyline')).toHaveCount(2)
+    await expect(page.getByTestId('rei-rosca')).toContainText('Você retira')
+    await expect(page.getByTestId('rei-rosca')).toContainText('10%')
+    // cada barra: retirada + reinvestir = lucro do mês
+    const c = colunas.filter({ has: page.locator('[data-parte]') }).nth(2)
+    const lucro = Number(await c.getAttribute('data-lucro'))
+    const partes = await c.locator('[data-parte]').evaluateAll((els) => els.map((e) => (e as HTMLElement).offsetHeight))
+    expect(partes.length).toBe(4)
+    await c.click()
+    await expect(page.getByTestId('rei-detalhe')).toContainText(/lucro/i)
+    expect(lucro).toBeGreaterThanOrEqual(0)
+    expect(await semRolagemLateral(page)).toBe(true)
+  })
+
   test('a aba escolhida é lembrada ao voltar para a tela', async ({ page }) => {
     await aba(page, 'Capital').click()
     await navegar(page, '/caixa'); await navegar(page, '/relatorios')

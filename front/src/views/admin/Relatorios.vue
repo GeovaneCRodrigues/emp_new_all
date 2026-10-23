@@ -5,11 +5,12 @@ import type { RelatoriosDados } from '@/api/relatorios'
 import { relatoriosApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
 import RelBarras from '@/components/RelBarras.vue'
+import ReinvestirGraficos from '@/components/ReinvestirGraficos.vue'
 import { useApp } from '@/composables/useApp'
 import { mesLabel } from '@/domain/cronograma'
 import { fmt, fmt0 } from '@/domain/format'
 import { cenario, CENARIOS, lerPerdas, PERDAS_PADRAO, type Perdas } from '@/domain/previsao'
-import { lerRetirada, projetarReinvestir, RETIRADA_PADRAO } from '@/domain/reinvestir'
+import { lerRetirada, pontosDoGrafico, projetarReinvestir, RETIRADA_PADRAO } from '@/domain/reinvestir'
 
 /** Relatórios da loja: sete visões do mesmo dinheiro (só o administrador). */
 const { sessao } = useApp()
@@ -68,14 +69,7 @@ function normalizarRetirada() { retiradaPct.value = Math.round(retirada.value * 
 const reinvestirCenarios = computed(() => (r.value ? CENARIOS.map((c) => ({ ...c, ...projetarReinvestir(r.value!.reinvestir, perdas.value, c.fator, retirada.value) })) : []))
 const reinvestirReal = computed(() => reinvestirCenarios.value.find((c) => c.id === 'realista'))
 
-/** Os meses de trás e os da frente no mesmo gráfico (o mês atual aparece nas duas séries). */
-const graficoRei = computed(() => {
-  const x = reinvestirReal.value
-  if (!x) return { meses: [] as string[], realizado: [] as number[], esperado: [] as number[] }
-  const meses = [...new Set([...x.realizado.map((l) => l.mes), ...x.previsto.map((l) => l.mes)])].sort()
-  const de = (ls: { mes: string; lucro: number }[]) => meses.map((m) => ls.find((l) => l.mes === m)?.lucro ?? 0)
-  return { meses, realizado: de(x.realizado), esperado: de(x.previsto) }
-})
+const pontosRei = computed(() => (reinvestirReal.value ? pontosDoGrafico(reinvestirReal.value) : []))
 
 const pct = (v: number) => `${Math.round(v * 100)}%`
 const totalLucro = computed(() => (r.value ? r.value.resumo.lucroIphones + r.value.resumo.lucroEmprestimos : 0))
@@ -258,10 +252,7 @@ const pctCapital = (v: number) => (r.value && r.value.capital.total > 0 ? Math.r
         <div class="lbl">você retira <b data-testid="rei-prev-retirada">{{ fmt0(reinvestirReal.totalPrevisto.retirada) }}</b> e reinveste <b data-testid="rei-prev-reinvestir">{{ fmt0(reinvestirReal.totalPrevisto.reinvestir) }}</b></div>
         <div class="lbl">de {{ fmt0(reinvestirCenarios[0].totalPrevisto.lucro) }} (pessimista) a {{ fmt0(reinvestirCenarios[2].totalPrevisto.lucro) }} (otimista)</div>
       </div>
-      <div class="card pad" data-testid="rei-grafico">
-        <div class="between"><b style="color: var(--strong)">Seu lucro por mês</b><span class="small">realizado e esperado</span></div>
-        <RelBarras :meses="graficoRei.meses" :hoje="r.hoje" :alt="110" :series="[{ l: 'Já recebido', v: graficoRei.realizado, c: 'var(--primary)' }, { l: 'Esperado', v: graficoRei.esperado, c: 'var(--gold)' }]" />
-      </div>
+      <ReinvestirGraficos :pontos="pontosRei" :hoje="r.hoje" :retirada="retirada" :total-retirada="reinvestirReal.totalPrevisto.retirada" :total-reinvestir="reinvestirReal.totalPrevisto.reinvestir" />
       <div v-for="[id, titulo, linhas, tot] in ([['realizado', 'Já recebido (últimos 6 meses)', reinvestirReal.realizado, reinvestirReal.totalRealizado], ['previsto', 'Esperado (próximos 6 meses, realista)', reinvestirReal.previsto, reinvestirReal.totalPrevisto]] as const)" :key="id" class="card" :data-testid="`rei-${id}`">
         <div class="totbar"><b style="color: var(--strong)">{{ titulo }}</b></div>
         <div class="tab-x">

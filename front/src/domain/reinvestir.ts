@@ -48,3 +48,25 @@ export function projetarReinvestir(d: DadosReinvestir, perdas: Perdas, fator: nu
   const previsto = dividir(d.previsto.porMes.map((m, i) => ({ mes: m.mes, lucro: arred2(m.lucro * manter(perdas.aVencer) + (i === 0 ? atraso : 0)) })), retirada, 0)
   return { realizado, previsto, totalRealizado: soma(realizado), totalPrevisto: soma(previsto), depois: arred2(d.previsto.depois * manter(perdas.aVencer)) }
 }
+
+export type PontoGrafico = {
+  mes: string
+  /** o que já entrou (verde cheio e dourado cheio) e o que se espera (as mesmas cores, claras). O mês atual tem os dois. */
+  real: { retirada: number; reinvestir: number }
+  esperado: { retirada: number; reinvestir: number }
+  lucro: number
+  /** reinvestido somando mês a mês, do mais antigo ao mês em questão */
+  acumulado: number
+}
+
+/** Junta os meses de trás e os da frente numa linha só para os gráficos. */
+export function pontosDoGrafico(r: Pick<ResultadoReinvestir, 'realizado' | 'previsto'>): PontoGrafico[] {
+  const meses = [...new Set([...r.realizado.map((l) => l.mes), ...r.previsto.map((l) => l.mes)])].sort()
+  let acum = 0
+  return meses.map((mes) => {
+    const a = r.realizado.find((l) => l.mes === mes), b = r.previsto.find((l) => l.mes === mes)
+    const real = { retirada: a?.retirada ?? 0, reinvestir: a?.reinvestir ?? 0 }, esperado = { retirada: b?.retirada ?? 0, reinvestir: b?.reinvestir ?? 0 }
+    acum = arred2(acum + real.reinvestir + esperado.reinvestir)
+    return { mes, real, esperado, lucro: arred2(real.retirada + real.reinvestir + esperado.retirada + esperado.reinvestir), acumulado: acum }
+  })
+}

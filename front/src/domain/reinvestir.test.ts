@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PERDAS_PADRAO } from './previsao'
-import { lerRetirada, projetarReinvestir, RETIRADA_PADRAO, type DadosReinvestir } from './reinvestir'
+import { lerRetirada, pontosDoGrafico, projetarReinvestir, RETIRADA_PADRAO, type DadosReinvestir } from './reinvestir'
 
 const dados: DadosReinvestir = {
   meses: ['2026-08', '2026-09', '2026-10'], lucroPorMes: [1000, 500, 250],
@@ -32,5 +32,11 @@ describe('reinvestir', () => {
   it('padrão de perdas é usado sem erro e a % salva ruim volta a 10%', () => {
     expect(projetarReinvestir(dados, PERDAS_PADRAO, 1, 0.1).previsto).toHaveLength(2)
     expect([lerRetirada(0.25), lerRetirada(2), lerRetirada(-1), lerRetirada('x'), lerRetirada(null), lerRetirada(0)]).toEqual([0.25, RETIRADA_PADRAO, RETIRADA_PADRAO, RETIRADA_PADRAO, RETIRADA_PADRAO, 0])
+  })
+  it('gráfico: junta os meses, o mês atual leva o recebido e o esperado, e o acumulado só cresce', () => {
+    const p = pontosDoGrafico(projetarReinvestir(dados, zero, 1, 0.1))
+    expect(p.map((x) => x.mes)).toEqual(['2026-08', '2026-09', '2026-10', '2026-11'])
+    expect(p[2]).toMatchObject({ real: { retirada: 25, reinvestir: 225 }, esperado: { retirada: 50, reinvestir: 450 }, lucro: 750 })
+    expect(p.map((x) => x.acumulado)).toEqual([900, 1350, 2025, 2385])
   })
 })
