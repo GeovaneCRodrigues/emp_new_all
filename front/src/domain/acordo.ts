@@ -13,6 +13,14 @@ export function distribuirAcordo(total: number, n: number): number[] {
   return valores
 }
 
+/** Em quantas parcelas o total cabe, dado o valor que o cliente quer pagar por parcela (arredonda para cima; 0 se faltar total ou parcela). */
+export function parcelasParaValor(total: number, parcela: number): number {
+  const t = Math.round(total * 100)
+  const p = Math.round(parcela * 100)
+  if (!(t > 0) || !(p > 0)) return 0
+  return Math.min(ACORDO_MAX_PARCELAS, Math.max(1, Math.ceil(t / p)))
+}
+
 export type PeriodicidadeAcordo = 'MENSAL' | 'QUINZENAL' | 'SEMANAL' | 'DIARIA'
 export const PERIODICIDADES_ACORDO: { valor: PeriodicidadeAcordo; rotulo: string; ajuda: string }[] = [
   { valor: 'MENSAL', rotulo: 'Mensal', ajuda: 'As outras vencem mês a mês, no mesmo dia.' },

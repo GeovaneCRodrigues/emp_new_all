@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { distribuirAcordo, indicadoresDiferentes, resumoUnificacao, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from './acordo'
+import { distribuirAcordo, indicadoresDiferentes, parcelasParaValor, resumoUnificacao, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo } from './acordo'
 
 describe('divisão do acordo', () => {
   it('a soma fecha no centavo: 1.000,01 em 3x → 333,33 + 333,33 + 333,35', () => {
@@ -61,5 +61,16 @@ describe('unificar empréstimos', () => {
     expect(indicadoresDiferentes([{ indicador: r, percentualIndicador: 0.5 }, { indicador: r, percentualIndicador: 0.4 }])).toBe(true)
     expect(indicadoresDiferentes([{ indicador: r, percentualIndicador: 0.5 }, { indicador: null, percentualIndicador: 0 }])).toBe(true)
     expect(indicadoresDiferentes([{ indicador: null }, { indicador: null }])).toBe(false)
+  })
+})
+
+describe('parcelas a partir do valor da parcela', () => {
+  it('conta exata: 700 de 100 em 100 → 7x; 3.000 de 750 → 4x', () => { expect(parcelasParaValor(700, 100)).toBe(7); expect(parcelasParaValor(3000, 750)).toBe(4) })
+  it('com resto arredonda para cima: 700 de 200 → 4x (3,5)', () => { expect(parcelasParaValor(700, 200)).toBe(4) })
+  it('não se perde em centavos: 700 de 233,33 → 4x; 0,3 de 0,1 → 3x', () => { expect(parcelasParaValor(700, 233.33)).toBe(4); expect(parcelasParaValor(0.3, 0.1)).toBe(3) })
+  it('parcela maior que o total → 1x', () => { expect(parcelasParaValor(500, 800)).toBe(1) })
+  it('passa do limite → 240; sem total ou sem parcela → 0', () => {
+    expect(parcelasParaValor(100000, 1)).toBe(240)
+    expect(parcelasParaValor(0, 100)).toBe(0); expect(parcelasParaValor(500, 0)).toBe(0)
   })
 })

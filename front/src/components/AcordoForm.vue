@@ -5,7 +5,7 @@ import type { AlvoApi } from '@/api/recebimentos'
 import { acordosApi, aprovacoesApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { useToast } from '@/composables/useToast'
-import { ACORDO_MAX_PARCELAS, distribuirAcordo, PERIODICIDADES_ACORDO, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
+import { ACORDO_MAX_PARCELAS, distribuirAcordo, parcelasParaValor, PERIODICIDADES_ACORDO, problemaDoAcordo, valorSugeridoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
 import { addDia } from '@/domain/datas'
 import { arred2, dmy, fmt } from '@/domain/format'
 import MoneyInput from './MoneyInput.vue'
@@ -23,7 +23,7 @@ const { mostrar } = useToast()
 
 const ehCobrador = computed(() => sessao.value.perfil === 'COBRADOR')
 const ATALHOS = [1, 2, 3, 4, 6, 10, 12]
-const f = reactive({ valor: 0, n: 3, primeira: '', motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' as PeriodicidadeAcordo })
+const f = reactive({ valor: 0, n: 3, parcela: 0, primeira: '', motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' as PeriodicidadeAcordo })
 /** semanal, quinzenal e diária só no empréstimo; a venda de iPhone é mensal */
 const opcoesPeriodicidade = computed(() => (props.alvo === 'EMPRESTIMO' ? PERIODICIDADES_ACORDO : PERIODICIDADES_ACORDO.slice(0, 1)))
 const ajudaPeriodicidade = computed(() => PERIODICIDADES_ACORDO.find((x) => x.valor === f.periodicidade)?.ajuda ?? '')
@@ -34,10 +34,18 @@ const enviando = ref(false)
 
 watch(() => props.aberto, (a) => {
   if (!a || !props.operacao) return
-  Object.assign(f, { valor: props.operacao.saldo, n: 3, primeira: addDia(hoje.value, 7), motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' })
+  Object.assign(f, { valor: props.operacao.saldo, n: 3, parcela: 0, primeira: addDia(hoje.value, 7), motivo: '', novo: 0, jurosNovo: 0, periodicidade: 'MENSAL' })
   erro.value = ''
 })
 
+// o valor da parcela digitado manda no número de parcelas (e acompanha o valor do acordo); mexer no número direto limpa o valor
+watch([() => f.parcela, () => f.valor], () => { if (f.parcela > 0) f.n = parcelasParaValor(arred2(f.valor), f.parcela) || f.n })
+const escolher = (q: number) => { f.parcela = 0; f.n = q }
+const avisoParcela = computed(() => {
+  if (!(f.parcela > 0) || !valores.value.length) return ''
+  const igual = valores.value.every((v) => Math.abs(v - valores.value[0]) < 0.02)
+  return igual && Math.abs(valores.value[0] - f.parcela) < 0.005 ? `${f.n}x de ${fmt(f.parcela)}` : `Fica ${f.n}x de ${fmt(valores.value[0])}${igual ? '' : ' (a última acerta o centavo)'}: a divisão é igual entre as parcelas`
+})
 const valores = computed(() => distribuirAcordo(arred2(f.valor), f.n))
 const datas = computed(() => (f.primeira && f.n >= 1 && f.n <= ACORDO_MAX_PARCELAS ? vencimentosAcordo(f.primeira, f.n, f.periodicidade) : []))
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
@@ -92,8 +100,11 @@ async function confirmar() {
           <div v-if="f.valor > 0 && diferenca !== 0" class="small" data-testid="acordo-diferenca">{{ diferenca < 0 ? `Desconto de ${fmt(-diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo e o juro' : ''}` : `Juros do acordo de ${fmt(diferenca)} sobre o que ele deve${novo > 0 ? ' mais o dinheiro novo e o juro' : ''}` }}</div>
         </div>
         <div class="field"><label for="aParcelas">Em quantas parcelas?</label>
-          <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="f.n = q">{{ q }}x</button></div>
-          <div class="inp"><input id="aParcelas" v-model.number="f.n" type="number" min="1" :max="ACORDO_MAX_PARCELAS" step="1" inputmode="numeric" /></div>
+          <div class="pills"><button v-for="q in ATALHOS" :key="q" type="button" class="pill" :class="{ on: f.n === q }" @click="escolher(q)">{{ q }}x</button></div>
+          <div class="inp"><input id="aParcelas" v-model.number="f.n" type="number" min="1" :max="ACORDO_MAX_PARCELAS" step="1" inputmode="numeric" @input="f.parcela = 0" /></div>
+        </div>
+        <div class="field"><label for="aParcela">Ou quanto por parcela?</label><MoneyInput id="aParcela" v-model="f.parcela" />
+          <div v-if="avisoParcela" class="small" data-testid="acordo-parcela-aviso">{{ avisoParcela }}</div>
         </div>
         <div v-if="opcoesPeriodicidade.length > 1" class="field"><label>De quanto em quanto tempo?</label>
           <div class="pills" data-testid="acordo-periodicidade"><button v-for="o in opcoesPeriodicidade" :key="o.valor" type="button" class="pill" :class="{ on: f.periodicidade === o.valor }" :data-periodicidade="o.valor" @click="f.periodicidade = o.valor">{{ o.rotulo }}</button></div>
