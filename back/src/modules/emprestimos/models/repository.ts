@@ -89,6 +89,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
             const [{ id }] = await trx('emprestimos').insert({
               cliente_id: d.clienteId, indicador_id: d.indicadorId, percentual_indicador: d.pct, data_emprestimo: d.dataEmprestimo,
               capital: d.capital, modalidade: d.modalidade, taxa: d.taxa, periodicidade: d.periodicidade, pula_domingo: d.pulaDomingo, observacoes: d.observacoes, modo_divisao: d.modoDivisao,
+              saiu_da_conta_indicador_id: d.saiuDaConta?.indicadorId ?? null, saiu_da_conta_valor: d.saiuDaConta?.valor ?? 0,
             }).returning('id')
             return id
           },

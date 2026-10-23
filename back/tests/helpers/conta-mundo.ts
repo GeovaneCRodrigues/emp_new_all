@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import type { Knex } from 'knex'
 import { buildApp } from '../../src/app.js'
 import { createAprovacoesRepository } from '../../src/modules/aprovacoes/models/repository.js'
@@ -30,7 +30,7 @@ export type Mundo = {
   app: FastifyInstance
   t: Record<string, string>
   id: Record<string, number>
-  req: (metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, papel?: string, payload?: object) => ReturnType<FastifyInstance['inject']>
+  req: (metodo: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, papel?: string, payload?: object) => Promise<LightMyRequestResponse>
   setHoje: (d: string) => void
   /** apaga o que cada teste cria (operações, recebimentos, caixa); usuários, indicadores e o cliente ficam */
   limpar: () => Promise<void>

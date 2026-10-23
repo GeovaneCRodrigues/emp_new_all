@@ -44,4 +44,41 @@ describe.skipIf(!db)('conta corrente do indicador (Postgres de verdade)', () => 
       expect((await caixa()).saldo).toBe(0)
     })
   })
+
+  describe('empréstimo novo "saiu da conta do indicador"', () => {
+    const criar = (extra: object) => m.req('POST', '/api/emprestimos', 'admin', { clienteId: m.id.ana, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, ...extra })
+
+    it('grava de onde saiu o dinheiro (de qualquer indicador, não só o do empréstimo) e audita', async () => {
+      const r = await criar({ indicadorId: m.id.roberto, saiuDaConta: { indicadorId: m.id.carla, valor: 600 } })
+      expect(r.statusCode, r.body).toBe(201)
+      const l = await db!('emprestimos').where({ id: r.json().id }).first()
+      expect(l.saiu_da_conta_indicador_id).toBe(m.id.carla)
+      expect(Number(l.saiu_da_conta_valor)).toBe(600)
+      const a = await db!('auditoria').where({ acao: 'EMPRESTIMO_CRIADO', entidade_id: r.json().id }).first()
+      expect(a.depois.saiuDaConta).toEqual({ indicadorId: m.id.carla, valor: 600 })
+    })
+    it('sem saiuDaConta, tudo como antes (zero, sem indicador)', async () => {
+      const r = await criar({})
+      const l = await db!('emprestimos').where({ id: r.json().id }).first()
+      expect(l.saiu_da_conta_indicador_id).toBeNull(); expect(Number(l.saiu_da_conta_valor)).toBe(0)
+    })
+    it('o valor pode ser o capital todo', async () => {
+      expect((await criar({ saiuDaConta: { indicadorId: m.id.roberto, valor: 1000 } })).statusCode).toBe(201)
+    })
+    it.each([
+      ['valor maior que o capital', { indicadorId: 1, valor: 1000.01 }], ['valor zero', { indicadorId: 1, valor: 0 }], ['valor negativo', { indicadorId: 1, valor: -5 }],
+      ['valor como texto', { indicadorId: 1, valor: '300' }], ['sem valor', { indicadorId: 1 }], ['sem indicador', { valor: 300 }], ['indicador quebrado', { indicadorId: 1.5, valor: 300 }],
+      ['indicador inexistente', { indicadorId: 999999, valor: 300 }], ['não é objeto', 'sim'],
+    ])('recusa %s (400) e não grava nada', async (_nome, saiuDaConta) => {
+      const corpo = typeof saiuDaConta === 'object' && saiuDaConta && 'indicadorId' in saiuDaConta && saiuDaConta.indicadorId === 1 ? { ...saiuDaConta, indicadorId: m.id.roberto } : saiuDaConta
+      const r = await criar({ saiuDaConta: corpo })
+      expect(r.statusCode, r.body).toBe(400)
+      expect(Number((await db!('emprestimos').count('* as n').first() as { n: string }).n)).toBe(0)
+    })
+    it('indicador desativado não serve', async () => {
+      await db!('indicadores').where({ id: m.id.carla }).update({ ativo: false })
+      try { expect((await criar({ saiuDaConta: { indicadorId: m.id.carla, valor: 100 } })).statusCode).toBe(400) }
+      finally { await db!('indicadores').where({ id: m.id.carla }).update({ ativo: true }) }
+    })
+  })
 })

@@ -59,4 +59,6 @@ export type NovoEmprestimo = {
   pulaDomingo: boolean
   observacoes: string | null
   modoDivisao: ModoDivisao
+  /** o dinheiro (ou parte dele) saiu da conta de um indicador, não do Caixa da loja */
+  saiuDaConta: { indicadorId: number; valor: number } | null
 }
