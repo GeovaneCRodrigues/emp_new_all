@@ -91,3 +91,52 @@ test.describe('baixa que caiu na conta do indicador', () => {
     expect(numero(await page.locator('[data-conta]').filter({ hasText: indicador }).locator('[data-saldo]').innerText())).toBe(saldoAntes)
   })
 })
+
+test.describe('aba Conta corrente', () => {
+  async function abrir(page: import('@playwright/test').Page) {
+    await entrar(page)
+    await navegar(page, '/indicadores')
+    await page.getByRole('button', { name: /Conta corrente/ }).click()
+  }
+
+  test('lista cada indicador com o saldo; o da demonstração aparece devendo à loja', async ({ page }) => {
+    await abrir(page)
+    await expect(page.locator('[data-conta]').first()).toBeVisible()
+    const devendo = page.locator('[data-conta]').filter({ hasText: 'deve à loja' }).first()
+    await expect(devendo).toContainText('800,00')
+  })
+
+  test('a ficha mostra o extrato (cobrou e enviou) e o saldo; lançar envio baixa o saldo e entra no extrato', async ({ page }) => {
+    await abrir(page)
+    await page.locator('[data-conta]').filter({ hasText: 'deve à loja' }).first().click()
+    const ficha = page.getByRole('dialog')
+    await expect(ficha.getByTestId('conta-saldo')).toContainText('800,00')
+    await expect(ficha.locator('[data-lancamento="COBROU"]').first()).toContainText('1.200,00')
+    await expect(ficha.locator('[data-lancamento="ENVIOU"]').first()).toContainText('400,00')
+    await ficha.locator('[data-lancar-envio]').click()
+    await page.locator('#envValor').fill('30000') // R$ 300,00
+    await page.locator('#envComprovante').fill('PIX-E2E')
+    await page.getByRole('button', { name: 'Lançar envio', exact: true }).last().click()
+    await expect(ficha.getByTestId('conta-saldo')).toContainText('500,00')
+    await expect(ficha.locator('[data-lancamento="ENVIOU"]').filter({ hasText: 'PIX-E2E' })).toBeVisible()
+  })
+
+  test('envio acima do saldo avisa que vira crédito do indicador, mas deixa lançar', async ({ page }) => {
+    await abrir(page)
+    await page.locator('[data-conta]').filter({ hasText: 'deve à loja' }).first().click()
+    const ficha = page.getByRole('dialog')
+    await ficha.locator('[data-lancar-envio]').click()
+    await page.locator('#envValor').fill('90000') // R$ 900,00 (o saldo é 800,00)
+    await expect(page.getByTestId('envio-aviso')).toContainText('passa do que ele devia')
+    await page.getByRole('button', { name: 'Lançar envio', exact: true }).last().click()
+    await expect(ficha.getByTestId('conta-saldo')).toContainText('100,00')
+    await expect(ficha.getByTestId('conta-saldo')).toContainText('a loja deve a ele')
+  })
+
+  test('celular: a aba e a ficha cabem na tela, sem rolagem lateral', async ({ page }) => {
+    await abrir(page)
+    await page.locator('[data-conta]').first().click()
+    await expect(page.getByRole('dialog')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  })
+})

@@ -2,10 +2,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AcessoCriado, IndicadorApi, TabelaNiveis } from '@/api/indicadores'
+import type { SaldoIndicadorApi } from '@/api/contaIndicador'
 import type { DetalheRepasseApi, RepasseApi, ResumoDoIndicadorApi } from '@/api/repasses'
-import { indicadoresApi, repassesApi } from '@/api/recursos'
+import { contaIndicadorApi, indicadoresApi, repassesApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
 import CampoBusca from '@/components/CampoBusca.vue'
+import ContaIndicadorFicha from '@/components/ContaIndicadorFicha.vue'
 import Icon from '@/components/Icon.vue'
 import IndicadorForm from '@/components/IndicadorForm.vue'
 import PagarRepasseForm from '@/components/PagarRepasseForm.vue'
@@ -24,6 +26,7 @@ const { sessao } = useApp()
 const aba = ref('repasses')
 const abas = [
   { id: 'repasses', label: 'Repasses', icon: 'send' },
+  { id: 'conta', label: 'Conta corrente', icon: 'landmark' },
   { id: 'indicadores', label: 'Indicadores', icon: 'share-2' },
   { id: 'niveis', label: 'Níveis', icon: 'award' },
   { id: 'pagos', label: 'Já pagos', icon: 'wallet' },
@@ -48,7 +51,17 @@ async function carregar() {
     carregando.value = false
   }
 }
-onMounted(() => { carregar(); carregarNiveis(); carregarRepasses() })
+onMounted(() => { carregar(); carregarNiveis(); carregarRepasses(); carregarSaldos() })
+
+// ---- conta corrente: quanto de dinheiro de cliente está com cada indicador ----
+const saldos = ref<SaldoIndicadorApi[]>([])
+const contaAberta = ref<{ id: number; nome: string } | null>(null)
+const saldosVisiveis = computed(() => saldos.value.filter((s) => casaBusca([s.indicador.nome], busca.value)))
+const situacaoConta = (saldo: number) => (saldo > 0.004 ? 'deve à loja' : saldo < -0.004 ? 'a loja deve a ele' : 'em dia')
+async function carregarSaldos() {
+  try { saldos.value = await contaIndicadorApi.saldos(sessao.value) }
+  catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar as contas.' }
+}
 
 // ---- repasses ----
 const repasses = ref<{ item: ResumoDoIndicadorApi; detalhe: DetalheRepasseApi }[]>([])
@@ -214,6 +227,20 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
     <div v-if="!repasses.length && !carregandoRep && !erroRep" class="card empty">Nenhum indicador trouxe operação ainda.</div>
   </template>
 
+  <!-- conta corrente -->
+  <template v-else-if="aba === 'conta'">
+    <div class="small">Dinheiro de cliente que ficou na conta do indicador. O saldo é o que ele cobrou, menos o que já enviou à loja e o que pagou de empréstimo.</div>
+    <CampoBusca v-model="busca" placeholder="Buscar indicador" />
+    <div class="fones">
+      <button v-for="s in saldosVisiveis" :key="s.indicador.id" class="card pad" style="text-align: left; display: flex; align-items: center; gap: 12px" :style="{ opacity: s.indicador.ativo ? 1 : 0.6 }" :data-conta="s.indicador.id" @click="contaAberta = { id: s.indicador.id, nome: s.indicador.nome }">
+        <span class="ini" style="background: var(--primary-soft); color: var(--primary)">{{ iniciais(s.indicador.nome) }}</span>
+        <div style="flex: 1; min-width: 0"><div class="val">{{ s.indicador.nome }}</div><div class="small">{{ situacaoConta(s.saldo) }}</div></div>
+        <b class="num" data-saldo :style="{ color: s.saldo > 0.004 ? 'var(--bad)' : s.saldo < -0.004 ? 'var(--ok)' : 'var(--soft)' }">{{ fmt(Math.abs(s.saldo)) }}</b>
+      </button>
+      <div v-if="!saldosVisiveis.length" class="card empty">{{ busca.trim() ? 'Nenhum indicador com esse nome.' : 'Nenhum indicador ainda.' }}</div>
+    </div>
+  </template>
+
   <!-- já pagos -->
   <template v-else-if="aba === 'pagos'">
     <div class="row" style="gap: 10px; flex-wrap: wrap; justify-content: space-between">
@@ -293,6 +320,7 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
   </Sheet>
 
   <PagarRepasseForm :aberto="pagando !== null" :item="pagando" @fechar="pagando = null" @pago="aoPagar" />
+  <ContaIndicadorFicha :indicador="contaAberta" @fechar="contaAberta = null" @mudou="carregarSaldos()" />
   <IndicadorForm :aberto="formAberto" :indicador="editando" @fechar="formAberto = false" @salvo="aoSalvar" />
 
   <!-- acesso -->
