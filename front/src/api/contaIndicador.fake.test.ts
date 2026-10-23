@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { Sessao } from '@/domain/escopo'
 import { ErroApi } from './clientes'
 import { criarContaIndicadorFake, type ContaIndicadorFake } from './contaIndicador.fake'
+import { criarClientesFake } from './clientes.fake'
+import { criarEmprestimosFake } from './emprestimos.fake'
+import { criarEstoqueFake } from './estoque.fake'
 import { criarIndicadoresFake } from './indicadores.fake'
+import { criarVendasFake, type VendasFake } from './vendas.fake'
 
 const ADMIN: Sessao = { perfil: 'ADMIN', usuarioId: 1 }
 const COBR: Sessao = { perfil: 'COBRADOR', usuarioId: 3 }
@@ -11,7 +15,14 @@ const IND2: Sessao = { perfil: 'INDICADOR', indicadorId: 2 }
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: ErroApi) => e)
 
 let conta: ContaIndicadorFake
-beforeEach(() => { conta = criarContaIndicadorFake({ indicadores: criarIndicadoresFake(), hoje: () => '2026-10-08' }) })
+let vendas: VendasFake
+let emp: ReturnType<typeof criarEmprestimosFake>
+beforeEach(() => {
+  const clientes = criarClientesFake(); const indicadores = criarIndicadoresFake()
+  vendas = criarVendasFake({ estoque: criarEstoqueFake(), indicadores, clientes })
+  emp = criarEmprestimosFake({ clientes, indicadores })
+  conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08', transacoes: () => vendas._interno.transacoes, emprestimos: () => emp._interno.registros })
+})
 
 describe('conta corrente do indicador (demonstração)', () => {
   it('nasce com o indicador 1 devendo 800 (cobrou 1.200, enviou 400) e os outros zerados', async () => {
@@ -25,11 +36,12 @@ describe('conta corrente do indicador (demonstração)', () => {
     expect((await conta.lancarEnvio(ADMIN, 1, { valor: 300, comprovante: 'PIX1' })).saldo).toBe(500)
     expect((await conta.lancarEnvio(ADMIN, 1, { valor: 600 })).saldo).toBe(-100)
   })
-  it('cobrou e emprestou (vindos dos outros fakes) entram no saldo e no extrato', async () => {
-    conta._interno.cobrou(2, { data: '2026-10-08', valor: 500, titulo: 'Ana', sub: 'parcela 1/2' })
-    conta._interno.emprestou(2, { data: '2026-10-08', valor: 200, titulo: 'Empréstimo · Ana' })
+  it('cobrou (transação marcada) e emprestou (empréstimo) entram no saldo e no extrato', async () => {
+    const t = vendas._interno.transacoes.find((x) => !x.desfeita && x.data <= '2026-10-08')!
+    t.cobradoPorIndicadorId = 2 // a loja confirmou uma baixa dizendo que o dinheiro ficou na conta da Carla
+    await emp.criar(ADMIN, { clienteId: 3, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, saiuDaConta: { indicadorId: 2, valor: 200 } })
     const c = await conta.ver(ADMIN, 2)
-    expect(c).toMatchObject({ saldo: 300, cobrou: 500, emprestou: 200, total: 2 })
+    expect(c).toMatchObject({ saldo: t.valor - 200, cobrou: t.valor, emprestou: 200, total: 2 })
   })
   it.each([['valor zero', { valor: 0 }], ['valor negativo', { valor: -1 }], ['valor como texto', { valor: '100' }], ['sem valor', {}], ['data no futuro', { valor: 10, data: '2026-10-09' }], ['data inválida', { valor: 10, data: '2026-02-31' }], ['lado inventado', { valor: 10, lado: 'CARRO' }]])('envio com %s: 400', async (_n, e) => {
     expect((await falha(conta.lancarEnvio(ADMIN, 1, e as never)))?.status).toBe(400)

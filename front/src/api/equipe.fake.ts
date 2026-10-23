@@ -10,7 +10,6 @@ import { ErroApi } from './clientes'
 import type { EquipeApi, PessoaApi } from './equipe'
 import type { CaixaApi, FechamentoApi, FechamentosApi } from './fechamentos'
 import { valorParcelaValido, type AcordosFake } from './acordos.fake'
-import type { ContaIndicadorFake } from './contaIndicador.fake'
 import type { EmprestimosFake, RegistroEmprestimo } from './emprestimos.fake'
 import type { AlvoApi } from './recebimentos'
 import type { RecebimentosFake } from './recebimentos.fake'
@@ -35,7 +34,7 @@ interface OpPedido {
 }
 
 /** Pedidos de desconto de demonstração: mesmas regras do backend (só o cobrador pede, só o admin responde, um pendente por parcela). */
-export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake, acordos?: AcordosFake, recebimentos?: RecebimentosFake, conta?: ContaIndicadorFake): AprovacoesApi {
+export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: EmprestimosFake, acordos?: AcordosFake, recebimentos?: RecebimentosFake): AprovacoesApi {
   const { pedidos, hoje } = vendas._interno
   const comoOp = (r: Registro): OpPedido => ({ alvo: 'VENDA', id: r.id, cliente: r.cliente, descricao: r.aparelho.modelo, status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
   const comoOpEmp = (r: RegistroEmprestimo): OpPedido => ({ alvo: 'EMPRESTIMO', id: r.id, cliente: r.cliente, descricao: nomeEmprestimo(r.modalidade, r.periodicidade), status: r.status, parcelas: r.parcelas, definirStatus: (st) => { r.status = st } })
@@ -199,7 +198,8 @@ export function criarAprovacoesFake(vendas: VendasFake, emprestimos?: Emprestimo
           e?.quitar === true
             ? { parcela: p.parcela!, valor: e.valor!, forma: p.baixa.forma, data: p.baixa.data, quitar: true, ...(e.cobrarProximo !== undefined ? { cobrarProximo: e.cobrarProximo } : {}) }
             : { parcela: p.parcela!, valor: p.valor, forma: p.baixa.forma, data: p.baixa.data, ...(e?.resto ? { resto: e.resto } : {}), ...(e?.novoVencimento ? { novoVencimento: e.novoVencimento } : {}) }, p.id)
-        if (naConta) conta?._interno.cobrou(p.solicitanteId - 10_000, { data: p.baixa.data, valor: r.recibo.valor, titulo: r.recibo.cliente.nome, sub: r.recibo.referencia })
+        // o dinheiro ficou com o indicador: a transação leva a marca (a conta dele e o Caixa leem dela, e desfazer corrige sozinho)
+        if (naConta) { const t = vendas._interno.transacoes.find((x) => x.id === r.recibo.id); if (t) t.cobradoPorIndicadorId = p.solicitanteId - 10_000 }
         p.status = 'APROVADO'; p.respondidoPor = 'Geovane Cataneo'; p.respondidoEm = `${hoje}T12:00:00.000Z`
         return { ...visao(p), recibo: r.recibo }
       }

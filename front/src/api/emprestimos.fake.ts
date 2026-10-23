@@ -7,7 +7,6 @@ import { arred2 } from '@/domain/format'
 import { partesDoIndicador } from '@/domain/repasseIndicador'
 import { ErroApi, type ClientesApi } from './clientes'
 import { MODALIDADES_LIBERADAS, type EmprestimoApi, type EmprestimosApi, type EntradaEmprestimo, type ModalidadeApi, type PeriodicidadeApi, type StatusEmprestimo } from './emprestimos'
-import type { ContaIndicadorFake } from './contaIndicador.fake'
 import type { IndicadoresFake } from './indicadores.fake'
 
 export interface Parcela { numero: number; vencimento: string; vencimentoOriginal: string | null; valor: number; desconto: number; pago: number; quitadaEm: string | null; /** criada por um acordo */ acordoId?: number | null; /** encerrada por um acordo */ encerradaId?: number | null }
@@ -18,6 +17,8 @@ export interface RegistroEmprestimo {
   amortizado: number; parcelas: Parcela[]
   /** unificação */
   unificadoDe?: number[]; unificadoEm?: number | null
+  /** o dinheiro (ou parte) saiu da conta de um indicador, não do Caixa da loja */
+  saiuDaConta?: { indicadorId: number; valor: number }
 }
 
 export interface EmprestimosFake extends EmprestimosApi {
@@ -34,7 +35,7 @@ const inteiro = (v: unknown, c: string, min: number, max: number) => { if (typeo
  * Versão de demonstração: mesmas regras do backend (só o admin empresta, o cobrador só vê a carteira dele e
  * sem capital/taxa/lucro, % do indicador congelado, o servidor refaz as parcelas).
  */
-export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: IndicadoresFake; conta?: ContaIndicadorFake }): EmprestimosFake {
+export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: IndicadoresFake }): EmprestimosFake {
   const seed = criarSeed()
   const hoje = seed.hoje
   let proximoId = 1000
@@ -151,8 +152,8 @@ export function criarEmprestimosFake(dep: { clientes: ClientesApi; indicadores: 
         dataEmprestimo: data, capital, modalidade: e.modalidade, taxa, periodicidade, pulaDomingo, status: 'ATIVA', observacoes, amortizado: 0,
         parcelas: planoEmprestimo({ capital, mod: e.modalidade, taxa, n, data, freq: periodicidade, primeira, pulaDomingo }).map((p, i) => ({ numero: i + 1, vencimento: p.venc, vencimentoOriginal: null, valor: p.valor, desconto: 0, pago: 0, quitadaEm: null })),
       }
+      if (saiuDaConta) reg.saiuDaConta = saiuDaConta
       registros.push(reg)
-      if (saiuDaConta) dep.conta?._interno.emprestou(saiuDaConta.indicadorId, { data, valor: saiuDaConta.valor, titulo: `Empréstimo · ${cliente.nome}` })
       if (indicador) dep.indicadores._interno.contarOperacao(indicador.id)
       return calcular(reg, s.perfil)
     },

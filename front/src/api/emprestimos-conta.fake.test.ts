@@ -4,15 +4,19 @@ import { ErroApi } from './clientes'
 import { criarClientesFake } from './clientes.fake'
 import { criarContaIndicadorFake } from './contaIndicador.fake'
 import { criarEmprestimosFake } from './emprestimos.fake'
+import { criarEstoqueFake } from './estoque.fake'
 import { criarIndicadoresFake } from './indicadores.fake'
+import { criarVendasFake } from './vendas.fake'
 
 const ADMIN: Sessao = { perfil: 'ADMIN', usuarioId: 1 }
 const falha = async (p: Promise<unknown>) => p.then(() => null, (e: ErroApi) => e)
 
 function mundo() {
   const clientes = criarClientesFake(); const indicadores = criarIndicadoresFake()
-  const conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08' })
-  return { conta, emp: criarEmprestimosFake({ clientes, indicadores, conta }) }
+  const vendas = criarVendasFake({ estoque: criarEstoqueFake(), indicadores, clientes })
+  const emp = criarEmprestimosFake({ clientes, indicadores })
+  const conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08', transacoes: () => vendas._interno.transacoes, emprestimos: () => emp._interno.registros })
+  return { conta, emp }
 }
 const base = { clienteId: 3, modalidade: 'PARCELADO' as const, capital: 1000, taxa: 30, parcelas: 2 }
 

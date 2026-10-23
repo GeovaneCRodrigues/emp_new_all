@@ -1,10 +1,11 @@
 import { casaBusca } from '@/domain/busca'
 import { nomeEmprestimo } from '@/domain/emprestimo'
 import type { Sessao } from '@/domain/escopo'
-import { arred2 } from '@/domain/format'
+import { arred2, fmt } from '@/domain/format'
 import { todasAsPaginas } from './paginar'
 import { ErroApi } from './clientes'
 import type { CaixaApi, CaixaLojaApi, EntradaLancamento, FiltroLadoCaixa, LadoCaixa, LancamentoApi, MovimentoApi, SaldoLadoApi, TipoLancamento } from './caixa'
+import type { ContaIndicadorFake } from './contaIndicador.fake'
 import type { EmprestimosFake } from './emprestimos.fake'
 import type { EstoqueApi } from './estoque'
 import type { RepassesApi } from './repasses'
@@ -31,7 +32,7 @@ function diaValido(v: unknown): string {
  * Versão de demonstração: as mesmas regras do backend. Junta o que a demonstração já tem (recebimentos, empréstimos,
  * compras de aparelho, repasses) com os lançamentos manuais, e só conta a partir do primeiro aporte ou retirada.
  */
-export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: EmprestimosFake; estoque: EstoqueApi; repasses: RepassesApi }): CaixaApi {
+export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: EmprestimosFake; estoque: EstoqueApi; repasses: RepassesApi; conta?: ContaIndicadorFake }): CaixaApi {
   const hoje = dep.vendas._interno.hoje
   let seq = 1
   // a demonstração começa com o saldo de abertura, como o dono faria
@@ -63,7 +64,8 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
     const m: MovimentoApi[] = []
     const reg = dep.vendas._interno.registros
     for (const t of dep.vendas._interno.transacoes) {
-      if (t.desfeita || t.data > hoje) continue
+      // o que o indicador cobrou direto do cliente só entra no Caixa quando ele envia à loja
+      if (t.desfeita || t.data > hoje || t.cobradoPorIndicadorId !== undefined) continue
       const entrada = t.tipo === 'ENTRADA'
       const venda = t.alvo === 'VENDA' ? reg.find((r) => r.id === t.operacaoId) : undefined
       const emp = t.alvo === 'EMPRESTIMO' ? dep.emprestimos._interno.registros.find((r) => r.id === t.operacaoId) : undefined
@@ -72,12 +74,19 @@ export function criarCaixaFake(dep: { vendas: VendasFake; emprestimos: Emprestim
     }
     for (const r of dep.emprestimos._interno.registros) {
       if (r.status === 'CANCELADA' || r.dataEmprestimo > hoje) continue
-      m.push({ chave: 'E' + r.id, data: r.dataEmprestimo, valor: r.capital, entrada: false, categoria: 'EMPRESTIMO', titulo: `Empréstimo liberado · ${r.cliente.nome}`, sub: nomeEmprestimo(r.modalidade, r.periodicidade), lado: 'EMPRESTIMO', manualId: null })
+      // a parte que saiu da conta de um indicador não tira nada do Caixa da loja
+      const daConta = r.saiuDaConta?.valor ?? 0
+      const valor = arred2(r.capital - daConta)
+      if (valor <= 0) continue
+      m.push({ chave: 'E' + r.id, data: r.dataEmprestimo, valor, entrada: false, categoria: 'EMPRESTIMO', titulo: `Empréstimo liberado · ${r.cliente.nome}`, sub: [nomeEmprestimo(r.modalidade, r.periodicidade), daConta > 0 ? `${fmt(daConta)} da conta do indicador` : ''].filter(Boolean).join(' · '), lado: 'EMPRESTIMO', manualId: null })
     }
     for (const a of await todasAsPaginas((p) => dep.estoque.listar(ADM, { pagina: p, limite: 100 }))) {
       const custo = arred2((a.custo ?? 0) + (a.extras ?? 0))
       if (a.origem !== 'COMPRA' || a.estado === 'ENCOMENDADO' || custo <= 0 || a.dataCompra > hoje) continue
       m.push({ chave: 'B' + a.id, data: a.dataCompra, valor: custo, entrada: false, categoria: 'COMPRA', titulo: `Compra · ${a.modelo}${a.gb > 0 ? ` ${a.gb} GB` : ''}`, sub: a.cor === 'A DEFINIR' ? '' : a.cor, lado: 'IPHONE', manualId: null })
+    }
+    for (const e of (await dep.conta?._interno.envios()) ?? []) {
+      m.push({ chave: 'T' + e.id, data: e.data, valor: e.valor, entrada: true, categoria: 'TRANSFERENCIA', titulo: `Repasse do indicador · ${e.nome}`, sub: 'dinheiro que ele cobrou do cliente', lado: e.lado, manualId: null })
     }
     for (const r of await dep.repasses.jaPagos(ADM)) {
       if (r.data > hoje) continue

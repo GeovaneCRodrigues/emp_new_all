@@ -41,6 +41,8 @@ export interface Transacao {
   recebidoPorId: number | null
   recebidoPorNome: string
   desfeita: boolean
+  /** o dinheiro ficou com este indicador (fora do Caixa até ele repassar) */
+  cobradoPorIndicadorId?: number
   resumo: { referencia: string; faltaDepois: number; proxima: { numero: number; valor: number; vencimento: string } | null; restantes: number; ficaDevendo: { numero: number; valor: number; vencimento: string } | null; amortizacao?: { valor: number; capitalRestante: number } }
   /** só juros: o que mudou fora da parcela paga (para o "desfazer") */
   ajustes?: { amortizacao: number; parcelas: { numero: number; antes: { vencimento: string; vencimentoOriginal: string | null; desconto: number; quitadaEm: string | null; valor?: number } }[] }

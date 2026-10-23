@@ -171,12 +171,12 @@ describe('baixa "na conta do indicador" (demonstração)', () => {
   it('confirmar com a marca coloca o valor na conta do indicador; sem marca, não; a loja pode desmarcar', async () => {
     const { criarContaIndicadorFake } = await import('./contaIndicador.fake')
     const indicadores = criarIndicadoresFake()
-    const conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08' })
     const clientes = criarClientesFake(); const est = criarEstoqueFake()
     const v2 = criarVendasFake({ estoque: est, indicadores, clientes })
-    const e2 = criarEmprestimosFake({ clientes, indicadores, conta })
+    const e2 = criarEmprestimosFake({ clientes, indicadores })
+    const conta = criarContaIndicadorFake({ indicadores, hoje: () => '2026-10-08', transacoes: () => v2._interno.transacoes, emprestimos: () => e2._interno.registros })
     const r2 = criarRecebimentosFake(v2, e2)
-    const a2 = criarAprovacoesFake(v2, e2, undefined, r2, conta)
+    const a2 = criarAprovacoesFake(v2, e2, undefined, r2)
     const op = (await e2.criar(ADMIN, { clienteId: 3, modalidade: 'PARCELADO', capital: 1000, taxa: 30, parcelas: 2, indicadorId: 1 })).id
     const antes = (await conta.ver(ADMIN, 1)).saldo
     const p1 = await a2.pedirBaixa(IND1, { alvo: 'EMPRESTIMO', operacaoId: op, parcela: 1, valor: 650, forma: 'PIX', naContaDoIndicador: true })
