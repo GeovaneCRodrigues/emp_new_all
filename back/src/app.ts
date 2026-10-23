@@ -81,7 +81,8 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
     logger: deps.env.NODE_ENV === 'test' ? false : { redact: ['req.headers.authorization'] },
     // o back só recebe pedidos pelo nginx, que escreve o IP real em X-Forwarded-For (sobrescrevendo o que o cliente mandou).
     // Sem isso todo mundo teria o IP do nginx e o limite de tentativas de login valeria para todos juntos.
-    trustProxy: true,
+    // Confia só em quem chega da rede interna (o nginx): IPs a mais que o cliente escreva no cabeçalho são ignorados.
+    trustProxy: ['loopback', 'uniquelocal'],
     bodyLimit: 1_048_576,
   })
 

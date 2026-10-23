@@ -25,6 +25,14 @@ describe('limite de tentativas de login (por IP real, atrás do nginx)', () => {
   })
 })
 
+describe('IP forjado no cabeçalho', () => {
+  it('IPs a mais escritos pelo cliente não escapam do limite: vale o último, o que o nginx pôs', async () => {
+    await montar()
+    for (let i = 0; i < 10; i++) expect((await tentarLogin(`10.0.0.${i}, 203.0.113.7`)).statusCode).toBe(401)
+    expect((await tentarLogin('10.9.9.9, 203.0.113.7')).statusCode).toBe(429)
+  })
+})
+
 describe('limite geral de requisições', () => {
   it('passado o limite do IP, responde 429; o health check nunca é limitado', async () => {
     await montar({ geralPorMinuto: 3 })
