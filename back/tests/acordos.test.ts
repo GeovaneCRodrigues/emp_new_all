@@ -429,6 +429,42 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
   })
 
   // ===================== o cobrador pede =====================
+  describe('parcela no valor dito (as primeiras exatas, a última leva a diferença)', () => {
+    it('administrador: 3.000 com parcela de 700 → 5 parcelas, quatro de 700 e a última de 200', async () => {
+      const v = await vendaComSaldo()
+      const r = await acordoV('admin', v, { valorTotal: 3000, parcelas: 5, valorParcela: 700 })
+      expect(r.statusCode, r.body).toBe(201)
+      const novas = (await parcelas(v)).slice(4)
+      expect(novas.map((p) => p.valor)).toEqual([700, 700, 700, 700, 200])
+      expect(novas.reduce((t, p) => t + p.valor, 0)).toBe(3000)
+    })
+    it('divisão exata: a última não fica diferente (3.000 de 750 → 4 × 750)', async () => {
+      const v = await vendaComSaldo()
+      expect((await acordoV('admin', v, { valorTotal: 3000, parcelas: 4, valorParcela: 750 })).statusCode).toBe(201)
+      expect((await parcelas(v)).slice(4).map((p) => p.valor)).toEqual([750, 750, 750, 750])
+    })
+    it('o número de parcelas tem de bater com o valor da parcela (senão 400 e nada muda)', async () => {
+      const v = await vendaComSaldo()
+      for (const corpo of [{ parcelas: 4, valorParcela: 700 }, { parcelas: 6, valorParcela: 700 }, { parcelas: 4, valorParcela: 0 }, { parcelas: 4, valorParcela: -5 }, { parcelas: 4, valorParcela: '750' }]) {
+        expect((await acordoV('admin', v, { valorTotal: 3000, ...corpo })).statusCode).toBe(400)
+      }
+      expect((await parcelas(v)).every((p) => p.acordo === null && p.encerrada === null)).toBe(true)
+    })
+    it('parcela maior que o total vira 1x com tudo; sem valorParcela segue dividindo igual', async () => {
+      const v = await vendaComSaldo()
+      expect((await acordoV('admin', v, { valorTotal: 3000, parcelas: 1, valorParcela: 5000 })).statusCode).toBe(201)
+      expect((await parcelas(v)).slice(4).map((p) => p.valor)).toEqual([3000])
+    })
+    it('o cobrador pede com a parcela cheia e, aprovado, as parcelas saem assim', async () => {
+      const v = await vendaComSaldo()
+      const pid = (await pedir('cobrador', v, { valorTotal: 3000, parcelas: 5, valorParcela: 700 })).json()
+      expect(pid.acordo).toMatchObject({ parcelas: 5, valorParcela: 700 })
+      expect((await pedir('cobrador', v, { valorTotal: 3000, parcelas: 4, valorParcela: 700 })).statusCode).toBe(400)
+      expect((await aprovar('admin', pid.id)).statusCode).toBe(200)
+      expect((await parcelas(v)).slice(4).map((p) => p.valor)).toEqual([700, 700, 700, 700, 200])
+    })
+  })
+
   describe('cobrador pede o acordo', () => {
     it('só o cobrador da carteira pede: admin/vendedor/indicador 403, outra carteira e inexistente 404, sem login 401', async () => {
       const v = await vendaComSaldo()

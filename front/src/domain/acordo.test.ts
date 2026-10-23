@@ -9,6 +9,12 @@ describe('divisão do acordo', () => {
   })
   it('divide igual quando dá: 3.000 em 4x → 4 × 750', () => { expect(distribuirAcordo(3000, 4)).toEqual([750, 750, 750, 750]) })
   it('1 parcela só leva tudo', () => { expect(distribuirAcordo(3020, 1)).toEqual([3020]) })
+  it('com o valor da parcela: as primeiras exatas e a última com a diferença (38.100 de 250 → 152 × 250 + 100)', () => {
+    const v = distribuirAcordo(38100, 153, 250)
+    expect(v).toHaveLength(153); expect(v.slice(0, 152).every((x) => x === 250)).toBe(true); expect(v[152]).toBe(100)
+    expect(Math.round(v.reduce((s, x) => s + x, 0) * 100) / 100).toBe(38100)
+  })
+  it('com o valor da parcela e conta exata, a última não muda; 1 parcela leva tudo', () => { expect(distribuirAcordo(3000, 4, 750)).toEqual([750, 750, 750, 750]); expect(distribuirAcordo(500, 1, 800)).toEqual([500]) })
   it('sem valor ou sem parcelas não gera nada', () => { expect(distribuirAcordo(0, 3)).toEqual([]); expect(distribuirAcordo(100, 0)).toEqual([]) })
 })
 

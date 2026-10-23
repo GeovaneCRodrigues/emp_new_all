@@ -50,6 +50,8 @@ export interface EntradaAcordo {
   motivo?: string
   /** só empréstimo: dinheiro novo emprestado junto; soma no capital e sai do Caixa na data do acordo */
   capitalAdicional?: number
+  /** parcelas exatamente neste valor e a última com a diferença; o número de parcelas tem de bater (total ÷ parcela, para cima) */
+  valorParcela?: number
 }
 
 export interface EntradaUnificar {

@@ -103,6 +103,27 @@ describe('administrador faz o acordo (venda)', () => {
   })
 })
 
+describe('parcela no valor dito (as primeiras exatas, a última leva a diferença)', () => {
+  const novas = async () => (await ficha(carlos)).parcelas.filter((p) => p.acordo === 'NOVA').map((p) => p.valor)
+  it('3.000 com parcela de 700 → 5 parcelas: 700 × 4 e a última de 200; conta exata não muda a última', async () => {
+    await acordos.fazer(ADMIN, 'VENDA', carlos, { valorTotal: 3000, parcelas: 5, primeiraParcela: PRIMEIRA, valorParcela: 700 })
+    expect(await novas()).toEqual([700, 700, 700, 700, 200])
+  })
+  it('o número de parcelas tem de bater com o valor da parcela (senão 400 e nada muda)', async () => {
+    for (const e of [{ parcelas: 4, valorParcela: 700 }, { parcelas: 6, valorParcela: 700 }, { parcelas: 4, valorParcela: 0 }, { parcelas: 4, valorParcela: -5 }, { parcelas: 4, valorParcela: '750' }]) {
+      expect((await falha(acordos.fazer(ADMIN, 'VENDA', carlos, { valorTotal: 3000, primeiraParcela: PRIMEIRA, ...e } as never)))?.status).toBe(400)
+    }
+    expect(await novas()).toEqual([])
+  })
+  it('o cobrador pede com a parcela cheia e, aprovado, as parcelas saem assim', async () => {
+    const pedido = await apr.pedirAcordo(COBR, { alvo: 'VENDA', operacaoId: carlos, valorTotal: 3000, parcelas: 5, primeiraParcela: PRIMEIRA, valorParcela: 700, motivo: 'Cliente pediu' })
+    expect(pedido.acordo).toMatchObject({ parcelas: 5, valorParcela: 700 })
+    expect((await falha(apr.pedirAcordo(COBR, { alvo: 'VENDA', operacaoId: carlos, valorTotal: 3000, parcelas: 4, primeiraParcela: PRIMEIRA, valorParcela: 700, motivo: 'abc' })))?.status).toBe(400)
+    await apr.aprovar(ADMIN, pedido.id)
+    expect(await novas()).toEqual([700, 700, 700, 700, 200])
+  })
+})
+
 describe('dinheiro novo no acordo (empréstimo)', () => {
   it('soma no capital do empréstimo e aparece no histórico; sem ele o capital não muda', async () => {
     const e = await jurosEmp()

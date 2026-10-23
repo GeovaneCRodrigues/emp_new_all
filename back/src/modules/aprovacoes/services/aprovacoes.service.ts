@@ -2,7 +2,7 @@ import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../.
 import type { Sessao } from '../../../shared/perfis.js'
 import { hojeBR } from '../../../shared/relogio.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
-import { validarPeriodicidade, validarProposta } from '../../acordos/models/acordo.js'
+import { validarPeriodicidade, validarProposta, validarValorParcela } from '../../acordos/models/acordo.js'
 import { arred2 } from '../../vendas/services/calculo.js'
 import type { AprovacoesRepository } from '../models/repository.js'
 import type { Alvo, Aprovacao, EscopoAprovacoes, StatusAprovacao, TipoAprovacao } from '../models/types.js'
@@ -165,6 +165,7 @@ export function createAprovacoesService(dep: {
     const motivo = lerMotivo(e)
     const proposta = validarProposta({ valorTotal: e.valorTotal, parcelas: e.parcelas, primeiraParcela: e.primeiraParcela }, hoje())
     const periodicidade = validarPeriodicidade(e.periodicidade, alvo)
+    const valorParcela = validarValorParcela(e.valorParcela, proposta.valorTotal, proposta.n)
 
     const id = await dep.repo
       .emTransacao(async (tx) => {
@@ -173,7 +174,7 @@ export function createAprovacoesService(dep: {
         if (op.status === 'RETOMADA' || op.status === 'CANCELADA') throw new HttpError(409, alvo === 'VENDA' ? 'Esta venda foi retomada ou cancelada' : 'Este empréstimo foi cancelado', 'VENDA_ENCERRADA')
         const saldo = arred2((await tx.parcelas(alvo, op.id)).reduce((x, p) => x + Math.max(0, falta(p)), 0))
         if (op.status !== 'ATIVA' || saldo <= 0.009) throw new HttpError(409, 'Não há nada em aberto para renegociar', 'SEM_SALDO')
-        return tx.criarAcordo({ alvo, operacaoId: op.id, solicitadoPor: s.usuarioId, valorTotal: proposta.valorTotal, motivo, parcelas: proposta.n, primeiraParcela: proposta.primeira, periodicidade, saldoNoPedido: saldo })
+        return tx.criarAcordo({ alvo, operacaoId: op.id, solicitadoPor: s.usuarioId, valorTotal: proposta.valorTotal, motivo, parcelas: proposta.n, primeiraParcela: proposta.primeira, periodicidade, saldoNoPedido: saldo, valorParcela })
       })
       .catch((err) => duplicado(err, 'Já existe um pedido de acordo esperando para esta operação'))
 
@@ -206,7 +207,7 @@ export function createAprovacoesService(dep: {
         if (!atual.dados) throw new HttpError(409, 'Pedido de acordo sem proposta', 'PEDIDO_DESATUALIZADO')
         // a 1ª parcela proposta pode já ter passado enquanto o pedido esperava
         if (atual.dados.primeiraParcela < dia) throw new HttpError(409, 'A data da 1ª parcela proposta já passou. Recuse o pedido e peça de novo.', 'PEDIDO_DESATUALIZADO')
-        const r = await tx.fazerAcordo({ alvo: pedido.alvo, operacaoId: op.id, usuarioId: s.usuarioId, valorTotal: atual.valor, n: atual.dados.parcelas, primeira: atual.dados.primeiraParcela, motivo: atual.motivo, dia, aprovacaoId: id, saldoEsperado: atual.dados.saldoNoPedido, periodicidade: atual.dados.periodicidade })
+        const r = await tx.fazerAcordo({ alvo: pedido.alvo, operacaoId: op.id, usuarioId: s.usuarioId, valorTotal: atual.valor, n: atual.dados.parcelas, primeira: atual.dados.primeiraParcela, motivo: atual.motivo, dia, aprovacaoId: id, saldoEsperado: atual.dados.saldoNoPedido, periodicidade: atual.dados.periodicidade, ...(atual.dados.valorParcela !== undefined ? { valorParcela: atual.dados.valorParcela } : {}) })
         await tx.responder(id, 'APROVADO', s.usuarioId, null)
         return { tipo: 'ACORDO' as const, alvo: pedido.alvo, operacaoId: op.id, acordoId: r.acordoId, valorTotal: r.valorTotal, parcelas: r.nParcelas, saldoAntes: r.saldoAntes }
       }

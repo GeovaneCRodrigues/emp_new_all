@@ -1,4 +1,4 @@
-import { distribuirAcordo, PERIODICIDADES_ACORDO, problemaDoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
+import { distribuirAcordo, parcelasParaValor, PERIODICIDADES_ACORDO, problemaDoAcordo, vencimentosAcordo, type PeriodicidadeAcordo } from '@/domain/acordo'
 import type { Sessao } from '@/domain/escopo'
 import { arred2 } from '@/domain/format'
 import type { AcordoApi, AcordosApi, ResultadoAcordoApi, ResultadoUnificarApi } from './acordos'
@@ -12,7 +12,7 @@ interface Reg extends AcordoApi { alvo: AlvoApi; operacaoId: number }
 export interface AcordosFake extends AcordosApi {
   _interno: {
     /** A regra única do acordo (a mesma no caminho direto e na aprovação do pedido do cobrador). */
-    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo }): ResultadoAcordoApi
+    fazerAcordo(d: { alvo: AlvoApi; operacaoId: number; usuarioNome: string; valorTotal: number; n: number; primeira: string; motivo: string | null; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo; valorParcela?: number }): ResultadoAcordoApi
   }
 }
 
@@ -20,6 +20,15 @@ export interface AcordosFake extends AcordosApi {
  * Versão de demonstração: mesmas regras do backend. As parcelas abertas viram "encerradas por acordo" (ficam só com o
  * que já foi pago), as novas continuam a numeração e a soma fecha no centavo; o acordo anterior é substituído.
  */
+/** Mesma regra do servidor: o valor da parcela tem de bater com o número de parcelas (total ÷ parcela, para cima). */
+export function valorParcelaValido(v: unknown, total: number, n: number): number | undefined {
+  if (v === undefined || v === null) return undefined
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) throw new ErroApi(400, 'valorParcela: informe um valor maior que zero')
+  const vp = arred2(v)
+  if (vp <= 0 || parcelasParaValor(total, vp) !== n) throw new ErroApi(400, `Com parcela de ${vp.toFixed(2).replace('.', ',')} o acordo tem ${parcelasParaValor(total, vp)} parcela(s), não ${n}`)
+  return vp
+}
+
 export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFake): AcordosFake {
   const { hoje, pedidos, transacoes } = vendas._interno
   const acordos: Reg[] = []
@@ -55,7 +64,7 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
     const id = ++seq
     for (const p of abertas) { p.valor = arred2(p.pago + p.desconto); p.quitadaEm = hoje; p.encerradaId = id }
     const proximo = Math.max(...op.parcelas.map((p) => p.numero)) + 1
-    const valores = distribuirAcordo(d.valorTotal, d.n)
+    const valores = distribuirAcordo(d.valorTotal, d.n, d.valorParcela)
     const periodicidade = d.periodicidade ?? 'MENSAL'
     const venc = vencimentosAcordo(d.primeira, d.n, periodicidade)
     valores.forEach((valor, i) => op.parcelas.push({ numero: proximo + i, vencimento: venc[i], vencimentoOriginal: null, valor, desconto: 0, pago: 0, quitadaEm: null, acordoId: id }))
@@ -168,12 +177,13 @@ export function criarAcordosFake(vendas: VendasFake, emprestimos: EmprestimosFak
       if (alvo === 'VENDA' && periodicidade !== 'MENSAL') throw new ErroApi(400, 'O acordo de venda de iPhone é mensal')
       const problema = problemaDoAcordo(e, hoje)
       if (problema) throw new ErroApi(400, problema)
+      const valorParcela = valorParcelaValido(e.valorParcela, arred2(e.valorTotal), e.parcelas)
       let motivo: string | null = null
       if (e.motivo !== undefined && e.motivo !== null && e.motivo !== '') {
         if (typeof e.motivo !== 'string' || e.motivo.trim().length > 500) throw new ErroApi(400, 'motivo: no máximo 500 letras')
         motivo = e.motivo.trim() || null
       }
-      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo, capitalAdicional: arred2(e.capitalAdicional ?? 0), periodicidade })
+      return fazerAcordo({ alvo, operacaoId, usuarioNome: 'Geovane Cataneo', valorTotal: arred2(e.valorTotal), n: e.parcelas, primeira: e.primeiraParcela, motivo, capitalAdicional: arred2(e.capitalAdicional ?? 0), periodicidade, ...(valorParcela !== undefined ? { valorParcela } : {}) })
     },
 
     async listar(s, alvo, operacaoId) {

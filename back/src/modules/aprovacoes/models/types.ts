@@ -18,7 +18,7 @@ export type Aprovacao = {
   /** desconto: o valor pedido. Retomada: o que estava em aberto na venda quando pediu. Acordo: o valor total proposto. */
   valor: number
   /** só no pedido de acordo: o que o cobrador propôs */
-  acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number } | null
+  acordo: { parcelas: number; primeiraParcela: string; periodicidade?: PeriodicidadeAcordo; saldoNoPedido: number; /** parcelas no valor dito, com a diferença na última */ valorParcela?: number } | null
   /** só no aviso de baixa do indicador: como e quando ele diz que recebeu (o `valor` é o que ele recebeu) */
   baixa: { forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; data: string; comprovante: string | null; /** o indicador diz que o cliente quitou o empréstimo todo */ quitou?: boolean } | null
   motivo: string | null

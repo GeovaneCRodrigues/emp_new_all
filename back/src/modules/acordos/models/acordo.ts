@@ -35,11 +35,27 @@ export const ACORDO_MAX_PARCELAS = 240
 const DINHEIRO_MAX = 100_000_000
 
 /** Divide o total em n parcelas: as primeiras com o valor arredondado para baixo e a última com o resto, para a soma fechar no centavo. */
-export function distribuir(total: number, n: number): number[] {
+export function distribuir(total: number, n: number, valorParcela?: number): number[] {
+  // com o valor da parcela dito: as n-1 primeiras saem exatamente nele e a última leva a diferença
+  if (valorParcela !== undefined) return [...Array.from({ length: n - 1 }, () => valorParcela), arred2(total - valorParcela * (n - 1))]
   const base = Math.floor((total / n) * 100) / 100
   const valores = Array.from({ length: n - 1 }, () => base)
   valores.push(arred2(total - base * (n - 1)))
   return valores
+}
+
+/**
+ * O valor da parcela que a loja quer (opcional): as primeiras parcelas saem nele e a última leva o que sobra.
+ * Tem de bater com o número de parcelas (total ÷ parcela, arredondado para cima), senão a última ficaria zerada ou maior que as outras.
+ */
+export function validarValorParcela(v: unknown, total: number, n: number): number | undefined {
+  if (v === undefined || v === null) return undefined
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0 || v > DINHEIRO_MAX) throw requisicaoInvalida('valorParcela: informe um valor maior que zero')
+  const vp = arred2(v)
+  if (vp <= 0) throw requisicaoInvalida('valorParcela: informe um valor maior que zero')
+  const esperado = Math.max(1, Math.ceil(Math.round(total * 100) / Math.round(vp * 100)))
+  if (esperado !== n) throw requisicaoInvalida(`Com parcela de ${vp.toFixed(2).replace('.', ',')} o acordo de ${total.toFixed(2).replace('.', ',')} tem ${esperado} parcela${esperado > 1 ? 's' : ''}, não ${n}`)
+  return vp
 }
 
 /** O dinheiro novo emprestado no acordo (opcional, só empréstimo): número de 0 a 100 milhões. */
@@ -72,7 +88,7 @@ export function validarProposta(e: { valorTotal: unknown; parcelas: unknown; pri
  *  - pedidos de desconto e de acordo que esperavam sobre a operação são recusados ("Acordo feito").
  */
 export async function fazerAcordo(trx: Knex.Transaction, d: {
-  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo
+  alvo: AlvoAcordo; operacaoId: number; usuarioId: number; valorTotal: number; n: number; primeira: string; motivo: string | null; dia: string; aprovacaoId?: number; saldoEsperado?: number; capitalAdicional?: number; periodicidade?: PeriodicidadeAcordo; valorParcela?: number
 }): Promise<ResultadoAcordo> {
   const t = T[d.alvo]
   const periodicidade = d.periodicidade ?? 'MENSAL'
@@ -110,7 +126,7 @@ export async function fazerAcordo(trx: Knex.Transaction, d: {
   }
   // as novas, na sequência da numeração
   const proximo = Math.max(...ps.map((p) => p.numero)) + 1
-  const valores = distribuir(d.valorTotal, d.n)
+  const valores = distribuir(d.valorTotal, d.n, d.valorParcela)
   await trx(t.parcela).insert(valores.map((valor, i) => ({ [t.opFk]: d.operacaoId, numero: proximo + i, vencimento: vencimentoDoAcordo(d.primeira, i, periodicidade), valor, acordo_id: acordoId })))
 
   await trx('aprovacoes').where({ [t.opFk]: d.operacaoId, status: 'PENDENTE' }).whereIn('tipo', ['DESCONTO', 'ACORDO']).whereNot('id', d.aprovacaoId ?? -1)
