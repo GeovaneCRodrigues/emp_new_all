@@ -32,7 +32,7 @@ const ATALHOS_JURO = [5, 8, 10, 12, 15]
 const FREQS: PeriodicidadeApi[] = ['MENSAL', 'QUINZENAL', 'SEMANAL', 'DIARIA']
 
 const passo = ref(1)
-const f = reactive({ capital: 0, data: '', indicadorId: 0, observacoes: '', tipo: 'PARCELADO' as 'PARCELADO' | 'JUROS', freq: 'MENSAL' as PeriodicidadeApi, n: 6, taxa: 30, primeira: '', /** só diária: o domingo não conta (padrão) */ pulaDomingo: true })
+const f = reactive({ capital: 0, data: '', indicadorId: 0, observacoes: '', tipo: 'PARCELADO' as 'PARCELADO' | 'JUROS', freq: 'MENSAL' as PeriodicidadeApi, n: 6, taxa: 30, primeira: '', /** só diária: o domingo não conta (padrão) */ pulaDomingo: true, /** de onde sai o dinheiro */ origem: 'CAIXA' as 'CAIXA' | 'CONTA', origemIndicadorId: 0, origemValor: 0 })
 const primeiraEditada = ref(false)
 const cliente = ref<ClienteApi | null>(null)
 const busca = ref('')
@@ -45,7 +45,7 @@ const digitado = reactive<{ total: number | null; parcela: number | null }>({ to
 
 watch(() => props.aberto, async (a) => {
   if (!a) return
-  Object.assign(f, { capital: 0, data: hoje.value, indicadorId: 0, observacoes: '', tipo: 'PARCELADO', freq: 'MENSAL', n: 6, taxa: 30, primeira: primeiroVenc(hoje.value, 'MENSAL'), pulaDomingo: true })
+  Object.assign(f, { capital: 0, data: hoje.value, indicadorId: 0, observacoes: '', tipo: 'PARCELADO', freq: 'MENSAL', n: 6, taxa: 30, primeira: primeiroVenc(hoje.value, 'MENSAL'), pulaDomingo: true, origem: 'CAIXA', origemIndicadorId: 0, origemValor: 0 })
   primeiraEditada.value = false; digitado.total = null; digitado.parcela = null
   cliente.value = null; busca.value = ''; erro.value = ''; passo.value = 1
   indicadores.value = await indicadoresApi.opcoes(sessao.value).catch(() => [])
@@ -112,11 +112,21 @@ function definirN(v: number) { f.n = v; digitado.total = null; digitado.parcela 
 const dia = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('pt-BR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')
 const taxaMax = computed(() => (soJuros.value ? 100 : 999))
 
+/** de onde sai o dinheiro: Caixa da loja (padrão) ou a conta de um indicador (todo ou parte) */
+const problemaOrigem = computed(() => {
+  if (f.origem !== 'CONTA') return ''
+  if (!f.origemIndicadorId) return 'Escolha de qual indicador saiu o dinheiro.'
+  if (!(f.origemValor > 0)) return 'Informe quanto saiu da conta do indicador.'
+  if (f.origemValor > f.capital + 0.004) return 'O que saiu da conta do indicador não pode passar do valor emprestado.'
+  return ''
+})
+
 const problemaPasso = (p: number): string => {
   if (p >= 1) {
     if (!cliente.value) return 'Escolha o cliente.'
     if (!(f.capital > 0)) return 'Informe quanto vai emprestar.'
     if (!f.data || f.data > hoje.value) return 'A data do empréstimo não pode ser no futuro.'
+    if (problemaOrigem.value) return problemaOrigem.value
   }
   if (p >= 2) {
     if (!(f.taxa > 0 && f.taxa <= taxaMax.value)) return `Os juros precisam ficar entre 0 e ${taxaMax.value}%.`
@@ -148,6 +158,7 @@ async function salvar() {
       clienteId: cliente.value.id, modalidade: modalidade.value, periodicidade: f.freq, ...(diaria.value ? { pulaDomingo: f.pulaDomingo } : {}), capital: f.capital, taxa: f.taxa, parcelas: f.n,
       dataEmprestimo: f.data, primeiroVencimento: f.primeira,
       ...(f.indicadorId ? { indicadorId: f.indicadorId } : {}), ...(f.observacoes.trim() ? { observacoes: f.observacoes.trim() } : {}),
+      ...(f.origem === 'CONTA' ? { saiuDaConta: { indicadorId: f.origemIndicadorId, valor: f.origemValor } } : {}),
     })
     await ligarProposta(criado.id)
     emit('salvo', criado)
@@ -185,6 +196,22 @@ async function salvar() {
         <div class="field"><label for="eInd">Indicador (opcional)</label>
           <div class="inp"><select id="eInd" v-model.number="f.indicadorId"><option :value="0">Sem indicador</option><option v-for="i in indicadores" :key="i.id" :value="i.id">{{ i.nome }}</option></select></div>
         </div>
+        <div class="field"><label>De onde sai o dinheiro?</label>
+          <div class="pills" data-testid="origem">
+            <button type="button" class="pill" :class="{ on: f.origem === 'CAIXA' }" data-origem="CAIXA" @click="f.origem = 'CAIXA'">Caixa da loja</button>
+            <button type="button" class="pill" :class="{ on: f.origem === 'CONTA' }" data-origem="CONTA" @click="f.origem = 'CONTA'">Conta do indicador</button>
+          </div>
+        </div>
+        <template v-if="f.origem === 'CONTA'">
+          <div class="field"><label for="eOrigemInd">Conta de qual indicador?</label>
+            <div class="inp"><select id="eOrigemInd" v-model.number="f.origemIndicadorId" data-origem-ind><option :value="0">Escolha…</option><option v-for="i in indicadores" :key="i.id" :value="i.id">{{ i.nome }}</option></select></div>
+          </div>
+          <div class="field"><label for="eOrigemValor">Quanto saiu da conta dele?</label><MoneyInput id="eOrigemValor" v-model="f.origemValor" data-origem-valor />
+            <div class="small">Pode ser o valor todo ou só uma parte; o resto sai do Caixa da loja.</div>
+          </div>
+          <div v-if="problemaOrigem" class="small" role="status" style="color: var(--bad)" data-testid="problema-origem">{{ problemaOrigem }}</div>
+        </template>
+
         <div class="field"><label for="eObs">Observações (opcional)</label><div class="inp"><input id="eObs" v-model="f.observacoes" maxlength="500" /></div></div>
       </template>
 
