@@ -104,6 +104,10 @@ const NOME_PERFIL = { ADMIN: 'Administrador', COBRADOR: 'Cobrador', VENDEDOR: 'V
 // ---- aviso de baixa do indicador: confirmar vira recebimento (e o recibo sai); veio menos que a parcela, a loja decide o resto ----
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 const reciboAberto = ref<ReciboApi | null>(null)
+/** A marca "caiu na conta do indicador" de cada aviso de baixa: começa como o indicador marcou e a loja pode mudar */
+const naConta = reactive<Record<number, boolean>>({})
+const naContaDe = (p: AprovacaoApi) => naConta[p.id] ?? (p.baixa?.naContaDoIndicador === true)
+const primeiroNome = (p: AprovacaoApi) => p.solicitante.nome.split(' ')[0]
 const decidindo = ref<AprovacaoApi | null>(null)
 const resto = ref<'FICA' | 'DESCONTO'>('FICA')
 const novaData = ref('')
@@ -114,7 +118,7 @@ async function confirmarBaixa(p: AprovacaoApi, decisao?: { resto: 'FICA' | 'DESC
   if (ocupado.value) return
   ocupado.value = `a${p.id}`; erroBaixa.value = ''
   try {
-    const r = await aprovacoesApi.aprovar(sessao.value, p.id, decisao)
+    const r = await aprovacoesApi.aprovar(sessao.value, p.id, { ...(decisao ?? {}), naContaDoIndicador: naContaDe(p) })
     decidindo.value = null
     mostrar(`Baixa confirmada: ${fmt(p.valor)} de ${p.cliente.nome}.`)
     reciboAberto.value = r.recibo ?? null
@@ -130,10 +134,10 @@ async function confirmarBaixa(p: AprovacaoApi, decisao?: { resto: 'FICA' | 'DESC
   }
 }
 // o indicador avisou que o cliente quitou: abre a quitação já com o valor calculado, e a loja ajusta o desconto
-const alvoQuitacao = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number; quitar: true; aviso: { id: number; data: string; forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; valor: number } } | null>(null)
+const alvoQuitacao = ref<{ tipo: AlvoApi; operacaoId: number; parcela: number; quitar: true; aviso: { id: number; data: string; forma: 'PIX' | 'DINHEIRO' | 'CARTAO'; valor: number; naConta: boolean; indicador: string } } | null>(null)
 function conferirQuitacao(p: AprovacaoApi) {
   if (!p.baixa || p.parcela === null) return
-  alvoQuitacao.value = { tipo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, quitar: true, aviso: { id: p.id, data: p.baixa.data, forma: p.baixa.forma, valor: p.valor } }
+  alvoQuitacao.value = { tipo: p.alvo, operacaoId: p.operacaoId, parcela: p.parcela, quitar: true, aviso: { id: p.id, data: p.baixa.data, forma: p.baixa.forma, valor: p.valor, naConta: naContaDe(p), indicador: primeiroNome(p) } }
 }
 async function aoQuitar(r: RegistradoApi) {
   alvoQuitacao.value = null
@@ -196,6 +200,10 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
             <div v-if="p.motivo" class="small" style="margin-top: 4px">“{{ p.motivo }}”</div>
           </div>
         </div>
+        <label v-if="p.tipo === 'BAIXA'" class="between small" style="gap: 8px; margin-top: 8px; align-items: center">
+          <span>Caiu na conta de {{ primeiroNome(p) }} (o dinheiro está com ele, não com a loja)</span>
+          <input type="checkbox" data-na-conta :checked="naContaDe(p)" @change="naConta[p.id] = ($event.target as HTMLInputElement).checked" />
+        </label>
         <div class="row" style="gap: 8px; margin-top: 10px">
           <button class="btn b-ok" style="flex: 1" :disabled="!!ocupado" :data-confirmar="p.tipo === 'BAIXA' ? '' : undefined" @click="p.tipo === 'BAIXA' ? (p.baixa?.quitou ? conferirQuitacao(p) : confirmarBaixa(p)) : aprovar(p)">{{ p.tipo === 'BAIXA' ? (p.baixa?.quitou ? 'Conferir quitação' : 'Confirmar baixa') : 'Aprovar' }}</button>
           <button v-if="p.tipo === 'BAIXA' && p.baixa?.quitou" class="btn b-ghost" :disabled="!!ocupado" data-so-parcela @click="confirmarBaixa(p)">Só a parcela</button>

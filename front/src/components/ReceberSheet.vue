@@ -17,7 +17,7 @@ import DateField from './DateField.vue'
 
 const props = defineProps<{
   /** `aviso`: o indicador avisou que o cliente quitou; a loja confirma por aqui (a data e a forma são as do aviso) */
-  alvo: { tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean; aviso?: { id: number; data: string; forma: FormaPagamentoApi; valor: number } } | null
+  alvo: { tipo: AlvoApi; operacaoId: number; parcela: number; quitar?: boolean; aviso?: { id: number; data: string; forma: FormaPagamentoApi; valor: number; naConta?: boolean; indicador?: string } } | null
 }>()
 const emit = defineEmits<{ fechar: []; registrado: [r: RegistradoApi] }>()
 
@@ -37,6 +37,8 @@ interface Operacao {
   ehJuros: boolean
 }
 const venda = ref<Operacao | null>(null)
+/** o dinheiro da quitação vinda do aviso ficou na conta do indicador? (a loja confirma) */
+const naContaDoAviso = ref(false)
 const carregando = ref(false)
 const erro = ref('')
 const enviando = ref(false)
@@ -63,7 +65,7 @@ watch(() => props.alvo, async (a) => {
     const p = venda.value.parcelas.find((x) => x.numero === a.parcela)
     f.data = a.aviso?.data ?? hoje.value
     f.valor = p ? falta({ valor: p.valor, pago: p.pago, desconto: p.desconto }) : 0
-    quitarEstado.proximo = false; quitarEstado.desconto = 0; quitarLocal.value = false
+    quitarEstado.proximo = false; quitarEstado.desconto = 0; quitarLocal.value = false; naContaDoAviso.value = a.aviso?.naConta === true
     f.forma = a.aviso?.forma ?? 'PIX'; f.resto = 'FICA'; f.pedir = false; f.motivo = ''; f.novoVenc = p ? vencPadraoResto(p.vencimento, hoje.value) : ''
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir a venda.'
@@ -130,7 +132,7 @@ async function confirmar() {
   try {
     if (props.alvo.aviso) {
       // o aviso do indicador vira a quitação: a loja manda o valor que calculou (desconto incluso)
-      const a = await aprovacoesApi.aprovar(sessao.value, props.alvo.aviso.id, { quitar: true, valor: f.valor, cobrarProximo: quitarEstado.proximo })
+      const a = await aprovacoesApi.aprovar(sessao.value, props.alvo.aviso.id, { quitar: true, valor: f.valor, cobrarProximo: quitarEstado.proximo, naContaDoIndicador: naContaDoAviso.value })
       if (!a.recibo) throw new ErroApi(500, 'A quitação foi confirmada, mas o recibo não veio.', 'ERRO')
       emit('registrado', { recibo: a.recibo, efeitos: [], quitada: true, pedidoDescontoId: null })
       return
@@ -164,6 +166,10 @@ async function confirmar() {
 
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">
         <div v-if="alvo?.aviso" class="aviso" data-testid="quitar-aviso">O indicador avisou que o cliente quitou tudo e recebeu {{ fmt(alvo.aviso.valor) }} ({{ dmy(alvo.aviso.data) }}). Confira o valor abaixo.</div>
+        <label v-if="alvo?.aviso" class="between small" style="gap: 8px; align-items: center">
+          <span>Caiu na conta de {{ alvo.aviso.indicador || 'o indicador' }} (o dinheiro está com ele, não com a loja)</span>
+          <input v-model="naContaDoAviso" type="checkbox" data-na-conta />
+        </label>
         <div v-if="ehAdmin && !alvo?.aviso" class="field">
           <label>Quando recebeu?</label>
           <div class="pills">
