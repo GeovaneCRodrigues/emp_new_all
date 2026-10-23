@@ -6,6 +6,7 @@ import type { Env } from './config/env.js'
 import type { Db } from './db/connection.js'
 import { exigirAuth } from './shared/auth-hooks.js'
 import { HttpError } from './shared/errors.js'
+import { lerJsonSeguro } from './shared/json.js'
 import { authRoutes } from './modules/auth/routes.js'
 import type { AuthService } from './modules/auth/services/auth.service.js'
 import type { TokensService } from './modules/auth/services/tokens.js'
@@ -72,23 +73,31 @@ export type Deps = {
   fechamentos: FechamentosService
   equipe: EquipeService
   /** Ajustes de limite; os testes sobem o limite para não esbarrar nele. */
-  limites?: { vendasPorMinuto?: number; recebimentosPorMinuto?: number }
+  limites?: { vendasPorMinuto?: number; recebimentosPorMinuto?: number; geralPorMinuto?: number }
 }
 
 export async function buildApp(deps: Deps): Promise<FastifyInstance> {
-  const app = Fastify({ logger: deps.env.NODE_ENV === 'test' ? false : { redact: ['req.headers.authorization'] } })
+  const app = Fastify({
+    logger: deps.env.NODE_ENV === 'test' ? false : { redact: ['req.headers.authorization'] },
+    // o back só recebe pedidos pelo nginx, que escreve o IP real em X-Forwarded-For (sobrescrevendo o que o cliente mandou).
+    // Sem isso todo mundo teria o IP do nginx e o limite de tentativas de login valeria para todos juntos.
+    // Confia só em quem chega da rede interna (o nginx): IPs a mais que o cliente escreva no cabeçalho são ignorados.
+    trustProxy: ['loopback', 'uniquelocal'],
+    bodyLimit: 1_048_576,
+  })
 
   // Alguns clientes mandam POST sem corpo mas com "Content-Type: application/json" (logout, desfazer). O Fastify
   // recusaria com 400; aqui o corpo vazio vira {} e JSON quebrado continua sendo 400.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, corpo, feito) => {
     const texto = (corpo as string).trim()
     if (!texto) return feito(null, {})
-    try { feito(null, JSON.parse(texto)) } catch { feito(Object.assign(new Error('JSON inválido'), { statusCode: 400 }), undefined) }
+    try { feito(null, lerJsonSeguro(texto)) } catch { feito(Object.assign(new Error('JSON inválido'), { statusCode: 400 }), undefined) }
   })
 
   await app.register(helmet)
   await app.register(cors, { origin: deps.env.CORS_ORIGIN, credentials: false, methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'] })
-  await app.register(rateLimit, { global: false })
+  // limite geral por IP (folgado, para uso normal); as rotas sensíveis têm limite próprio, bem menor
+  await app.register(rateLimit, { global: true, max: deps.limites?.geralPorMinuto ?? 300, timeWindow: '1 minute', allowList: (req) => req.url === '/health' || req.url === '/api/health' })
 
   app.setErrorHandler((error, req, reply) => {
     const err = error as Error
