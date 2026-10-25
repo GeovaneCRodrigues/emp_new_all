@@ -10,6 +10,8 @@ export interface CaixaRepository {
   criarManual(d: NovoLancamento): Promise<LancamentoManual>
   atualizarManual(id: number, d: { tipo: TipoManual; valor: number; data: string; obs: string | null; lado: Lado }): Promise<LancamentoManual>
   excluirManual(id: number): Promise<void>
+  /** O que entrou e saiu entre `de` e `ate` (mesmas regras do saldo: a partir do marco zero de cada lado), com a lista dos movimentos. */
+  periodo(f: { de: string; ate: string; limite: number }): Promise<{ porLado: Record<FiltroLado, { entrou: number; saiu: number }>; itens: Movimento[]; total: number }>
 }
 
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
@@ -120,6 +122,23 @@ export function createCaixaRepository(db: Knex): CaixaRepository {
         total: Number(n),
         itens: ls.map((l) => ({ chave: l.chave, data: dia(l.data), valor: Number(l.valor), entrada: l.entrada, categoria: l.categoria, titulo: l.titulo, sub: l.sub, lado: l.lado, manualId: l.manual_id })),
       }
+    },
+
+    async periodo(f) {
+      const mc = await marcos()
+      const noPeriodo = () => contados(f.ate, mc.porLado).whereRaw('m.data >= ?', [f.de])
+      const rs = await noPeriodo().select<{ lado: FiltroLado; entrou: string; saiu: string; n: string }[]>(
+        db.raw("coalesce(m.lado, 'SEM_LADO') as lado"),
+        db.raw('coalesce(sum(m.valor) filter (where m.entrada), 0) as entrou'),
+        db.raw('coalesce(sum(m.valor) filter (where not m.entrada), 0) as saiu'),
+        db.raw('count(*) as n'),
+      ).groupByRaw("coalesce(m.lado, 'SEM_LADO')")
+      const porLado = Object.fromEntries(FILTROS_LADO.map((l) => [l, { entrou: 0, saiu: 0 }])) as Record<FiltroLado, { entrou: number; saiu: number }>
+      let total = 0
+      for (const r of rs) { porLado[r.lado] = { entrou: Number(r.entrou), saiu: Number(r.saiu) }; total += Number(r.n) }
+      const ls = await noPeriodo().select<{ chave: string; data: Date | string; valor: string; entrada: boolean; categoria: Movimento['categoria']; titulo: string; sub: string; manual_id: number | null; lado: Lado | null }[]>('m.*')
+        .orderByRaw('m.data desc, m.chave desc').limit(f.limite)
+      return { porLado, total, itens: ls.map((l) => ({ chave: l.chave, data: dia(l.data), valor: Number(l.valor), entrada: l.entrada, categoria: l.categoria, titulo: l.titulo, sub: l.sub, lado: l.lado, manualId: l.manual_id })) }
     },
 
     async buscarManual(id) {

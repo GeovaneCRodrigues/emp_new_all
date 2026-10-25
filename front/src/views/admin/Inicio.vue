@@ -7,7 +7,7 @@ import type { AparelhoApi } from '@/api/estoque'
 import { todasAsPaginas } from '@/api/paginar'
 import type { CobrancaApi } from '@/api/recebimentos'
 import type { RelatoriosDados } from '@/api/relatorios'
-import { aprovacoesApi, emprestimosApi, estoqueApi, fechamentosApi, recebimentosApi, relatoriosApi, vendasApi } from '@/api/recursos'
+import { aprovacoesApi, caixaFechamentosApi, emprestimosApi, estoqueApi, fechamentosApi, recebimentosApi, relatoriosApi, vendasApi } from '@/api/recursos'
 import CobrancaLinha from '@/components/CobrancaLinha.vue'
 import FichasOperacao from '@/components/FichasOperacao.vue'
 import Icon from '@/components/Icon.vue'
@@ -34,6 +34,8 @@ const vendasMes = ref({ n: 0, total: 0 })
 const lucroRealizado = ref(0)
 const pedidos = ref<AprovacaoApi[]>([])
 const fechamentosPendentes = ref(0)
+// dias, até ontem, sem fechar o caixa da loja (null: nunca fechou; undefined: ainda não carregou ou não deu para saber)
+const diasSemFecharCaixa = ref<number | null | undefined>(undefined)
 const parados = ref<{ a: AparelhoApi; dias: number }[]>([])
 // o gráfico dos últimos 6 meses vem dos relatórios; se falhar, o Início segue sem ele
 const grafico = ref<RelatoriosDados['investimentoELucro'] | null>(null)
@@ -65,6 +67,7 @@ async function carregar() {
     fechamentosPendentes.value = fech.pendentes
     parados.value = disponiveis.map((a) => ({ a, dias: diasEntre(a.dataCompra, hoje.value) })).sort((x, y) => y.dias - x.dias).slice(0, 4)
     atualizarAtrasadas(s); atualizarEquipe(s)
+    diasSemFecharCaixa.value = await caixaFechamentosApi.listar(s).then((l) => l.diasSemFechar, () => undefined)
     grafico.value = await relatoriosApi.ver(s).then((r) => r.investimentoELucro, () => null)
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui carregar o início.'
@@ -107,6 +110,11 @@ const custoDe = (a: AparelhoApi) => (a.custo ?? 0) + (a.extras ?? 0)
           <button class="btn" @click="router.push('/vender')"><Icon name="plus" small />Nova venda</button>
         </div>
       </section>
+
+      <button v-if="diasSemFecharCaixa === null || (diasSemFecharCaixa ?? 0) > 0" class="aviso" style="text-align: left" data-testid="aviso-caixa" @click="router.push('/caixa')">
+        <Icon name="landmark" small />
+        <span>{{ diasSemFecharCaixa === null ? 'Você ainda não fechou o caixa.' : `Caixa sem fechar há ${diasSemFecharCaixa} dia${diasSemFecharCaixa === 1 ? '' : 's'}.` }} <b>Fechar agora</b></span>
+      </button>
 
       <div class="kpis" data-testid="kpis">
         <button @click="router.push('/operacoes')">
