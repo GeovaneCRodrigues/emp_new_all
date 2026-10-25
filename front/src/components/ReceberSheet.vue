@@ -167,7 +167,8 @@ async function confirmar() {
       <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px" novalidate @submit.prevent="confirmar">
         <div v-if="alvo?.aviso" class="aviso" data-testid="quitar-aviso">O indicador avisou que o cliente quitou tudo e recebeu {{ fmt(alvo.aviso.valor) }} ({{ dmy(alvo.aviso.data) }}). Confira o valor abaixo.</div>
         <label v-if="alvo?.aviso" class="between small" style="gap: 8px; align-items: center">
-          <span>Caiu na conta de {{ alvo.aviso.indicador || 'o indicador' }} (o dinheiro está com ele, não com a loja)</span>
+          <span v-if="naContaDoAviso" data-testid="destino-conta"><b>O dinheiro ficou com {{ alvo.aviso.indicador || 'o indicador' }}</b> (vai para a conta corrente dele)</span>
+          <span v-else data-testid="destino-conta"><b>O dinheiro caiu na conta da loja.</b> Marque só se {{ alvo.aviso.indicador || 'o indicador' }} ficou com ele.</span>
           <input v-model="naContaDoAviso" type="checkbox" data-na-conta />
         </label>
         <div v-if="ehAdmin && !alvo?.aviso" class="field">

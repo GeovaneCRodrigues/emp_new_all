@@ -201,7 +201,8 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
           </div>
         </div>
         <label v-if="p.tipo === 'BAIXA'" class="between small" style="gap: 8px; margin-top: 8px; align-items: center">
-          <span>Caiu na conta de {{ primeiroNome(p) }} (o dinheiro está com ele, não com a loja)</span>
+          <span v-if="naContaDe(p)" data-testid="destino-conta"><b>O dinheiro ficou com {{ primeiroNome(p) }}</b> (vai para a conta corrente dele)</span>
+          <span v-else data-testid="destino-conta"><b>O dinheiro caiu na conta da loja.</b> Marque só se {{ primeiroNome(p) }} ficou com ele.</span>
           <input type="checkbox" data-na-conta :checked="naContaDe(p)" @change="naConta[p.id] = ($event.target as HTMLInputElement).checked" />
         </label>
         <div class="row" style="gap: 8px; margin-top: 10px">
