@@ -91,7 +91,12 @@ usePulso(() => { if (props.indicador) return carregar(true) })
 const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { id: 'EMPRESTIMO', label: 'Empréstimos' }]
 const resumo = computed(() => resumoDoMes(itens.value, hoje.value))
 const grade = computed(() => gradeDoMes(mes.value, itens.value, hoje.value))
-const doDia = computed(() => grade.value.dias.find((d) => d.iso === dia.value)?.itens ?? [])
+/** O dia escolhido mostra só o que está a vencer (em aberto); as já pagas ficam atrás de "Mostrar pagas". */
+const verPagas = ref(false)
+watch(dia, () => { verPagas.value = false })
+const itensDoDia = computed(() => grade.value.dias.find((d) => d.iso === dia.value)?.itens ?? [])
+const pagasDoDia = computed(() => itensDoDia.value.filter((c) => !aberta(c)).length)
+const doDia = computed(() => (verPagas.value ? itensDoDia.value : itensDoDia.value.filter(aberta)))
 const comBusca = computed(() => busca.value.trim() !== '')
 /** Sem dia escolhido, a lista traz todas as parcelas do mês (ou da busca), agrupadas por dia. Escolher um dia mostra só as dele, mesmo com busca. */
 const listaDoMes = computed(() => dia.value === null)
@@ -194,8 +199,9 @@ async function aposMudar() {
   <div v-else-if="dia" class="card" data-testid="cron-lista-dia">
     <div class="totbar">
       <b style="color: var(--strong)">{{ rotuloDia(dia) }}</b>
-      <span class="small">{{ doDia.length ? plural(doDia.length) : 'nada vence neste dia' }}</span>
+      <span class="small">{{ doDia.length ? (verPagas ? plural(doDia.length) : `${doDia.length} a vencer`) : itensDoDia.length ? 'nada a vencer neste dia' : 'nada vence neste dia' }}</span>
     </div>
+    <div v-if="pagasDoDia" style="padding: 4px 14px 8px"><button type="button" class="btn b-ghost b-sm" data-testid="cron-dia-pagas" :aria-pressed="verPagas" @click="verPagas = !verPagas">{{ verPagas ? 'Esconder as pagas' : `Mostrar as ${pagasDoDia} já pagas` }}</button></div>
     <div v-if="doDia.length" class="list">
       <CobrancaLinha v-for="c in doDia" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" :editavel="podeFiltrar" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" @editar="remarcar?.abrir($event)" />
     </div>
