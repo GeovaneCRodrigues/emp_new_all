@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AlvoApi, CobrancaApi } from '@/api/recebimentos'
 import type { EmprestimoApi } from '@/api/emprestimos'
@@ -78,7 +78,7 @@ async function carregar(silencioso = false) {
   }
 }
 let espera: ReturnType<typeof setTimeout> | undefined
-watch(busca, () => { clearTimeout(espera); espera = setTimeout(carregar, 300) })
+watch(busca, () => { dia.value = null; clearTimeout(espera); espera = setTimeout(carregar, 300) }) // digitar uma busca volta para a lista toda
 watch([mes, tipo, filtroIndicador, filtroModalidade, filtroSituacao], () => { dia.value = null; itens.value = []; cortado.value = false; carregar() }) // o mês anterior não fica na tela enquanto o novo carrega
 onMounted(() => {
   carregar(); if (!props.indicador) atualizar(sessao.value)
@@ -93,8 +93,8 @@ const resumo = computed(() => resumoDoMes(itens.value, hoje.value))
 const grade = computed(() => gradeDoMes(mes.value, itens.value, hoje.value))
 const doDia = computed(() => grade.value.dias.find((d) => d.iso === dia.value)?.itens ?? [])
 const comBusca = computed(() => busca.value.trim() !== '')
-/** Sem dia escolhido (ou com busca), a lista traz todas as parcelas do mês, agrupadas por dia. */
-const listaDoMes = computed(() => comBusca.value || dia.value === null)
+/** Sem dia escolhido, a lista traz todas as parcelas do mês (ou da busca), agrupadas por dia. Escolher um dia mostra só as dele, mesmo com busca. */
+const listaDoMes = computed(() => dia.value === null)
 const porDia = computed(() => grade.value.dias.filter((d) => d.itens.length))
 const buscaPronta = computed(() => buscaDosItens.value === busca.value.trim())
 const clientes = computed(() => new Set(itens.value.map((c) => c.cliente.id)).size)
@@ -105,7 +105,11 @@ const chaveDe = (c: CobrancaApi) => c.tipo + c.operacaoId + '-' + c.parcela
 const rotuloDia = (iso: string) => `${Number(iso.slice(8))} de ${mesNome(iso.slice(0, 7))}`
 const plural = (n: number) => `${n} ${n === 1 ? 'parcela' : 'parcelas'}`
 const CORES = { bad: 'var(--bad)', warn: 'var(--warn)', dim: 'var(--dim)', ok: 'var(--ok)' } as const
-const escolher = (iso: string, qtd: number) => { if (qtd || dia.value === iso) dia.value = dia.value === iso ? null : iso; else dia.value = iso }
+const escolher = (iso: string, qtd: number) => {
+  if (qtd || dia.value === iso) dia.value = dia.value === iso ? null : iso; else dia.value = iso
+  // em tela grande a lista fica abaixo do calendário, fora da vista: leva até ela
+  if (dia.value) nextTick(() => document.querySelector('[data-testid="cron-lista-dia"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' }))
+}
 
 async function abrirFicha(c: CobrancaApi) {
   if (c.tipo === 'VENDA') ficha.value = await vendasApi.obter(sessao.value, c.operacaoId).catch(() => null)
