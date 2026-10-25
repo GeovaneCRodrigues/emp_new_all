@@ -101,6 +101,16 @@ test.describe('cronograma: o calendário do mês (administrador)', () => {
     await expect(page.getByTestId('cron-lista-busca')).toContainText('nenhum cliente com esse nome')
   })
 
+  test('com a busca preenchida, clicar num dia mostra só as parcelas do dia', async ({ page }) => {
+    await celulaComParcela(page).first().click()
+    const nome = (await page.getByTestId('cron-lista-dia').locator('[data-cobranca] .t').first().textContent())!.trim()
+    await page.getByTestId('cron-busca').fill(nome.split(' ')[0])
+    await expect(page.getByTestId('cron-lista-busca')).toBeVisible()
+    await celulaComParcela(page).first().click()
+    await expect(page.getByTestId('cron-lista-dia')).toBeVisible()
+    await expect(page.getByTestId('cron-lista-busca')).toHaveCount(0)
+  })
+
   test('o filtro iPhones / Empréstimos reduz o calendário', async ({ page }) => {
     const todos = await celulaComParcela(page).count()
     await page.getByTestId('filtro-tipo').getByRole('button', { name: 'Empréstimos' }).click()
