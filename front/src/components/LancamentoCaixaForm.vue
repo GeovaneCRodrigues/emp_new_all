@@ -11,7 +11,7 @@ import Seg from './Seg.vue'
 import Sheet from './Sheet.vue'
 
 /** Lança (ou corrige) um aporte, uma retirada ou uma despesa do caixa da loja. */
-const props = defineProps<{ aberto: boolean; lancamento: LancamentoApi | null; /** o lado já marcado ao lançar um novo (o da aba aberta) */ ladoPadrao?: LadoCaixa }>()
+const props = defineProps<{ aberto: boolean; lancamento: LancamentoApi | null; /** o lado já marcado ao lançar um novo (o da aba aberta) */ ladoPadrao?: LadoCaixa; /** o último dia com o caixa fechado: lançar em dia fechado só avisa */ fechadoAte?: string | null }>()
 const emit = defineEmits<{ fechar: []; salvo: []; excluido: [] }>()
 const { sessao, hoje } = useApp()
 
@@ -89,7 +89,10 @@ async function excluir() {
       </div>
       <div class="field"><label>O que foi</label><Seg v-model="tipo as string" :itens="TIPOS" data-testid="lanc-tipo" /><div class="small" style="margin-top: 6px" data-testid="lanc-dica">{{ DICA[tipo] }}</div></div>
       <div class="field"><label for="lcValor">Valor</label><MoneyInput id="lcValor" v-model="valor" /></div>
-      <div class="field"><label for="lcData">Data</label><DateField id="lcData" v-model="data" :max="hoje" min="2000-01-01" /></div>
+      <div class="field">
+        <label for="lcData">Data</label><DateField id="lcData" v-model="data" :max="hoje" min="2000-01-01" />
+        <div v-if="fechadoAte && data && data <= fechadoAte" class="small" style="margin-top: 6px; color: var(--bad)" role="status" data-testid="lanc-dia-fechado">O caixa já foi fechado até {{ fechadoAte.split('-').reverse().join('/') }}. Este lançamento muda um dia que você já conferiu.</div>
+      </div>
       <div class="field">
         <label for="lcObs">{{ tipo === 'DESPESA' ? 'Com o quê' : 'Observação (opcional)' }}</label>
         <div class="inp"><input id="lcObs" v-model="obs" maxlength="200" :placeholder="tipo === 'DESPESA' ? 'Ex.: aluguel de outubro' : tipo === 'APORTE' ? 'Ex.: saldo de abertura' : 'Ex.: lucro do mês'" /></div>

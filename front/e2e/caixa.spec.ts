@@ -176,3 +176,62 @@ test.describe('caixa: outros perfis', () => {
     await expect(page.getByTestId('caixa-lancar')).toHaveCount(0)
   })
 })
+
+test.describe('fechamento do caixa da loja (administrador)', () => {
+  // Demonstração: "hoje" é 08/10/2026 e o caixa já foi fechado até 05/10, então há 2 dias sem fechar (06 e 07).
+  test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/caixa'); await expect(page.getByTestId('caixa-fechamento')).toBeVisible() })
+
+  test('mostra o último dia fechado e quantos dias passaram sem fechar', async ({ page }) => {
+    await expect(page.getByTestId('fechamento-ultimo')).toHaveText('05/10/2026')
+    await expect(page.getByTestId('fechamento-quando')).toContainText('Administrador')
+    await expect(page.getByTestId('fechamento-alerta')).toContainText('2 dias sem fechar')
+  })
+
+  test('fechar sugere ontem, mostra o que entrou e saiu desde o último fechamento e, ao confirmar, vira o último', async ({ page }) => {
+    await page.getByTestId('fechar-caixa').click()
+    await expect(page.getByTestId('fechar-periodo')).toHaveText('De 06/10/2026 a 07/10/2026')
+    await expect(page.getByTestId('fechar-entrou')).toContainText('R$')
+    await expect(page.getByTestId('fechar-saiu')).toContainText('R$')
+    await expect(page.getByTestId('fechar-saldo')).toContainText('R$')
+    await page.locator('#fcObs').fill('conferi o pix')
+    await page.getByTestId('fechar-confirmar').click()
+    await expect(page.getByTestId('fechar-confirmar')).toHaveCount(0)
+    await expect(page.getByTestId('fechamento-ultimo')).toHaveText('07/10/2026')
+    await expect(page.getByTestId('fechamento-quando')).toContainText('conferi o pix')
+    await expect(page.getByTestId('fechamento-alerta')).toHaveCount(0)
+  })
+
+  test('desfazer o último fechamento volta o anterior; o histórico lista os fechamentos', async ({ page }) => {
+    await page.getByTestId('fechar-caixa').click()
+    await page.getByTestId('fechar-confirmar').click()
+    await expect(page.getByTestId('fechamento-ultimo')).toHaveText('07/10/2026')
+    await page.getByTestId('fechamento-historico').click()
+    await expect(page.getByTestId('fechamento-lista').locator('[data-fechamento]')).toHaveCount(2)
+    await page.getByTestId('fechamento-desfazer').click()
+    await expect(page.getByTestId('fechamento-ultimo')).toHaveText('05/10/2026')
+    await expect(page.getByTestId('fechamento-alerta')).toContainText('2 dias sem fechar')
+  })
+
+  test('lançar em um dia já fechado só avisa (não trava)', async ({ page }) => {
+    await abrirLancar(page)
+    await expect(page.getByTestId('lanc-dia-fechado')).toHaveCount(0) // hoje (08/10) está aberto
+    await page.locator('#lcValor').fill('10000')
+    await page.locator('#lcData').fill('05102026')
+    await expect(page.getByTestId('lanc-dia-fechado')).toContainText('05/10/2026')
+    await expect(page.getByTestId('lanc-salvar')).toBeEnabled()
+  })
+
+  test('o Início avisa que o caixa está sem fechar e leva ao Caixa', async ({ page }) => {
+    await navegar(page, '/')
+    await expect(page.getByTestId('aviso-caixa')).toContainText('2 dias')
+    await page.getByTestId('aviso-caixa').click()
+    await expect(page).toHaveURL(/\/caixa/)
+  })
+})
+
+test.describe('fechamento do caixa: outros perfis', () => {
+  test('o cobrador não vê o fechamento da loja', async ({ page }) => {
+    await entrar(page, 'cobrador'); await navegar(page, '/caixa')
+    await expect(page.getByTestId('caixa-fechamento')).toHaveCount(0)
+  })
+})
