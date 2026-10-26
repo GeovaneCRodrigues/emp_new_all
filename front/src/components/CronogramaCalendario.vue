@@ -91,12 +91,10 @@ usePulso(() => { if (props.indicador) return carregar(true) })
 const tipos = [{ id: '', label: 'Tudo' }, { id: 'VENDA', label: 'iPhones' }, { id: 'EMPRESTIMO', label: 'Empréstimos' }]
 const resumo = computed(() => resumoDoMes(itens.value, hoje.value))
 const grade = computed(() => gradeDoMes(mes.value, itens.value, hoje.value))
-/** O dia escolhido mostra só o que está a vencer (em aberto); as já pagas ficam atrás de "Mostrar pagas". */
-const verPagas = ref(false)
-watch(dia, () => { verPagas.value = false })
+/** O dia escolhido mostra tudo: as já pagas em cima e as que ainda faltam receber embaixo. */
 const itensDoDia = computed(() => grade.value.dias.find((d) => d.iso === dia.value)?.itens ?? [])
-const pagasDoDia = computed(() => itensDoDia.value.filter((c) => !aberta(c)).length)
-const doDia = computed(() => (verPagas.value ? itensDoDia.value : itensDoDia.value.filter(aberta)))
+const pagasDoDia = computed(() => itensDoDia.value.filter((c) => !aberta(c)))
+const abertasDoDia = computed(() => itensDoDia.value.filter(aberta))
 const comBusca = computed(() => busca.value.trim() !== '')
 /** Sem dia escolhido, a lista traz todas as parcelas do mês (ou da busca), agrupadas por dia. Escolher um dia mostra só as dele, mesmo com busca. */
 const listaDoMes = computed(() => dia.value === null)
@@ -199,12 +197,16 @@ async function aposMudar() {
   <div v-else-if="dia" class="card" data-testid="cron-lista-dia">
     <div class="totbar">
       <b style="color: var(--strong)">{{ rotuloDia(dia) }}</b>
-      <span class="small">{{ doDia.length ? (verPagas ? plural(doDia.length) : `${doDia.length} a vencer`) : itensDoDia.length ? 'nada a vencer neste dia' : 'nada vence neste dia' }}</span>
+      <span class="small">{{ itensDoDia.length ? plural(itensDoDia.length) : 'nada vence neste dia' }}</span>
     </div>
-    <div v-if="pagasDoDia" style="padding: 4px 14px 8px"><button type="button" class="btn b-ghost b-sm" data-testid="cron-dia-pagas" :aria-pressed="verPagas" @click="verPagas = !verPagas">{{ verPagas ? 'Esconder as pagas' : `Mostrar as ${pagasDoDia} já pagas` }}</button></div>
-    <div v-if="doDia.length" class="list">
-      <CobrancaLinha v-for="c in doDia" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" :editavel="podeFiltrar" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" @editar="remarcar?.abrir($event)" />
-    </div>
+    <template v-for="g in [{ k: 'pagas', t: 'Já pagas', xs: pagasDoDia }, { k: 'abertas', t: 'A receber', xs: abertasDoDia }]" :key="g.k">
+      <template v-if="g.xs.length">
+        <div class="small" style="padding: 8px 14px 2px; font-weight: 700; color: var(--soft)" :data-grupo-situacao="g.k">{{ g.t }} · {{ g.xs.length }}</div>
+        <div class="list">
+          <CobrancaLinha v-for="c in g.xs" :key="chaveDe(c)" :c="c" :recebida="!aberta(c)" :indicador="indicador" :editavel="podeFiltrar" @abrir="abrirFicha" @receber="receber" @recibo="verRecibo" @avisar="aviso?.abrir($event)" @editar="remarcar?.abrir($event)" />
+        </div>
+      </template>
+    </template>
   </div>
   <div v-if="carregando && !itens.length && !erro" class="empty">Carregando…</div>
 
