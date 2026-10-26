@@ -3,9 +3,6 @@ import { entrar, navegar } from './helpers'
 
 // A demonstração tem "hoje" em 08/10/2026 (quinta-feira): outubro/2026 começa numa quinta e tem 31 dias.
 const celulaComParcela = (page: Page) => page.locator('[data-testid="cron-grade"] button.d:not([data-cor=""])')
-// dia com algo a vencer (cor "ok" = tudo pago)
-const celulaAVencer = (page: Page) => page.locator('[data-testid="cron-grade"] button.d:not([data-cor=""]):not([data-cor="ok"])')
-const abertas = (rotulo: string) => Number(/(\d+) em aberto/.exec(rotulo)?.[1] ?? 0)
 
 test.describe('cronograma: o calendário do mês (administrador)', () => {
   test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/cronograma') })
@@ -37,8 +34,8 @@ test.describe('cronograma: o calendário do mês (administrador)', () => {
 
   test('clicar num dia mostra só o dia; clicar de novo, ou em "Mês inteiro", volta ao mês todo', async ({ page }) => {
     const total = await page.getByTestId('cron-lista-mes').locator('[data-cobranca]').count()
-    const c = celulaAVencer(page).first()
-    const qtd = abertas((await c.getAttribute('aria-label'))!)
+    const c = celulaComParcela(page).first()
+    const qtd = Number(/(\d+) parcela/.exec((await c.getAttribute('aria-label'))!)![1])
     await c.click()
     await expect(page.getByTestId('cron-lista-mes')).toHaveCount(0)
     await expect(page.getByTestId('cron-lista-dia').locator('[data-cobranca]')).toHaveCount(qtd)
@@ -62,29 +59,26 @@ test.describe('cronograma: o calendário do mês (administrador)', () => {
   })
 
   test('clicar num dia com parcelas lista exatamente as parcelas dele', async ({ page }) => {
-    const c = celulaAVencer(page).first()
+    const c = celulaComParcela(page).first()
     await expect(c).toBeVisible()
     const iso = (await c.getAttribute('data-dia'))!
-    const qtd = abertas((await c.getAttribute('aria-label'))!)
+    const qtd = Number(/(\d+) parcela/.exec((await c.getAttribute('aria-label'))!)![1])
     await c.click()
     const lista = page.getByTestId('cron-lista-dia')
     await expect(lista).toContainText(`${Number(iso.slice(8))} de outubro`)
     await expect(lista.locator('[data-cobranca]')).toHaveCount(qtd)
-    await expect(lista).toContainText(`${qtd} a vencer`)
   })
 
-  test('as já pagas do dia ficam escondidas e aparecem em "Mostrar pagas"', async ({ page }) => {
+  test('no dia, as já pagas vêm em cima e as a receber embaixo', async ({ page }) => {
     const c = page.locator('[data-testid="cron-grade"] button.d[aria-label*="com pagamento"][aria-label*="em aberto"]').first()
     test.skip(await c.count() === 0, 'sem dia misto na demonstração')
-    const rotulo = (await c.getAttribute('aria-label'))!
-    const total = Number(/(\d+) parcela/.exec(rotulo)![1])
     await c.click()
     const lista = page.getByTestId('cron-lista-dia')
-    await expect(lista.locator('[data-cobranca]')).toHaveCount(abertas(rotulo))
-    await page.getByTestId('cron-dia-pagas').click()
-    await expect(lista.locator('[data-cobranca]')).toHaveCount(total)
-    await page.getByTestId('cron-dia-pagas').click()
-    await expect(lista.locator('[data-cobranca]')).toHaveCount(abertas(rotulo))
+    const grupos = await lista.locator('[data-grupo-situacao]').evaluateAll((els) => els.map((e) => e.getAttribute('data-grupo-situacao')))
+    expect(grupos).toEqual(['pagas', 'abertas'])
+    const situacoes = await lista.locator('[data-cobranca] [data-situacao]').evaluateAll((els) => els.map((e) => e.getAttribute('data-situacao')))
+    const ultimaPaga = situacoes.lastIndexOf('recebida'); const primeiraAberta = situacoes.findIndex((x) => x !== 'recebida')
+    expect(ultimaPaga).toBeLessThan(primeiraAberta)
   })
 
   test('as setas trocam o mês e o botão Hoje volta; nenhum dia vem selecionado', async ({ page }) => {
@@ -138,7 +132,7 @@ test.describe('cronograma: o calendário do mês (administrador)', () => {
   })
 
   test('abrir uma parcela do dia leva à ficha da operação', async ({ page }) => {
-    await celulaAVencer(page).first().click()
+    await celulaComParcela(page).first().click()
     await page.getByTestId('cron-lista-dia').locator('[data-cobranca] .mid').first().click()
     await expect(page.locator('.sheet, [role="dialog"]').first()).toBeVisible()
   })
