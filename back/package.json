@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20.19.43",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "mysql2": "^3.24.5",
     "tsx": "^4.23.15",
