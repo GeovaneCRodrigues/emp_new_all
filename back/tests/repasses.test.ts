@@ -244,6 +244,44 @@ describe.skipIf(!db)('repasse do indicador (Postgres de verdade)', () => {
       expect(r.json().mensagem ?? r.json().message ?? JSON.stringify(r.json())).toContain('80,00')
       expect((await pagar(id.roberto, { valor: 80 })).statusCode).toBe(201)
     })
+    describe('antecipação (pagar além do liberado)', () => {
+      it('sem confirmar continua recusando (409)', async () => {
+        await liberado980()
+        const r = await pagar(id.roberto, { valor: 1000 })
+        expect(r.statusCode).toBe(409)
+        expect(r.json().codigo).toBe('VALOR_ACIMA_DO_LIBERADO')
+      })
+      it('confirmando, aceita: aPagar vai a 0 e o adiantado aparece', async () => {
+        await liberado980()
+        const r = await pagar(id.roberto, { valor: 1200, antecipacao: true })
+        expect(r.statusCode).toBe(201)
+        expect(r.json().detalhe.resumo).toMatchObject({ liberado: 980, pago: 1200, aPagar: 0, pagoAMais: 220 })
+      })
+      it('vale também sem nada liberado (adiantamento puro)', async () => {
+        await venda()
+        const r = await pagar(id.roberto, { valor: 500, antecipacao: true })
+        expect(r.statusCode).toBe(201)
+        expect(r.json().detalhe.resumo).toMatchObject({ liberado: 0, pago: 500, aPagar: 0, pagoAMais: 500 })
+      })
+      it('o liberado seguinte abate o adiantado antes de voltar a ter a pagar', async () => {
+        const a = await venda(); await receber(a, 1); await receber(a, 2)
+        await pagar(id.roberto, { valor: 1000, antecipacao: true })
+        const antes = (await detalhe(id.roberto)).resumo
+        await receber(a, 3); await receber(a, 4)
+        const depois = (await detalhe(id.roberto)).resumo
+        expect(depois.pago).toBe(1000)
+        expect(depois.aPagar).toBe(Math.max(0, depois.liberado - 1000))
+        expect(depois.liberado).toBeGreaterThan(antes.liberado)
+      })
+      it('antecipação dentro do liberado é um repasse normal', async () => {
+        await liberado980()
+        expect((await pagar(id.roberto, { valor: 100, antecipacao: true })).statusCode).toBe(201)
+      })
+      it('antecipacao que não é booleano é recusada (400)', async () => {
+        await liberado980()
+        expect((await pagar(id.roberto, { valor: 1000, antecipacao: 'sim' })).statusCode).toBe(400)
+      })
+    })
     it('não paga nada enquanto o capital não voltou', async () => {
       await venda()
       expect((await pagar(id.roberto, { valor: 1 })).statusCode).toBe(409)

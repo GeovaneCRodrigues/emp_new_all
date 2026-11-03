@@ -113,6 +113,11 @@ describe('pagar o repasse', () => {
     expect(e?.status).toBe(409)
     expect(e?.message).toContain(r.resumo.aPagar.toFixed(2).replace('.', ','))
   })
+  it('antecipação: confirmando, paga além do liberado e fica adiantado', async () => {
+    const r = await comSaldo()
+    const out = await api.pagar(ADMIN, r.indicador.id, { valor: r.resumo.aPagar + 100, forma: 'PIX', antecipacao: true })
+    expect(out.detalhe.resumo).toMatchObject({ aPagar: 0, pagoAMais: 100 })
+  })
   it('quem não tem nada liberado não recebe: 409', async () => {
     const sem = (await api.resumo(ADMIN)).find((x) => x.resumo.aPagar === 0)!
     expect((await falha(api.pagar(ADMIN, sem.indicador.id, { valor: 1, forma: 'PIX' })))?.status).toBe(409)

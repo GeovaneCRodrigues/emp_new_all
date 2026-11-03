@@ -10,7 +10,7 @@ import MoneyInput from './MoneyInput.vue'
 import Seg from './Seg.vue'
 import Sheet from './Sheet.vue'
 
-/** Registra um repasse (total ou parcial) ao indicador. O servidor confere que não passa do que está a pagar. */
+/** Registra um repasse (total ou parcial) ao indicador. Acima do que está a pagar vira antecipação (pede confirmação). */
 const props = defineProps<{ aberto: boolean; item: ResumoDoIndicadorApi | null }>()
 const emit = defineEmits<{ fechar: []; pago: [r: RepasseApi] }>()
 const { sessao, hoje } = useApp()
@@ -26,10 +26,11 @@ const enviando = ref(false)
 const aPagar = computed(() => props.item?.resumo.aPagar ?? 0)
 const problema = computed(() => {
   if (valor.value <= 0) return 'Informe quanto vai pagar'
-  if (valor.value > aPagar.value + 0.004) return `Ele tem só ${fmt(aPagar.value)} a receber agora`
   if (!data.value) return 'Informe a data do pagamento'
   return ''
 })
+const antecipado = computed(() => Math.max(0, Math.round((valor.value - aPagar.value) * 100) / 100))
+const saldoFicaria = computed(() => antecipado.value + (props.item?.resumo.pagoAMais ?? 0))
 const restaria = computed(() => Math.max(0, Math.round((aPagar.value - valor.value) * 100) / 100))
 
 watch(() => props.aberto, (aberto) => {
@@ -38,11 +39,15 @@ watch(() => props.aberto, (aberto) => {
   forma.value = 'PIX'; data.value = hoje.value; obs.value = ''; erro.value = ''
 }, { immediate: true })
 
+const confirmando = ref(false)
+watch(valor, () => { confirmando.value = false })
+
 async function pagar() {
   if (!props.item || problema.value || enviando.value) return
+  if (antecipado.value > 0 && !confirmando.value) { confirmando.value = true; return }
   enviando.value = true; erro.value = ''
   try {
-    const r = await repassesApi.pagar(sessao.value, props.item.indicador.id, { valor: valor.value, forma: forma.value, data: data.value, obs: obs.value.trim() || undefined })
+    const r = await repassesApi.pagar(sessao.value, props.item.indicador.id, { valor: valor.value, forma: forma.value, data: data.value, obs: obs.value.trim() || undefined, ...(antecipado.value > 0 ? { antecipacao: true } : {}) })
     emit('pago', r.repasse)
   } catch (e) {
     erro.value = e instanceof ErroApi ? e.message : 'Não consegui registrar o repasse.'
@@ -70,12 +75,13 @@ async function pagar() {
             <span v-if="valor > 0 && valor <= aPagar" class="small" data-testid="restaria">{{ restaria > 0 ? `Ainda ficam ${fmt(restaria)}` : 'Quita o que está liberado' }}</span>
           </div>
         </div>
+        <div v-if="antecipado > 0" class="aviso" role="status" data-testid="antecipacao">Isso é uma <b>antecipação de {{ fmt(antecipado) }}</b>. O saldo dele fica em <b>−{{ fmt(saldoFicaria) }}</b> e vai sendo abatido conforme liberar novos repasses.</div>
         <div class="field"><label>Como pagou</label><Seg v-model="forma" :itens="FORMAS" /></div>
         <div class="field"><label for="rpData">Data do pagamento</label><DateField id="rpData" v-model="data" :max="hoje" min="2020-01-01" /></div>
         <div class="field"><label for="rpObs">Observação (opcional)</label><div class="inp"><input id="rpObs" v-model="obs" maxlength="300" placeholder="Ex.: adiantamento do mês" /></div></div>
         <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erro }}</div>
         <div v-else-if="problema && valor > 0" class="small" style="color: var(--bad)" role="status">{{ problema }}</div>
-        <button class="btn b-pri b-block" type="submit" :disabled="!!problema || enviando">{{ enviando ? 'Registrando…' : valor > 0 ? `Registrar repasse de ${fmt(valor)}` : 'Registrar repasse' }}</button>
+        <button class="btn b-pri b-block" type="submit" :disabled="!!problema || enviando">{{ enviando ? 'Registrando…' : antecipado > 0 ? (confirmando ? `Confirmar antecipação de ${fmt(valor)}` : `Registrar antecipação de ${fmt(valor)}`) : valor > 0 ? `Registrar repasse de ${fmt(valor)}` : 'Registrar repasse' }}</button>
         <div class="small">Isto só registra o que você já pagou ao indicador. O dinheiro não sai do caixa do sistema.</div>
       </form>
     </template>
