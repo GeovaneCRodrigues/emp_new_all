@@ -19,6 +19,7 @@ import { createRecebimentosRepository } from '../src/modules/recebimentos/models
 import { createRecebimentosService } from '../src/modules/recebimentos/services/recebimentos.service.js'
 import { createVendasRepository } from '../src/modules/vendas/models/repository.js'
 import { createVendasService } from '../src/modules/vendas/services/vendas.service.js'
+import { indicadoresDosCobradores } from './helpers/carteira.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -31,6 +32,7 @@ describe.skipIf(!db)('retomada do aparelho (Postgres de verdade)', () => {
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
 
+  let donoDe: (clienteId: number) => number | undefined = () => undefined
   const req = (metodo: 'GET' | 'POST', url: string, papel?: string, payload?: object) =>
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
 
@@ -38,7 +40,7 @@ describe.skipIf(!db)('retomada do aparelho (Postgres de verdade)', () => {
   async function venda(cliente = id.cA): Promise<{ v: number; bem: number }> {
     const dia = hoje; hoje = '2026-10-08'
     const [b] = await db!('bens').insert({ modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco_venda: 3000, valor_compra: 2000, data_compra: '2026-09-01' }).returning('id')
-    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId: cliente, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
+    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId: cliente, indicadorId: donoDe(cliente), preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
     hoje = dia
     expect(r.statusCode).toBe(201)
     return { v: r.json().id, bem: b.id }
@@ -66,6 +68,7 @@ describe.skipIf(!db)('retomada do aparelho (Postgres de verdade)', () => {
     const cli = async (chave: string, nome: string, resp: number | null) => { const [c] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[chave] = c.id }
     await cli('cA', 'Ana Souza', id.cobrador)
     await cli('cB', 'Bruno Lima', id.cobrador2)
+    donoDe = await indicadoresDosCobradores(k, { cobrador: id.cobrador, cobrador2: id.cobrador2 }, id, { cA: 'cobrador', cB: 'cobrador2' })
 
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)
@@ -162,11 +165,11 @@ describe.skipIf(!db)('retomada do aparelho (Postgres de verdade)', () => {
       hoje = '2026-11-20'
       const disp = (await req('GET', '/api/aparelhos?estado=DISPONIVEL&limite=100', 'admin')).json().itens
       expect(disp.some((x: { id: number }) => x.id === bem)).toBe(true)
-      const nova = await req('POST', '/api/vendas', 'admin', { aparelhoId: bem, clienteId: id.cB, preco: 3000, entrada: 3000 })
+      const nova = await req('POST', '/api/vendas', 'admin', { aparelhoId: bem, clienteId: id.cB, indicadorId: donoDe(id.cB), preco: 3000, entrada: 3000 })
       expect(nova.statusCode).toBe(201)
       expect((await bemDe(bem)).estado).toBe('VENDIDO')
       // e enquanto a nova venda está de pé, não dá para vender o mesmo aparelho outra vez
-      expect((await req('POST', '/api/vendas', 'admin', { aparelhoId: bem, clienteId: id.cA, preco: 3000, entrada: 3000 })).json().codigo).toBe('APARELHO_INDISPONIVEL')
+      expect((await req('POST', '/api/vendas', 'admin', { aparelhoId: bem, clienteId: id.cA, indicadorId: donoDe(id.cA), preco: 3000, entrada: 3000 })).json().codigo).toBe('APARELHO_INDISPONIVEL')
     })
     it('o banco só aceita uma venda "viva" por aparelho: retomada e cancelada não contam (índice vendas_bem_ativa_uq)', async () => {
       const { v, bem } = await vendaAtrasada()

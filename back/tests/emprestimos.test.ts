@@ -12,6 +12,7 @@ import { planoEmprestimo, primeiroVencimentoPadrao } from '../src/modules/empres
 import { createEmprestimosService } from '../src/modules/emprestimos/services/emprestimos.service.js'
 import { createIndicadoresRepository } from '../src/modules/indicadores/models/repository.js'
 import { createIndicadoresService } from '../src/modules/indicadores/services/indicadores.service.js'
+import { indicadoresDosCobradores } from './helpers/carteira.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -128,9 +129,10 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
   const hoje = '2026-10-08'
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
+  let donoDe: (clienteId: number) => number | undefined = () => undefined
   const req = (metodo: 'GET' | 'POST', url: string, papel?: string, payload?: object) =>
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
-  const emprestar = (papel: string, corpo: object = {}) => req('POST', '/api/emprestimos', papel, { clienteId: id.cA, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
+  const emprestar = (papel: string, corpo: object = {}) => req('POST', '/api/emprestimos', papel, { clienteId: id.cA, indicadorId: donoDe((corpo as { clienteId?: number }).clienteId ?? id.cA), modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
 
   beforeAll(async () => {
     const k = db!
@@ -145,6 +147,7 @@ describe.skipIf(!db)('empréstimos parcelados (Postgres de verdade)', () => {
     const cli = async (chave: string, nome: string, resp: number | null) => { const [c] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[chave] = c.id }
     await cli('cA', 'Ana Souza', id.cobrador)
     await cli('cB', 'Bruno Lima', id.cobrador2)
+    donoDe = await indicadoresDosCobradores(k, { cobrador: id.cobrador, cobrador2: id.cobrador2 }, id, { cA: 'cobrador', cB: 'cobrador2' })
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)
     const audit = createAuditoriaRepository(k)

@@ -62,6 +62,8 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     const cli = async (c: string, nome: string, resp: number) => { const [r] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[c] = r.id }
     await cli('ana', 'José Conceição', id.cobrador)
     await cli('bruno', 'Bruno Lima', id.cobrador2)
+    // cada cobrador só enxerga o que vem dos indicadores marcados para ele: o 1º atende o Roberto, o 2º o "Outro"
+    await k('cobrador_indicadores').insert([{ usuario_id: id.cobrador, indicador_id: ind.id }, { usuario_id: id.cobrador2, indicador_id: ind2.id }])
 
     // venda da Ana (indicador Roberto): 30/09 (fora), 01/10 paga, 10/10 em aberto atrasada, 20/10 paga pela metade, 31/10 em aberto, 01/11 (fora)
     ref.vAna = await venda(id.ana, ind.id, [['2026-09-30', 100], ['2026-10-01', 200], ['2026-10-10', 300], ['2026-10-20', 400], ['2026-10-31', 500], ['2026-11-01', 600]])
@@ -178,9 +180,10 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
       expect(await ids('&situacao=ABERTAS&modalidade=JUROS')).toEqual([])
       expect(await ids(`&situacao=ABERTAS&indicador=${roberto}`)).toEqual([`E${ref2.parc}`, `V${ref2.venda}`].sort())
     })
-    it('o cobrador filtra só dentro da carteira dele', async () => {
-      const r = (await cron(`?mes=2026-12&indicador=${roberto}`, 'cobrador2')).itens.map((i) => `${i.tipo[0]}${i.operacaoId}`)
-      expect(r).toEqual([`V${ref2.venda}`])
+    it('o cobrador filtra só dentro dos indicadores dele', async () => {
+      // o cobrador 2 atende o "Outro", não o Roberto: filtrar pelo Roberto não traz nada dele
+      expect((await cron(`?mes=2026-12&indicador=${roberto}`, 'cobrador2')).itens).toEqual([])
+      expect((await cron(`?mes=2026-12&indicador=${roberto}`, 'cobrador')).itens.map((i) => `${i.tipo[0]}${i.operacaoId}`)).toContain(`V${ref2.venda}`)
     })
     it('valor inválido → 400', async () => {
       for (const q of ['indicador=abc', 'indicador=0', 'indicador=-1', 'indicador=1.5', 'indicador=', 'modalidade=XYZ', 'modalidade=parcelado', 'modalidade=', 'situacao=abertas', 'situacao=', 'situacao=XYZ', 'modalidade=JUROS,', 'modalidade=JUROS,XYZ', 'modalidade=PARCELADO,JUROS,DIARIA,JUROS']) expect((await req(`/api/cronograma?mes=2026-12&${q}`, 'admin')).statusCode, q).toBe(400)
@@ -295,7 +298,7 @@ describe.skipIf(!db)('cronograma: o calendário do mês (Postgres de verdade)', 
     it('o admin vê tudo', async () => { expect((await cron('?mes=2026-10')).itens.length).toBe(6) })
     it('o cobrador vê só a carteira dele', async () => {
       expect((await cron('?mes=2026-10', 'cobrador')).itens.every((i) => i.cliente.nome === 'José Conceição')).toBe(true)
-      expect((await cron('?mes=2026-10', 'cobrador')).itens.length).toBe(5)
+      expect((await cron('?mes=2026-10', 'cobrador')).itens.length).toBe(4) // a 5ª (empréstimo sem indicador) não vem de indicador dele
       expect((await cron('?mes=2026-10', 'cobrador2')).itens.map((i) => i.cliente.nome)).toEqual(['Bruno Lima'])
     })
     it('o indicador vê só as operações dele (e só leitura)', async () => {

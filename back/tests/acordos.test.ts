@@ -24,6 +24,7 @@ import { createRecebimentosRepository } from '../src/modules/recebimentos/models
 import { createRecebimentosService } from '../src/modules/recebimentos/services/recebimentos.service.js'
 import { createVendasRepository } from '../src/modules/vendas/models/repository.js'
 import { createVendasService } from '../src/modules/vendas/services/vendas.service.js'
+import { indicadoresDosCobradores } from './helpers/carteira.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -40,10 +41,11 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
 
   /** Venda de 3.000 criada em 08/10/2026: entrada 600, 4 parcelas de 840 (10/11, 10/12, 10/01, 10/02). */
+  let donoDe: (clienteId: number) => number | undefined = () => undefined
   async function venda(cliente = id.cA): Promise<number> {
     const dia = hoje; hoje = '2026-10-08'
     const [b] = await db!('bens').insert({ modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco_venda: 3000, valor_compra: 2000, data_compra: '2026-09-01' }).returning('id')
-    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId: cliente, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
+    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId: cliente, indicadorId: donoDe(cliente), preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
     hoje = dia
     expect(r.statusCode).toBe(201)
     return r.json().id
@@ -59,7 +61,7 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
   /** Só juros 3.000 a 12% em 3x (360, 360, 3.360) criado em 08/10/2026. */
   async function emprestimo(corpo: object = {}, cliente = id.cA): Promise<number> {
     const dia = hoje; hoje = '2026-10-08'
-    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3, ...corpo })
+    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, indicadorId: donoDe(cliente), modalidade: 'JUROS', capital: 3000, taxa: 12, parcelas: 3, ...corpo })
     hoje = dia
     expect(r.statusCode).toBe(201)
     return r.json().id
@@ -88,6 +90,7 @@ describe.skipIf(!db)('acordo (Postgres de verdade)', () => {
     const cli = async (chave: string, nome: string, resp: number | null) => { const [c] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[chave] = c.id }
     await cli('cA', 'Ana Souza', id.cobrador)
     await cli('cB', 'Bruno Lima', id.cobrador2)
+    donoDe = await indicadoresDosCobradores(k, { cobrador: id.cobrador, cobrador2: id.cobrador2 }, id, { cA: 'cobrador', cB: 'cobrador2' })
 
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)

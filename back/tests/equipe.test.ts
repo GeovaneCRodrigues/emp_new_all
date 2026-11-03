@@ -23,6 +23,7 @@ import { createRecebimentosRepository } from '../src/modules/recebimentos/models
 import { createRecebimentosService } from '../src/modules/recebimentos/services/recebimentos.service.js'
 import { createVendasRepository } from '../src/modules/vendas/models/repository.js'
 import { createVendasService } from '../src/modules/vendas/services/vendas.service.js'
+import { indicadoresDosCobradores } from './helpers/carteira.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -35,6 +36,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
 
+  let donoDe: (clienteId: number) => number | undefined = () => undefined
   const req = (metodo: 'GET' | 'POST' | 'PATCH', url: string, papel?: string, payload?: object) =>
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
   const login = (email: string, senha: string) => app.inject({ method: 'POST', url: '/api/auth/login', payload: { email, senha } })
@@ -43,7 +45,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
   async function venda(clienteId = id.cA): Promise<number> {
     const [b] = await db!('bens').insert({ modelo: 'iPhone 13', gb: 128, cor: 'Preto', preco_venda: 3000, valor_compra: 2000, data_compra: '2026-09-01' }).returning('id')
     const dia = hoje; hoje = '2026-10-08'
-    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId, preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
+    const r = await req('POST', '/api/vendas', 'admin', { aparelhoId: b.id, clienteId, indicadorId: donoDe(clienteId), preco: 3000, entrada: 600, parcelas: 4, diaVencimento: 10 })
     hoje = dia
     expect(r.statusCode).toBe(201)
     return r.json().id
@@ -65,6 +67,7 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
     const cli = async (chave: string, nome: string, resp: number | null) => { const [c] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[chave] = c.id }
     await cli('cA', 'Ana Souza', id.cobrador)
     await cli('cB', 'Bruno Lima', id.cobrador2)
+    donoDe = await indicadoresDosCobradores(k, { cobrador: id.cobrador, cobrador2: id.cobrador2 }, id, { cA: 'cobrador', cB: 'cobrador2' })
 
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)

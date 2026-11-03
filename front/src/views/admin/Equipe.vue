@@ -3,11 +3,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AprovacaoApi } from '@/api/aprovacoes'
 import { ErroApi } from '@/api/clientes'
+import type { IndicadorApi } from '@/api/indicadores'
 import type { PessoaApi } from '@/api/equipe'
 import type { FechamentoApi } from '@/api/fechamentos'
 import type { PropostaApi } from '@/api/propostas'
 import type { AlvoApi, ReciboApi, RegistradoApi } from '@/api/recebimentos'
-import { aprovacoesApi, equipeApi, fechamentosApi, propostasApi } from '@/api/recursos'
+import { aprovacoesApi, equipeApi, fechamentosApi, indicadoresApi, propostasApi } from '@/api/recursos'
 import DateField from '@/components/DateField.vue'
 import Icon from '@/components/Icon.vue'
 import ReciboSheet from '@/components/ReciboSheet.vue'
@@ -58,7 +59,7 @@ async function carregar(silencioso = false) {
     carregando.value = false
   }
 }
-onMounted(() => carregar())
+onMounted(() => { carregar(); indicadoresApi.listar(sessao.value).then((l) => { indicadores.value = l }).catch(() => undefined) })
 // pedido novo chega sozinho; não mexe na lista no meio de uma confirmação ou recusa
 usePulso(() => { if (ocupado.value === null && !recusando.value && !convidando.value) return carregar(true) })
 
@@ -80,6 +81,19 @@ async function confirmarRecusa() {
 }
 const conferir = (f: FechamentoApi) => executar(`c${f.id}`, () => fechamentosApi.conferir(sessao.value, f.id), 'Fechamento conferido.')
 const reabrir = (f: FechamentoApi) => executar(`o${f.id}`, () => fechamentosApi.reabrir(sessao.value, f.id), `Dia de ${f.usuario.nome.split(' ')[0]} reaberto.`)
+// ---- quais indicadores o cobrador atende: só o que vem deles aparece para ele ----
+const indicadores = ref<IndicadorApi[]>([])
+const atendendo = ref<PessoaApi | null>(null)
+const marcados = ref<number[]>([])
+const nomesAtendidos = (p: PessoaApi) => (p.indicadorIds ?? []).map((i) => indicadores.value.find((x) => x.id === i)?.nome).filter(Boolean).join(', ')
+function abrirAtende(p: PessoaApi) { atendendo.value = p; marcados.value = [...(p.indicadorIds ?? [])] }
+const alternarMarca = (i: number) => { marcados.value = marcados.value.includes(i) ? marcados.value.filter((x) => x !== i) : [...marcados.value, i] }
+async function salvarAtende() {
+  const p = atendendo.value
+  if (!p) return
+  atendendo.value = null
+  await executar(`i${p.id}`, () => equipeApi.atualizar(sessao.value, p.id, { indicadorIds: marcados.value }), marcados.value.length ? `${p.nome.split(' ')[0]} atende ${marcados.value.length === 1 ? '1 indicador' : `${marcados.value.length} indicadores`}.` : `${p.nome.split(' ')[0]} não atende nenhum indicador (não vê nada).`)
+}
 const alternar = (p: PessoaApi) => executar(`p${p.id}`, () => equipeApi.atualizar(sessao.value, p.id, { ativo: !p.ativo }), p.ativo ? `${p.nome.split(' ')[0]} não entra mais.` : `${p.nome.split(' ')[0]} voltou a entrar.`)
 
 function abrirConvite() { Object.assign(convite, { nome: '', email: '', perfil: 'COBRADOR', fone: '' }); erroConvite.value = ''; criado.value = null; convidando.value = true }
@@ -252,6 +266,11 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
             <div class="val">{{ p.nome }} <span class="chip c-neu">{{ NOME_PERFIL[p.perfil] }}</span><span v-if="!p.ativo" class="chip c-bad">sem acesso</span></div>
             <div class="small">{{ p.email }}</div>
             <div v-if="p.perfil === 'COBRADOR'" class="small num">{{ p.carteira }} clientes · {{ p.comAtraso }} com atraso · recebeu {{ fmt(p.recebidoNoMes) }} no mês<template v-if="p.pedidosPendentes"> · {{ p.pedidosPendentes }} pedido(s) esperando</template></div>
+            <div v-if="p.perfil === 'COBRADOR'" class="small" data-testid="atende">
+              <template v-if="p.indicadorIds?.length">Atende: <b>{{ nomesAtendidos(p) }}</b></template>
+              <span v-else style="color: var(--warn)">Não atende nenhum indicador: por enquanto ele não vê nenhuma cobrança.</span>
+              <button type="button" class="btn b-ghost b-sm" style="margin-left: 6px" :disabled="!!ocupado" data-testid="atende-editar" @click="abrirAtende(p)">Escolher indicadores</button>
+            </div>
             <div v-else-if="p.perfil === 'VENDEDOR'" class="small num">{{ p.carteira }} clientes · {{ p.vendasNoMes }} venda(s) no mês</div>
           </div>
           <button v-if="p.perfil !== 'ADMIN'" class="btn b-ghost b-sm" :disabled="!!ocupado" @click="alternar(p)">{{ p.ativo ? 'Desativar' : 'Reativar' }}</button>
@@ -259,6 +278,21 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
       </div>
     </section>
   </template>
+
+  <Sheet :aberto="atendendo !== null" @fechar="atendendo = null">
+    <template v-if="atendendo">
+      <h3>Indicadores de {{ atendendo.nome.split(' ')[0] }}</h3>
+      <div class="small">Ele só vai ver as cobranças, os recibos e os clientes que vêm dos indicadores marcados. Sem nenhum marcado, não vê nada.</div>
+      <form style="display: flex; flex-direction: column; gap: 4px; margin-top: 14px" data-testid="atende-form" @submit.prevent="salvarAtende">
+        <label v-for="i in indicadores" :key="i.id" class="between" style="gap: 8px; padding: 8px 0; cursor: pointer" :data-indicador="i.id">
+          <span>{{ i.nome }}<span v-if="!i.ativo" class="small"> (inativo)</span></span>
+          <input type="checkbox" :checked="marcados.includes(i.id)" @change="alternarMarca(i.id)" />
+        </label>
+        <div v-if="!indicadores.length" class="small">Nenhum indicador cadastrado ainda.</div>
+        <button class="btn b-pri b-block" type="submit" style="margin-top: 10px" data-testid="atende-salvar">Salvar</button>
+      </form>
+    </template>
+  </Sheet>
 
   <Sheet :aberto="recusando !== null" @fechar="recusando = null">
     <template v-if="recusando">

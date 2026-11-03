@@ -2,6 +2,7 @@ import type { Knex } from 'knex'
 import { naoEncontrado } from '../../../shared/errors.js'
 import { unificarEmprestimos, type PedidoUnificacao, type ResultadoUnificacao } from './unificacao.js'
 import { fazerAcordo, type AlvoAcordo, type PeriodicidadeAcordo, type ResultadoAcordo } from './acordo.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 export type AcordoRegistro = {
   id: number
@@ -58,7 +59,7 @@ export function createAcordosRepository(db: Knex): AcordosRepository {
     async listar(alvo, operacaoId, escopo) {
       const t = T[alvo]
       const q = db(`${t.op} as o`).join('clientes as c', 'c.id', 'o.cliente_id').where('o.id', operacaoId)
-      if (escopo.tipo === 'CARTEIRA') q.where('c.responsavel_id', escopo.usuarioId)
+      if (escopo.tipo === 'CARTEIRA') naCarteira(q, escopo.usuarioId, { cliente: 'c', operacao: 'o' })
       if (!(await q.first('o.id'))) return null
       const ls = await db('acordos as a').leftJoin('users as u', 'u.id', 'a.criado_por').where(`a.${t.opFk}`, operacaoId).orderBy('a.id', 'desc')
         .select<{ id: number; data_acordo: Date | string; saldo_antes: string; valor_total: string; n_parcelas: number; primeira_parcela: Date | string; motivo: string | null; capital_adicional: string; periodicidade: PeriodicidadeAcordo; status: 'ATIVO' | 'SUBSTITUIDO'; nome: string | null; aprovacao_id: number | null; unificado_em_id: number | null; capital_cedido: string; capital_herdado: string }[]>(

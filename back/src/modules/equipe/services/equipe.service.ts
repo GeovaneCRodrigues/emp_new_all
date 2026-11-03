@@ -72,10 +72,21 @@ export function createEquipeService(dep: { repo: EquipeRepository; auditoria: Au
       if ('ativo' in e && typeof e.ativo !== 'boolean') throw requisicaoInvalida('ativo deve ser verdadeiro ou falso')
       if (e.ativo === false && id === s.usuarioId) throw requisicaoInvalida('Você não pode desativar o seu próprio acesso')
 
+      let indicadorIds: number[] | undefined
+      if ('indicadorIds' in e) {
+        if (alvo.perfil !== 'COBRADOR') throw requisicaoInvalida('Só o cobrador atende indicadores')
+        const v = e.indicadorIds
+        if (!Array.isArray(v) || v.length > 500 || !v.every((x) => typeof x === 'number' && Number.isInteger(x) && x > 0)) throw requisicaoInvalida('indicadorIds deve ser uma lista de números de indicadores')
+        indicadorIds = [...new Set(v as number[])]
+        if ((await dep.repo.indicadoresExistentes(indicadorIds)).length !== indicadorIds.length) throw requisicaoInvalida('Há indicador que não existe')
+      }
+
       if ('nome' in e || fone !== undefined) await dep.repo.atualizar(id, { ...('nome' in e ? { nome: maiusculas(e.nome as string) } : {}), ...(fone !== undefined ? { fone } : {}) })
       if (typeof e.ativo === 'boolean' && e.ativo !== alvo.ativo) await dep.repo.definirAtivo(id, e.ativo)
+      const antesIndicadores = indicadorIds ? ((await pessoas()).find((p) => p.id === id)?.indicadorIds ?? []) : undefined
+      if (indicadorIds) await dep.repo.definirIndicadores(id, indicadorIds)
       const depois = (await pessoas()).find((p) => p.id === id)!
-      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'EQUIPE_ALTERADO', entidade: 'usuario', entidadeId: id, antes: { nome: antes.nome, fone: antes.fone, ativo: antes.ativo }, depois: { nome: depois.nome, fone: depois.fone, ativo: depois.ativo } })
+      await dep.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'EQUIPE_ALTERADO', entidade: 'usuario', entidadeId: id, antes: { nome: antes.nome, fone: antes.fone, ativo: antes.ativo, ...(antesIndicadores ? { indicadorIds: antesIndicadores } : {}) }, depois: { nome: depois.nome, fone: depois.fone, ativo: depois.ativo, ...(indicadorIds ? { indicadorIds } : {}) } })
       return depois
     },
   }

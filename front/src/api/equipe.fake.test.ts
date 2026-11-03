@@ -234,4 +234,16 @@ describe('equipe', () => {
     expect((await falha(equipe.atualizar(ADMIN, 2, { nome: ' ' })))?.status).toBe(400)
     expect((await falha(equipe.atualizar(ADMIN, 2, { fone: 'abc' })))?.status).toBe(400)
   })
+  it('o cobrador atende só os indicadores marcados: lista, troca, repetidos contam uma vez, e as validações', async () => {
+    const cobrador = (await equipe.listar(ADMIN)).find((p) => p.perfil === 'COBRADOR')!
+    expect(cobrador.indicadorIds).toEqual([1])
+    expect((await equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: [2, 1, 2] })).indicadorIds).toEqual([1, 2])
+    expect((await equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: [] })).indicadorIds).toEqual([])
+    expect((await equipe.listar(ADMIN)).find((p) => p.id === cobrador.id)!.indicadorIds).toEqual([])
+    expect((await equipe.listar(ADMIN)).find((p) => p.perfil === 'VENDEDOR')).not.toHaveProperty('indicadorIds')
+    expect((await falha(equipe.atualizar(ADMIN, 2, { indicadorIds: [1] })))?.status).toBe(400) // vendedor não atende indicador
+    expect((await falha(equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: [999999] })))?.status).toBe(400)
+    for (const ruim of ['1', 5, null, [1.5], ['1'], [0], [-1]]) expect((await falha(equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: ruim as never })))?.status).toBe(400)
+    expect((await falha(equipe.atualizar({ perfil: 'COBRADOR', usuarioId: cobrador.id }, cobrador.id, { indicadorIds: [1] })))?.status).toBe(403)
+  })
 })

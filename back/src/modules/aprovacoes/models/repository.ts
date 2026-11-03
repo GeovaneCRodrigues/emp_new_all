@@ -3,6 +3,7 @@ import { nomeEmprestimo, PAGO_PARCELA_EMPRESTIMO_SQL, PAGO_PARCELA_SQL } from '.
 import { fazerAcordo, type PeriodicidadeAcordo, type ResultadoAcordo } from '../../acordos/models/acordo.js'
 import { retomarVenda, type ResultadoRetomada } from '../../vendas/models/retomada.js'
 import type { Alvo, Aprovacao, EscopoAprovacoes, OperacaoDoPedido, ParcelaDaOperacao, StatusAprovacao, TipoAprovacao } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 export interface AprovacoesTx {
   /** Trava a venda/empréstimo: um desconto aprovado e um recebimento ao mesmo tempo não se atropelam. `carteira`: só se o cliente é dele. */
@@ -75,7 +76,7 @@ export function createAprovacoesRepository(db: Knex): AprovacoesRepository {
             const t = T[alvo]
             const q = trx(`${t.op} as o`).join('clientes as c', 'c.id', 'o.cliente_id').where('o.id', id).forUpdate('o')
             // cobrador: clientes da carteira dele; indicador: operações em que ele é o indicador
-            if (dono && 'usuarioId' in dono) q.where('c.responsavel_id', dono.usuarioId)
+            if (dono && 'usuarioId' in dono) naCarteira(q, dono.usuarioId, { cliente: 'c', operacao: 'o' })
             else if (dono) q.where('o.indicador_id', dono.indicadorId)
             const l = await q.first<{ id: number; cliente_id: number; status: OperacaoDoPedido['status'] } | undefined>('o.id', 'o.cliente_id', 'o.status')
             return l ? { id: l.id, alvo, clienteId: l.cliente_id, status: l.status } : null

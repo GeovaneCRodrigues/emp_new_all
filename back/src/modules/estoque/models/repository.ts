@@ -1,6 +1,7 @@
 import type { Knex } from 'knex'
 import { soDigitos } from '../../../shared/documentos.js'
 import type { Aparelho, DadosAparelho, EstadoAparelho, FiltroAparelhos, ResumoEstoque } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 export interface EstoqueRepository {
   listar(f: FiltroAparelhos): Promise<{ itens: Aparelho[]; total: number }>
@@ -97,7 +98,7 @@ export function createEstoqueRepository(db: Knex): EstoqueRepository {
     },
     async clientesDaCarteira(ids, usuarioId) {
       if (!ids.length) return new Set()
-      const ls = await db('clientes').whereIn('id', ids).where({ responsavel_id: usuarioId }).select<{ id: number }[]>('id')
+      const ls = await naCarteira(db('clientes').whereIn('clientes.id', ids), usuarioId, { cliente: 'clientes' }).select<{ id: number }[]>('clientes.id')
       return new Set(ls.map((l) => l.id))
     },
     async resumo() {

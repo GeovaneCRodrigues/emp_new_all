@@ -3,6 +3,7 @@ import { filtrarPorTexto } from '../../../shared/busca.js'
 import { naoEncontrado } from '../../../shared/errors.js'
 import { retomarVenda, type ResultadoRetomada } from './retomada.js'
 import type { AparelhoTravado, EscopoVendas, FormaPagamento, NovaTroca, NovaVenda, ParcelaVenda, Venda } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 /** Operações que precisam acontecer juntas, na mesma transação do banco. */
 export interface VendasTx {
@@ -45,7 +46,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
       .leftJoin('indicadores as i', 'i.id', 'v.indicador_id')
       .select<LinhaVenda[]>('v.*', 'b.modelo', 'b.gb', 'b.cor', 'c.nome as cliente_nome', 'i.nome as indicador_nome')
     if (escopo.tipo === 'VENDEDOR') q.where((w) => w.where('v.vendedor_id', escopo.usuarioId).orWhere('c.responsavel_id', escopo.usuarioId))
-    else if (escopo.tipo === 'CARTEIRA') q.where('c.responsavel_id', escopo.usuarioId)
+    else if (escopo.tipo === 'CARTEIRA') naCarteira(q, escopo.usuarioId, { cliente: 'c', operacao: 'v' })
     else if (escopo.tipo === 'INDICADOR') q.where('v.indicador_id', escopo.indicadorId)
     return q
   }
@@ -107,7 +108,7 @@ export function createVendasRepository(db: Knex): VendasRepository {
           async clienteNoEscopo(id, escopo) {
             const q = trx('clientes').where({ id })
             if (escopo.tipo === 'INDICADOR') q.whereRaw('false') // o indicador não vende
-            else if (escopo.tipo !== 'TODOS') q.where({ responsavel_id: escopo.usuarioId })
+            else if (escopo.tipo !== 'TODOS') naCarteira(q, escopo.usuarioId, { cliente: 'clientes' })
             return (await q.first<{ id: number; nome: string } | undefined>('id', 'nome')) ?? null
           },
           async indicadorAtivo(id) {

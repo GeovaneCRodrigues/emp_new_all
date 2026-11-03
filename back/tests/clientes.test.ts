@@ -52,6 +52,10 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     await cli('c1', 'Ana Souza', '11988124410', id.vendedorA, '39053344705')
     await cli('c2', 'Bruno Lima', '11977612209', id.vendedorB)
     await cli('c3', 'Carla Dias', '11991027744', id.cobrador)
+    // o cobrador não tem "carteira por responsável": enxerga os clientes dos indicadores que o admin marcou para ele
+    const [indDoCobrador] = await k('indicadores').insert({ nome: 'Ind do cobrador', pct: 0.5 }).returning('id')
+    await k('cobrador_indicadores').insert({ usuario_id: id.cobrador, indicador_id: indDoCobrador.id })
+    await k('clientes').where({ id: id.c3 }).update({ indicador_id: indDoCobrador.id })
     await cli('c4', 'Diego Prado 100%', '11984501132', null)
 
     // c1 foi indicada pelo indicador 1 (venda); c3 pelo indicador 1 (empréstimo); c2 pelo indicador 2
@@ -286,7 +290,7 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     it('só o admin muda o responsável', async () => {
       expect((await req('PATCH', `/api/clientes/${id.c1}`, 'vendedorA', { responsavelId: id.vendedorB })).statusCode).toBe(403)
       expect((await req('PATCH', `/api/clientes/${id.c4}`, 'admin', { responsavelId: id.cobrador })).statusCode).toBe(200)
-      expect(await nomes('cobrador')).toContain('Diego Prado 100%')
+      expect(await nomes('cobrador')).not.toContain('Diego Prado 100%') // o responsável não dá carteira ao cobrador: só os indicadores marcados
     })
 
     it('cobrador e indicador não editam (403)', async () => {
