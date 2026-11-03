@@ -203,32 +203,37 @@ describe('equipe', () => {
       expect((await falha(equipe.atualizar(s, 2, { ativo: false })))?.status).toBe(403)
     }
   })
-  it('lista as pessoas com carteira, atrasos, recebido no mês e pedidos pendentes; admin primeiro, depois cobradores e vendedores', async () => {
+  it('lista as pessoas com carteira, atrasos, recebido no mês e pedidos pendentes; admin primeiro, depois cobradores, vendedores e o acesso dos indicadores', async () => {
     await receber(COBR, await venda(), { valor: 840 })
     const lista = await equipe.listar(ADMIN)
-    expect(lista.map((p) => p.perfil)).toEqual(['ADMIN', 'COBRADOR', 'VENDEDOR'])
+    expect(lista.map((p) => p.perfil)).toEqual(['ADMIN', 'COBRADOR', 'VENDEDOR', 'INDICADOR'])
+    expect(lista.find((p) => p.perfil === 'INDICADOR')).toMatchObject({ ultimoAcesso: null, senhaTemporaria: true, bloqueado: false })
     const diego = lista.find((p) => p.nome === 'Diego Ramos')!
     expect(diego).toMatchObject({ carteira: 4, pedidosPendentes: 3 })
     expect(diego.comAtraso).toBeGreaterThan(0)
     expect(diego.recebidoNoMes).toBe(840)
     expect(lista.find((p) => p.nome === 'Bruna Teixeira')!.carteira).toBe(4)
   })
-  it('convida: senha temporária mostrada uma vez; e-mail repetido é 409; perfil de admin é recusado; dados inválidos são 400', async () => {
+  it('convida: senha temporária mostrada uma vez; e-mail repetido é 409; administrador pede confirmação; nível inválido e dados inválidos são 400', async () => {
     const r = await equipe.convidar(ADMIN, { nome: '  Ana   Lima ', email: 'Ana@Loja.com', perfil: 'COBRADOR', fone: '(11) 98123-4455' })
     expect(r.email).toBe('ana@loja.com')
     expect(r.senhaTemporaria.length).toBeGreaterThanOrEqual(10)
     expect((await equipe.listar(ADMIN)).find((p) => p.id === r.id)).toMatchObject({ nome: 'ANA LIMA', fone: '11981234455', perfil: 'COBRADOR' })
     expect((await falha(equipe.convidar(ADMIN, { nome: 'Outra', email: 'ana@loja.com', perfil: 'VENDEDOR' })))?.codigo).toBe('EMAIL_EM_USO')
-    for (const perfil of ['ADMIN', 'INDICADOR', 'DONO']) expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: `f${perfil}@t.com`, perfil: perfil as never })))?.status).toBe(400)
+    for (const perfil of ['INDICADOR', 'DONO']) expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: `f${perfil}@t.com`, perfil: perfil as never })))?.status).toBe(400)
+    expect((await falha(equipe.convidar(ADMIN, { nome: 'Sócio', email: 'socio@t.com', perfil: 'ADMIN' })))?.codigo).toBe('CONFIRMAR_ADMIN')
+    const adm = await equipe.convidar(ADMIN, { nome: 'Sócio', email: 'socio@t.com', perfil: 'ADMIN', confirmarAdmin: true })
+    expect((await equipe.listar(ADMIN)).find((p) => p.id === adm.id)).toMatchObject({ perfil: 'ADMIN', senhaTemporaria: true, ultimoAcesso: null })
     expect((await falha(equipe.convidar(ADMIN, { nome: 'F', email: 'f1@t.com', perfil: 'COBRADOR' })))?.status).toBe(400)
     expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: 'nao-e-email', perfil: 'COBRADOR' })))?.status).toBe(400)
     expect((await falha(equipe.convidar(ADMIN, { nome: 'Fulano', email: 'f2@t.com', perfil: 'COBRADOR', fone: '123' })))?.status).toBe(400)
   })
-  it('edita, desativa e reativa; não mexe em administrador, nem desativa a si mesmo; 404 e validações', async () => {
+  it('edita, desativa e reativa; não desativa a si mesmo nem muda o próprio nível; 404 e validações', async () => {
     expect((await equipe.atualizar(ADMIN, 2, { nome: 'Bruna T. Souza', fone: '(11) 90000-0000' })).nome).toBe('BRUNA T. SOUZA')
     expect((await equipe.atualizar(ADMIN, 2, { ativo: false })).ativo).toBe(false)
     expect((await equipe.atualizar(ADMIN, 2, { ativo: true })).ativo).toBe(true)
-    expect((await falha(equipe.atualizar(ADMIN, 1, { ativo: false })))?.status).toBe(403)
+    expect((await falha(equipe.atualizar(ADMIN, 1, { ativo: false })))?.status).toBe(400) // não desativa a si mesmo
+    expect((await falha(equipe.atualizar(ADMIN, 1, { perfil: 'COBRADOR' })))?.status).toBe(400) // nem muda o próprio nível
     expect((await falha(equipe.atualizar(ADMIN, 999999, { ativo: false })))?.status).toBe(404)
     expect((await falha(equipe.atualizar(ADMIN, 2, { ativo: 'nao' as never })))?.status).toBe(400)
     expect((await falha(equipe.atualizar(ADMIN, 2, { nome: ' ' })))?.status).toBe(400)
@@ -245,5 +250,27 @@ describe('equipe', () => {
     expect((await falha(equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: [999999] })))?.status).toBe(400)
     for (const ruim of ['1', 5, null, [1.5], ['1'], [0], [-1]]) expect((await falha(equipe.atualizar(ADMIN, cobrador.id, { indicadorIds: ruim as never })))?.status).toBe(400)
     expect((await falha(equipe.atualizar({ perfil: 'COBRADOR', usuarioId: cobrador.id }, cobrador.id, { indicadorIds: [1] })))?.status).toBe(403)
+  })
+  it('edita o e-mail (valida, recusa repetido) e troca o nível entre vendedor e cobrador, limpando os indicadores ao deixar de ser cobrador', async () => {
+    expect((await equipe.atualizar(ADMIN, 2, { email: '  Bruna.Nova@Loja.com ' })).email).toBe('bruna.nova@loja.com')
+    expect((await falha(equipe.atualizar(ADMIN, 2, { email: 'cobrador@demo.com' })))?.codigo).toBe('EMAIL_EM_USO')
+    expect((await falha(equipe.atualizar(ADMIN, 2, { email: 'sem-arroba' })))?.status).toBe(400)
+    const cobrador = (await equipe.listar(ADMIN)).find((p) => p.perfil === 'COBRADOR')!
+    expect((await equipe.atualizar(ADMIN, cobrador.id, { perfil: 'VENDEDOR' })).indicadorIds).toBeUndefined()
+    expect((await equipe.atualizar(ADMIN, cobrador.id, { perfil: 'COBRADOR' })).indicadorIds).toEqual([])
+    for (const perfil of ['ADMIN', 'INDICADOR']) expect((await falha(equipe.atualizar(ADMIN, cobrador.id, { perfil: perfil as never })))?.status).toBe(400)
+  })
+  it('o acesso do indicador só liga e desliga aqui', async () => {
+    expect((await falha(equipe.atualizar(ADMIN, 4, { nome: 'Outro' })))?.status).toBe(400)
+    expect((await equipe.atualizar(ADMIN, 4, { ativo: false })).ativo).toBe(false)
+  })
+  it('redefine a senha: temporária nova, destrava a conta; não vale para a própria; 404 e só admin', async () => {
+    const r = await equipe.redefinirSenha(ADMIN, 3)
+    expect(r.email).toBe('cobrador@demo.com')
+    expect(r.senhaTemporaria.length).toBeGreaterThanOrEqual(10)
+    expect((await equipe.listar(ADMIN)).find((p) => p.id === 3)).toMatchObject({ senhaTemporaria: true, bloqueado: false })
+    expect((await falha(equipe.redefinirSenha(ADMIN, 1)))?.status).toBe(400)
+    expect((await falha(equipe.redefinirSenha(ADMIN, 999999)))?.status).toBe(404)
+    expect((await falha(equipe.redefinirSenha(COBR, 2)))?.status).toBe(403)
   })
 })

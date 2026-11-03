@@ -1,4 +1,4 @@
-export type PerfilEquipe = 'ADMIN' | 'VENDEDOR' | 'COBRADOR'
+export type PerfilEquipe = 'ADMIN' | 'VENDEDOR' | 'COBRADOR' | 'INDICADOR'
 
 export type Pessoa = {
   id: number
@@ -19,4 +19,10 @@ export type Pessoa = {
   pedidosPendentes: number
   /** cobrador: os indicadores que ele atende (só o que vem deles aparece para ele) */
   indicadorIds?: number[]
+  /** último login (ISO) ou null se nunca entrou */
+  ultimoAcesso: string | null
+  /** conta travada por excesso de tentativas de senha */
+  bloqueado: boolean
+  /** ainda não trocou a senha temporária */
+  senhaTemporaria: boolean
 }

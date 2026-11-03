@@ -11,7 +11,7 @@ test.describe('menu do administrador', () => {
     const lateral = page.locator('aside.side')
     await expect(lateral.locator('.titulo')).toHaveText(['Dia a dia', 'Cadastros', 'Gestão'])
     const ordem = await lateral.locator('[data-menu]').evaluateAll((bs) => bs.map((b) => b.getAttribute('data-menu')))
-    expect(ordem).toEqual(['inicio', 'cobrancas', 'cronograma', 'caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'equipe', 'relatorios', 'config'])
+    expect(ordem).toEqual(['inicio', 'cobrancas', 'cronograma', 'caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'usuarios', 'equipe', 'relatorios', 'config'])
     // Configurações fica logo acima do usuário, depois de todos os grupos
     const conf = await lateral.locator('[data-menu="config"]').boundingBox()
     const rodape = await lateral.locator('.rod').boundingBox()
@@ -35,7 +35,7 @@ test.describe('menu do administrador', () => {
     const dialogo = page.getByRole('dialog')
     await expect(dialogo.locator('.mais-grupo')).toHaveText(['Dia a dia', 'Cadastros', 'Gestão'])
     const itens = await dialogo.locator('[data-menu]').evaluateAll((bs) => bs.map((b) => b.getAttribute('data-menu')))
-    expect(itens).toEqual(['caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'equipe', 'relatorios', 'config'])
+    expect(itens).toEqual(['caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'usuarios', 'equipe', 'relatorios', 'config'])
     for (const repetido of ['inicio', 'cobrancas', 'cronograma']) expect(itens).not.toContain(repetido)
     await expect(dialogo.getByRole('button', { name: 'Sair do sistema' })).toBeVisible()
   })

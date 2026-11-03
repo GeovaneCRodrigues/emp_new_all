@@ -10,7 +10,6 @@ test.describe('equipe', () => {
     await expect(pedidos(page)).toHaveCount(3)
     await expect(pedidos(page).first()).toContainText('Diego Ramos pede')
     await expect(page.getByTestId('fechamento')).toHaveCount(1)
-    await expect(page.getByTestId('pessoa')).toHaveCount(3)
   })
 
   test('aprovar tira o pedido da lista; recusar pede o motivo (opcional) e também tira', async ({ page }) => {
@@ -29,58 +28,6 @@ test.describe('equipe', () => {
     await page.goto('/equipe')
     await page.getByTestId('fechamento').getByRole('button', { name: 'Conferido' }).click()
     await expect(page.getByTestId('fechamento')).toHaveCount(0)
-  })
-
-  test('convida uma pessoa: mostra a senha temporária uma vez e ela entra na lista', async ({ page }) => {
-    await entrar(page)
-    await page.goto('/equipe')
-    await page.getByRole('button', { name: 'Convidar' }).click()
-    await page.fill('#cNome', 'Paulo Mendes')
-    await page.fill('#cEmail', 'paulo@loja.com')
-    await page.getByRole('button', { name: 'Criar acesso' }).click()
-    await expect(page.getByTestId('senha-temporaria')).toContainText('paulo@loja.com')
-    await page.getByRole('button', { name: 'Pronto' }).click()
-    await expect(page.getByTestId('pessoa').filter({ hasText: 'Paulo Mendes' })).toBeVisible()
-  })
-
-  test('desativar e reativar uma pessoa', async ({ page }) => {
-    await entrar(page)
-    await page.goto('/equipe')
-    const bruna = page.getByTestId('pessoa').filter({ hasText: 'Bruna Teixeira' })
-    await bruna.getByRole('button', { name: 'Desativar' }).click()
-    await expect(bruna).toContainText('sem acesso')
-    await bruna.getByRole('button', { name: 'Reativar' }).click()
-    await expect(bruna).not.toContainText('sem acesso')
-  })
-
-  test('e-mail repetido mostra o erro na própria folha', async ({ page }) => {
-    await entrar(page)
-    await page.goto('/equipe')
-    await page.getByRole('button', { name: 'Convidar' }).click()
-    await page.fill('#cNome', 'Outro Diego')
-    await page.fill('#cEmail', 'cobrador@demo.com')
-    await page.getByRole('button', { name: 'Criar acesso' }).click()
-    await expect(page.getByRole('alert')).toContainText('e-mail')
-  })
-
-  test('o cobrador mostra quais indicadores atende; o admin escolhe e o card atualiza', async ({ page }) => {
-    await entrar(page)
-    await page.goto('/equipe')
-    const cobrador = page.getByTestId('pessoa').filter({ hasText: 'Diego Ramos' })
-    await expect(cobrador.getByTestId('atende')).toContainText('Atende:')
-    await cobrador.getByTestId('atende-editar').click()
-    const form = page.getByTestId('atende-form')
-    await expect(form.locator('input[type="checkbox"]')).not.toHaveCount(0)
-    await expect(form.locator('input[type="checkbox"]:checked')).toHaveCount(1)
-    await form.locator('input[type="checkbox"]:checked').uncheck()
-    await form.getByTestId('atende-salvar').click()
-    await expect(cobrador.getByTestId('atende')).toContainText('Não atende nenhum indicador')
-    await cobrador.getByTestId('atende-editar').click()
-    await page.getByTestId('atende-form').locator('input[type="checkbox"]').nth(1).check()
-    await page.getByTestId('atende-salvar').click()
-    await expect(cobrador.getByTestId('atende')).toContainText('Atende:')
-    // vendedor não tem esse bloco
-    await expect(page.getByTestId('pessoa').filter({ hasText: 'Bruna Teixeira' }).getByTestId('atende')).toHaveCount(0)
   })
 
   test('o pedido de retomada aparece com o que vai acontecer e aprovar retoma o aparelho', async ({ page }) => {

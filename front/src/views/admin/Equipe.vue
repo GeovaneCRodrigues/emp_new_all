@@ -3,12 +3,10 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { AprovacaoApi } from '@/api/aprovacoes'
 import { ErroApi } from '@/api/clientes'
-import type { IndicadorApi } from '@/api/indicadores'
-import type { PessoaApi } from '@/api/equipe'
 import type { FechamentoApi } from '@/api/fechamentos'
 import type { PropostaApi } from '@/api/propostas'
 import type { AlvoApi, ReciboApi, RegistradoApi } from '@/api/recebimentos'
-import { aprovacoesApi, equipeApi, fechamentosApi, indicadoresApi, propostasApi } from '@/api/recursos'
+import { aprovacoesApi, fechamentosApi, propostasApi } from '@/api/recursos'
 import DateField from '@/components/DateField.vue'
 import Icon from '@/components/Icon.vue'
 import ReciboSheet from '@/components/ReciboSheet.vue'
@@ -25,7 +23,6 @@ const { mostrar } = useToast()
 const router = useRouter()
 const { atualizar: atualizarBadge } = useEquipeBadge()
 
-const pessoas = ref<PessoaApi[]>([])
 const pedidos = ref<AprovacaoApi[]>([])
 const fechamentos = ref<FechamentoApi[]>([])
 const propostas = ref<PropostaApi[]>([])
@@ -35,23 +32,18 @@ const ocupado = ref<string | null>(null)
 
 const recusando = ref<AprovacaoApi | null>(null)
 const motivoRecusa = ref('')
-const convidando = ref(false)
-const convite = reactive({ nome: '', email: '', perfil: 'COBRADOR' as 'COBRADOR' | 'VENDEDOR', fone: '' })
-const erroConvite = ref('')
-const criado = ref<{ email: string; senhaTemporaria: string } | null>(null)
 
 const msg = (e: unknown, padrao: string) => (e instanceof ErroApi ? e.message : padrao)
 
 async function carregar(silencioso = false) {
   if (!silencioso) erro.value = ''
   try {
-    const [p, a, f, pr] = await Promise.all([
-      equipeApi.listar(sessao.value),
+    const [a, f, pr] = await Promise.all([
       aprovacoesApi.listar(sessao.value, { status: 'PENDENTE', limite: 50 }),
       fechamentosApi.listar(sessao.value, { status: 'PENDENTE', limite: 50 }),
       propostasApi.listar(sessao.value, { status: 'PENDENTE', limite: 50 }),
     ])
-    pessoas.value = p; pedidos.value = a.itens; fechamentos.value = f.itens; propostas.value = pr.itens
+    pedidos.value = a.itens; fechamentos.value = f.itens; propostas.value = pr.itens
     atualizarBadge(sessao.value)
   } catch (e) {
     if (!silencioso) erro.value = msg(e, 'Não consegui carregar a equipe.')
@@ -59,9 +51,9 @@ async function carregar(silencioso = false) {
     carregando.value = false
   }
 }
-onMounted(() => { carregar(); indicadoresApi.listar(sessao.value).then((l) => { indicadores.value = l }).catch(() => undefined) })
+onMounted(() => carregar())
 // pedido novo chega sozinho; não mexe na lista no meio de uma confirmação ou recusa
-usePulso(() => { if (ocupado.value === null && !recusando.value && !convidando.value) return carregar(true) })
+usePulso(() => { if (ocupado.value === null && !recusando.value) return carregar(true) })
 
 async function executar(chave: string, fn: () => Promise<unknown>, ok: string) {
   if (ocupado.value) return
@@ -81,40 +73,7 @@ async function confirmarRecusa() {
 }
 const conferir = (f: FechamentoApi) => executar(`c${f.id}`, () => fechamentosApi.conferir(sessao.value, f.id), 'Fechamento conferido.')
 const reabrir = (f: FechamentoApi) => executar(`o${f.id}`, () => fechamentosApi.reabrir(sessao.value, f.id), `Dia de ${f.usuario.nome.split(' ')[0]} reaberto.`)
-// ---- quais indicadores o cobrador atende: só o que vem deles aparece para ele ----
-const indicadores = ref<IndicadorApi[]>([])
-const atendendo = ref<PessoaApi | null>(null)
-const marcados = ref<number[]>([])
-const nomesAtendidos = (p: PessoaApi) => (p.indicadorIds ?? []).map((i) => indicadores.value.find((x) => x.id === i)?.nome).filter(Boolean).join(', ')
-function abrirAtende(p: PessoaApi) { atendendo.value = p; marcados.value = [...(p.indicadorIds ?? [])] }
-const alternarMarca = (i: number) => { marcados.value = marcados.value.includes(i) ? marcados.value.filter((x) => x !== i) : [...marcados.value, i] }
-async function salvarAtende() {
-  const p = atendendo.value
-  if (!p) return
-  atendendo.value = null
-  await executar(`i${p.id}`, () => equipeApi.atualizar(sessao.value, p.id, { indicadorIds: marcados.value }), marcados.value.length ? `${p.nome.split(' ')[0]} atende ${marcados.value.length === 1 ? '1 indicador' : `${marcados.value.length} indicadores`}.` : `${p.nome.split(' ')[0]} não atende nenhum indicador (não vê nada).`)
-}
-const alternar = (p: PessoaApi) => executar(`p${p.id}`, () => equipeApi.atualizar(sessao.value, p.id, { ativo: !p.ativo }), p.ativo ? `${p.nome.split(' ')[0]} não entra mais.` : `${p.nome.split(' ')[0]} voltou a entrar.`)
 
-function abrirConvite() { Object.assign(convite, { nome: '', email: '', perfil: 'COBRADOR', fone: '' }); erroConvite.value = ''; criado.value = null; convidando.value = true }
-async function convidar() {
-  if (ocupado.value) return
-  ocupado.value = 'convite'; erroConvite.value = ''
-  try {
-    const r = await equipeApi.convidar(sessao.value, { nome: convite.nome, email: convite.email, perfil: convite.perfil, fone: convite.fone || null })
-    criado.value = { email: r.email, senhaTemporaria: r.senhaTemporaria }
-    await carregar()
-  } catch (e) {
-    erroConvite.value = msg(e, 'Não consegui convidar.')
-  } finally {
-    ocupado.value = null
-  }
-}
-async function copiar(t: string) {
-  try { await navigator.clipboard.writeText(t); mostrar('Copiado.') } catch { mostrar('Não consegui copiar. Selecione e copie à mão.') }
-}
-
-const NOME_PERFIL = { ADMIN: 'Administrador', COBRADOR: 'Cobrador', VENDEDOR: 'Vendedor' } as const
 // ---- aviso de baixa do indicador: confirmar vira recebimento (e o recibo sai); veio menos que a parcela, a loja decide o resto ----
 const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as const
 const reciboAberto = ref<ReciboApi | null>(null)
@@ -257,42 +216,7 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
       </div>
     </section>
 
-    <section data-testid="pessoas">
-      <div class="row" style="justify-content: space-between"><h3 class="sec">Pessoas</h3><button class="btn b-pri" @click="abrirConvite"><Icon name="plus" small />Convidar</button></div>
-      <div v-for="p in pessoas" :key="p.id" class="card pad item" :style="{ opacity: p.ativo ? 1 : 0.6 }" data-testid="pessoa">
-        <div class="row" style="gap: 10px; align-items: flex-start">
-          <span class="ini">{{ iniciais(p.nome) }}</span>
-          <div style="flex: 1; min-width: 0">
-            <div class="val">{{ p.nome }} <span class="chip c-neu">{{ NOME_PERFIL[p.perfil] }}</span><span v-if="!p.ativo" class="chip c-bad">sem acesso</span></div>
-            <div class="small">{{ p.email }}</div>
-            <div v-if="p.perfil === 'COBRADOR'" class="small num">{{ p.carteira }} clientes · {{ p.comAtraso }} com atraso · recebeu {{ fmt(p.recebidoNoMes) }} no mês<template v-if="p.pedidosPendentes"> · {{ p.pedidosPendentes }} pedido(s) esperando</template></div>
-            <div v-if="p.perfil === 'COBRADOR'" class="small" data-testid="atende">
-              <template v-if="p.indicadorIds?.length">Atende: <b>{{ nomesAtendidos(p) }}</b></template>
-              <span v-else style="color: var(--warn)">Não atende nenhum indicador: por enquanto ele não vê nenhuma cobrança.</span>
-              <button type="button" class="btn b-ghost b-sm" style="margin-left: 6px" :disabled="!!ocupado" data-testid="atende-editar" @click="abrirAtende(p)">Escolher indicadores</button>
-            </div>
-            <div v-else-if="p.perfil === 'VENDEDOR'" class="small num">{{ p.carteira }} clientes · {{ p.vendasNoMes }} venda(s) no mês</div>
-          </div>
-          <button v-if="p.perfil !== 'ADMIN'" class="btn b-ghost b-sm" :disabled="!!ocupado" @click="alternar(p)">{{ p.ativo ? 'Desativar' : 'Reativar' }}</button>
-        </div>
-      </div>
-    </section>
   </template>
-
-  <Sheet :aberto="atendendo !== null" @fechar="atendendo = null">
-    <template v-if="atendendo">
-      <h3>Indicadores de {{ atendendo.nome.split(' ')[0] }}</h3>
-      <div class="small">Ele só vai ver as cobranças, os recibos e os clientes que vêm dos indicadores marcados. Sem nenhum marcado, não vê nada.</div>
-      <form style="display: flex; flex-direction: column; gap: 4px; margin-top: 14px" data-testid="atende-form" @submit.prevent="salvarAtende">
-        <label v-for="i in indicadores" :key="i.id" class="between" style="gap: 8px; padding: 8px 0; cursor: pointer" :data-indicador="i.id">
-          <span>{{ i.nome }}<span v-if="!i.ativo" class="small"> (inativo)</span></span>
-          <input type="checkbox" :checked="marcados.includes(i.id)" @change="alternarMarca(i.id)" />
-        </label>
-        <div v-if="!indicadores.length" class="small">Nenhum indicador cadastrado ainda.</div>
-        <button class="btn b-pri b-block" type="submit" style="margin-top: 10px" data-testid="atende-salvar">Salvar</button>
-      </form>
-    </template>
-  </Sheet>
 
   <Sheet :aberto="recusando !== null" @fechar="recusando = null">
     <template v-if="recusando">
@@ -334,26 +258,4 @@ const textoProposta = (p: PropostaApi) => [p.tipo === 'VENDA' ? 'quer um iPhone'
     </template>
   </Sheet>
 
-  <Sheet :aberto="convidando" @fechar="convidando = false">
-    <template v-if="criado">
-      <h3>Acesso criado</h3>
-      <p class="small">Passe estes dados para a pessoa. A senha só aparece agora; no primeiro acesso ela escolhe uma nova.</p>
-      <div class="card pad" style="margin-top: 12px; background: var(--elevated)" data-testid="senha-temporaria">
-        <div class="lbl">E-mail</div><div class="val">{{ criado.email }}</div>
-        <div class="lbl" style="margin-top: 8px">Senha temporária</div><div class="val mono">{{ criado.senhaTemporaria }}</div>
-      </div>
-      <div class="row" style="gap: 8px; margin-top: 14px"><button class="btn b-out" style="flex: 1" @click="copiar(criado.senhaTemporaria)">Copiar senha</button><button class="btn b-pri" style="flex: 1" @click="convidando = false">Pronto</button></div>
-    </template>
-    <template v-else>
-      <h3>Convidar pessoa</h3>
-      <form style="display: flex; flex-direction: column; gap: 14px; margin-top: 12px" novalidate @submit.prevent="convidar">
-        <div class="field"><label for="cNome">Nome</label><div class="inp maiusc"><input id="cNome" v-model="convite.nome" autocomplete="off" /></div></div>
-        <div class="field"><label for="cEmail">E-mail</label><div class="inp"><input id="cEmail" v-model="convite.email" type="email" autocomplete="off" /></div></div>
-        <div class="field"><label for="cFone">Telefone (opcional)</label><div class="inp"><input id="cFone" v-model="convite.fone" inputmode="tel" placeholder="(11) 98812-4410" /></div></div>
-        <div class="field"><label>Função</label><div class="pills"><button type="button" class="pill" :class="{ on: convite.perfil === 'COBRADOR' }" @click="convite.perfil = 'COBRADOR'">Cobrador</button><button type="button" class="pill" :class="{ on: convite.perfil === 'VENDEDOR' }" @click="convite.perfil = 'VENDEDOR'">Vendedor</button></div></div>
-        <div v-if="erroConvite" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ erroConvite }}</div>
-        <button class="btn b-pri b-block" type="submit" :disabled="ocupado === 'convite'">{{ ocupado === 'convite' ? 'Criando…' : 'Criar acesso' }}</button>
-      </form>
-    </template>
-  </Sheet>
 </template>

@@ -300,15 +300,16 @@ export function criarFechamentosFake(vendas: VendasFake): FechamentosApi {
 
 // ===================== equipe =====================
 
-interface Usuario { id: number; nome: string; email: string; perfil: PessoaApi['perfil']; fone: string | null; ativo: boolean; indicadorIds: number[] }
+interface Usuario { id: number; nome: string; email: string; perfil: PessoaApi['perfil']; fone: string | null; ativo: boolean; indicadorIds: number[]; ultimoAcesso: string | null; bloqueado: boolean; senhaTemporaria: boolean }
 
 export function criarEquipeFake(vendas: VendasFake): EquipeApi {
   const seed = criarSeed()
   let proximoId = 100
   const usuarios: Usuario[] = [
-    { id: 1, nome: 'Geovane Cataneo', email: 'admin@demo.com', perfil: 'ADMIN', fone: '11990001100', ativo: true, indicadorIds: [] },
-    { id: 2, nome: 'Bruna Teixeira', email: 'vendedor@demo.com', perfil: 'VENDEDOR', fone: '11981234455', ativo: true, indicadorIds: [] },
-    { id: 3, nome: 'Diego Ramos', email: 'cobrador@demo.com', perfil: 'COBRADOR', fone: '11977882201', ativo: true, indicadorIds: [1] },
+    { id: 1, nome: 'Geovane Cataneo', email: 'admin@demo.com', perfil: 'ADMIN', fone: '11990001100', ativo: true, indicadorIds: [], ultimoAcesso: `${vendas._interno.hoje}T12:00:00.000Z`, bloqueado: false, senhaTemporaria: false },
+    { id: 2, nome: 'Bruna Teixeira', email: 'vendedor@demo.com', perfil: 'VENDEDOR', fone: '11981234455', ativo: true, indicadorIds: [], ultimoAcesso: `${vendas._interno.hoje}T09:30:00.000Z`, bloqueado: false, senhaTemporaria: false },
+    { id: 3, nome: 'Diego Ramos', email: 'cobrador@demo.com', perfil: 'COBRADOR', fone: '11977882201', ativo: true, indicadorIds: [1], ultimoAcesso: `${vendas._interno.hoje}T08:10:00.000Z`, bloqueado: false, senhaTemporaria: false },
+    { id: 4, nome: 'Roberto Indicações', email: 'indicador@demo.com', perfil: 'INDICADOR', fone: null, ativo: true, indicadorIds: [], ultimoAcesso: null, bloqueado: false, senhaTemporaria: true },
   ]
   const { hoje, registros, transacoes, pedidos } = vendas._interno
   const mes = hoje.slice(0, 7)
@@ -321,10 +322,11 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       recebidoNoMes: arred2(transacoes.filter((t) => t.recebidoPorId === u.id && !t.desfeita && t.data.slice(0, 7) === mes).reduce((x, t) => x + t.valor, 0)),
       vendasNoMes: registros.filter((r) => r.vendedorId === u.id && r.status !== 'CANCELADA' && r.dataVenda.slice(0, 7) === mes).length,
       pedidosPendentes: pedidos.filter((p) => p.solicitanteId === u.id && p.status === 'PENDENTE').length,
+      ultimoAcesso: u.ultimoAcesso, bloqueado: u.bloqueado, senhaTemporaria: u.senhaTemporaria,
       ...(u.perfil === 'COBRADOR' ? { indicadorIds: [...u.indicadorIds].sort((a, b) => a - b) } : {}),
     }
   }
-  const ordem = (p: PessoaApi) => ['ADMIN', 'COBRADOR', 'VENDEDOR'].indexOf(p.perfil)
+  const ordem = (p: PessoaApi) => ['ADMIN', 'COBRADOR', 'VENDEDOR', 'INDICADOR'].indexOf(p.perfil)
 
   return {
     async listar(s) { adminOu(s); return usuarios.map(pessoa).sort((a, b) => ordem(a) - ordem(b) || a.nome.localeCompare(b.nome, 'pt-BR')) },
@@ -334,11 +336,12 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       if (typeof e.nome !== 'string' || e.nome.trim().length < 2 || e.nome.trim().length > 160) throw erro('Informe o nome (ao menos 2 letras)')
       const email = (e.email ?? '').trim().toLowerCase()
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw erro('E-mail inválido')
-      if (e.perfil !== 'VENDEDOR' && e.perfil !== 'COBRADOR') throw erro('O perfil deve ser VENDEDOR ou COBRADOR')
+      if (e.perfil !== 'ADMIN' && e.perfil !== 'VENDEDOR' && e.perfil !== 'COBRADOR') throw erro('O nível deve ser ADMIN, VENDEDOR ou COBRADOR')
+      if (e.perfil === 'ADMIN' && e.confirmarAdmin !== true) throw new ErroApi(400, 'Confirme que esta pessoa terá acesso total ao sistema', 'CONFIRMAR_ADMIN')
       let fone: string | null = null
       if (e.fone) { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') }
       if (usuarios.some((u) => u.email === email)) throw new ErroApi(409, 'Já existe um usuário com esse e-mail', 'EMAIL_EM_USO')
-      const u: Usuario = { id: ++proximoId, nome: maiusculas(e.nome), email, perfil: e.perfil, fone, ativo: true, indicadorIds: [] }
+      const u: Usuario = { id: ++proximoId, nome: maiusculas(e.nome), email, perfil: e.perfil, fone, ativo: true, indicadorIds: [], ultimoAcesso: null, bloqueado: false, senhaTemporaria: true }
       usuarios.push(u)
       // no modo demonstração a senha é só para ver como fica; o login falso não a reconhece
       const bytes = crypto.getRandomValues(new Uint8Array(10))
@@ -349,15 +352,27 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       adminOu(s)
       const u = usuarios.find((x) => x.id === id)
       if (!u) throw new ErroApi(404, 'Pessoa não encontrada', 'NAO_ENCONTRADO')
-      if (u.perfil === 'ADMIN') throw new ErroApi(403, 'O administrador não é alterado por aqui', 'SEM_PERMISSAO')
+      if (u.perfil === 'INDICADOR' && Object.keys(e).some((k) => k !== 'ativo')) throw erro('Os dados do indicador são editados em Indicadores e repasses; aqui só dá para ativar ou desativar o acesso')
       if ('nome' in e && (typeof e.nome !== 'string' || e.nome.trim().length < 2 || e.nome.trim().length > 160)) throw erro('Informe o nome (ao menos 2 letras)')
       let fone: string | null | undefined
       if ('fone' in e) { if (!e.fone) fone = null; else { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') } }
       if ('ativo' in e && typeof e.ativo !== 'boolean') throw erro('ativo deve ser verdadeiro ou falso')
       if (e.ativo === false && id === s.usuarioId) throw erro('Você não pode desativar o seu próprio acesso')
+      let email: string | undefined
+      if ('email' in e) {
+        email = (e.email ?? '').trim().toLowerCase()
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 255) throw erro('E-mail inválido')
+        if (usuarios.some((x) => x.id !== id && x.email === email)) throw new ErroApi(409, 'Já existe um usuário com esse e-mail', 'EMAIL_EM_USO')
+      }
+      let perfil: 'VENDEDOR' | 'COBRADOR' | undefined
+      if ('perfil' in e && e.perfil !== u.perfil) {
+        if (id === s.usuarioId) throw erro('Você não pode mudar o seu próprio nível')
+        if ((e.perfil !== 'VENDEDOR' && e.perfil !== 'COBRADOR') || (u.perfil !== 'VENDEDOR' && u.perfil !== 'COBRADOR')) throw erro('Só dá para trocar entre vendedor e cobrador')
+        perfil = e.perfil
+      }
       let indicadorIds: number[] | undefined
       if ('indicadorIds' in e) {
-        if (u.perfil !== 'COBRADOR') throw erro('Só o cobrador atende indicadores')
+        if ((perfil ?? u.perfil) !== 'COBRADOR') throw erro('Só o cobrador atende indicadores')
         const v = e.indicadorIds
         if (!Array.isArray(v) || v.length > 500 || !v.every((x) => typeof x === 'number' && Number.isInteger(x) && x > 0)) throw erro('indicadorIds deve ser uma lista de números de indicadores')
         indicadorIds = [...new Set(v)]
@@ -366,9 +381,21 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       if ('nome' in e) u.nome = maiusculas(e.nome!)
       if (fone !== undefined) u.fone = fone
       if (typeof e.ativo === 'boolean') u.ativo = e.ativo
+      if (email !== undefined) u.email = email
+      if (perfil) { u.perfil = perfil; if (perfil !== 'COBRADOR') u.indicadorIds = [] }
       // na demonstração só a lista muda: os dados do Diego continuam pelo responsável (a semente quase não tem indicador nas operações)
       if (indicadorIds) u.indicadorIds = indicadorIds
       return pessoa(u)
+    },
+
+    async redefinirSenha(s, id) {
+      adminOu(s)
+      const u = usuarios.find((x) => x.id === id)
+      if (!u) throw new ErroApi(404, 'Pessoa não encontrada', 'NAO_ENCONTRADO')
+      if (id === s.usuarioId) throw erro('Para trocar a sua própria senha use a sua conta')
+      u.senhaTemporaria = true; u.bloqueado = false
+      const bytes = crypto.getRandomValues(new Uint8Array(10))
+      return { id: u.id, email: u.email, senhaTemporaria: btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, '').slice(0, 13) }
     },
   }
 }

@@ -57,5 +57,6 @@ export function criarEquipeHttp(baseUrl: string, requisicao: Requisicao): Equipe
     listar: () => chamar('/equipe'),
     convidar: (_s, e) => chamar('/equipe', { method: 'POST', body: JSON.stringify(e) }),
     atualizar: (_s, id, e) => chamar(`/equipe/${id}`, { method: 'PATCH', body: JSON.stringify(e) }),
+    redefinirSenha: (_s, id) => chamar(`/equipe/${id}/senha`, { method: 'POST' }),
   }
 }
