@@ -9,5 +9,6 @@ export function equipeRoutes(service: EquipeService, auth: preHandlerAsyncHookHa
     app.get('/equipe', p, c.listar)
     app.post('/equipe', { ...p, config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, c.convidar)
     app.patch('/equipe/:id', p, c.atualizar)
+    app.post('/equipe/:id/senha', { ...p, config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, c.redefinirSenha)
   }
 }

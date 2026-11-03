@@ -106,7 +106,7 @@ describe.skipIf(!db)('o cobrador só enxerga os indicadores que o administrador 
     })
     it('só cobrador atende indicador; o indicador tem que existir; o formato é conferido', async () => {
       expect((await marcar(id.vendedor, [id.deda])).statusCode).toBe(400)
-      expect((await marcar(id.admin, [id.deda])).statusCode).toBe(403) // o admin não é alterado por aqui
+      expect((await marcar(id.admin, [id.deda])).statusCode).toBe(400) // administrador não atende indicador
       expect((await marcar(id.cobrador, [999999])).statusCode).toBe(400)
       for (const ruim of ['deda', 5, null, [1.5], ['1'], [0], [-3], [{}]]) expect((await marcar(id.cobrador, ruim)).statusCode, JSON.stringify(ruim)).toBe(400)
       expect((await marcar(id.cobrador, new Array(501).fill(1))).statusCode).toBe(400)

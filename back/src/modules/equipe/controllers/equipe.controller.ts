@@ -17,6 +17,10 @@ export function createEquipeController(service: EquipeService) {
       reply.header('cache-control', 'no-store') // a senha temporária não pode ficar em cache
       return reply.code(201).send(await service.convidar(sessaoOuErro(req), (req.body ?? {}) as Record<string, unknown>))
     },
+    async redefinirSenha(req: FastifyRequest, reply: FastifyReply) {
+      reply.header('cache-control', 'no-store') // a senha temporária não pode ficar em cache
+      return service.redefinirSenha(sessaoOuErro(req), idDaRota(req))
+    },
     async atualizar(req: FastifyRequest) { return pessoaView(await service.atualizar(sessaoOuErro(req), idDaRota(req), (req.body ?? {}) as Record<string, unknown>)) },
   }
 }

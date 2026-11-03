@@ -7,7 +7,7 @@ import { createAprovacoesService } from '../src/modules/aprovacoes/services/apro
 import { createAuditoriaRepository } from '../src/modules/auditoria/models/repository.js'
 import { createSessoesRepository, createUsuariosRepository } from '../src/modules/auth/models/repository.js'
 import { createAuthService } from '../src/modules/auth/services/auth.service.js'
-import { hashSenha } from '../src/modules/auth/services/password.js'
+import { conferirSenha, hashSenha } from '../src/modules/auth/services/password.js'
 import { createTokensService } from '../src/modules/auth/services/tokens.js'
 import { createConfigRepository } from '../src/modules/config/models/repository.js'
 import { createConfigService } from '../src/modules/config/services/config.service.js'
@@ -384,8 +384,8 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
       await receber('cobrador2', await venda(id.cB), { valor: 840 }) // 840 recebidos em novembro pelo outro cobrador
       await pedir('cobrador', v)
       const lista = (await req('GET', '/api/equipe', 'admin')).json() as { nome: string; perfil: string; carteira: number; comAtraso: number; recebidoNoMes: number; pedidosPendentes: number; vendasNoMes: number }[]
-      expect(lista.map((p) => p.perfil)).toEqual([...lista.map((p) => p.perfil)].sort((a, b) => ['ADMIN', 'COBRADOR', 'VENDEDOR'].indexOf(a) - ['ADMIN', 'COBRADOR', 'VENDEDOR'].indexOf(b)))
-      expect(lista.some((p) => p.perfil === 'INDICADOR')).toBe(false)
+      expect(lista.map((p) => p.perfil)).toEqual([...lista.map((p) => p.perfil)].sort((a, b) => ['ADMIN', 'COBRADOR', 'VENDEDOR', 'INDICADOR'].indexOf(a) - ['ADMIN', 'COBRADOR', 'VENDEDOR', 'INDICADOR'].indexOf(b)))
+      expect(lista.some((p) => p.perfil === 'INDICADOR')).toBe(true) // o acesso do indicador também aparece (para reset de senha e ativar/desativar)
       const cobrador = lista.find((p) => p.nome === 'cobrador Silva')!
       expect(cobrador).toMatchObject({ carteira: 1, comAtraso: 1 })
       expect(cobrador.pedidosPendentes).toBeGreaterThanOrEqual(1)
@@ -413,9 +413,9 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
         expect(bloqueado.json().codigo).toBe('TROCAR_SENHA')
         id.bruna = novoId
       })
-      it('e-mail repetido é 409; perfil de admin/indicador é recusado; dados inválidos são 400', async () => {
+      it('e-mail repetido é 409; nível de indicador é recusado; dados inválidos são 400', async () => {
         expect((await req('POST', '/api/equipe', 'admin', { nome: 'Outra', email: 'bruna@loja.com', perfil: 'COBRADOR' })).json().codigo).toBe('EMAIL_EM_USO')
-        for (const perfil of ['ADMIN', 'INDICADOR', 'DONO', undefined]) expect((await req('POST', '/api/equipe', 'admin', { nome: 'Fulano', email: `f${perfil}@t.com`, perfil })).statusCode).toBe(400)
+        for (const perfil of ['INDICADOR', 'DONO', undefined]) expect((await req('POST', '/api/equipe', 'admin', { nome: 'Fulano', email: `f${perfil}@t.com`, perfil })).statusCode).toBe(400)
         expect((await req('POST', '/api/equipe', 'admin', { nome: 'F', email: 'f1@t.com', perfil: 'COBRADOR' })).statusCode).toBe(400)
         expect((await req('POST', '/api/equipe', 'admin', { nome: 'Fulano', email: 'nao-e-email', perfil: 'COBRADOR' })).statusCode).toBe(400)
         expect((await req('POST', '/api/equipe', 'admin', { nome: 'Fulano', email: 'f2@t.com', perfil: 'COBRADOR', fone: '123' })).statusCode).toBe(400)
@@ -446,14 +446,111 @@ describe.skipIf(!db)('equipe, aprovações e fechamento do dia (Postgres de verd
         t.cobrador2 = (await login('cobrador2@t.com', SENHA)).json().accessToken
         expect((await req('GET', '/api/auth/eu', 'cobrador2')).statusCode).toBe(200)
       })
-      it('não desativa a si mesmo, não mexe em administrador, 404 e validações', async () => {
-        expect((await req('PATCH', `/api/equipe/${id.admin}`, 'admin', { ativo: false })).statusCode).toBe(403) // admin não se altera por aqui
-        expect((await req('PATCH', `/api/equipe/${id.admin2}`, 'admin', { nome: 'X Y' })).statusCode).toBe(403)
+      it('não desativa a si mesmo nem muda o próprio nível, 404 e validações', async () => {
+        expect((await req('PATCH', `/api/equipe/${id.admin}`, 'admin', { ativo: false })).statusCode).toBe(400) // não desativa a si mesmo
+        expect((await req('PATCH', `/api/equipe/${id.admin}`, 'admin', { perfil: 'COBRADOR' })).statusCode).toBe(400) // nem muda o próprio nível
+        expect((await req('PATCH', `/api/equipe/${id.admin2}`, 'admin', { perfil: 'COBRADOR' })).statusCode).toBe(400) // administrador não vira outro nível por aqui
         expect((await req('PATCH', '/api/equipe/999999', 'admin', { ativo: false })).statusCode).toBe(404)
         expect((await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { ativo: 'nao' })).statusCode).toBe(400)
         expect((await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { nome: ' ' })).statusCode).toBe(400)
         expect((await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { fone: 'abc' })).statusCode).toBe(400)
         expect((await req('PATCH', '/api/equipe/abc', 'admin', {})).statusCode).toBe(400)
+      })
+    })
+
+    describe('usuários: administrador, e-mail, nível e senha', () => {
+      it('criar administrador pede confirmação; confirmado, ele entra com acesso total', async () => {
+        const sem = await req('POST', '/api/equipe', 'admin', { nome: 'Sócio Novo', email: 'socio@loja.com', perfil: 'ADMIN' })
+        expect(sem.statusCode).toBe(400)
+        expect(sem.json().codigo).toBe('CONFIRMAR_ADMIN')
+        expect(await db!('users').where({ email: 'socio@loja.com' }).first()).toBeUndefined()
+        const r = await req('POST', '/api/equipe', 'admin', { nome: 'Sócio Novo', email: 'socio@loja.com', perfil: 'ADMIN', confirmarAdmin: true })
+        expect(r.statusCode).toBe(201)
+        expect(await db!('users').where({ email: 'socio@loja.com' }).first()).toMatchObject({ perfil: 'ADMIN', senha_temporaria: true })
+        expect((await db!('auditoria').where({ acao: 'EQUIPE_CONVIDADO', entidade_id: r.json().id }).first()).depois.perfil).toBe('ADMIN')
+        id.socio = r.json().id
+      })
+      it('outro administrador pode ser editado e desativado (menos por ele mesmo)', async () => {
+        const r = await req('PATCH', `/api/equipe/${id.socio}`, 'admin', { nome: 'Sócio Silva', ativo: false })
+        expect(r.statusCode).toBe(200)
+        expect(r.json()).toMatchObject({ nome: 'SÓCIO SILVA', ativo: false, perfil: 'ADMIN' })
+      })
+      it('troca o e-mail: valida, recusa repetido (409) e o login passa a ser o novo', async () => {
+        expect((await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { email: 'sem-arroba' })).statusCode).toBe(400)
+        expect((await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { email: 'cobrador@t.com' })).json().codigo).toBe('EMAIL_EM_USO')
+        const r = await req('PATCH', `/api/equipe/${id.bruna}`, 'admin', { email: '  Bruna.Nova@Loja.com ' })
+        expect(r.statusCode).toBe(200)
+        expect(r.json().email).toBe('bruna.nova@loja.com')
+        expect((await db!('auditoria').where({ acao: 'EQUIPE_ALTERADO', entidade_id: id.bruna }).orderBy('id', 'desc').first()).antes.email).toBe('bruna@loja.com')
+      })
+      it('troca o nível entre vendedor e cobrador: derruba as sessões; deixar de ser cobrador limpa os indicadores', async () => {
+        const c = (await req('POST', '/api/equipe', 'admin', { nome: 'Nivel Teste', email: 'nivel@loja.com', perfil: 'COBRADOR' })).json()
+        const [ind] = await db!('indicadores').insert({ nome: 'Para o nível', pct: 0.5 }).returning('id')
+        expect((await req('PATCH', `/api/equipe/${c.id}`, 'admin', { indicadorIds: [ind.id] })).statusCode).toBe(200)
+        const antigo = (await login('nivel@loja.com', c.senhaTemporaria)).json().accessToken
+        expect((await app.inject({ method: 'GET', url: '/api/auth/eu', headers: { authorization: `Bearer ${antigo}` } })).statusCode).toBe(200)
+        const r = await req('PATCH', `/api/equipe/${c.id}`, 'admin', { perfil: 'VENDEDOR' })
+        expect(r.statusCode).toBe(200)
+        expect(r.json().perfil).toBe('VENDEDOR')
+        expect(await db!('cobrador_indicadores').where({ usuario_id: c.id }).count({ n: '*' }).first().then((x) => Number(x!.n))).toBe(0)
+        expect((await app.inject({ method: 'GET', url: '/api/auth/eu', headers: { authorization: `Bearer ${antigo}` } })).statusCode).toBe(401)
+        expect((await req('PATCH', `/api/equipe/${c.id}`, 'admin', { indicadorIds: [ind.id] })).statusCode).toBe(400) // vendedor não atende indicador
+        expect((await req('PATCH', `/api/equipe/${c.id}`, 'admin', { perfil: 'COBRADOR' })).json().perfil).toBe('COBRADOR')
+        expect((await req('PATCH', `/api/equipe/${c.id}`, 'admin', { perfil: 'ADMIN' })).statusCode).toBe(400)
+        expect((await req('PATCH', `/api/equipe/${c.id}`, 'admin', { perfil: 'INDICADOR' })).statusCode).toBe(400)
+        expect((await db!('auditoria').where({ acao: 'EQUIPE_ALTERADO', entidade_id: c.id }).orderBy('id').first()).antes.perfil).toBe('COBRADOR')
+      })
+      it('o acesso do indicador só liga e desliga aqui; o resto é em Indicadores e repasses', async () => {
+        const [ind] = await db!('indicadores').insert({ nome: 'Ind Acesso', pct: 0.5 }).returning('id')
+        const [u] = await db!('users').insert({ nome: 'Acesso Ind', email: 'acesso.ind@t.com', senha_hash: await hashSenha(SENHA), perfil: 'INDICADOR', indicador_id: ind.id }).returning('id')
+        expect((await req('PATCH', `/api/equipe/${u.id}`, 'admin', { nome: 'Outro Nome' })).statusCode).toBe(400)
+        expect((await req('PATCH', `/api/equipe/${u.id}`, 'admin', { email: 'x@y.com' })).statusCode).toBe(400)
+        expect((await req('PATCH', `/api/equipe/${u.id}`, 'admin', { perfil: 'COBRADOR' })).statusCode).toBe(400)
+        expect((await req('PATCH', `/api/equipe/${u.id}`, 'admin', { ativo: false })).json().ativo).toBe(false)
+        expect((await req('PATCH', `/api/equipe/${u.id}`, 'admin', { ativo: true })).json().ativo).toBe(true)
+        id.acessoInd = u.id
+      })
+      it('a lista mostra último acesso, conta travada e senha temporária', async () => {
+        await db!('users').where({ id: id.vendedor }).update({ bloqueado_ate: new Date(Date.now() + 600_000) })
+        const lista = (await req('GET', '/api/equipe', 'admin')).json() as { id: number; ultimoAcesso: string | null; bloqueado: boolean; senhaTemporaria: boolean }[]
+        expect(lista.find((p) => p.id === id.vendedor)).toMatchObject({ bloqueado: true, senhaTemporaria: false })
+        expect(lista.find((p) => p.id === id.admin)!.ultimoAcesso).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+        expect(lista.find((p) => p.id === id.bruna)!.senhaTemporaria).toBe(true)
+        await db!('users').where({ id: id.vendedor }).update({ bloqueado_ate: null })
+      })
+    })
+
+    describe('reset de senha', () => {
+      it('só o administrador; 404 para quem não existe; a própria senha não se redefine aqui', async () => {
+        for (const papel of ['vendedor', 'cobrador', 'indicador']) expect((await req('POST', `/api/equipe/${id.bruna}/senha`, papel)).statusCode).toBe(403)
+        expect((await req('POST', `/api/equipe/${id.bruna}/senha`)).statusCode).toBe(401)
+        expect((await req('POST', '/api/equipe/999999/senha', 'admin')).statusCode).toBe(404)
+        expect((await req('POST', `/api/equipe/${id.admin}/senha`, 'admin')).statusCode).toBe(400)
+      })
+      it('gera uma senha temporária nova (mostrada uma vez): a antiga morre, a sessão cai, a conta destrava e ele troca no próximo acesso', async () => {
+        const c = (await req('POST', '/api/equipe', 'admin', { nome: 'Reset Teste', email: 'reset@loja.com', perfil: 'COBRADOR' })).json()
+        const antigo = (await login('reset@loja.com', c.senhaTemporaria)).json().accessToken
+        await db!('users').where({ id: c.id }).update({ falhas_login: 5, bloqueado_ate: new Date(Date.now() + 600_000), senha_temporaria: false })
+        const r = await req('POST', `/api/equipe/${c.id}/senha`, 'admin')
+        expect(r.statusCode).toBe(200)
+        expect(r.headers['cache-control']).toBe('no-store')
+        const { senhaTemporaria, email } = r.json()
+        expect(email).toBe('reset@loja.com')
+        expect(senhaTemporaria.length).toBeGreaterThanOrEqual(10)
+        expect(senhaTemporaria).not.toBe(c.senhaTemporaria)
+        expect((await app.inject({ method: 'GET', url: '/api/auth/eu', headers: { authorization: `Bearer ${antigo}` } })).statusCode).toBe(401)
+        const u = await db!('users').where({ id: c.id }).first()
+        expect(u).toMatchObject({ senha_temporaria: true, falhas_login: 0, bloqueado_ate: null })
+        expect(await conferirSenha(u.senha_hash, senhaTemporaria)).toBe(true)
+        expect(await conferirSenha(u.senha_hash, c.senhaTemporaria)).toBe(false) // a senha de antes não vale mais
+        expect(JSON.stringify(await db!('auditoria').where({ acao: 'EQUIPE_SENHA_REDEFINIDA', entidade_id: c.id }).first())).not.toContain(senhaTemporaria)
+      })
+      it('vale para o acesso de indicador também', async () => {
+        const r = await req('POST', `/api/equipe/${id.acessoInd}/senha`, 'admin')
+        expect(r.statusCode).toBe(200)
+        const u = await db!('users').where({ id: id.acessoInd }).first()
+        expect(await conferirSenha(u.senha_hash, r.json().senhaTemporaria)).toBe(true)
+        expect(u.senha_temporaria).toBe(true)
       })
     })
   })
