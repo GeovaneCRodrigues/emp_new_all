@@ -1,6 +1,7 @@
 import type { Knex } from 'knex'
 import { soDigitos } from '../../../shared/documentos.js'
 import type { Cliente, DadosCliente, EscopoClientes, FiltroClientes } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 export interface ClientesRepository {
   listar(escopo: EscopoClientes, filtro: FiltroClientes): Promise<{ itens: Cliente[]; total: number }>
@@ -44,7 +45,7 @@ const paraLinha = (d: Partial<DadosCliente>) => {
 const escaparLike = (s: string) => s.replace(/[\\%_]/g, (c) => '\\' + c)
 
 function aplicarEscopo(q: Knex.QueryBuilder, e: EscopoClientes) {
-  if (e.tipo === 'CARTEIRA') q.where('clientes.responsavel_id', e.usuarioId)
+  if (e.tipo === 'CARTEIRA') naCarteira(q, e.usuarioId, { cliente: 'clientes' })
   else if (e.tipo === 'INDICADOR') {
     q.where((w) => {
       // os que ele mesmo cadastrou, mais os que têm venda ou empréstimo com ele como indicador

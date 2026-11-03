@@ -12,6 +12,8 @@ export interface PessoaApi {
   recebidoNoMes: number
   vendasNoMes: number
   pedidosPendentes: number
+  /** cobrador: os indicadores que ele atende (só o que vem deles aparece para ele; nenhum = não vê nada) */
+  indicadorIds?: number[]
 }
 
 export interface ConviteEntrada { nome: string; email: string; perfil: 'VENDEDOR' | 'COBRADOR'; fone?: string | null }
@@ -20,5 +22,5 @@ export interface ConviteCriado { id: number; email: string; senhaTemporaria: str
 export interface EquipeApi {
   listar(s: Sessao): Promise<PessoaApi[]>
   convidar(s: Sessao, e: ConviteEntrada): Promise<ConviteCriado>
-  atualizar(s: Sessao, id: number, e: { nome?: string; fone?: string | null; ativo?: boolean }): Promise<PessoaApi>
+  atualizar(s: Sessao, id: number, e: { nome?: string; fone?: string | null; ativo?: boolean; indicadorIds?: number[] }): Promise<PessoaApi>
 }

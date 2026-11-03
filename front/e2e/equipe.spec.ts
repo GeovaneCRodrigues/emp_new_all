@@ -63,6 +63,26 @@ test.describe('equipe', () => {
     await expect(page.getByRole('alert')).toContainText('e-mail')
   })
 
+  test('o cobrador mostra quais indicadores atende; o admin escolhe e o card atualiza', async ({ page }) => {
+    await entrar(page)
+    await page.goto('/equipe')
+    const cobrador = page.getByTestId('pessoa').filter({ hasText: 'Diego Ramos' })
+    await expect(cobrador.getByTestId('atende')).toContainText('Atende:')
+    await cobrador.getByTestId('atende-editar').click()
+    const form = page.getByTestId('atende-form')
+    await expect(form.locator('input[type="checkbox"]')).not.toHaveCount(0)
+    await expect(form.locator('input[type="checkbox"]:checked')).toHaveCount(1)
+    await form.locator('input[type="checkbox"]:checked').uncheck()
+    await form.getByTestId('atende-salvar').click()
+    await expect(cobrador.getByTestId('atende')).toContainText('Não atende nenhum indicador')
+    await cobrador.getByTestId('atende-editar').click()
+    await page.getByTestId('atende-form').locator('input[type="checkbox"]').nth(1).check()
+    await page.getByTestId('atende-salvar').click()
+    await expect(cobrador.getByTestId('atende')).toContainText('Atende:')
+    // vendedor não tem esse bloco
+    await expect(page.getByTestId('pessoa').filter({ hasText: 'Bruna Teixeira' }).getByTestId('atende')).toHaveCount(0)
+  })
+
   test('o pedido de retomada aparece com o que vai acontecer e aprovar retoma o aparelho', async ({ page }) => {
     await entrar(page)
     await page.goto('/equipe')

@@ -2,6 +2,7 @@ import type { Knex } from 'knex'
 import { filtrarPorTexto } from '../../../shared/busca.js'
 import { PAGO_PARCELA_EMPRESTIMO_SQL } from '../../../shared/sql.js'
 import type { Emprestimo, EscopoEmprestimos, NovoEmprestimo, ParcelaEmprestimo } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 /** Operações que precisam acontecer juntas, na mesma transação do banco. */
 export interface EmprestimosTx {
@@ -33,7 +34,7 @@ export function createEmprestimosRepository(db: Knex): EmprestimosRepository {
       .join('clientes as c', 'c.id', 'e.cliente_id')
       .leftJoin('indicadores as i', 'i.id', 'e.indicador_id')
       .select<Linha[]>('e.*', 'c.nome as cliente_nome', 'i.nome as indicador_nome')
-    if (escopo.tipo === 'CARTEIRA') q.where('c.responsavel_id', escopo.usuarioId)
+    if (escopo.tipo === 'CARTEIRA') naCarteira(q, escopo.usuarioId, { cliente: 'c', operacao: 'e' })
     else if (escopo.tipo === 'INDICADOR') q.where('e.indicador_id', escopo.indicadorId)
     return q
   }

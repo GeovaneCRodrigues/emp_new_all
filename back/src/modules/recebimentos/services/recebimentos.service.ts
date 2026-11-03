@@ -120,7 +120,7 @@ export function createRecebimentosService(dep: Dependencias): RecebimentosServic
   async function reciboDe(s: Sessao, transacaoId: number): Promise<Recibo> {
     const escopo = escopoDe(s)
     const r = await dep.repo.buscarRecibo(transacaoId)
-    if (!r || (escopo.tipo === 'CARTEIRA' && r.responsavelId !== escopo.usuarioId)) throw naoEncontrado('Recibo não encontrado')
+    if (!r || (escopo.tipo === 'CARTEIRA' && !(await dep.repo.reciboNaCarteira(transacaoId, escopo.usuarioId)))) throw naoEncontrado('Recibo não encontrado')
     return montarRecibo(r)
   }
 

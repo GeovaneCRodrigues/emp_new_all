@@ -19,6 +19,7 @@ import { createIndicadoresRepository } from '../src/modules/indicadores/models/r
 import { createIndicadoresService } from '../src/modules/indicadores/services/indicadores.service.js'
 import { createRecebimentosRepository } from '../src/modules/recebimentos/models/repository.js'
 import { createRecebimentosService } from '../src/modules/recebimentos/services/recebimentos.service.js'
+import { indicadoresDosCobradores } from './helpers/carteira.js'
 import { bancoDeTeste, limparBanco } from './helpers/db.js'
 
 const db: Knex | null = await bancoDeTeste()
@@ -31,12 +32,13 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
 
+  let donoDe: (clienteId: number) => number | undefined = () => undefined
   const req = (metodo: 'GET' | 'POST', url: string, papel?: string, payload?: object) =>
     app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
 
   /** Empréstimo criado em `hoje`. Parcelado padrão: 5.000 a 10% em 6x de 1.333,34. */
   async function emprestimo(corpo: object = {}, cliente = id.cA): Promise<number> {
-    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
+    const r = await req('POST', '/api/emprestimos', 'admin', { clienteId: cliente, indicadorId: donoDe(cliente), modalidade: 'PARCELADO', capital: 5000, taxa: 60, parcelas: 6, ...corpo })
     expect(r.statusCode).toBe(201)
     return r.json().id
   }
@@ -58,6 +60,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
     const cli = async (chave: string, nome: string, resp: number | null) => { const [c] = await k('clientes').insert({ nome, fone: '11988124410', responsavel_id: resp }).returning('id'); id[chave] = c.id }
     await cli('cA', 'Ana Souza', id.cobrador)
     await cli('cB', 'Bruno Lima', id.cobrador2)
+    donoDe = await indicadoresDosCobradores(k, { cobrador: id.cobrador, cobrador2: id.cobrador2 }, id, { cA: 'cobrador', cB: 'cobrador2' })
 
     const tokens = createTokensService('x'.repeat(40), '15m')
     const auth = createAuthService(createUsuariosRepository(k), createSessoesRepository(k), tokens)

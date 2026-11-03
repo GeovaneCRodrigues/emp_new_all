@@ -300,15 +300,15 @@ export function criarFechamentosFake(vendas: VendasFake): FechamentosApi {
 
 // ===================== equipe =====================
 
-interface Usuario { id: number; nome: string; email: string; perfil: PessoaApi['perfil']; fone: string | null; ativo: boolean }
+interface Usuario { id: number; nome: string; email: string; perfil: PessoaApi['perfil']; fone: string | null; ativo: boolean; indicadorIds: number[] }
 
 export function criarEquipeFake(vendas: VendasFake): EquipeApi {
   const seed = criarSeed()
   let proximoId = 100
   const usuarios: Usuario[] = [
-    { id: 1, nome: 'Geovane Cataneo', email: 'admin@demo.com', perfil: 'ADMIN', fone: '11990001100', ativo: true },
-    { id: 2, nome: 'Bruna Teixeira', email: 'vendedor@demo.com', perfil: 'VENDEDOR', fone: '11981234455', ativo: true },
-    { id: 3, nome: 'Diego Ramos', email: 'cobrador@demo.com', perfil: 'COBRADOR', fone: '11977882201', ativo: true },
+    { id: 1, nome: 'Geovane Cataneo', email: 'admin@demo.com', perfil: 'ADMIN', fone: '11990001100', ativo: true, indicadorIds: [] },
+    { id: 2, nome: 'Bruna Teixeira', email: 'vendedor@demo.com', perfil: 'VENDEDOR', fone: '11981234455', ativo: true, indicadorIds: [] },
+    { id: 3, nome: 'Diego Ramos', email: 'cobrador@demo.com', perfil: 'COBRADOR', fone: '11977882201', ativo: true, indicadorIds: [1] },
   ]
   const { hoje, registros, transacoes, pedidos } = vendas._interno
   const mes = hoje.slice(0, 7)
@@ -321,6 +321,7 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       recebidoNoMes: arred2(transacoes.filter((t) => t.recebidoPorId === u.id && !t.desfeita && t.data.slice(0, 7) === mes).reduce((x, t) => x + t.valor, 0)),
       vendasNoMes: registros.filter((r) => r.vendedorId === u.id && r.status !== 'CANCELADA' && r.dataVenda.slice(0, 7) === mes).length,
       pedidosPendentes: pedidos.filter((p) => p.solicitanteId === u.id && p.status === 'PENDENTE').length,
+      ...(u.perfil === 'COBRADOR' ? { indicadorIds: [...u.indicadorIds].sort((a, b) => a - b) } : {}),
     }
   }
   const ordem = (p: PessoaApi) => ['ADMIN', 'COBRADOR', 'VENDEDOR'].indexOf(p.perfil)
@@ -337,7 +338,7 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       let fone: string | null = null
       if (e.fone) { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') }
       if (usuarios.some((u) => u.email === email)) throw new ErroApi(409, 'Já existe um usuário com esse e-mail', 'EMAIL_EM_USO')
-      const u: Usuario = { id: ++proximoId, nome: maiusculas(e.nome), email, perfil: e.perfil, fone, ativo: true }
+      const u: Usuario = { id: ++proximoId, nome: maiusculas(e.nome), email, perfil: e.perfil, fone, ativo: true, indicadorIds: [] }
       usuarios.push(u)
       // no modo demonstração a senha é só para ver como fica; o login falso não a reconhece
       const bytes = crypto.getRandomValues(new Uint8Array(10))
@@ -354,9 +355,19 @@ export function criarEquipeFake(vendas: VendasFake): EquipeApi {
       if ('fone' in e) { if (!e.fone) fone = null; else { fone = normalizarFone(e.fone); if (!fone) throw erro('Telefone inválido. Use DDD + número, por exemplo (11) 98812-4410') } }
       if ('ativo' in e && typeof e.ativo !== 'boolean') throw erro('ativo deve ser verdadeiro ou falso')
       if (e.ativo === false && id === s.usuarioId) throw erro('Você não pode desativar o seu próprio acesso')
+      let indicadorIds: number[] | undefined
+      if ('indicadorIds' in e) {
+        if (u.perfil !== 'COBRADOR') throw erro('Só o cobrador atende indicadores')
+        const v = e.indicadorIds
+        if (!Array.isArray(v) || v.length > 500 || !v.every((x) => typeof x === 'number' && Number.isInteger(x) && x > 0)) throw erro('indicadorIds deve ser uma lista de números de indicadores')
+        indicadorIds = [...new Set(v)]
+        if (!indicadorIds.every((x) => seed.indicadores.some((i) => i.id === x))) throw erro('Há indicador que não existe')
+      }
       if ('nome' in e) u.nome = maiusculas(e.nome!)
       if (fone !== undefined) u.fone = fone
       if (typeof e.ativo === 'boolean') u.ativo = e.ativo
+      // na demonstração só a lista muda: os dados do Diego continuam pelo responsável (a semente quase não tem indicador nas operações)
+      if (indicadorIds) u.indicadorIds = indicadorIds
       return pessoa(u)
     },
   }

@@ -7,7 +7,7 @@ export type Pessoa = {
   perfil: PerfilEquipe
   fone: string | null
   ativo: boolean
-  /** clientes na carteira */
+  /** clientes na carteira (cobrador: os dos indicadores marcados) */
   carteira: number
   /** clientes da carteira com parcela vencida e em aberto */
   comAtraso: number
@@ -17,4 +17,6 @@ export type Pessoa = {
   vendasNoMes: number
   /** pedidos de desconto esperando o administrador */
   pedidosPendentes: number
+  /** cobrador: os indicadores que ele atende (só o que vem deles aparece para ele) */
+  indicadorIds?: number[]
 }

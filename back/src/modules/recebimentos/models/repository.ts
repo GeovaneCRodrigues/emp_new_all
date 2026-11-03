@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 import { addDia } from '../../../shared/datas.js'
 import { NOME_EMPRESTIMO_SQL, nomeEmprestimo } from '../../../shared/sql.js'
 import type { Alvo, AjustesTransacao, Aba, EscopoRecebimentos, EstadoParcela, FormaPagamento, LinhaCobranca, OperacaoTravada, PagamentoDaOperacao, ParcelaAberta, RecebimentoDaTransacao, ReciboRegistro, ResultadoCobrancas, ResumoRecibo, TransacaoRegistro } from './types.js'
+import { naCarteira } from '../../../shared/carteira.js'
 
 /** Operações que precisam acontecer juntas, na mesma transação do banco. */
 export interface RecebimentosTx {
@@ -40,6 +41,8 @@ export interface RecebimentosRepository {
   /** A venda/empréstimo que a transação paga (pelas parcelas), antes de abrir a transação de desfazer. */
   operacaoDaTransacao(transacaoId: number): Promise<{ alvo: Alvo; id: number } | null>
   buscarRecibo(id: number): Promise<ReciboRegistro | null>
+  /** O recibo é de uma operação dos indicadores que o cobrador atende? */
+  reciboNaCarteira(id: number, usuarioId: number): Promise<boolean>
   /** Operação dentro do escopo (fora dele é como se não existisse). */
   operacaoNoEscopo(alvo: Alvo, id: number, escopo: EscopoRecebimentos): Promise<{ id: number } | null>
   pagamentosDaOperacao(alvo: Alvo, id: number): Promise<PagamentoDaOperacao[]>
@@ -77,7 +80,7 @@ const paraLinha = (l: LinhaBruta): LinhaCobranca => ({
 export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
   // o indicador só LÊ (a lista de cobranças das operações dele); os registros de dinheiro continuam só do admin e do cobrador
   const escopoSql = (q: Knex.QueryBuilder, e: EscopoRecebimentos) => {
-    if (e.tipo === 'CARTEIRA') q.where('c.responsavel_id', e.usuarioId)
+    if (e.tipo === 'CARTEIRA') naCarteira(q, e.usuarioId, { cliente: 'c', operacao: 'o' })
     else if (e.tipo === 'INDICADOR') q.where('o.indicador_id', e.indicadorId)
     return q
   }
@@ -209,6 +212,18 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
         .where('r.transacao_id', transacaoId).whereNot('r.tipo', 'ENTRADA').first<{ venda_id: number | null; emprestimo_id: number | null } | undefined>('vp.venda_id', 'ep.emprestimo_id')
       if (!r) return null
       return r.venda_id !== null ? { alvo: 'VENDA', id: r.venda_id } : r.emprestimo_id !== null ? { alvo: 'EMPRESTIMO', id: r.emprestimo_id } : null
+    },
+
+    async reciboNaCarteira(id, usuarioId) {
+      const r = await db.raw(
+        `select 1 from recebimentos r
+           left join venda_parcelas vp on vp.id = r.venda_parcela_id
+           left join emprestimo_parcelas ep on ep.id = r.emprestimo_parcela_id
+           left join vendas v on v.id = coalesce(r.venda_id, vp.venda_id)
+           left join emprestimos e on e.id = ep.emprestimo_id
+          where r.transacao_id = ? and exists (select 1 from cobrador_indicadores ci where ci.usuario_id = ? and ci.indicador_id = coalesce(v.indicador_id, e.indicador_id))
+          limit 1`, [id, usuarioId])
+      return r.rows.length > 0
     },
 
     async buscarRecibo(id) {
