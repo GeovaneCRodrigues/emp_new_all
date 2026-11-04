@@ -36,6 +36,9 @@ import { createCaixaService } from './modules/caixa/services/caixa.service.js'
 import { criarZapsignClient } from './modules/contratos/services/zapsign.client.js'
 import { createContratosRepository } from './modules/contratos/models/repository.js'
 import { createContratosService } from './modules/contratos/services/contratos.service.js'
+import { createNotificacoesRepository } from './modules/notificacoes/models/repository.js'
+import { createNotificacoesService } from './modules/notificacoes/services/notificacoes.service.js'
+import { hojeBR } from './shared/relogio.js'
 import { createRelatoriosRepository } from './modules/relatorios/models/repository.js'
 import { createRelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import { createFechamentosService } from './modules/fechamentos/services/fechamentos.service.js'
@@ -98,10 +101,20 @@ const relatorios = createRelatoriosService({
   repo: createRelatoriosRepository(db.knex), vendas: createVendasRepository(db.knex), emprestimos: createEmprestimosRepository(db.knex), caixa: createCaixaRepository(db.knex),
   indicadores: createIndicadoresRepository(db.knex), repasses,
 })
-const app = await buildApp({ env, db, tokens, auth, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const notificacoes = createNotificacoesService({
+  repo: createNotificacoesRepository(db.knex), hoje: () => hojeBR(), log: (msg, err) => console.error(msg, err),
+  atrasos: async (s) => (await recebimentos.cobrancas(s, { aba: 'atrasadas', limite: 1 })).contagens,
+})
+const app = await buildApp({ env, db, tokens, auth, notificacoes, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)
 process.on('SIGTERM', encerrar)
 
 await app.listen({ port: env.PORT, host: '0.0.0.0' })
+
+// os avisos do sino: lê o que aconteceu a cada minuto (e uma vez já na subida)
+const SINCRONIZAR_MS = 60_000
+void notificacoes.sincronizar()
+const relogioAvisos = setInterval(() => { void notificacoes.sincronizar() }, SINCRONIZAR_MS)
+relogioAvisos.unref()
