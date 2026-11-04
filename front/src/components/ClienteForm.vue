@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ErroApi, type ClienteApi, type EntradaCliente, type Responsavel, type SalvoCliente } from '@/api/clientes'
 import { clientesApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
-import { cpfValido, mascaraCpf, mascaraFone, normalizarFone } from '@/domain/documentos'
+import { cpfValido, mascaraCep, mascaraCpf, mascaraFone, normalizarFone } from '@/domain/documentos'
 import Sheet from './Sheet.vue'
 
 const props = defineProps<{ aberto: boolean; cliente: ClienteApi | null }>()
@@ -16,7 +16,7 @@ const ehIndicador = computed(() => sessao.value.perfil === 'INDICADOR')
 
 const ORIGENS = ['Instagram', 'WhatsApp', 'Indicação', 'Loja', 'Outro']
 
-const f = reactive({ nome: '', fone: '', cpf: '', rg: '', endereco: '', origem: '', email: '', observacoes: '', responsavelId: '' as string })
+const f = reactive({ nome: '', fone: '', cpf: '', rg: '', endereco: '', numero: '', bairro: '', cidade: '', uf: '', cep: '', origem: '', email: '', observacoes: '', responsavelId: '' as string })
 /** cliente trazido do sistema antigo sem telefone: dá para editar o resto sem ser obrigado a digitar um */
 const semTelefoneAntes = computed(() => props.cliente !== null && !props.cliente.fone)
 const erros = reactive<Record<string, string>>({})
@@ -29,7 +29,7 @@ watch(() => props.aberto, async (aberto) => {
   const c = props.cliente
   Object.assign(f, {
     nome: c?.nome ?? '', fone: c ? mascaraFone(c.fone) : '', cpf: c?.cpf ? mascaraCpf(c.cpf) : '', rg: c?.rg ?? '',
-    endereco: c?.endereco ?? '', origem: c?.origem ?? '', email: c?.email ?? '', observacoes: c?.observacoes ?? '', responsavelId: c?.responsavelId ? String(c.responsavelId) : '',
+    endereco: c?.endereco ?? '', numero: c?.numero ?? '', bairro: c?.bairro ?? '', cidade: c?.cidade ?? '', uf: c?.uf ?? '', cep: c?.cep ? mascaraCep(c.cep) : '', origem: c?.origem ?? '', email: c?.email ?? '', observacoes: c?.observacoes ?? '', responsavelId: c?.responsavelId ? String(c.responsavelId) : '',
   })
   Object.keys(erros).forEach((k) => delete erros[k])
   erroGeral.value = ''
@@ -41,6 +41,8 @@ function validar(): boolean {
   Object.keys(erros).forEach((k) => delete erros[k])
   if (f.nome.trim().length < 2) erros.nome = 'Informe o nome (ao menos 2 letras)'
   if (semTelefoneAntes.value && !f.fone.trim()) { /* continua sem telefone */ } else if (!normalizarFone(f.fone)) erros.fone = 'Use DDD + número, por exemplo (11) 98812-4410'
+  if (f.uf.trim() && !/^[A-Za-z]{2}$/.test(f.uf.trim())) erros.uf = 'Use 2 letras, por exemplo SP'
+  if (f.cep.trim() && f.cep.replace(/\D/g, '').length !== 8) erros.cep = 'CEP tem 8 números'
   if (ehAdmin.value && f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) erros.email = 'E-mail inválido'
   if (ehIndicador.value && !f.cpf.trim()) erros.cpf = 'Informe o CPF do cliente'
   else if (f.cpf.trim() && !cpfValido(f.cpf)) erros.cpf = 'CPF inválido'
@@ -51,7 +53,7 @@ async function enviar() {
   if (enviando.value || !validar()) return
   enviando.value = true
   erroGeral.value = ''
-  const dados: EntradaCliente = { nome: f.nome, fone: f.fone, cpf: f.cpf || null, rg: f.rg || null, endereco: f.endereco || null, origem: f.origem || null }
+  const dados: EntradaCliente = { nome: f.nome, fone: f.fone, cpf: f.cpf || null, rg: f.rg || null, endereco: f.endereco || null, numero: f.numero || null, bairro: f.bairro || null, cidade: f.cidade || null, uf: f.uf || null, cep: f.cep || null, origem: f.origem || null }
   if (semTelefoneAntes.value && !f.fone.trim()) delete (dados as Partial<EntradaCliente>).fone
   if (ehAdmin.value) { dados.responsavelId = f.responsavelId ? Number(f.responsavelId) : null; dados.email = f.email.trim() || null; dados.observacoes = f.observacoes.trim() || null }
   try {
@@ -97,7 +99,18 @@ async function enviar() {
           <div class="inp"><input id="cOrigem" v-model="f.origem" list="origens" autocomplete="off" /><datalist id="origens"><option v-for="o in ORIGENS" :key="o" :value="o" /></datalist></div>
         </div>
       </div>
-      <div class="field"><label for="cEnd">Endereço</label><div class="inp maiusc"><input id="cEnd" v-model="f.endereco" autocomplete="off" /></div></div>
+      <div class="field"><label for="cEnd">Endereço (rua)</label><div class="inp maiusc"><input id="cEnd" v-model="f.endereco" autocomplete="off" placeholder="Rua, avenida…" /></div></div>
+      <div class="grid2">
+        <div class="field"><label for="cNum">Número</label><div class="inp"><input id="cNum" v-model="f.numero" autocomplete="off" maxlength="20" /></div></div>
+        <div class="field"><label for="cBairro">Bairro</label><div class="inp maiusc"><input id="cBairro" v-model="f.bairro" autocomplete="off" /></div></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="cCidade">Cidade</label><div class="inp maiusc"><input id="cCidade" v-model="f.cidade" autocomplete="off" /></div></div>
+        <div class="grid2">
+          <div class="field"><label for="cUf">UF</label><div class="inp maiusc"><input id="cUf" v-model="f.uf" maxlength="2" autocomplete="off" placeholder="SP" /></div><span v-if="erros.uf" class="erro-campo">{{ erros.uf }}</span></div>
+          <div class="field"><label for="cCep">CEP</label><div class="inp"><input id="cCep" v-model="f.cep" inputmode="numeric" maxlength="9" placeholder="00000-000" @input="f.cep = mascaraCep(f.cep)" /></div><span v-if="erros.cep" class="erro-campo">{{ erros.cep }}</span></div>
+        </div>
+      </div>
       <template v-if="ehAdmin">
         <div class="field">
           <label for="cEmail">E-mail (só você vê)</label>

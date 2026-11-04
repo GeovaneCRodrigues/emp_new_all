@@ -46,6 +46,8 @@ export type LinhaContrato = {
   assinadoEm: string | null
   textoEnviado: string | null
   clienteNome: string
+  /** só dígitos, com DDD (para abrir o WhatsApp) */
+  clienteFone: string
   aparelho: string
   dataVenda: string
   vendaStatus: string

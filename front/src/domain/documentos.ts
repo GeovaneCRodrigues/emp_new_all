@@ -27,6 +27,12 @@ export function mascaraCpf(v: string): string {
   return d.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2')
 }
 
+/** 06786490 → 06786-490, formando enquanto digita. */
+export function mascaraCep(v: string): string {
+  const d = soDigitos(v).slice(0, 8)
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d
+}
+
 /** (11) 98812-4410 ou (11) 3322-1100, formando enquanto digita. */
 export function mascaraFone(v: string): string {
   let d = soDigitos(v)

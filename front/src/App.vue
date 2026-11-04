@@ -21,7 +21,7 @@ const { atrasadas, atualizar: atualizarAtrasadas } = useAtrasadas()
 const { pendentes: equipePendentes, atualizar: atualizarEquipe } = useEquipeBadge()
 const auth = useAuth()
 
-const ehLogin = computed(() => route.path === '/login' || route.path === '/trocar-senha')
+const ehLogin = computed(() => route.path === '/login' || route.path === '/trocar-senha' || route.path.startsWith('/assinar/'))
 
 // quem entrou define o perfil da tela (no modo demonstração dá para trocar pela barra "Ver como")
 watch(auth.usuario, () => { const s = auth.sessao(); if (s) definirSessao(s) }, { immediate: true })

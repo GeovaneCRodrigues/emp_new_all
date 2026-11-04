@@ -33,13 +33,13 @@ export interface ContratosRepository {
 
 type Linha = {
   id: number; venda_id: number; numero: string; modelo_versao: number; seguro: boolean; gerado_em: Date; enviado_em: Date | null; assinado_em: Date | null; texto_enviado: string | null
-  cliente_nome: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
+  cliente_nome: string; cliente_fone: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
 }
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
 const paraLinha = (l: Linha): LinhaContrato => ({
   id: l.id, vendaId: l.venda_id, numero: l.numero, status: l.contrato_status === 'ASSINADO' ? 'ASSINADO' : l.contrato_status === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO', modeloVersao: l.modelo_versao, seguro: l.seguro,
-  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome,
+  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone,
   aparelho: l.gb > 0 ? `${l.modelo} ${l.gb} GB` : l.modelo, dataVenda: dia(l.data_venda), vendaStatus: l.venda_status,
 })
 
@@ -51,7 +51,7 @@ const CHAVES: Record<keyof Empresa, string> = {
 export function createContratosRepository(db: Knex): ContratosRepository {
   const base = (escopo: EscopoContratos) => {
     const q = db('contratos as ct').join('vendas as v', 'v.id', 'ct.venda_id').join('clientes as c', 'c.id', 'v.cliente_id').join('bens as b', 'b.id', 'v.bem_id')
-      .select<Linha[]>('ct.*', 'c.nome as cliente_nome', 'b.modelo', 'b.gb', 'v.data_venda', 'v.status as venda_status', 'v.contrato_status')
+      .select<Linha[]>('ct.*', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'b.modelo', 'b.gb', 'v.data_venda', 'v.status as venda_status', 'v.contrato_status')
     if (escopo.tipo === 'VENDEDOR') q.where((w) => w.where('v.vendedor_id', escopo.usuarioId).orWhere('c.responsavel_id', escopo.usuarioId))
     return q
   }

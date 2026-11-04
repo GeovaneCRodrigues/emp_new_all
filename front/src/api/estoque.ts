@@ -12,6 +12,8 @@ export interface AparelhoApi {
   condicao: 'Novo' | 'Seminovo'
   /** só dígitos; opcional (uma encomenda ainda não tem) */
   imei: string | null
+  /** número de série (opcional) */
+  serie: string | null
   preco: number
   estado: EstadoAparelho
   origem: 'COMPRA' | 'TROCA'
@@ -40,6 +42,7 @@ export interface EntradaAparelho {
   bateria?: number
   condicao?: 'Novo' | 'Seminovo'
   imei?: string | null
+  serie?: string | null
   custo?: number
   extras?: number
   preco?: number

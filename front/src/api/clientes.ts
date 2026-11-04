@@ -11,6 +11,12 @@ export interface ClienteApi {
   cpf?: string | null
   rg?: string | null
   endereco?: string | null
+  numero?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
+  /** só dígitos */
+  cep?: string | null
   origem?: string | null
   /** só o administrador recebe */
   email?: string | null
@@ -28,6 +34,11 @@ export interface EntradaCliente {
   cpf?: string | null
   rg?: string | null
   endereco?: string | null
+  numero?: string | null
+  bairro?: string | null
+  cidade?: string | null
+  uf?: string | null
+  cep?: string | null
   origem?: string | null
   /** só o administrador grava (o vendedor e o indicador não enviam) */
   email?: string | null
