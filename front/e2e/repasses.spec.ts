@@ -11,7 +11,7 @@ async function abrir(page: Page) {
   await expect(page.getByTestId('totais-repasse')).toBeVisible()
 }
 /** O primeiro indicador com dinheiro liberado. */
-const comSaldo = (page: Page) => page.locator('[data-repasse]').filter({ has: page.locator('[data-pagar]:not([disabled])') }).first()
+const comSaldo = (page: Page) => page.locator('[data-repasse]').filter({ hasNot: page.locator('[data-a-pagar]', { hasText: /^R\$ 0,00$/ }) }).first()
 
 test.describe('repasses do indicador', () => {
   test('a aba Repasses abre primeiro: totais, e por indicador o que pagar, o já pago, o que vai liberar e cada operação', async ({ page }) => {
@@ -24,12 +24,6 @@ test.describe('repasses do indicador', () => {
     // o total do topo é a soma dos indicadores
     const somas = await page.locator('[data-a-pagar]').allInnerTexts()
     expect(numero(await page.getByTestId('total-a-pagar').innerText())).toBeCloseTo(somas.reduce((x, t) => x + numero(t), 0), 2)
-  })
-
-  test('quem não tem nada liberado fica com o Pagar desligado', async ({ page }) => {
-    await abrir(page)
-    const sem = page.locator('[data-repasse]').filter({ hasText: /A pagar\s*R\$ 0,00/ }).first()
-    if (await sem.count()) await expect(sem.locator('[data-pagar]')).toBeDisabled()
   })
 
   test('paga um valor parcial: o a pagar cai, o já pago sobe e entra em "Já pagos"', async ({ page }) => {
@@ -55,7 +49,7 @@ test.describe('repasses do indicador', () => {
     await expect(linha).toContainText('adiantamento')
   })
 
-  test('"Pagar tudo" zera o a pagar e desliga o botão; depois não dá para pagar mais', async ({ page }) => {
+  test('"Pagar tudo" zera o a pagar e desliga o botão; depois o a pagar fica zerado', async ({ page }) => {
     await abrir(page)
     const card = comSaldo(page)
     const nome = (await card.locator('.val').first().innerText()).trim()
@@ -64,17 +58,22 @@ test.describe('repasses do indicador', () => {
     await page.getByRole('button', { name: /^Registrar repasse de/ }).click()
     const mesmo = page.locator('[data-repasse]').filter({ hasText: nome }).first()
     await expect(mesmo.locator('[data-a-pagar]')).toHaveText('R$ 0,00')
-    await expect(mesmo.locator('[data-pagar]')).toBeDisabled()
     await expect(mesmo.locator('[data-ja-pago]')).not.toHaveText('R$ 0,00')
   })
 
-  test('valor acima do liberado é barrado na tela com o limite à vista e o botão não envia', async ({ page }) => {
+  test('valor acima do liberado vira antecipação: avisa, pede confirmação e deixa o indicador adiantado', async ({ page }) => {
     await abrir(page)
-    await comSaldo(page).locator('[data-pagar]').click()
+    const card = comSaldo(page)
+    const nome = (await card.locator('.val').first().innerText()).trim()
+    await card.locator('[data-pagar]').click()
     const limite = numero(await page.getByTestId('a-pagar-form').innerText())
-    await page.fill('#rpValor', String(Math.round(limite * 100) + 1)) // um centavo a mais
-    await expect(page.getByRole('button', { name: /^Registrar repasse de/ })).toBeDisabled()
-    await expect(page.getByText(/Ele tem só R\$/)).toBeVisible()
+    await page.fill('#rpValor', String(Math.round(limite * 100) + 5000)) // R$ 50 a mais
+    await expect(page.getByTestId('antecipacao')).toContainText('antecipação de R$ 50,00')
+    await page.getByRole('button', { name: /^Registrar antecipação de/ }).click()
+    await page.getByRole('button', { name: /^Confirmar antecipação de/ }).click()
+    const mesmo = page.locator('[data-repasse]').filter({ hasText: nome }).first()
+    await expect(mesmo.locator('[data-a-pagar]')).toHaveText('R$ 0,00')
+    await expect(mesmo).toContainText('Adiantado R$ 50,00')
   })
 
   test('a data do pagamento usa o campo de data e não aceita dia no futuro', async ({ page }) => {

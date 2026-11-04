@@ -119,6 +119,8 @@ export function createRepassesService(d: Dependencias): RepassesService {
       if (typeof e.valor !== 'number' || !Number.isFinite(e.valor) || e.valor <= 0 || e.valor > DINHEIRO_MAX) throw requisicaoInvalida('valor precisa ser maior que zero')
       const valor = arred2(e.valor)
       if (typeof e.forma !== 'string' || !FORMAS.includes(e.forma as FormaRepasse)) throw requisicaoInvalida('forma deve ser PIX, DINHEIRO ou TRANSFERENCIA')
+      if (e.antecipacao !== undefined && typeof e.antecipacao !== 'boolean') throw requisicaoInvalida('antecipacao deve ser verdadeiro ou falso')
+      const antecipacao = e.antecipacao === true
       const dia = hoje()
       let data = dia
       if (e.data !== undefined && e.data !== null) {
@@ -138,12 +140,14 @@ export function createRepassesService(d: Dependencias): RepassesService {
       const repasse = await d.repo.comTrava(id, async (tx) => {
         const pago = await tx.totalPago()
         const { aPagar } = calcularRepasse((await operacoesPorIndicador()).get(id) ?? [], pago)
-        if (valor > aPagar + 0.004) {
+        // pagar além do liberado só com a confirmação explícita (antecipação): o saldo do indicador fica negativo
+        if (valor > aPagar + 0.004 && !antecipacao) {
           throw new HttpError(409, aPagar > 0 ? `O indicador tem só R$ ${aPagar.toFixed(2).replace('.', ',')} a receber agora` : 'Não há nada a pagar a este indicador agora', VALOR_ACIMA_DO_LIBERADO)
         }
-        return tx.inserir({ valor, data, forma: e.forma as FormaRepasse, obs, usuarioId: s.usuarioId })
+        const antecipado = antecipacao ? arred2(Math.max(0, valor - aPagar)) : 0
+        return { ...(await tx.inserir({ valor, data, forma: e.forma as FormaRepasse, obs, usuarioId: s.usuarioId })), antecipado }
       })
-      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'REPASSE_PAGO', entidade: 'indicador', entidadeId: id, depois: { repasseId: repasse.id, valor, forma: repasse.forma, data } })
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'REPASSE_PAGO', entidade: 'indicador', entidadeId: id, depois: { repasseId: repasse.id, valor, forma: repasse.forma, data, ...(repasse.antecipado > 0 ? { antecipacao: repasse.antecipado } : {}) } })
       return { repasse, detalhe: await detalheDe(id) }
     },
 

@@ -90,7 +90,7 @@ export function criarRepassesFake(d: { vendas: VendasApi; emprestimos: Emprestim
       const ind = await achar(ADM, id)
       const valor = arred2(e.valor)
       const { aPagar } = calcularRepasse((await operacoes()).get(id) ?? [], pagoDe(id))
-      if (valor > aPagar + 0.004) {
+      if (valor > aPagar + 0.004 && e.antecipacao !== true) {
         throw new ErroApi(409, aPagar > 0 ? `O indicador tem só R$ ${aPagar.toFixed(2).replace('.', ',')} a receber agora` : 'Não há nada a pagar a este indicador agora', 'VALOR_ACIMA_DO_LIBERADO')
       }
       const repasse: RepasseApi = { id: ++seq, indicadorId: id, indicadorNome: ind.nome, valor, data, forma: e.forma, obs, feitoPor: 'Geovane Cataneo' }

@@ -214,14 +214,14 @@ const linkZap = (f: string) => `https://wa.me/55${f}`
           <div class="row" style="gap: 8px; flex-wrap: wrap"><span class="val">{{ item.indicador.nome }}</span><SeloNivel v-if="nivelDe(item.indicador.id)" :id="nivelDe(item.indicador.id)!.nivel.id" :nome="nivelDe(item.indicador.id)!.nivel.nome" /><span v-if="!item.indicador.ativo" class="chip c-neu">inativo</span></div>
           <div class="small">{{ item.nOperacoes }} {{ item.nOperacoes === 1 ? 'operação' : 'operações' }}<template v-if="nivelDe(item.indicador.id)"> · {{ pct(nivelDe(item.indicador.id)!.pct) }} do lucro</template></div>
         </div>
-        <button class="btn b-pri b-sm" :disabled="item.resumo.aPagar <= 0" data-pagar @click="pagando = item">Pagar</button>
+        <button class="btn b-pri b-sm" data-pagar @click="pagando = item">Pagar</button>
       </div>
       <div class="resumo3 rep-nums">
         <div><div class="lbl">A pagar</div><div class="val num" data-a-pagar>{{ fmt(item.resumo.aPagar) }}</div></div>
         <div><div class="lbl">Já pago</div><div class="val num" data-ja-pago>{{ fmt(item.resumo.pago) }}</div></div>
         <div><div class="lbl">Vai liberar</div><div class="val num">{{ fmt(item.resumo.vaiLiberar) }}</div></div>
       </div>
-      <div v-if="item.resumo.pagoAMais > 0" class="aviso" role="status" style="margin: 10px 14px 0">Foi pago {{ fmt(item.resumo.pagoAMais) }} além do liberado (um recebimento foi desfeito depois do repasse). Não há nada a pagar até voltar a liberar.</div>
+      <div v-if="item.resumo.pagoAMais > 0" class="aviso" role="status" style="margin: 10px 14px 0">Adiantado {{ fmt(item.resumo.pagoAMais) }}: foi pago além do liberado (antecipação ou recebimento desfeito). Não há nada a pagar até o liberado cobrir esse valor.</div>
       <RepasseOps :operacoes="detalhe.operacoes" />
     </div>
     <div v-if="!repasses.length && !carregandoRep && !erroRep" class="card empty">Nenhum indicador trouxe operação ainda.</div>

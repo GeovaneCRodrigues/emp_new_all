@@ -28,7 +28,7 @@ export interface DetalheRepasseApi extends ResumoDoIndicadorApi {
   repasses: RepasseApi[]
 }
 
-export interface EntradaRepasse { valor: number; forma: FormaRepasse; data?: string; obs?: string }
+export interface EntradaRepasse { valor: number; forma: FormaRepasse; data?: string; obs?: string; antecipacao?: boolean }
 
 export interface RepassesApi {
   /** Todos os indicadores com a pagar / já pago / vai liberar (administrador). */
