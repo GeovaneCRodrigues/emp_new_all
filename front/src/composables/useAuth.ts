@@ -2,6 +2,8 @@ import { computed, ref } from 'vue'
 import { ErroAuth, type AuthApi, type Credenciais, type UsuarioAuth } from '@/api/auth'
 import { criarAuthFake } from '@/api/auth.fake'
 import { criarAuthHttp } from '@/api/auth.http'
+import { comFeedback } from '@/api/comFeedback'
+import { useCarregando } from '@/composables/useCarregando'
 import type { Sessao } from '@/domain/escopo'
 
 const URL_API = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, '')
@@ -57,7 +59,7 @@ export function useAuth() {
     },
 
     async entrar(email: string, senha: string) {
-      aceitar(await api.login(email, senha))
+      aceitar(await useCarregando().enquanto(api.login(email, senha)))
     },
 
     /** Senha temporária: enquanto não trocar, o app só mostra a tela de troca. */
@@ -65,7 +67,7 @@ export function useAuth() {
 
     async trocarSenha(atual: string, nova: string) {
       if (!accessToken) throw new ErroAuth(401, 'Sessão inválida ou expirada')
-      await api.trocarSenha(accessToken, atual, nova)
+      await useCarregando().enquanto(api.trocarSenha(accessToken, atual, nova))
       if (usuario.value) usuario.value = { ...usuario.value, precisaTrocarSenha: false }
     },
 
@@ -84,10 +86,13 @@ export function useAuth() {
     /** `fetch` com o token. Se der 401, renova a sessão uma vez e tenta de novo. */
     async requisicao(url: string, init: RequestInit = {}): Promise<Response> {
       const enviar = () => fetch(url, { ...init, headers: { ...init.headers, ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}) } })
-      let r = await enviar()
-      if (r.status === 401 && (await renovar())) r = await enviar()
-      if (r.status === 401) limpar()
-      return r
+      // ação do usuário (gravar algo): "enviando…" na tela e toast com o resultado (ver comFeedback)
+      return comFeedback(init.method ?? 'GET', url, async () => {
+        let r = await enviar()
+        if (r.status === 401 && (await renovar())) r = await enviar()
+        if (r.status === 401) limpar()
+        return r
+      })
     },
   }
 }
