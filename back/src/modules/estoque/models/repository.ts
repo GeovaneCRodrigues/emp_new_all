@@ -16,7 +16,7 @@ export interface EstoqueRepository {
 }
 
 type Linha = {
-  id: number; modelo: string; gb: number; cor: string; bateria: number; condicao: Aparelho['condicao']; imei: string | null
+  id: number; modelo: string; gb: number; cor: string; bateria: number; condicao: Aparelho['condicao']; imei: string | null; serie: string | null
   valor_compra: string; custos_extras: string; preco_venda: string; estado: EstadoAparelho; origem: Aparelho['origem']
   data_compra: Date | string; cliente_encomenda_id: number | null; cliente_nome: string | null; observacoes: string | null
 }
@@ -24,7 +24,7 @@ type Linha = {
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 
 const paraAparelho = (l: Linha): Aparelho => ({
-  id: l.id, modelo: l.modelo, gb: l.gb, cor: l.cor, bateria: l.bateria, condicao: l.condicao, imei: l.imei,
+  id: l.id, modelo: l.modelo, gb: l.gb, cor: l.cor, bateria: l.bateria, condicao: l.condicao, imei: l.imei, serie: l.serie,
   custo: Number(l.valor_compra), extras: Number(l.custos_extras), preco: Number(l.preco_venda), estado: l.estado, origem: l.origem,
   dataCompra: dia(l.data_compra), observacoes: l.observacoes,
   paraCliente: l.cliente_encomenda_id ? { id: l.cliente_encomenda_id, nome: l.cliente_nome ?? '' } : null,
@@ -38,6 +38,7 @@ const paraLinha = (d: Partial<DadosAparelho>) => {
   if (d.bateria !== undefined) l.bateria = d.bateria
   if (d.condicao !== undefined) l.condicao = d.condicao
   if (d.imei !== undefined) l.imei = d.imei
+  if (d.serie !== undefined) l.serie = d.serie
   if (d.custo !== undefined) l.valor_compra = d.custo
   if (d.extras !== undefined) l.custos_extras = d.extras
   if (d.preco !== undefined) l.preco_venda = d.preco

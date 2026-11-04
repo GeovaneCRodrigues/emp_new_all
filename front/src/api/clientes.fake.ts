@@ -13,7 +13,7 @@ export function criarClientesFake(): ClientesApi {
   let proximoId = 1000
   const lista: Required<ClienteApi>[] = seed.clientes.map((c) => ({
     id: c.id, nome: c.nome, fone: normalizarFone(c.fone) ?? soDigitos(c.fone), desde: c.desde,
-    cpf: null, rg: null, endereco: null, origem: null, email: null, observacoes: null, responsavelId: c.responsavelId, indicadorId: null,
+    cpf: null, rg: null, endereco: null, numero: null, bairro: null, cidade: null, uf: null, cep: null, origem: null, email: null, observacoes: null, responsavelId: c.responsavelId, indicadorId: null,
   }))
 
   const indicados = (indicadorId: number) =>
@@ -56,7 +56,17 @@ export function criarClientesFake(): ClientesApi {
       else if (!cpfValido(bruto)) throw new ErroApi(400, 'CPF inválido')
       else d.cpf = soDigitos(bruto)
     }
-    for (const k of ['rg', 'endereco', 'origem', 'email', 'observacoes'] as const) if (k in e) d[k] = ((k === 'rg' || k === 'endereco') ? maiusculas(e[k] ?? '') : (e[k] ?? '').trim()) || null
+    for (const k of ['rg', 'endereco', 'numero', 'bairro', 'cidade', 'origem', 'email', 'observacoes'] as const) if (k in e) d[k] = ((k === 'rg' || k === 'endereco' || k === 'bairro' || k === 'cidade') ? maiusculas(e[k] ?? '') : (e[k] ?? '').trim()) || null
+    if ('uf' in e) {
+      const uf = (e.uf ?? '').trim()
+      if (uf && !/^[A-Za-z]{2}$/.test(uf)) throw new ErroApi(400, 'UF deve ter 2 letras, por exemplo SP')
+      d.uf = uf ? uf.toUpperCase() : null
+    }
+    if ('cep' in e) {
+      const cep = (e.cep ?? '').trim()
+      if (cep && soDigitos(cep).length !== 8) throw new ErroApi(400, 'CEP deve ter 8 números')
+      d.cep = cep ? soDigitos(cep) : null
+    }
     if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) throw new ErroApi(400, 'E-mail inválido')
     if (d.observacoes && d.observacoes.length > 2000) throw new ErroApi(400, 'observacoes pode ter no máximo 2000 caracteres')
     return d
@@ -99,7 +109,7 @@ export function criarClientesFake(): ClientesApi {
       if (s.perfil === 'INDICADOR' && !d.cpf) throw new ErroApi(400, 'Informe o CPF do cliente')
       if (d.cpf && lista.some((c) => c.cpf === d.cpf)) throw new ErroApi(409, 'Já existe um cliente com esse CPF', 'CPF_DUPLICADO')
       const novo: Required<ClienteApi> = {
-        id: ++proximoId, nome: d.nome, fone: d.fone, cpf: d.cpf ?? null, rg: d.rg ?? null, endereco: d.endereco ?? null, origem: d.origem ?? null, email: d.email ?? null, observacoes: d.observacoes ?? null,
+        id: ++proximoId, nome: d.nome, fone: d.fone, cpf: d.cpf ?? null, rg: d.rg ?? null, endereco: d.endereco ?? null, numero: d.numero ?? null, bairro: d.bairro ?? null, cidade: d.cidade ?? null, uf: d.uf ?? null, cep: d.cep ?? null, origem: d.origem ?? null, email: d.email ?? null, observacoes: d.observacoes ?? null,
         // vendedor: na própria carteira; indicador: sem carteira e já vinculado a ele (a loja distribui); admin escolhe
         responsavelId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : s.perfil === 'INDICADOR' ? null : (e.responsavelId ?? null),
         indicadorId: s.perfil === 'INDICADOR' ? (s.indicadorId ?? null) : null, desde: seed.hoje,

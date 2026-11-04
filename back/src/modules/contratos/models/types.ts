@@ -23,8 +23,11 @@ export type DadosVenda = {
   vendaStatus: string
   numero: string
   dataVenda: string
-  cliente: { nome: string; cpf: string | null; fone: string; endereco: string | null }
-  aparelho: { modelo: string; gb: number; cor: string; condicao: string; imei: string | null }
+  cliente: {
+    nome: string; cpf: string | null; fone: string; email: string | null; rg: string | null
+    endereco: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null
+  }
+  aparelho: { modelo: string; gb: number; cor: string; condicao: string; imei: string | null; serie: string | null }
   entrada: number
   troca: number
   parcelas: { valor: number; vencimento: string }[]
@@ -43,7 +46,27 @@ export type LinhaContrato = {
   assinadoEm: string | null
   textoEnviado: string | null
   clienteNome: string
+  /** só dígitos, com DDD (para abrir o WhatsApp) */
+  clienteFone: string
   aparelho: string
   dataVenda: string
   vendaStatus: string
+}
+
+/** O que o link de assinatura precisa saber de um contrato. */
+export type ContratoDoLink = {
+  linha: LinhaContrato
+  /** CPF do cliente (só dígitos) para conferir quem assina */
+  cpf: string | null
+  expiraEm: Date | null
+  tentativas: number
+}
+
+export type Assinatura = {
+  imagem: string
+  cpf: string
+  textoHash: string
+  ip: string | null
+  userAgent: string | null
+  assinadoEm: string
 }

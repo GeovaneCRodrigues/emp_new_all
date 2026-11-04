@@ -1,8 +1,10 @@
+import { createHash, randomBytes } from 'node:crypto'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
 import type { ContratosRepository, ContratoCompleto } from '../models/repository.js'
-import type { DadosVenda, Empresa, EscopoContratos, LinhaContrato } from '../models/types.js'
+import { soDigitos } from '../../../shared/documentos.js'
+import type { Assinatura, DadosVenda, Empresa, EscopoContratos, LinhaContrato } from '../models/types.js'
 import { camposDesconhecidos, MODELO_PADRAO, preencher, VARIAVEIS, type Preenchido, type Trecho, type Variavel } from './modelo.js'
 
 export type ContratoItem = Omit<LinhaContrato, 'textoEnviado'>
@@ -14,7 +16,13 @@ export type ContratoDetalhe = {
   faltam: string[]
   /** o texto final, para copiar */
   texto: string
+  /** só depois de assinado pelo link */
+  assinatura: Assinatura | null
 }
+export type LinkGerado = { token: string; expiraEm: string; contrato: ContratoDetalhe }
+/** O que a página pública de assinatura mostra (nada além do contrato daquele link). */
+export type ContratoParaAssinar = { numero: string; clienteNome: string; aparelho: string; empresa: string; texto: string; expiraEm: string }
+export type OrigemDaAssinatura = { ip: string | null; userAgent: string | null }
 export type ResultadoLista = { itens: ContratoItem[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
 export type ModeloView = { versao: number; texto: string; padrao: string; variaveis: Variavel[] }
 
@@ -29,6 +37,12 @@ export type ContratosService = {
   marcarEnviado(s: Sessao, id: number): Promise<ContratoDetalhe>
   marcarAssinado(s: Sessao, id: number): Promise<ContratoDetalhe>
   definirSeguro(s: Sessao, id: number, seguro: unknown): Promise<ContratoDetalhe>
+  /** Gera (ou troca) o link de assinatura; o contrato é enviado e o texto congela. O token só aparece aqui. */
+  gerarLink(s: Sessao, id: number): Promise<LinkGerado>
+  /** Público (sem login): o contrato de um link. */
+  verParaAssinar(token: string): Promise<ContratoParaAssinar>
+  /** Público (sem login): o cliente confirma o CPF, assina e o contrato fecha. */
+  assinarPeloLink(token: string, corpo: Record<string, unknown>, origem: OrigemDaAssinatura): Promise<{ numero: string; assinadoEm: string }>
   modelo(s: Sessao): Promise<ModeloView>
   salvarModelo(s: Sessao, texto: unknown): Promise<ModeloView>
   previa(s: Sessao, corpo: Record<string, unknown>): Promise<Preenchido>
@@ -41,6 +55,23 @@ type Dependencias = { repo: ContratosRepository; auditoria: AuditoriaRepository;
 const TEXTO_MIN = 50
 const TEXTO_MAX = 30_000
 const DINHEIRO_MAX = 1_000_000
+const LINK_DIAS = 7
+const TENTATIVAS_DE_CPF = 5
+const IMAGEM_MAX = 400_000
+const PNG_URL = 'data:image/png;base64,'
+const sha256 = (t: string) => createHash('sha256').update(t).digest('hex')
+/**
+ * O CPF é o que o cliente digita para provar quem é: a página pública não pode mostrá-lo (quem só tem o link leria e passaria).
+ * Na tela ele aparece como ***.***.***-25; o texto gravado e assinado continua com o CPF inteiro.
+ */
+export function mascararCpf(texto: string, cpf: string | null): string {
+  const dig = soDigitos(cpf ?? '')
+  if (dig.length !== 11) return texto
+  const mascarado = `***.***.***-${dig.slice(9)}`
+  const formatado = `${dig.slice(0, 3)}.${dig.slice(3, 6)}.${dig.slice(6, 9)}-${dig.slice(9)}`
+  return texto.replaceAll(formatado, mascarado).replaceAll(dig, mascarado)
+}
+const linkInvalido = () => naoEncontrado('Link inválido. Peça um novo ao vendedor.')
 
 const conflito = (msg: string, codigo: string) => new HttpError(409, msg, codigo)
 const exigirAdmin = (s: Sessao, msg: string) => { if (s.perfil !== 'ADMIN') throw semPermissao(msg) }
@@ -59,9 +90,10 @@ export function createContratosService(d: Dependencias): ContratosService {
   }
   async function montar(c: ContratoCompleto): Promise<ContratoDetalhe> {
     const item = semTexto(c.linha)
-    if (c.linha.textoEnviado !== null) return { contrato: item, congelado: true, trechos: [{ tipo: 'txt', v: c.linha.textoEnviado }], faltam: [], texto: c.linha.textoEnviado }
+    const assinatura = c.linha.status === 'ASSINADO' ? await d.repo.assinaturaDe(c.linha.id) : null
+    if (c.linha.textoEnviado !== null) return { contrato: item, congelado: true, trechos: [{ tipo: 'txt', v: c.linha.textoEnviado }], faltam: [], texto: c.linha.textoEnviado, assinatura }
     const p = preencher(await textoDaVersao(c.linha.modeloVersao), c.dados, await d.repo.empresa())
-    return { contrato: item, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto }
+    return { contrato: item, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, assinatura }
   }
   async function carregar(s: Sessao, id: number): Promise<ContratoCompleto> {
     const c = await d.repo.obter(id, escopoDe(s))
@@ -73,6 +105,18 @@ export function createContratosService(d: Dependencias): ContratosService {
     const r = await d.repo.criar(vendaId, dados.numero, versao, usuarioId)
     if (r.criado) await d.auditoria.registrar({ usuarioId, acao: 'CONTRATO_GERADO', entidade: 'contrato', entidadeId: r.id, depois: { vendaId, numero: dados.numero, modeloVersao: versao } })
     return r
+  }
+
+  /** O contrato do link, se o link ainda vale: não vencido, não assinado e não bloqueado por erros de CPF. */
+  async function linkVivo(token: string) {
+    if (typeof token !== 'string' || token.length < 20 || token.length > 100) throw linkInvalido()
+    const l = await d.repo.porLink(sha256(token))
+    if (!l || l.linha.textoEnviado === null) throw linkInvalido()
+    if (l.linha.status === 'ASSINADO') throw new HttpError(410, 'Este contrato já foi assinado.', 'CONTRATO_JA_ASSINADO')
+    if (l.tentativas >= TENTATIVAS_DE_CPF) throw new HttpError(410, 'Link bloqueado por tentativas erradas. Peça um novo ao vendedor.', 'LINK_BLOQUEADO')
+    if (!l.expiraEm || l.expiraEm.getTime() < Date.now()) throw new HttpError(410, 'Este link venceu. Peça um novo ao vendedor.', 'LINK_VENCIDO')
+    if (l.linha.vendaStatus !== 'ATIVA' && l.linha.vendaStatus !== 'QUITADA') throw new HttpError(410, 'Esta venda foi encerrada.', 'VENDA_ENCERRADA')
+    return l
   }
 
   return {
@@ -136,6 +180,55 @@ export function createContratosService(d: Dependencias): ContratosService {
         await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_SEGURO', entidade: 'contrato', entidadeId: id, antes: { seguro: c.linha.seguro }, depois: { seguro } })
       }
       return montar(await carregar(s, id))
+    },
+
+    async gerarLink(s, id) {
+      const c = await carregar(s, id)
+      if (c.linha.status === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
+      if (c.linha.vendaStatus !== 'ATIVA' && c.linha.vendaStatus !== 'QUITADA') throw conflito('Venda retomada ou cancelada não envia contrato', 'VENDA_ENCERRADA')
+      const det = await montar(c)
+      // o CPF é como o cliente prova quem é na hora de assinar: sem ele não há link, mesmo que o modelo não use o campo
+      const faltam = [...det.faltam]
+      if (soDigitos(c.dados.cliente.cpf ?? '').length !== 11 && !faltam.includes('CPF')) faltam.push('CPF')
+      if (faltam.length) throw conflito(`Falta cadastrar: ${faltam.join(', ')}`, 'DADOS_FALTANDO')
+      if (c.linha.status === 'AGUARDANDO') {
+        await d.repo.marcarEnviado(id, det.texto)
+        await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_ENVIADO', entidade: 'contrato', entidadeId: id, depois: { vendaId: c.linha.vendaId } })
+      }
+      const token = randomBytes(32).toString('base64url')
+      const expira = new Date(Date.now() + LINK_DIAS * 86_400_000)
+      await d.repo.gravarLink(id, sha256(token), expira)
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_LINK_GERADO', entidade: 'contrato', entidadeId: id, depois: { vendaId: c.linha.vendaId, expiraEm: expira.toISOString() } })
+      return { token, expiraEm: expira.toISOString(), contrato: await montar(await carregar(s, id)) }
+    },
+
+    async verParaAssinar(token) {
+      const l = await linkVivo(token)
+      return {
+        numero: l.linha.numero, clienteNome: l.linha.clienteNome, aparelho: l.linha.aparelho, empresa: (await d.repo.empresa()).nome,
+        texto: mascararCpf(l.linha.textoEnviado ?? '', l.cpf), expiraEm: l.expiraEm!.toISOString(),
+      }
+    },
+
+    async assinarPeloLink(token, corpo, origem) {
+      const l = await linkVivo(token)
+      if (corpo.aceito !== true) throw requisicaoInvalida('Marque que leu e concorda com o contrato')
+      const cpf = typeof corpo.cpf === 'string' ? soDigitos(corpo.cpf) : ''
+      if (cpf.length !== 11) throw requisicaoInvalida('Digite o CPF completo (11 números)')
+      const imagem = corpo.assinatura
+      if (typeof imagem !== 'string' || !imagem.startsWith(PNG_URL) || imagem.length > IMAGEM_MAX) throw requisicaoInvalida('Assinatura inválida. Desenhe de novo.')
+      const bytes = Buffer.from(imagem.slice(PNG_URL.length), 'base64')
+      if (bytes.length < 100 || bytes.readUInt32BE(0) !== 0x89504e47) throw requisicaoInvalida('Assinatura inválida. Desenhe de novo.')
+      if (cpf !== l.cpf) {
+        const erros = await d.repo.contarErroDeCpf(l.linha.id)
+        const restam = Math.max(0, TENTATIVAS_DE_CPF - erros)
+        throw new HttpError(403, restam > 0 ? `CPF não confere. Você tem mais ${restam} ${restam === 1 ? 'tentativa' : 'tentativas'}.` : 'CPF não confere e o link foi bloqueado. Peça um novo ao vendedor.', 'CPF_NAO_CONFERE')
+      }
+      const textoHash = sha256(l.linha.textoEnviado ?? '')
+      const ok = await d.repo.assinar(l.linha.id, { imagem, cpf, textoHash, ip: origem.ip, userAgent: origem.userAgent?.slice(0, 300) ?? null })
+      if (!ok) throw new HttpError(410, 'Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
+      await d.auditoria.registrar({ usuarioId: null, acao: 'CONTRATO_ASSINADO_PELO_LINK', entidade: 'contrato', entidadeId: l.linha.id, depois: { vendaId: l.linha.vendaId, ip: origem.ip, textoHash } })
+      return { numero: l.linha.numero, assinadoEm: new Date().toISOString() }
     },
 
     async modelo(s) {

@@ -6,9 +6,9 @@ import { criarEmprestimosHttp } from './emprestimos.http'
 import type { EstoqueApi } from './estoque'
 import { criarEstoqueFake } from './estoque.fake'
 import type { CaixaApi } from './caixa'
-import type { ContratosApi } from './contratos'
+import type { AssinarPublicoApi, ContratosApi } from './contratos'
 import { criarContratosFake } from './contratos.fake'
-import { criarContratosHttp } from './contratos.http'
+import { criarAssinarHttp, criarContratosHttp } from './contratos.http'
 import type { RelatoriosApi } from './relatorios'
 import { criarRelatoriosFake } from './relatorios.fake'
 import { criarRelatoriosHttp } from './relatorios.http'
@@ -80,4 +80,7 @@ export const equipeApi: EquipeApi = vendasFake ? criarEquipeFake(vendasFake) : c
 export const caixaApi: CaixaApi = vendasFake ? criarCaixaFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, repasses: repassesApi, ...(contaFake ? { conta: contaFake } : {}) }) : criarCaixaHttp(URL_API, requisicao)
 export const caixaFechamentosApi: CaixaFechamentosApi = vendasFake ? criarCaixaFechamentosFake({ caixa: caixaApi, hoje: vendasFake._interno.hoje }) : criarCaixaFechamentosHttp(URL_API, requisicao)
 export const relatoriosApi: RelatoriosApi = vendasFake ? criarRelatoriosFake({ vendas: vendasFake, emprestimos: emprestimosFake!, estoque: estoqueApi, caixa: caixaApi, repasses: repassesApi }) : criarRelatoriosHttp(URL_API, requisicao)
-export const contratosApi: ContratosApi = vendasFake ? criarContratosFake({ vendas: vendasFake, clientes: clientesApi, estoque: estoqueApi }) : criarContratosHttp(URL_API, requisicao)
+const contratosFake = vendasFake ? criarContratosFake({ vendas: vendasFake, clientes: clientesApi, estoque: estoqueApi }) : null
+export const contratosApi: ContratosApi = contratosFake ?? criarContratosHttp(URL_API, requisicao)
+/** A página pública de assinatura (sem login). */
+export const assinarApi: AssinarPublicoApi = contratosFake?.publico ?? criarAssinarHttp(URL_API)

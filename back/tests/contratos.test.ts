@@ -30,6 +30,7 @@ type Lista = { itens: { id: number; numero: string; status: string; clienteNome:
 
 describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   let app: FastifyInstance
+  let depsApp: Parameters<typeof buildApp>[0]
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
   const req = (metodo: 'GET' | 'POST' | 'PUT' | 'PATCH', url: string, papel?: string, payload?: object) => app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
@@ -67,12 +68,13 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     const indicadores = createIndicadoresService(createIndicadoresRepository(k), audit)
     const contratos = createContratosService({ repo: createContratosRepository(k), auditoria: audit })
     const config = createConfigRepository(k)
-    app = await buildApp({
+    depsApp = {
       env: { NODE_ENV: 'test', CORS_ORIGIN: [] }, db: { ping: async () => {} }, tokens, auth, clientes: {} as never, usuarios: {} as never, indicadores, estoque: createEstoqueService(createEstoqueRepository(k), audit),
       config: createConfigService(config), recebimentos: {} as never, aprovacoes: {} as never, fechamentos: {} as never, equipe: {} as never, contratos,
       vendas: createVendasService({ vendas: createVendasRepository(k), config, auditoria: audit, sincronizarNiveis: () => indicadores.sincronizarNiveis(), hoje: () => HOJE, gerarContrato: (v, u) => contratos.gerarDaVenda(v, u) }),
-      limites: { vendasPorMinuto: 100_000, recebimentosPorMinuto: 100_000 },
-    })
+      limites: { vendasPorMinuto: 100_000, recebimentosPorMinuto: 100_000, assinaturasPorMinuto: 100_000 },
+    }
+    app = await buildApp(depsApp)
     for (const papel of ['admin', 'vendedorA', 'vendedorB', 'cobrador', 'indicador']) t[papel] = (await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: `${papel}@t.com`, senha: SENHA } })).json().accessToken
   })
   beforeEach(async () => {
@@ -82,7 +84,12 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     await k('sistema_config').insert({ chave: 'empresa_cnpj', valor: JSON.stringify(null) }).onConflict('chave').merge()
     await k('sistema_config').insert({ chave: 'empresa_nome', valor: JSON.stringify('Mundo dos iPhones') }).onConflict('chave').merge()
   })
-  afterAll(async () => { await app?.close(); await db?.destroy() })
+  afterAll(async () => {
+    // não deixa a empresa de teste para os outros arquivos (o recibo usa o CNPJ)
+    await db?.('sistema_config').whereIn('chave', ['empresa_endereco', 'empresa_email', 'empresa_atendente', 'taxa_avaria', 'taxa_reposicao', 'taxa_seguro_mensal', 'taxa_cancelamento_pct', 'taxa_recuperacao']).del()
+    await db?.('sistema_config').insert([{ chave: 'empresa_nome', valor: JSON.stringify('Mundo dos iPhones') }, { chave: 'empresa_cnpj', valor: JSON.stringify(null) }]).onConflict('chave').merge()
+    await app?.close(); await db?.destroy()
+  })
 
   describe('quem pode o quê', () => {
     it('sem login: 401 em tudo', async () => {
@@ -115,9 +122,9 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       const d = r.json() as Detalhe
       expect(d.contrato).toMatchObject({ vendaId: v, numero: `2026-${String(v).padStart(4, '0')}`, status: 'AGUARDANDO', seguro: false, modeloVersao: 0, enviadoEm: null, assinadoEm: null })
       expect(d.congelado).toBe(false)
-      expect(d.texto).toContain(`CONTRATO Nº 2026-${String(v).padStart(4, '0')}`)
-      expect(d.texto).toContain('ANA SOUZA'); expect(d.texto).toContain('529.982.247-25'); expect(d.texto).toContain('IPHONE 15 128 GB, PRETO')
-      expect(d.texto).toContain('PAGAMENTO: 2x de R$ 1.000,00'); expect(d.texto).toContain('VALOR TOTAL DO CONTRATO: R$ 3.000,00')
+      expect(d.texto).toContain(`CONTRATO N°: 2026-${String(v).padStart(4, '0')}`)
+      expect(d.texto).toContain('ANA SOUZA'); expect(d.texto).toContain('529.982.247-25'); expect(d.texto).toContain('IPHONE 15 128 GB'); expect(d.texto).toContain('COR: PRETO')
+      expect(d.texto).toContain('VALOR: R$ 1.000,00 (entrada) + 2x de R$ 1.000,00 (mensal)'); expect(d.texto).toContain('VALOR TOTAL DO CONTRATO: R$ 3.000,00')
       expect(await db!('auditoria').where({ acao: 'CONTRATO_GERADO' }).count('* as n').first()).toMatchObject({ n: '1' })
     })
     it('gerar de novo: 409, e continua um só', async () => {
@@ -286,9 +293,9 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     it('muda antes de enviar: o texto passa a falar do seguro e a lista conta; depois de enviado não muda', async () => {
       await empresaCompleta()
       const cid = await contratoDe(await venda())
-      expect((await detalhe(cid)).texto).toContain('SEGURO: não contratado pelo cliente.')
+      expect((await detalhe(cid)).texto).toContain('Situação do seguro: não contratado pelo cliente.')
       const r = await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: true })
-      expect((r.json() as Detalhe).contrato.seguro).toBe(true); expect((r.json() as Detalhe).texto).toContain('SEGURO: contratado, R$ 39,90 por mês junto da parcela.')
+      expect((r.json() as Detalhe).contrato.seguro).toBe(true); expect((r.json() as Detalhe).texto).toContain('Situação do seguro: contratado, R$ 39,90 por mês junto da parcela.')
       await req('POST', `/api/contratos/${cid}/enviado`, 'admin')
       expect((await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: false })).json().codigo).toBe('CONTRATO_JA_ENVIADO')
       expect(await db!('auditoria').where({ acao: 'CONTRATO_SEGURO' }).count('* as n').first()).toMatchObject({ n: '1' })
@@ -404,6 +411,143 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       const v = await venda(); await gerar(v)
       await db!('venda_parcelas').where({ venda_id: v }).del(); await db!('vendas').where({ id: v }).del()
       expect(await db!('contratos').count('* as n').first()).toMatchObject({ n: '0' })
+    })
+  })
+
+  describe('link de assinatura', () => {
+    const PNG = 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 7)]).toString('base64')
+    const CPF = '529.982.247-25'
+    type Link = { token: string; expiraEm: string; contrato: Detalhe }
+    const link = async (cid: number, papel = 'admin') => req('POST', `/api/contratos/${cid}/link`, papel)
+    const pronto = async () => { await empresaCompleta(); const cid = await contratoDe(await venda()); const r = await link(cid); return { cid, token: (r.json() as Link).token } }
+    const assinar = (token: string, o: object = {}) => req('POST', `/api/assinar/${token}`, undefined, { cpf: CPF, aceito: true, assinatura: PNG, ...o })
+
+    it('gera o link: envia o contrato, congela o texto e devolve o token uma vez só', async () => {
+      await empresaCompleta()
+      const cid = await contratoDe(await venda())
+      const r = await link(cid)
+      expect(r.statusCode).toBe(201)
+      const j = r.json() as Link
+      expect(j.token.length).toBeGreaterThanOrEqual(40)
+      expect(j.contrato.contrato.status).toBe('ENVIADO'); expect(j.contrato.congelado).toBe(true)
+      const dias = (new Date(j.expiraEm).getTime() - Date.now()) / 86_400_000
+      expect(dias).toBeGreaterThan(6.9); expect(dias).toBeLessThanOrEqual(7)
+      // só o hash fica no banco
+      const l = await db!('contratos').where({ id: cid }).first()
+      expect(l.link_hash).not.toBe(j.token); expect(l.link_hash).toHaveLength(64)
+      expect(await db!('auditoria').where({ acao: 'CONTRATO_LINK_GERADO' }).count('* as n').first()).toMatchObject({ n: '1' })
+    })
+    it('quem tem o contrato gera o link; vendedor de fora, cobrador e visitante não', async () => {
+      await empresaCompleta()
+      const cid = await contratoDe(await venda())
+      expect((await link(cid, 'vendedorA')).statusCode).toBe(201)
+      expect((await link(cid, 'vendedorB')).statusCode).toBe(404)
+      expect((await link(cid, 'cobrador')).statusCode).toBe(403)
+      expect((await req('POST', `/api/contratos/${cid}/link`)).statusCode).toBe(401)
+    })
+    it('falta dado (empresa sem CNPJ e taxas): 409 e nada é enviado', async () => {
+      const cid = await contratoDe(await venda())
+      const r = await link(cid)
+      expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('DADOS_FALTANDO')
+      expect((await detalhe(cid)).contrato.status).toBe('AGUARDANDO')
+    })
+    it('sem CPF do cliente não há link (é o CPF que prova quem assina)', async () => {
+      await empresaCompleta()
+      await db!('clientes').where({ id: id.cli }).update({ cpf: null })
+      try {
+        const cid = await contratoDe(await venda())
+        const r = await link(cid)
+        expect(r.statusCode).toBe(409); expect(r.json().erro).toContain('CPF')
+      } finally { await db!('clientes').where({ id: id.cli }).update({ cpf: '52998224725' }) }
+    })
+    it('a página pública mostra o contrato daquele link, sem login', async () => {
+      const { token } = await pronto()
+      const r = await req('GET', `/api/assinar/${token}`)
+      expect(r.statusCode).toBe(200)
+      expect(r.json()).toMatchObject({ clienteNome: 'ANA SOUZA', empresa: 'Mundo dos iPhones LTDA' })
+      expect(r.json().texto).toContain('ANEXO II - MINUTA DE CONTRATO')
+      // o CPF é a prova de quem assina: a página pública não o mostra, mas o contrato gravado (e assinado) o tem inteiro
+      expect(r.json().texto).not.toContain('529.982.247-25'); expect(r.json().texto).not.toContain('52998224725'); expect(r.json().texto).toContain('***.***.***-25')
+      expect((await detalhe((await db!('contratos').first('id')).id)).texto).toContain('529.982.247-25')
+      expect(Object.keys(r.json()).sort()).toEqual(['aparelho', 'clienteNome', 'empresa', 'expiraEm', 'numero', 'texto'])
+    })
+    it('token inventado ou torto: 404', async () => {
+      for (const t of ['x'.repeat(43), 'curto', '../../etc/passwd']) expect((await req('GET', `/api/assinar/${encodeURIComponent(t)}`)).statusCode).toBe(404)
+    })
+    it('assina: grava a prova (imagem, CPF, hash do texto, IP), fecha o contrato e a venda, e o link morre', async () => {
+      const { cid, token } = await pronto()
+      const texto = (await detalhe(cid)).texto
+      const r = await assinar(token)
+      expect(r.statusCode).toBe(200)
+      expect(r.json()).toMatchObject({ numero: expect.stringContaining('2026-') })
+      const d = await detalhe(cid)
+      expect(d.contrato.status).toBe('ASSINADO'); expect(d.contrato.assinadoEm).not.toBeNull()
+      const a = (d as Detalhe & { assinatura: { imagem: string; cpf: string; textoHash: string; ip: string | null } }).assinatura
+      expect(a.imagem).toBe(PNG); expect(a.cpf).toBe('52998224725'); expect(a.ip).toBeTruthy()
+      const { createHash } = await import('node:crypto')
+      expect(a.textoHash).toBe(createHash('sha256').update(texto).digest('hex'))
+      expect(await db!('vendas').where({ id: d.contrato.vendaId }).first('contrato_status')).toMatchObject({ contrato_status: 'ASSINADO' })
+      expect((await req('GET', `/api/assinar/${token}`)).statusCode).toBe(404)
+      expect((await assinar(token)).statusCode).toBe(404)
+      expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_PELO_LINK' }).first('usuario_id')).toMatchObject({ usuario_id: null })
+    })
+    it('exige aceitar, CPF completo e uma assinatura de verdade (400)', async () => {
+      const { token } = await pronto()
+      for (const o of [{ aceito: false }, { aceito: undefined }, { cpf: '123' }, { cpf: undefined }, { assinatura: undefined }, { assinatura: 'data:image/jpeg;base64,AAAA' }, { assinatura: 'data:image/png;base64,' + Buffer.from('nao e png'.repeat(30)).toString('base64') }, { assinatura: 'data:image/png;base64,' + 'A'.repeat(500_000) }])
+        expect((await assinar(token, o)).statusCode, JSON.stringify(o).slice(0, 80)).toBe(400)
+    })
+    it('CPF errado: 403, conta a tentativa e depois de 5 o link bloqueia (mesmo com o CPF certo)', async () => {
+      const { cid, token } = await pronto()
+      const r = await assinar(token, { cpf: '111.444.777-35' })
+      expect(r.statusCode).toBe(403); expect(r.json()).toMatchObject({ codigo: 'CPF_NAO_CONFERE' }); expect(r.json().erro).toContain('mais 4 tentativas')
+      for (let i = 0; i < 4; i++) await assinar(token, { cpf: '111.444.777-35' })
+      const bloqueado = await assinar(token)
+      expect(bloqueado.statusCode).toBe(410); expect(bloqueado.json().codigo).toBe('LINK_BLOQUEADO')
+      expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+      // o vendedor gera outro e destrava
+      const novo = (await link(cid)).json() as Link
+      expect((await assinar(novo.token)).statusCode).toBe(200)
+    })
+    it('link vencido: 410', async () => {
+      const { cid, token } = await pronto()
+      await db!('contratos').where({ id: cid }).update({ link_expira_em: new Date(Date.now() - 1000) })
+      const r = await assinar(token)
+      expect(r.statusCode).toBe(410); expect(r.json().codigo).toBe('LINK_VENCIDO')
+      expect((await req('GET', `/api/assinar/${token}`)).statusCode).toBe(410)
+    })
+    it('um novo link troca o anterior (o velho para de valer)', async () => {
+      const { cid, token } = await pronto()
+      const novo = (await link(cid)).json() as Link
+      expect((await req('GET', `/api/assinar/${token}`)).statusCode).toBe(404)
+      expect((await req('GET', `/api/assinar/${novo.token}`)).statusCode).toBe(200)
+    })
+    it('a assinatura pública tem limite por IP (o link adivinhado a tiros não passa)', async () => {
+      const outro = await buildApp({ ...depsApp, limites: { ...depsApp.limites, assinaturasPorMinuto: 3 } })
+      try {
+        const codigos: number[] = []
+        for (let i = 0; i < 5; i++) codigos.push((await outro.inject({ method: 'POST', url: `/api/assinar/${'x'.repeat(43)}`, payload: { cpf: CPF, aceito: true, assinatura: PNG } })).statusCode)
+        expect(codigos).toEqual([404, 404, 404, 429, 429])
+      } finally { await outro.close() }
+    })
+    it('duas assinaturas ao mesmo tempo: só uma vale', async () => {
+      const { cid, token } = await pronto()
+      const [a, b] = await Promise.all([assinar(token), assinar(token)])
+      expect([a.statusCode, b.statusCode].filter((c) => c === 200)).toHaveLength(1)
+      expect(await db!('contrato_assinaturas').where({ contrato_id: cid }).count('* as n').first()).toMatchObject({ n: '1' })
+    })
+    it('contrato já assinado não gera link; venda retomada também não', async () => {
+      const { cid, token } = await pronto()
+      await assinar(token)
+      expect((await link(cid)).json().codigo).toBe('CONTRATO_JA_ASSINADO')
+      const cid2 = await contratoDe(await venda())
+      await db!('vendas').whereIn('id', db!('contratos').where({ id: cid2 }).select('venda_id')).update({ status: 'RETOMADA' })
+      expect((await link(cid2)).json().codigo).toBe('VENDA_ENCERRADA')
+    })
+    it('venda retomada depois do link: a página pública avisa (410)', async () => {
+      const { cid, token } = await pronto()
+      await db!('vendas').whereIn('id', db!('contratos').where({ id: cid }).select('venda_id')).update({ status: 'RETOMADA' })
+      const r = await req('GET', `/api/assinar/${token}`)
+      expect(r.statusCode).toBe(410); expect(r.json().codigo).toBe('VENDA_ENCERRADA')
     })
   })
 })

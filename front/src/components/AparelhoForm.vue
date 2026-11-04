@@ -20,7 +20,7 @@ const GBS = [64, 128, 256, 512, 1024]
 const MODELOS = ['iPhone 11', 'iPhone 12', 'iPhone 13', 'iPhone 13 Pro', 'iPhone 14', 'iPhone 14 Pro', 'iPhone 15', 'iPhone 15 Pro', 'iPhone 16', 'iPhone 16 Pro']
 
 const f = reactive({
-  modelo: '', gb: 128, cor: '', condicao: 'Seminovo' as 'Novo' | 'Seminovo', bateria: '100', imei: '', custo: 0, extras: 0, preco: 0,
+  modelo: '', gb: 128, cor: '', condicao: 'Seminovo' as 'Novo' | 'Seminovo', bateria: '100', imei: '', serie: '', custo: 0, extras: 0, preco: 0,
   dataCompra: '', origem: 'COMPRA' as 'COMPRA' | 'TROCA', estado: 'DISPONIVEL' as 'DISPONIVEL' | 'ENCOMENDADO', clienteId: '', observacoes: '',
 })
 const erros = reactive<Record<string, string>>({})
@@ -33,7 +33,7 @@ watch(() => props.aberto, async (aberto) => {
   const a = props.aparelho
   Object.assign(f, {
     modelo: a?.modelo ?? '', gb: a?.gb ?? 128, cor: a?.cor ?? '', condicao: a?.condicao ?? 'Seminovo', bateria: String(a?.bateria ?? 100),
-    imei: a?.imei ?? '', custo: a?.custo ?? 0, extras: a?.extras ?? 0, preco: a?.preco ?? 0, dataCompra: a?.dataCompra ?? hoje.value,
+    imei: a?.imei ?? '', serie: a?.serie ?? '', custo: a?.custo ?? 0, extras: a?.extras ?? 0, preco: a?.preco ?? 0, dataCompra: a?.dataCompra ?? hoje.value,
     origem: a?.origem ?? 'COMPRA', estado: a?.estado === 'ENCOMENDADO' ? 'ENCOMENDADO' : 'DISPONIVEL', clienteId: a?.paraCliente ? String(a.paraCliente.id) : '',
     observacoes: a?.observacoes ?? '',
   })
@@ -62,7 +62,7 @@ async function enviar() {
   enviando.value = true
   erroGeral.value = ''
   const dados: EntradaAparelho = {
-    modelo: f.modelo, gb: f.gb, cor: f.cor, condicao: f.condicao, bateria: Number(f.bateria), imei: f.imei.trim() ? soDigitos(f.imei) : null,
+    modelo: f.modelo, gb: f.gb, cor: f.cor, condicao: f.condicao, bateria: Number(f.bateria), imei: f.imei.trim() ? soDigitos(f.imei) : null, serie: f.serie.trim() || null,
     custo: f.custo, extras: f.extras, preco: f.preco, dataCompra: f.dataCompra, origem: f.origem, estado: f.estado,
     paraClienteId: f.estado === 'ENCOMENDADO' ? Number(f.clienteId) : null, observacoes: f.observacoes.trim() || null,
   }
@@ -72,6 +72,7 @@ async function enviar() {
   } catch (e) {
     const msg = e instanceof ErroApi ? e.message : 'Algo deu errado. Tente de novo.'
     if (e instanceof ErroApi && e.codigo === 'IMEI_DUPLICADO') erros.imei = msg
+    else if (e instanceof ErroApi && /série/i.test(msg)) erros.serie = msg
     else erroGeral.value = msg
   } finally {
     enviando.value = false
@@ -108,6 +109,11 @@ async function enviar() {
         <label for="aImei">IMEI</label>
         <div class="inp"><input id="aImei" v-model="f.imei" inputmode="numeric" maxlength="19" placeholder="15 dígitos (opcional na encomenda)" autocomplete="off" /></div>
         <span v-if="erros.imei" class="erro-campo">{{ erros.imei }}</span>
+      </div>
+      <div class="field">
+        <label for="aSerie">Número de série</label>
+        <div class="inp maiusc"><input id="aSerie" v-model="f.serie" maxlength="40" placeholder="Em Ajustes › Geral › Sobre (vai no contrato)" autocomplete="off" /></div>
+        <span v-if="erros.serie" class="erro-campo">{{ erros.serie }}</span>
       </div>
       <div class="grid2">
         <div class="field"><label for="aCusto">Custo</label><MoneyInput id="aCusto" v-model="f.custo" /></div>

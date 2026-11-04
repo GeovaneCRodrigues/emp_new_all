@@ -3,17 +3,21 @@ import { useAuth } from '@/composables/useAuth'
 import Login from './views/Login.vue'
 import TrocarSenha from './views/TrocarSenha.vue'
 import Pagina from './views/Pagina.vue'
+import Assinar from './views/Assinar.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: Login, meta: { publica: true } },
     { path: '/trocar-senha', component: TrocarSenha },
+    // o cliente assina sem login: a página só conhece o link
+    { path: '/assinar/:token', component: Assinar, meta: { publica: true, semLogin: true } },
     { path: '/:secao?', component: Pagina },
   ],
 })
 
 router.beforeEach(async (to) => {
+  if (to.meta.semLogin) return
   const { iniciar, logado, precisaTrocarSenha } = useAuth()
   await iniciar()
   if (!to.meta.publica && !logado.value) return { path: '/login', query: to.fullPath !== '/' ? { volta: to.fullPath } : {} }

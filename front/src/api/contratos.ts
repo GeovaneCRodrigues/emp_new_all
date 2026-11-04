@@ -16,9 +16,23 @@ export interface ContratoItemApi {
   enviadoEm: string | null
   assinadoEm: string | null
   clienteNome: string
+  /** só dígitos, com DDD */
+  clienteFone: string
   aparelho: string
   dataVenda: string
   vendaStatus: string
+}
+
+/** A prova de quem assinou pelo link (só existe depois de assinado). */
+export interface AssinaturaContratoApi {
+  /** data URL PNG da assinatura desenhada */
+  imagem: string
+  /** só dígitos */
+  cpf: string
+  textoHash: string
+  ip: string | null
+  userAgent: string | null
+  assinadoEm: string
 }
 
 export interface ContratoDetalheApi {
@@ -30,6 +44,20 @@ export interface ContratoDetalheApi {
   faltam: string[]
   /** o texto final, para copiar */
   texto: string
+  assinatura: AssinaturaContratoApi | null
+}
+
+/** O link de assinatura: o token só aparece quando é gerado (no servidor fica só o hash). */
+export interface LinkGeradoApi { token: string; expiraEm: string; contrato: ContratoDetalheApi }
+
+/** O que a página pública de assinatura mostra. O CPF aparece mascarado no texto. */
+export interface ContratoParaAssinarApi { numero: string; clienteNome: string; aparelho: string; empresa: string; texto: string; expiraEm: string }
+export interface EntradaAssinatura { cpf: string; aceito: boolean; /** data URL PNG */ assinatura: string }
+
+/** Páginas públicas (o cliente não tem login): quem manda é o token do link. */
+export interface AssinarPublicoApi {
+  ver(token: string): Promise<ContratoParaAssinarApi>
+  assinar(token: string, e: EntradaAssinatura): Promise<{ numero: string; assinadoEm: string }>
 }
 
 export interface ListaContratosApi { itens: ContratoItemApi[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
@@ -48,6 +76,8 @@ export interface ContratosApi {
   marcarEnviado(s: Sessao, id: number): Promise<ContratoDetalheApi>
   marcarAssinado(s: Sessao, id: number): Promise<ContratoDetalheApi>
   definirSeguro(s: Sessao, id: number, seguro: boolean): Promise<ContratoDetalheApi>
+  /** Gera (ou troca) o link de assinatura; envia o contrato e fecha o texto. */
+  gerarLink(s: Sessao, id: number): Promise<LinkGeradoApi>
   modelo(s: Sessao): Promise<ModeloApi>
   salvarModelo(s: Sessao, texto: string): Promise<ModeloApi>
   previa(s: Sessao, texto: string, vendaId: number): Promise<PreviaApi>

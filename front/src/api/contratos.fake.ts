@@ -2,7 +2,7 @@ import { camposDesconhecidos, MODELO_PADRAO, preencher, VARIAVEIS, type DadosVen
 import type { Sessao } from '@/domain/escopo'
 import { ErroApi } from './clientes'
 import type { ClientesApi } from './clientes'
-import type { ContratoDetalheApi, ContratoItemApi, ContratosApi, EmpresaApi, ListaContratosApi, ModeloApi, StatusContratoApi } from './contratos'
+import type { AssinarPublicoApi, AssinaturaContratoApi, ContratoDetalheApi, ContratoItemApi, ContratosApi, EmpresaApi, ListaContratosApi, ModeloApi, StatusContratoApi } from './contratos'
 import type { EstoqueApi } from './estoque'
 import type { Registro, VendasFake } from './vendas.fake'
 
@@ -14,13 +14,27 @@ const erro = (m: string) => new ErroApi(400, m)
 const conflito = (m: string, codigo: string) => new ErroApi(409, m, codigo)
 const semPermissao = (m: string) => new ErroApi(403, m, 'SEM_PERMISSAO')
 
-type Estado = { modeloVersao: number; seguro: boolean; enviadoEm: string | null; assinadoEm: string | null; textoEnviado: string | null }
+type Estado = {
+  modeloVersao: number; seguro: boolean; enviadoEm: string | null; assinadoEm: string | null; textoEnviado: string | null
+  assinatura?: AssinaturaContratoApi
+  link?: { token: string; expiraEm: string; tentativas: number }
+}
+const LINK_DIAS = 7
+const TENTATIVAS_DE_CPF = 5
+const PNG_URL = 'data:image/png;base64,'
+/** A página pública não mostra o CPF (é o que o cliente digita para provar quem é). */
+function mascararCpf(texto: string, cpf: string | null): string {
+  const dig = (cpf ?? '').replace(/\D/g, '')
+  if (dig.length !== 11) return texto
+  const mascarado = `***.***.***-${dig.slice(9)}`
+  return texto.replaceAll(`${dig.slice(0, 3)}.${dig.slice(3, 6)}.${dig.slice(6, 9)}-${dig.slice(9)}`, mascarado).replaceAll(dig, mascarado)
+}
 
 /**
  * Versão de demonstração: as mesmas regras do backend. Cada venda da demonstração tem um contrato (as seedadas assinadas já vêm assinadas),
  * e o status acompanha o da venda para o resto das telas (cartões, Início do vendedor) ficarem iguais.
  */
-export function criarContratosFake(dep: { vendas: VendasFake; clientes: ClientesApi; estoque: EstoqueApi }): ContratosApi {
+export function criarContratosFake(dep: { vendas: VendasFake; clientes: ClientesApi; estoque: EstoqueApi }): ContratosApi & { publico: AssinarPublicoApi } {
   const hoje = dep.vendas._interno.hoje
   const agora = `${hoje}T12:00:00.000Z`
   const estados = new Map<number, Estado>()
@@ -49,8 +63,11 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     const a = await dep.estoque.obter(ADM, r.aparelho.id).catch(() => null)
     return {
       vendaId: r.id, vendaStatus: r.status, numero: numero(r), dataVenda: r.dataVenda,
-      cliente: { nome: c.nome, cpf: c.cpf ?? null, fone: c.fone, endereco: c.endereco ?? null },
-      aparelho: { modelo: r.aparelho.modelo, gb: r.aparelho.gb, cor: r.aparelho.cor, condicao: a?.condicao ?? 'Seminovo', imei: a?.imei ?? null },
+      cliente: {
+        nome: c.nome, cpf: c.cpf ?? null, fone: c.fone, email: c.email ?? null, rg: c.rg ?? null,
+        endereco: c.endereco ?? null, numero: c.numero ?? null, bairro: c.bairro ?? null, cidade: c.cidade ?? null, uf: c.uf ?? null, cep: c.cep ?? null,
+      },
+      aparelho: { modelo: r.aparelho.modelo, gb: r.aparelho.gb, cor: r.aparelho.cor, condicao: a?.condicao ?? 'Seminovo', imei: a?.imei ?? null, serie: a?.serie ?? null },
       entrada: r.entrada, troca: r.troca, parcelas: r.parcelas.map((p) => ({ valor: p.valor, vencimento: p.vencimento })), seguro,
     }
   }
@@ -71,15 +88,16 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     const e = await estadoDe(r)
     return {
       id: r.id, vendaId: r.id, numero: numero(r), status: statusDe(r), modeloVersao: e.modeloVersao, seguro: e.seguro, geradoEm: `${r.dataVenda}T12:00:00.000Z`, enviadoEm: e.enviadoEm, assinadoEm: e.assinadoEm,
-      clienteNome: r.cliente.nome, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, dataVenda: r.dataVenda, vendaStatus: r.status,
+      clienteNome: r.cliente.nome, clienteFone: (await dep.clientes.obter(ADM, r.cliente.id)).fone, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, dataVenda: r.dataVenda, vendaStatus: r.status,
     }
   }
   async function detalhe(r: Registro): Promise<ContratoDetalheApi> {
     const e = await estadoDe(r)
     const contrato = await item(r)
-    if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado }
+    const assinatura = e.assinatura ?? null
+    if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado, assinatura }
     const p = preencher(textoVersao(e.modeloVersao), await dados(r, e.seguro), empresa)
-    return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto }
+    return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, assinatura }
   }
   function achar(s: Sessao, id: number): Registro {
     const r = registrosDe(s).find((x) => x.id === id)
@@ -90,7 +108,42 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   const pendente = (r: Registro) => r.contrato !== 'ASSINADO' && r.status !== 'RETOMADA'
   const viewModelo = (): ModeloApi => { const m = modelos.at(-1); return { versao: m?.versao ?? 0, texto: m?.texto ?? MODELO_PADRAO, padrao: MODELO_PADRAO, variaveis: VARIAVEIS } }
 
-  return {
+  let seqToken = 0
+  /** O contrato de um link que ainda vale (não assinado, não vencido, não bloqueado), como o backend. */
+  async function linkVivo(token: string) {
+    sincronizar()
+    const r = dep.vendas._interno.registros.find((x) => estados.get(x.id)?.link?.token === token)
+    const e = r && estados.get(r.id)
+    if (!r || !e || !e.link || e.textoEnviado === null) throw new ErroApi(404, 'Link inválido. Peça um novo ao vendedor.', 'NAO_ENCONTRADO')
+    if (statusDe(r) === 'ASSINADO') throw new ErroApi(410, 'Este contrato já foi assinado.', 'CONTRATO_JA_ASSINADO')
+    if (e.link.tentativas >= TENTATIVAS_DE_CPF) throw new ErroApi(410, 'Link bloqueado por tentativas erradas. Peça um novo ao vendedor.', 'LINK_BLOQUEADO')
+    if (Date.parse(e.link.expiraEm) < Date.parse(agora)) throw new ErroApi(410, 'Este link venceu. Peça um novo ao vendedor.', 'LINK_VENCIDO')
+    if (!ativa(r)) throw new ErroApi(410, 'Esta venda foi encerrada.', 'VENDA_ENCERRADA')
+    return { r, e, link: e.link, texto: e.textoEnviado, cpf: (await dados(r, e.seguro)).cliente.cpf }
+  }
+  const publico: AssinarPublicoApi = {
+    async ver(token) {
+      const { r, link, texto, cpf } = await linkVivo(token)
+      return { numero: numero(r), clienteNome: r.cliente.nome, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, empresa: empresa.nome, texto: mascararCpf(texto, cpf), expiraEm: link.expiraEm }
+    },
+    async assinar(token, corpo) {
+      const { r, e, link, texto, cpf } = await linkVivo(token)
+      if (corpo.aceito !== true) throw erro('Marque que leu e concorda com o contrato')
+      const dig = typeof corpo.cpf === 'string' ? corpo.cpf.replace(/\D/g, '') : ''
+      if (dig.length !== 11) throw erro('Digite o CPF completo (11 números)')
+      if (typeof corpo.assinatura !== 'string' || !corpo.assinatura.startsWith(PNG_URL) || corpo.assinatura.length > 400_000) throw erro('Assinatura inválida. Desenhe de novo.')
+      if (dig !== (cpf ?? '').replace(/\D/g, '')) {
+        link.tentativas += 1
+        const restam = Math.max(0, TENTATIVAS_DE_CPF - link.tentativas)
+        throw new ErroApi(403, restam > 0 ? `CPF não confere. Você tem mais ${restam} ${restam === 1 ? 'tentativa' : 'tentativas'}.` : 'CPF não confere e o link foi bloqueado. Peça um novo ao vendedor.', 'CPF_NAO_CONFERE')
+      }
+      e.assinadoEm = agora; r.contrato = 'ASSINADO'; delete e.link
+      e.assinatura = { imagem: corpo.assinatura, cpf: dig, textoHash: `demo-${texto.length}`, ip: '127.0.0.1', userAgent: 'demonstração', assinadoEm: agora }
+      return { numero: numero(r), assinadoEm: agora }
+    },
+  }
+
+  const api: ContratosApi = {
     async listar(s, q = {}): Promise<ListaContratosApi> {
       if (q.status !== undefined && q.status !== 'ESPERANDO' && q.status !== 'ASSINADO') throw erro('status deve ser ESPERANDO ou ASSINADO')
       const todos = registrosDe(s).slice().sort((a, b) => b.dataVenda.localeCompare(a.dataVenda) || b.id - a.id)
@@ -133,6 +186,21 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       if (statusDe(r) !== 'ENVIADO') throw conflito('Marque o contrato como enviado antes de marcar como assinado', 'CONTRATO_NAO_ENVIADO')
       e.assinadoEm = agora; r.contrato = 'ASSINADO'
       return detalhe(r)
+    },
+    async gerarLink(s, id) {
+      const r = achar(s, id); const e = await estadoDe(r)
+      if (statusDe(r) === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
+      if (!ativa(r)) throw conflito('Venda retomada ou cancelada não envia contrato', 'VENDA_ENCERRADA')
+      const det = await detalhe(r)
+      const faltam = [...det.faltam]
+      const cpf = (await dados(r, e.seguro)).cliente.cpf
+      if ((cpf ?? '').replace(/\D/g, '').length !== 11 && !faltam.includes('CPF')) faltam.push('CPF')
+      if (faltam.length) throw conflito(`Falta cadastrar: ${faltam.join(', ')}`, 'DADOS_FALTANDO')
+      if (statusDe(r) === 'AGUARDANDO') { e.enviadoEm = agora; e.textoEnviado = det.texto; r.contrato = 'ENVIADO' }
+      const token = `demo${String(++seqToken).padStart(4, '0')}${'x'.repeat(40)}`
+      const expiraEm = new Date(Date.parse(agora) + LINK_DIAS * 86_400_000).toISOString()
+      e.link = { token, expiraEm, tentativas: 0 }
+      return { token, expiraEm, contrato: await detalhe(r) }
     },
     async definirSeguro(s, id, seguro) {
       exigirAdmin(s, 'Só o administrador muda o seguro do contrato')
@@ -198,4 +266,6 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       return { ...empresa }
     },
   }
+
+  return { ...api, publico }
 }

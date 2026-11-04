@@ -4,7 +4,7 @@ import type { Sessao } from '@/domain/escopo'
 import { ErroApi } from './clientes'
 import type { ClientesApi } from './clientes'
 import { criarClientesFake } from './clientes.fake'
-import type { ContratosApi } from './contratos'
+import type { AssinarPublicoApi, ContratosApi } from './contratos'
 import { criarContratosFake } from './contratos.fake'
 import { criarEstoqueFake, type EstoqueFake } from './estoque.fake'
 import { criarIndicadoresFake } from './indicadores.fake'
@@ -15,7 +15,7 @@ const ADMIN: Sessao = { perfil: 'ADMIN', usuarioId: 1 }
 const COBRADOR: Sessao = { perfil: 'COBRADOR', usuarioId: 3 }
 const INDICADOR: Sessao = { perfil: 'INDICADOR', indicadorId: 1 }
 
-let api: ContratosApi, vendas: VendasFake, clientes: ClientesApi, estoque: EstoqueFake
+let api: ContratosApi & { publico: AssinarPublicoApi }, vendas: VendasFake, clientes: ClientesApi, estoque: EstoqueFake
 beforeEach(() => {
   estoque = criarEstoqueFake(); clientes = criarClientesFake()
   vendas = criarVendasFake({ estoque, indicadores: criarIndicadoresFake(), clientes })
@@ -66,7 +66,7 @@ describe('contratos (demonstração)', () => {
   it('contrato esperando sem CPF e endereço do cliente: mostra o que falta e não deixa enviar', async () => {
     const p = await pendente()
     const d = await api.obter(ADMIN, p.id)
-    expect(d.faltam).toEqual(['CPF', 'Endereço']); expect(d.trechos.some((t) => t.tipo === 'falta')).toBe(true)
+    expect(d.faltam).toEqual(['Endereço completo', 'CPF']); expect(d.trechos.some((t) => t.tipo === 'falta')).toBe(true)
     const e = await falha(api.marcarEnviado(ADMIN, p.id))
     expect(e?.status).toBe(409); expect(e?.codigo).toBe('DADOS_FALTANDO'); expect(e?.message).toContain('CPF')
   })
@@ -166,6 +166,63 @@ describe('contratos (demonstração)', () => {
     })
     it.each([['CNPJ curto', { cnpj: '1' }], ['e-mail ruim', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['multa > 100', { cancelamentoPct: 101 }], ['nome vazio', { nome: '' }], ['taxa em texto', { seguro: '1' }]])('%s: 400', async (_n, corpo) => {
       expect((await falha(api.salvarEmpresa(ADMIN, corpo as never)))?.status).toBe(400)
+    })
+  })
+
+  describe('link de assinatura (mesmos cenários do backend)', () => {
+    const PNG = 'data:image/png;base64,' + btoa('\x89PNG\r\n\x1a\n' + 'x'.repeat(300))
+    const CPF = '529.982.247-25'
+    async function comLink() {
+      const p = await pendente(); await completarCliente(p.vendaId)
+      const r = await api.gerarLink(ADMIN, p.id)
+      return { p, token: r.token, r }
+    }
+    it('gera o link: contrato enviado, texto congelado, token longo e validade de 7 dias', async () => {
+      const { r } = await comLink()
+      expect(r.token.length).toBeGreaterThanOrEqual(40)
+      expect(r.contrato.contrato.status).toBe('ENVIADO'); expect(r.contrato.congelado).toBe(true)
+      expect((Date.parse(r.expiraEm) - Date.parse(`${vendas._interno.hoje}T12:00:00.000Z`)) / 86_400_000).toBe(7)
+    })
+    it('sem CPF/endereço não gera (409 DADOS_FALTANDO)', async () => {
+      const p = await pendente()
+      const e = await falha(api.gerarLink(ADMIN, p.id))
+      expect(e?.status).toBe(409); expect(e?.codigo).toBe('DADOS_FALTANDO')
+    })
+    it('a página pública mostra o texto sem o CPF (ele é a prova de quem assina)', async () => {
+      const { token } = await comLink()
+      const v = await api.publico.ver(token)
+      expect(v.texto).not.toContain(CPF); expect(v.texto).not.toContain('52998224725'); expect(v.texto).toContain('***.***.***-25')
+    })
+    it('token inventado: 404', async () => { expect((await falha(api.publico.ver('x'.repeat(43))))?.status).toBe(404) })
+    it('assina: contrato e venda ficam ASSINADO, a prova é guardada e o link morre', async () => {
+      const { p, token } = await comLink()
+      await api.publico.assinar(token, { cpf: CPF, aceito: true, assinatura: PNG })
+      const d = await api.obter(ADMIN, p.id)
+      expect(d.contrato.status).toBe('ASSINADO'); expect(d.assinatura).toMatchObject({ cpf: '52998224725', imagem: PNG })
+      expect(vendas._interno.registros.find((r) => r.id === p.vendaId)!.contrato).toBe('ASSINADO')
+      expect((await falha(api.publico.ver(token)))?.status).toBe(404)
+    })
+    it('exige aceitar, CPF completo e assinatura válida (400)', async () => {
+      const { token } = await comLink()
+      for (const o of [{ aceito: false }, { cpf: '123' }, { assinatura: 'data:image/jpeg;base64,AAAA' }]) expect((await falha(api.publico.assinar(token, { cpf: CPF, aceito: true, assinatura: PNG, ...o })))?.status).toBe(400)
+    })
+    it('CPF errado: 403 com as tentativas que restam; na quinta o link bloqueia, mesmo com o CPF certo', async () => {
+      const { token } = await comLink()
+      const e = await falha(api.publico.assinar(token, { cpf: '111.444.777-35', aceito: true, assinatura: PNG }))
+      expect(e).toMatchObject({ status: 403, codigo: 'CPF_NAO_CONFERE' }); expect(e?.message).toContain('mais 4 tentativas')
+      for (let i = 0; i < 4; i++) await falha(api.publico.assinar(token, { cpf: '111.444.777-35', aceito: true, assinatura: PNG }))
+      expect((await falha(api.publico.assinar(token, { cpf: CPF, aceito: true, assinatura: PNG })))?.codigo).toBe('LINK_BLOQUEADO')
+    })
+    it('um novo link troca o anterior', async () => {
+      const { p, token } = await comLink()
+      const novo = await api.gerarLink(ADMIN, p.id)
+      expect((await falha(api.publico.ver(token)))?.status).toBe(404)
+      expect((await api.publico.ver(novo.token)).numero).toBeTruthy()
+    })
+    it('contrato assinado não gera novo link', async () => {
+      const { p, token } = await comLink()
+      await api.publico.assinar(token, { cpf: CPF, aceito: true, assinatura: PNG })
+      expect((await falha(api.gerarLink(ADMIN, p.id)))?.codigo).toBe('CONTRATO_JA_ASSINADO')
     })
   })
 })

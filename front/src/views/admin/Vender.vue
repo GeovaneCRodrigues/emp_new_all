@@ -3,9 +3,11 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ErroApi, type ClienteApi, type SalvoCliente } from '@/api/clientes'
 import { investidoApi, type AparelhoApi } from '@/api/estoque'
-import { clientesApi, estoqueApi, indicadoresApi, propostasApi, vendasApi } from '@/api/recursos'
+import { clientesApi, contratosApi, estoqueApi, indicadoresApi, propostasApi, vendasApi } from '@/api/recursos'
 import type { EntradaVenda, FormaPagamentoApi, JurosApi, VendaApi } from '@/api/vendas'
+import AparelhoForm from '@/components/AparelhoForm.vue'
 import ClienteForm from '@/components/ClienteForm.vue'
+import ContratoFicha from '@/components/ContratoFicha.vue'
 import Icon from '@/components/Icon.vue'
 import MiniFone from '@/components/MiniFone.vue'
 import MoneyInput from '@/components/MoneyInput.vue'
@@ -15,6 +17,7 @@ import { somaMes } from '@/domain/datas'
 import { dmy, fmt, fmt0, gbTxt, iniciais } from '@/domain/format'
 import { exibirFone, mascaraFone } from '@/domain/documentos'
 import { simularVenda } from '@/domain/calc'
+import { pendenciasDoContrato } from '@/domain/dadosContrato'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +39,10 @@ const clientes = ref<ClienteApi[]>([])
 const buscaCliente = ref('')
 const cliente = ref<ClienteApi | null>(null)
 const novoClienteAberto = ref(false)
+const editarClienteAberto = ref(false)
+const editarAparelhoAberto = ref(false)
+/** contrato da venda recém-feita (abre a ficha para gerar o link) */
+const contratoAberto = ref<number | null>(null)
 
 const indicadores = ref<{ id: number; nome: string; pct?: number }[]>([])
 
@@ -114,6 +121,16 @@ async function escolherAparelho(a: AparelhoApi, q: Record<string, unknown> = {})
 // ---------- passo 2: cliente ----------
 function escolherCliente(c: ClienteApi) { cliente.value = c; passo.value = 3 }
 function aoCriarCliente(r: SalvoCliente) { novoClienteAberto.value = false; escolherCliente(r.cliente) }
+function aoEditarCliente(r: SalvoCliente) { editarClienteAberto.value = false; cliente.value = r.cliente }
+function aoEditarAparelho(a: AparelhoApi) { editarAparelhoAberto.value = false; aparelho.value = a; aparelhos.value = aparelhos.value.map((x) => (x.id === a.id ? a : x)) }
+/** O que falta cadastrar para o contrato sair completo: aparece antes de confirmar, para completar com calma. */
+const pendencias = computed(() => (aparelho.value && cliente.value ? pendenciasDoContrato(cliente.value, aparelho.value) : { obrigatorias: [], recomendadas: [] }))
+const faltaDoCliente = computed(() => [...pendencias.value.obrigatorias, ...pendencias.value.recomendadas].filter((p) => p.de === 'cliente'))
+const faltaDoAparelho = computed(() => [...pendencias.value.obrigatorias, ...pendencias.value.recomendadas].filter((p) => p.de === 'aparelho'))
+async function abrirContrato() {
+  if (!venda.value) return
+  try { contratoAberto.value = (await contratosApi.porVenda(sessao.value, venda.value.id)).contrato.id } catch (e) { mostrar(e instanceof ErroApi ? e.message : 'Não consegui abrir o contrato.') }
+}
 
 // ---------- passo 3: pagamento e resumo ----------
 const trocaValor = computed(() => (f.temTroca ? f.troca.valor : 0))
@@ -183,6 +200,7 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
     <div v-if="venda.parcelas.length" class="small">A primeira vence em {{ dmy(venda.parcelas[0].vencimento) }}. Total do cliente: {{ fmt(venda.total) }}.</div>
     <div v-if="venda.seuLucro !== undefined" class="small">Seu lucro previsto: <b style="color: var(--ok)">{{ fmt(venda.seuLucro) }}</b></div>
     <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px">
+      <button class="btn b-ok" data-testid="venda-contrato" @click="abrirContrato"><Icon name="file-signature" small />Contrato do cliente</button>
       <button class="btn b-pri" @click="verOperacao">Ver a operação</button>
       <button class="btn b-out" @click="novaVenda">Nova venda</button>
     </div>
@@ -231,6 +249,23 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
             <MiniFone :cor="aparelho.cor" />
             <div style="flex: 1; min-width: 0"><div class="val">{{ [aparelho.modelo, gbTxt(aparelho.gb)].filter(Boolean).join(' · ') }}</div><div class="small">para {{ cliente.nome }}</div></div>
             <button class="btn b-ghost b-sm" @click="passo = 1">Trocar</button>
+          </div>
+
+          <div class="card pad" data-testid="dados-contrato" :style="{ borderColor: pendencias.obrigatorias.length ? 'var(--warn)' : 'var(--border)' }">
+            <div class="between" style="gap: 8px"><b>Dados do contrato</b><span class="chip" :class="pendencias.obrigatorias.length ? 'c-warn' : 'c-ok'">{{ pendencias.obrigatorias.length ? 'falta preencher' : 'completo' }}</span></div>
+            <div v-if="!faltaDoCliente.length && !faltaDoAparelho.length" class="small" style="margin-top: 4px">Tudo certo: o cliente poderá assinar o contrato pelo link assim que a venda for feita.</div>
+            <template v-else>
+              <div v-if="faltaDoCliente.length" class="small" style="margin-top: 6px" data-testid="dados-contrato-cliente">
+                <b>{{ cliente.nome }}</b>: <template v-for="(p, i) in faltaDoCliente" :key="p.chave"><span :style="{ color: pendencias.obrigatorias.includes(p) ? 'var(--warn)' : 'inherit', fontWeight: pendencias.obrigatorias.includes(p) ? 600 : 400 }">{{ p.rotulo.replace(' do cliente', '') }}</span>{{ i < faltaDoCliente.length - 1 ? ', ' : '' }}</template>
+                <button class="btn b-out b-sm" type="button" style="margin-left: 6px" data-testid="completar-cliente" @click="editarClienteAberto = true">Completar</button>
+              </div>
+              <div v-if="faltaDoAparelho.length" class="small" style="margin-top: 6px" data-testid="dados-contrato-aparelho">
+                <b>Aparelho</b>: <template v-for="(p, i) in faltaDoAparelho" :key="p.chave"><span :style="{ color: pendencias.obrigatorias.includes(p) ? 'var(--warn)' : 'inherit', fontWeight: pendencias.obrigatorias.includes(p) ? 600 : 400 }">{{ p.rotulo.replace(' do aparelho', '') }}</span>{{ i < faltaDoAparelho.length - 1 ? ', ' : '' }}</template>
+                <button v-if="ehAdmin" class="btn b-out b-sm" type="button" style="margin-left: 6px" data-testid="completar-aparelho" @click="editarAparelhoAberto = true">Completar</button>
+                <span v-else> (peça ao administrador)</span>
+              </div>
+              <div class="small" style="margin-top: 6px">{{ pendencias.obrigatorias.length ? 'Em laranja: sem isso o link de assinatura não sai. A venda pode ser feita assim mesmo.' : 'O que está em cinza sai como "Não informado" no contrato.' }}</div>
+            </template>
           </div>
 
           <div class="grid2">
@@ -296,6 +331,9 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
   </template>
 
   <ClienteForm :aberto="novoClienteAberto" :cliente="null" @fechar="novoClienteAberto = false" @salvo="aoCriarCliente" />
+  <ClienteForm :aberto="editarClienteAberto" :cliente="cliente" @fechar="editarClienteAberto = false" @salvo="aoEditarCliente" />
+  <AparelhoForm :aberto="editarAparelhoAberto" :aparelho="aparelho" @fechar="editarAparelhoAberto = false" @salvo="aoEditarAparelho" />
+  <ContratoFicha :contrato-id="contratoAberto" @fechar="contratoAberto = null" @mudou="() => undefined" />
 </template>
 
 <style scoped>

@@ -12,6 +12,8 @@ export type Aparelho = {
   condicao: Condicao
   /** só dígitos; opcional (uma encomenda ainda não tem) */
   imei: string | null
+  /** número de série (opcional) */
+  serie: string | null
   /** valor_compra: só o admin enxerga */
   custo: number
   /** custos_extras: só o admin enxerga */

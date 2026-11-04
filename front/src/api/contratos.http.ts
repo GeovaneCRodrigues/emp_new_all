@@ -1,5 +1,5 @@
 import { ErroApi } from './clientes'
-import type { ContratosApi } from './contratos'
+import type { AssinarPublicoApi, ContratosApi } from './contratos'
 
 type Requisicao = (url: string, init?: RequestInit) => Promise<Response>
 
@@ -24,10 +24,30 @@ export function criarContratosHttp(baseUrl: string, requisicao: Requisicao): Con
     marcarEnviado: (_s, id) => chamar(`/contratos/${id}/enviado`, json('POST')),
     marcarAssinado: (_s, id) => chamar(`/contratos/${id}/assinado`, json('POST')),
     definirSeguro: (_s, id, seguro) => chamar(`/contratos/${id}`, json('PATCH', { seguro })),
+    gerarLink: (_s, id) => chamar(`/contratos/${id}/link`, json('POST')),
     modelo: () => chamar('/contratos/modelo'),
     salvarModelo: (_s, texto) => chamar('/contratos/modelo', json('PUT', { texto })),
     previa: (_s, texto, vendaId) => chamar('/contratos/modelo/previa', json('POST', { texto, vendaId })),
     empresa: () => chamar('/contratos/empresa'),
     salvarEmpresa: (_s, e) => chamar('/contratos/empresa', json('PUT', e)),
+  }
+}
+
+/** Sem login e sem token de sessão: a página de assinatura do cliente. */
+export function criarAssinarHttp(baseUrl: string): AssinarPublicoApi {
+  async function chamar<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+    let r: Response
+    try {
+      r = await fetch(`${baseUrl}/api/assinar/${encodeURIComponent(caminho)}`, { ...init, headers: init.body ? { 'content-type': 'application/json' } : {} })
+    } catch {
+      throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.')
+    }
+    const corpo = await r.json().catch(() => ({}))
+    if (!r.ok) throw new ErroApi(r.status, corpo.erro ?? 'Algo deu errado. Tente de novo.', corpo.codigo)
+    return corpo as T
+  }
+  return {
+    ver: (token) => chamar(token),
+    assinar: (token, e) => chamar(token, { method: 'POST', body: JSON.stringify(e) }),
   }
 }

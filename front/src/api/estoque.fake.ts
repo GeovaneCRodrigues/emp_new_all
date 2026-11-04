@@ -26,7 +26,7 @@ export function criarEstoqueFake(): EstoqueFake {
   let proximoId = 1000
   const nomeCliente = (id: number | null) => (id ? (seed.clientes.find((c) => c.id === id)?.nome ?? '') : '')
   const registros: Registro[] = seed.bens.map((b) => ({
-    id: b.id, modelo: b.modelo, gb: b.gb, cor: b.cor, bateria: b.bateria, condicao: b.cond, imei: b.imei ? soDigitos(b.imei) : null,
+    id: b.id, modelo: b.modelo, gb: b.gb, cor: b.cor, bateria: b.bateria, condicao: b.cond, imei: b.imei ? soDigitos(b.imei) : null, serie: null,
     preco: b.preco, estado: b.estado, origem: b.origem, dataCompra: b.desde, custo: b.custo, extras: b.extras, observacoes: null,
     paraClienteId: b.paraCliente ?? null,
   }))
@@ -40,7 +40,7 @@ export function criarEstoqueFake(): EstoqueFake {
   const visao = (s: Sessao, r: Registro): AparelhoApi => {
     const cliente = r.paraClienteId && (s.perfil === 'ADMIN' || naCarteira(s, r.paraClienteId)) ? { id: r.paraClienteId, nome: nomeCliente(r.paraClienteId) } : null
     const base: AparelhoApi = {
-      id: r.id, modelo: r.modelo, gb: r.gb, cor: r.cor, bateria: r.bateria, condicao: r.condicao, imei: r.imei, preco: r.preco,
+      id: r.id, modelo: r.modelo, gb: r.gb, cor: r.cor, bateria: r.bateria, condicao: r.condicao, imei: r.imei, serie: r.serie, preco: r.preco,
       estado: r.estado, origem: r.origem, dataCompra: r.dataCompra, paraCliente: cliente,
     }
     return s.perfil === 'ADMIN' ? { ...base, custo: r.custo, extras: r.extras, observacoes: r.observacoes } : base
@@ -92,6 +92,11 @@ export function criarEstoqueFake(): EstoqueFake {
       else if (typeof e.imei !== 'string' || !imeiValido(e.imei)) throw erro('IMEI inválido. Confira os 15 dígitos')
       else d.imei = soDigitos(e.imei)
     } else if (!parcial) d.imei = null
+    if ('serie' in e) {
+      if (e.serie === null || e.serie === '') d.serie = null
+      else if (typeof e.serie !== 'string' || !/^[A-Za-z0-9]{5,40}$/.test(e.serie.trim())) throw erro('Número de série inválido (de 5 a 40 letras e números)')
+      else d.serie = e.serie.trim().toUpperCase()
+    } else if (!parcial) d.serie = null
     if ('observacoes' in e) {
       if (e.observacoes && e.observacoes.length > 500) throw erro('observacoes pode ter no máximo 500 caracteres')
       d.observacoes = e.observacoes?.trim() || null
@@ -123,7 +128,7 @@ export function criarEstoqueFake(): EstoqueFake {
       marcarVendido(id) { const r = registros.find((x) => x.id === id); if (r) { r.estado = 'VENDIDO'; r.paraClienteId = null } },
       devolver(id, dia, nota) { const r = registros.find((x) => x.id === id); if (r) { r.estado = 'DISPONIVEL'; r.paraClienteId = null; r.dataCompra = dia; r.observacoes = r.observacoes ? `${r.observacoes}\n${nota}` : nota } },
       receberTroca(d) {
-        registros.push({ id: ++proximoId, modelo: d.modelo, gb: d.gb, cor: d.cor, bateria: d.bateria, condicao: 'Seminovo', imei: d.imei, preco: d.preco, estado: 'DISPONIVEL', origem: 'TROCA', dataCompra: seed.hoje, custo: d.custo, extras: 0, observacoes: null, paraClienteId: null })
+        registros.push({ id: ++proximoId, modelo: d.modelo, gb: d.gb, cor: d.cor, bateria: d.bateria, condicao: 'Seminovo', imei: d.imei, serie: null, preco: d.preco, estado: 'DISPONIVEL', origem: 'TROCA', dataCompra: seed.hoje, custo: d.custo, extras: 0, observacoes: null, paraClienteId: null })
       },
     },
     async listar(s, q) {

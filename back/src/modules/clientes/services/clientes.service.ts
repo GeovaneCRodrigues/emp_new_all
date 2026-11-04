@@ -63,12 +63,22 @@ export function createClientesService(repo: ClientesRepository, auditoria: Audit
       }
     } else if (!parcial) d.cpf = null
 
-    for (const [campo, max] of [['rg', 20], ['endereco', 500], ['origem', 60], ['email', 255], ['observacoes', 2000]] as const) {
+    for (const [campo, max] of [['rg', 20], ['endereco', 500], ['numero', 20], ['bairro', 100], ['cidade', 100], ['origem', 60], ['email', 255], ['observacoes', 2000]] as const) {
       const v = opcional(e, campo, max)
       // nomes e endereços em maiúsculas; e-mail e observações ficam como foram digitados
-      if (v !== undefined) d[campo] = typeof v === 'string' && (campo === 'endereco' || campo === 'rg') ? maiusculas(v) : v
+      if (v !== undefined) d[campo] = typeof v === 'string' && (campo === 'endereco' || campo === 'rg' || campo === 'bairro' || campo === 'cidade') ? maiusculas(v) : v
       else if (!parcial) d[campo] = null
     }
+    if ('uf' in e) {
+      const v = opcional(e, 'uf', 2)
+      if (typeof v === 'string' && !/^[A-Za-z]{2}$/.test(v)) throw requisicaoInvalida('UF deve ter 2 letras, por exemplo SP')
+      d.uf = typeof v === 'string' ? v.toUpperCase() : v
+    } else if (!parcial) d.uf = null
+    if ('cep' in e) {
+      const v = opcional(e, 'cep', 12)
+      if (typeof v === 'string' && soDigitos(v).length !== 8) throw requisicaoInvalida('CEP deve ter 8 números')
+      d.cep = typeof v === 'string' ? soDigitos(v) : v
+    } else if (!parcial) d.cep = null
     if (typeof d.email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) throw requisicaoInvalida('E-mail inválido')
     return d
   }
