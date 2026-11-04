@@ -1,0 +1,10 @@
+[Unit]
+Description=Tenta emitir o certificado HTTPS do app até o DNS propagar
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+Unit=emitir-cert-app.service
+
+[Install]
+WantedBy=timers.target
