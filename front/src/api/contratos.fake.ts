@@ -2,7 +2,7 @@ import { camposDesconhecidos, MODELO_PADRAO, preencher, VARIAVEIS, type DadosVen
 import type { Sessao } from '@/domain/escopo'
 import { ErroApi } from './clientes'
 import type { ClientesApi } from './clientes'
-import type { AssinarPublicoApi, AssinaturaContratoApi, ContratoDetalheApi, ContratoItemApi, ContratosApi, EmpresaApi, ListaContratosApi, ModeloApi, StatusContratoApi } from './contratos'
+import type { ViaAssinaturaApi, AssinarPublicoApi, AssinaturaContratoApi, ContratoDetalheApi, ContratoItemApi, ContratosApi, EmpresaApi, ListaContratosApi, ModeloApi, StatusContratoApi } from './contratos'
 import type { EstoqueApi } from './estoque'
 import type { Registro, VendasFake } from './vendas.fake'
 
@@ -17,6 +17,8 @@ const semPermissao = (m: string) => new ErroApi(403, m, 'SEM_PERMISSAO')
 type Estado = {
   modeloVersao: number; seguro: boolean; enviadoEm: string | null; assinadoEm: string | null; textoEnviado: string | null
   assinatura?: AssinaturaContratoApi
+  via?: ViaAssinaturaApi
+  zapsign?: { token: string; url: string; status: string }
   link?: { token: string; expiraEm: string; tentativas: number }
 }
 const LINK_DIAS = 7
@@ -94,10 +96,10 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   async function detalhe(r: Registro): Promise<ContratoDetalheApi> {
     const e = await estadoDe(r)
     const contrato = await item(r)
-    const assinatura = e.assinatura ?? null
-    if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado, assinatura }
+    const extra = { assinatura: e.assinatura ?? null, assinaturaVia: e.via ?? (e.assinadoEm ? ('MANUAL' as const) : null), zapsign: e.zapsign ? { status: e.zapsign.status, sandbox: true, signUrl: e.zapsign.url, arquivoAssinado: null } : null }
+    if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado, ...extra }
     const p = preencher(textoVersao(e.modeloVersao), await dados(r, e.seguro), empresa)
-    return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, assinatura }
+    return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, ...extra }
   }
   function achar(s: Sessao, id: number): Registro {
     const r = registrosDe(s).find((x) => x.id === id)
@@ -137,7 +139,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
         const restam = Math.max(0, TENTATIVAS_DE_CPF - link.tentativas)
         throw new ErroApi(403, restam > 0 ? `CPF não confere. Você tem mais ${restam} ${restam === 1 ? 'tentativa' : 'tentativas'}.` : 'CPF não confere e o link foi bloqueado. Peça um novo ao vendedor.', 'CPF_NAO_CONFERE')
       }
-      e.assinadoEm = agora; r.contrato = 'ASSINADO'; delete e.link
+      e.assinadoEm = agora; e.via = 'LINK'; r.contrato = 'ASSINADO'; delete e.link
       e.assinatura = { imagem: corpo.assinatura, cpf: dig, textoHash: `demo-${texto.length}`, ip: '127.0.0.1', userAgent: 'demonstração', assinadoEm: agora }
       return { numero: numero(r), assinadoEm: agora }
     },
@@ -184,11 +186,33 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       const r = achar(s, id); const e = await estadoDe(r)
       if (statusDe(r) === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
       if (statusDe(r) !== 'ENVIADO') throw conflito('Marque o contrato como enviado antes de marcar como assinado', 'CONTRATO_NAO_ENVIADO')
-      e.assinadoEm = agora; r.contrato = 'ASSINADO'
+      e.assinadoEm = agora; e.via = 'MANUAL'; r.contrato = 'ASSINADO'
+      return detalhe(r)
+    },
+    async zapsignStatus(s) { registrosDe(s); return { ativo: true, sandbox: true, webhook: true } },
+    async enviarZapsign(s, id) {
+      const r = achar(s, id); const e = await estadoDe(r)
+      if (statusDe(r) === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
+      if (!ativa(r)) throw conflito('Venda retomada ou cancelada não envia contrato', 'VENDA_ENCERRADA')
+      if (e.zapsign?.status === 'pending') return detalhe(r)
+      const det = await detalhe(r)
+      const faltam = [...det.faltam]
+      const cpf = (await dados(r, e.seguro)).cliente.cpf
+      if ((cpf ?? '').replace(/\D/g, '').length !== 11 && !faltam.includes('CPF')) faltam.push('CPF')
+      if (faltam.length) throw conflito(`Falta cadastrar: ${faltam.join(', ')}`, 'DADOS_FALTANDO')
+      if (statusDe(r) === 'AGUARDANDO') { e.enviadoEm = agora; e.textoEnviado = det.texto; r.contrato = 'ENVIADO' }
+      delete e.link
+      e.zapsign = { token: `demoz${++seqToken}`, url: `https://app.zapsign.com.br/verificar/demo-${seqToken}`, status: 'pending' }
+      return detalhe(r)
+    },
+    async atualizarZapsign(s, id) {
+      const r = achar(s, id); const e = await estadoDe(r)
+      if (!e.zapsign) throw conflito('Este contrato não foi enviado pelo ZapSign', 'ZAPSIGN_NAO_ENVIADO')
       return detalhe(r)
     },
     async gerarLink(s, id) {
       const r = achar(s, id); const e = await estadoDe(r)
+      if (e.zapsign?.status === 'pending') throw conflito('Este contrato já foi enviado pelo ZapSign e espera a assinatura de lá', 'ZAPSIGN_EM_ANDAMENTO')
       if (statusDe(r) === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
       if (!ativa(r)) throw conflito('Venda retomada ou cancelada não envia contrato', 'VENDA_ENCERRADA')
       const det = await detalhe(r)

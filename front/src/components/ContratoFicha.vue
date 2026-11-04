@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
-import type { ContratoDetalheApi } from '@/api/contratos'
+import type { ContratoDetalheApi, ZapsignStatusApi } from '@/api/contratos'
 import { contratosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { dmyA } from '@/domain/format'
@@ -21,6 +21,9 @@ const copiado = ref(false)
 /** O link só aparece quando é gerado (o servidor guarda só o hash): fica aqui até fechar a ficha. */
 const link = ref<{ url: string; expiraEm: string } | null>(null)
 const linkCopiado = ref(false)
+/** O ZapSign está ligado no servidor? (sem ele só aparece o link próprio) */
+const zap = ref<ZapsignStatusApi | null>(null)
+contratosApi.zapsignStatus(sessao.value).then((z) => { zap.value = z }).catch(() => { zap.value = null })
 const cpfMascarado = (cpf: string) => `***.***.***-${cpf.slice(9)}`
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
 
@@ -59,16 +62,28 @@ async function gerarLink() {
     emit('mudou')
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui gerar o link.' } finally { enviando.value = false }
 }
+const enviarZapsign = () => acao(() => contratosApi.enviarZapsign(sessao.value, props.contratoId!))
+const atualizarZapsign = () => acao(() => contratosApi.atualizarZapsign(sessao.value, props.contratoId!))
+const zapPendente = computed(() => d.value?.zapsign?.status === 'pending')
+/** O endereço que o cliente abre para assinar: o do ZapSign, se foi por lá; senão o nosso link. */
+const urlParaCliente = computed(() => (zapPendente.value ? d.value?.zapsign?.signUrl : null) ?? link.value?.url ?? '')
+const zapChip = computed(() => {
+  const z = d.value?.zapsign
+  if (!z) return null
+  if (z.status === 'signed') return { cls: z.sandbox ? 'c-neu' : 'c-ok', txt: z.sandbox ? 'assinado (teste)' : 'assinado no ZapSign' }
+  if (z.status === 'refused') return { cls: 'c-bad', txt: 'recusado no ZapSign' }
+  return { cls: 'c-warn', txt: 'esperando assinatura no ZapSign' }
+})
 const primeiroNome = computed(() => (d.value?.contrato.clienteNome ?? '').split(' ')[0].toLowerCase().replace(/^./, (c) => c.toUpperCase()))
-const mensagem = computed(() => `Olá, ${primeiroNome.value}! Segue o contrato ${d.value?.contrato.numero ?? ''} do seu ${d.value?.contrato.aparelho ?? 'aparelho'} para você ler e assinar pelo celular: ${link.value?.url ?? ''}`)
+const mensagem = computed(() => `Olá, ${primeiroNome.value}! Segue o contrato ${d.value?.contrato.numero ?? ''} do seu ${d.value?.contrato.aparelho ?? 'aparelho'} para você ler e assinar pelo celular: ${urlParaCliente.value}`)
 const whatsapp = computed(() => {
   const fone = d.value?.contrato.clienteFone ?? ''
   const destino = fone ? (fone.startsWith('55') && fone.length > 11 ? fone : `55${fone}`) : ''
   return `https://wa.me/${destino}?text=${encodeURIComponent(mensagem.value)}`
 })
 async function copiarLink() {
-  if (!link.value) return
-  try { await navigator.clipboard.writeText(link.value.url); linkCopiado.value = true; setTimeout(() => (linkCopiado.value = false), 2000) } catch { erro.value = 'Não consegui copiar. Selecione o link na tela.' }
+  if (!urlParaCliente.value) return
+  try { await navigator.clipboard.writeText(urlParaCliente.value); linkCopiado.value = true; setTimeout(() => (linkCopiado.value = false), 2000) } catch { erro.value = 'Não consegui copiar. Selecione o link na tela.' }
 }
 const seguro = (v: boolean) => acao(() => contratosApi.definirSeguro(sessao.value, props.contratoId!, v))
 
@@ -116,6 +131,7 @@ function imprimir() {
       </div>
       <div v-if="d.faltam.length" class="aviso" data-testid="ficha-faltam"><Icon name="file-signature" small /><span>Falta cadastrar: {{ d.faltam.join(', ') }}. Complete no cadastro do cliente ou em Empresa e taxas para sair no contrato.</span></div>
       <div class="papel" style="margin-top: 12px" data-testid="ficha-texto"><template v-for="(t, i) in d.trechos" :key="i"><mark v-if="t.tipo === 'ok'">{{ t.v }}</mark><mark v-else-if="t.tipo === 'falta' || t.tipo === 'desconhecido'" class="f">{{ t.v }}</mark><template v-else>{{ t.v }}</template></template></div>
+      <div v-if="d.assinaturaVia === 'ZAPSIGN'" class="small" style="margin-top: 8px" data-testid="ficha-via-zapsign">Assinado pelo ZapSign (prova e PDF assinado ficam lá).</div>
       <div v-if="d.assinatura" class="card pad" style="margin-top: 12px" data-testid="ficha-assinatura">
         <div class="lbl">Assinado pelo cliente</div>
         <img :src="d.assinatura.imagem" alt="Assinatura do cliente" style="display: block; max-width: 100%; height: 90px; object-fit: contain; background: #fff; border-radius: 8px; margin: 6px 0" />
@@ -125,6 +141,21 @@ function imprimir() {
       <div v-if="d.congelado" class="small" style="margin-top: 8px" data-testid="ficha-congelado">Contrato enviado: o texto não muda mais, mesmo que o modelo ou o cadastro mudem.</div>
       <label v-else-if="ehAdmin" class="row" style="margin-top: 12px; gap: 8px; font-size: 14px"><input type="checkbox" :checked="d.contrato.seguro" :disabled="enviando" data-testid="ficha-seguro" @change="seguro(($event.target as HTMLInputElement).checked)" />Cliente contratou o seguro</label>
       <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); margin-top: 12px">{{ erro }}</div>
+      <div v-if="d.zapsign" class="card pad" style="margin-top: 12px" data-testid="ficha-zapsign">
+        <div class="between" style="gap: 8px"><div class="lbl">ZapSign</div><span class="row" style="gap: 6px"><span v-if="d.zapsign.sandbox" class="chip c-neu" data-testid="ficha-zapsign-teste">TESTE · sem validade jurídica</span><span v-if="zapChip" class="chip" :class="zapChip.cls" data-testid="ficha-zapsign-status">{{ zapChip.txt }}</span></span></div>
+        <template v-if="zapPendente && d.zapsign.signUrl">
+          <div class="mono small" style="overflow-wrap: anywhere; margin: 6px 0" data-testid="ficha-zapsign-url">{{ d.zapsign.signUrl }}</div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <a class="btn b-ok" style="flex: 1; text-decoration: none; text-align: center" :href="whatsapp" target="_blank" rel="noopener" data-testid="ficha-zapsign-whatsapp"><Icon name="send" small />Enviar pelo WhatsApp</a>
+            <button class="btn b-out" type="button" data-testid="ficha-zapsign-copiar" @click="copiarLink"><Icon name="copy" small />{{ linkCopiado ? 'Copiado!' : 'Copiar link' }}</button>
+          </div>
+        </template>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px">
+          <button v-if="status !== 'ASSINADO' || !d.zapsign.arquivoAssinado" class="btn b-out b-sm" type="button" :disabled="enviando" data-testid="ficha-zapsign-atualizar" @click="atualizarZapsign">Atualizar status</button>
+          <a v-if="d.zapsign.arquivoAssinado" class="btn b-pri b-sm" style="text-decoration: none" :href="d.zapsign.arquivoAssinado" target="_blank" rel="noopener" data-testid="ficha-zapsign-pdf">Baixar PDF assinado</a>
+        </div>
+        <div class="small" style="margin-top: 6px">{{ d.zapsign.sandbox ? 'Documento de teste: assinar aqui não fecha o contrato.' : 'O contrato fica assinado sozinho quando o cliente terminar no ZapSign.' }}</div>
+      </div>
       <div v-if="link" class="card pad" style="margin-top: 12px" data-testid="ficha-link">
         <div class="lbl">Link de assinatura (vale até {{ dmyA(link.expiraEm.slice(0, 10)) }})</div>
         <div class="mono small" style="overflow-wrap: anywhere; margin: 6px 0" data-testid="ficha-link-url">{{ link.url }}</div>
@@ -135,7 +166,8 @@ function imprimir() {
         <div class="small" style="margin-top: 6px">Este link aparece só agora. Se perder, gere outro (o anterior deixa de valer).</div>
       </div>
       <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
-        <button v-if="status !== 'ASSINADO'" class="btn b-pri" style="flex: 1" :disabled="enviando || d.faltam.length > 0" data-testid="ficha-gerar-link" @click="gerarLink"><Icon name="file-signature" small />{{ link || status === 'ENVIADO' ? 'Gerar novo link' : 'Gerar link de assinatura' }}</button>
+        <button v-if="status !== 'ASSINADO' && zap?.ativo" class="btn b-pri" style="flex: 1" :disabled="enviando || d.faltam.length > 0 || zapPendente" data-testid="ficha-enviar-zapsign" @click="enviarZapsign"><Icon name="file-signature" small />{{ d.zapsign ? 'Enviar de novo pelo ZapSign' : 'Enviar pelo ZapSign' }}</button>
+        <button v-if="status !== 'ASSINADO'" class="btn" :class="zap?.ativo ? 'b-out' : 'b-pri'" style="flex: 1" :disabled="enviando || d.faltam.length > 0 || zapPendente" data-testid="ficha-gerar-link" @click="gerarLink"><Icon name="file-signature" small />{{ link || status === 'ENVIADO' ? 'Gerar novo link' : 'Link próprio de assinatura' }}</button>
         <button v-if="status === 'AGUARDANDO'" class="btn b-out" :disabled="enviando || d.faltam.length > 0" data-testid="ficha-enviado" @click="enviado"><Icon name="send" small />Marcar como enviado</button>
         <button v-if="status === 'ENVIADO' && ehAdmin" class="btn b-out" :disabled="enviando" data-testid="ficha-assinado" @click="assinado"><Icon name="check" small />Assinou fora do sistema</button>
         <button v-if="status === 'ASSINADO'" class="btn b-pri" style="flex: 1" data-testid="ficha-imprimir" @click="imprimir"><Icon name="receipt-text" small />Imprimir / salvar PDF</button>
