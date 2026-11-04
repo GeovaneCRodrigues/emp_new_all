@@ -424,6 +424,24 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       hoje = '2026-12-08' // a 2ª vence em 2 dias: esta semana
       expect((await itens('admin', 'hoje')).itens.map((x: { parcela: number }) => x.parcela)).toEqual([2])
     })
+    it('a contagem de cada aba bate com o total da lista da própria aba (a contagem usa uma consulta enxuta, separada da lista)', async () => {
+      const a = await venda(id.cA)
+      await venda(id.cB)
+      hoje = '2026-11-12'
+      await receber('admin', a, { parcela: 1, valor: 300, resto: 'FICA', novoVencimento: '2026-11-19' }) // parcial remarcada: muda de aba
+      for (const papel of ['admin', 'cobrador']) {
+        for (const filtro of ['', '&indicador=SEM']) {
+          const contagens = (await req('GET', `/api/cobrancas?aba=atrasadas&limite=1${filtro}`, papel)).json().contagens
+          for (const [aba, chave] of [['atrasadas', 'atrasadas'], ['hoje', 'hoje'], ['proximas', 'proximas']] as const) {
+            const lista = (await req('GET', `/api/cobrancas?aba=${aba}&limite=100${filtro}`, papel)).json()
+            expect(contagens[chave], `${papel} ${aba}${filtro}`).toBe(lista.total)
+          }
+        }
+      }
+      // e a escolha de aba não muda as contagens (são sempre as das três abas)
+      const deAtrasadas = (await req('GET', '/api/cobrancas?aba=atrasadas&limite=1', 'admin')).json().contagens
+      expect((await req('GET', '/api/cobrancas?aba=proximas&limite=1', 'admin')).json().contagens).toEqual(deAtrasadas)
+    })
     it('parcela paga sai das abertas e entra nas recebidas (últimos 30 dias); a parcial continua aberta com o resto', async () => {
       const v = await venda(id.cA)
       hoje = '2026-11-12'
