@@ -34,6 +34,10 @@ export type DadosVenda = {
   seguro: boolean
 }
 
+export type ViaAssinatura = 'LINK' | 'ZAPSIGN' | 'MANUAL'
+/** O documento deste contrato no ZapSign (null = nunca foi enviado por lá). */
+export type EnvioZapsign = { token: string; signerToken: string | null; url: string | null; status: string; sandbox: boolean }
+
 export type LinhaContrato = {
   id: number
   vendaId: number
@@ -45,6 +49,8 @@ export type LinhaContrato = {
   enviadoEm: string | null
   assinadoEm: string | null
   textoEnviado: string | null
+  assinaturaVia: ViaAssinatura | null
+  zapsign: EnvioZapsign | null
   clienteNome: string
   /** só dígitos, com DDD (para abrir o WhatsApp) */
   clienteFone: string

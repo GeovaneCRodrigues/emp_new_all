@@ -25,6 +25,15 @@ export function createContratosController(s: ContratosService) {
     async assinarPeloLink(req: FastifyRequest) {
       return s.assinarPeloLink((req.params as { token: string }).token, corpo(req), { ip: req.ip ?? null, userAgent: (req.headers['user-agent'] as string | undefined) ?? null })
     },
+    async zapsignStatus(req: FastifyRequest) { return s.zapsignStatus(sessaoOuErro(req)) },
+    async enviarZapsign(req: FastifyRequest) { return s.enviarZapsign(sessaoOuErro(req), id(req)) },
+    async atualizarZapsign(req: FastifyRequest) { return s.atualizarZapsign(sessaoOuErro(req), id(req)) },
+    // pública: o ZapSign avisa que mexeu num documento (o segredo vem no cabeçalho ou na URL)
+    async webhookZapsign(req: FastifyRequest) {
+      const h = req.headers['x-webhook-secret'] ?? req.headers.authorization?.replace(/^Bearer\s+/i, '')
+      const q = (req.query as Record<string, unknown>).secret
+      return s.webhookZapsign(corpo(req), typeof h === 'string' ? h : typeof q === 'string' ? q : null)
+    },
     async modelo(req: FastifyRequest) { return s.modelo(sessaoOuErro(req)) },
     async salvarModelo(req: FastifyRequest) { return s.salvarModelo(sessaoOuErro(req), corpo(req).texto) },
     async previa(req: FastifyRequest) { return s.previa(sessaoOuErro(req), corpo(req)) },

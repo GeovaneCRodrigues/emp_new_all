@@ -1,5 +1,5 @@
 import type { Knex } from 'knex'
-import type { Assinatura, ContratoDoLink, DadosVenda, Empresa, EscopoContratos, LinhaContrato, StatusContrato } from './types.js'
+import type { Assinatura, ContratoDoLink, DadosVenda, Empresa, EscopoContratos, LinhaContrato, StatusContrato, ViaAssinatura } from './types.js'
 
 export type ContratoCompleto = { linha: LinhaContrato; dados: DadosVenda }
 
@@ -29,17 +29,25 @@ export interface ContratosRepository {
   /** Grava a assinatura e fecha o contrato. false = já tinha sido assinado (outra pessoa chegou antes). */
   assinar(id: number, a: Omit<Assinatura, 'assinadoEm'>): Promise<boolean>
   assinaturaDe(id: number): Promise<Assinatura | null>
+  /** Guarda o documento criado no ZapSign e derruba o link próprio (só vale um caminho de assinatura por vez). */
+  gravarZapsign(id: number, z: { token: string; signerToken: string | null; url: string | null; status: string; sandbox: boolean }): Promise<void>
+  atualizarStatusZapsign(id: number, status: string): Promise<void>
+  /** Fecha o contrato como assinado pelo ZapSign. false = já estava assinado. */
+  assinarViaZapsign(id: number): Promise<boolean>
+  porTokenZapsign(token: string): Promise<LinhaContrato | null>
 }
 
 type Linha = {
   id: number; venda_id: number; numero: string; modelo_versao: number; seguro: boolean; gerado_em: Date; enviado_em: Date | null; assinado_em: Date | null; texto_enviado: string | null
+  zapsign_token: string | null; zapsign_signer_token: string | null; zapsign_url: string | null; zapsign_status: string | null; zapsign_sandbox: boolean | null; assinatura_via: ViaAssinatura | null
   cliente_nome: string; cliente_fone: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
 }
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
 const paraLinha = (l: Linha): LinhaContrato => ({
   id: l.id, vendaId: l.venda_id, numero: l.numero, status: l.contrato_status === 'ASSINADO' ? 'ASSINADO' : l.contrato_status === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO', modeloVersao: l.modelo_versao, seguro: l.seguro,
-  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone,
+  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, assinaturaVia: l.assinatura_via,
+  zapsign: l.zapsign_token ? { token: l.zapsign_token, signerToken: l.zapsign_signer_token, url: l.zapsign_url, status: l.zapsign_status ?? 'pending', sandbox: l.zapsign_sandbox ?? false } : null,
   aparelho: l.gb > 0 ? `${l.modelo} ${l.gb} GB` : l.modelo, dataVenda: dia(l.data_venda), vendaStatus: l.venda_status,
 })
 
@@ -111,7 +119,7 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     },
     async marcarAssinado(id) {
       await db.transaction(async (trx) => {
-        const [c] = await trx('contratos').where({ id }).update({ assinado_em: trx.fn.now() }).returning('venda_id')
+        const [c] = await trx('contratos').where({ id }).update({ assinado_em: trx.fn.now(), assinatura_via: 'MANUAL' }).returning('venda_id')
         await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
       })
     },
@@ -156,7 +164,7 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     },
     async assinar(id, a) {
       return db.transaction(async (trx) => {
-        const [c] = await trx('contratos').where({ id }).whereNull('assinado_em').update({ assinado_em: trx.fn.now(), link_hash: null, link_expira_em: null }).returning('venda_id')
+        const [c] = await trx('contratos').where({ id }).whereNull('assinado_em').update({ assinado_em: trx.fn.now(), assinatura_via: 'LINK', link_hash: null, link_expira_em: null }).returning('venda_id')
         if (!c) return false
         await trx('contrato_assinaturas').insert({ contrato_id: id, imagem: a.imagem, cpf: a.cpf, texto_hash: a.textoHash, ip: a.ip, user_agent: a.userAgent })
         await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
@@ -166,6 +174,23 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     async assinaturaDe(id) {
       const l = await db('contrato_assinaturas').where({ contrato_id: id }).first<{ imagem: string; cpf: string; texto_hash: string; ip: string | null; user_agent: string | null; assinado_em: Date } | undefined>()
       return l ? { imagem: l.imagem, cpf: l.cpf, textoHash: l.texto_hash, ip: l.ip, userAgent: l.user_agent, assinadoEm: l.assinado_em.toISOString() } : null
+    },
+
+    async gravarZapsign(id, z) {
+      await db('contratos').where({ id }).update({ zapsign_token: z.token, zapsign_signer_token: z.signerToken, zapsign_url: z.url, zapsign_status: z.status, zapsign_sandbox: z.sandbox, link_hash: null, link_expira_em: null })
+    },
+    async atualizarStatusZapsign(id, status) { await db('contratos').where({ id }).update({ zapsign_status: status }) },
+    async assinarViaZapsign(id) {
+      return db.transaction(async (trx) => {
+        const [c] = await trx('contratos').where({ id }).whereNull('assinado_em').update({ assinado_em: trx.fn.now(), assinatura_via: 'ZAPSIGN', zapsign_status: 'signed', link_hash: null, link_expira_em: null }).returning('venda_id')
+        if (!c) return false
+        await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
+        return true
+      })
+    },
+    async porTokenZapsign(token) {
+      const l = await base({ tipo: 'TODOS' }).where('ct.zapsign_token', token).first<Linha | undefined>()
+      return l ? paraLinha(l) : null
     },
 
     async salvarEmpresa(e) {
