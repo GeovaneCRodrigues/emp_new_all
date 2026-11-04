@@ -6,6 +6,7 @@ import { contratosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { mascaraFone } from '@/domain/documentos'
 import { moneyBR, numBR } from '@/domain/format'
+import { TAXAS_PADRAO_PF } from '@/domain/taxasPadrao'
 import Icon from './Icon.vue'
 
 /** Dados da empresa (cabeçalho do contrato, recibos), logo, Pix da loja e taxas do contrato. Só o administrador. */
@@ -38,6 +39,14 @@ async function abrir() {
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir os dados.' }
 }
 onMounted(abrir)
+
+/** Preenche as taxas com o padrão de mercado para pessoa física; só vale depois de Salvar. */
+function usarPadraoMercado() {
+  if (!form.value) return
+  const t = TAXAS_PADRAO_PF
+  Object.assign(form.value, { avaria: dinheiroTxt(t.avaria), reposicao: dinheiroTxt(t.reposicao), seguro: dinheiroTxt(t.seguro), cancelamentoPct: pctTxt(t.cancelamentoPct), recuperacao: dinheiroTxt(t.recuperacao) })
+  msg.value = 'Padrão de mercado preenchido. Revise os valores e toque em Salvar.'
+}
 
 async function salvar() {
   if (!form.value) return
@@ -128,6 +137,7 @@ async function removerLogo() {
 
     <div class="card pad" style="display: flex; flex-direction: column; gap: 12px">
         <div><div class="val">Taxas do contrato</div><div class="small">Valem para os próximos contratos. Deixe em branco o que não se aplica: o contrato só sai com todos os campos preenchidos.</div></div>
+        <button class="btn b-block" type="button" data-testid="taxas-padrao" @click="usarPadraoMercado">Usar padrão de mercado (pessoa física)</button>
         <div class="duo">
           <div class="field"><label for="tAvaria">Avaria do aparelho</label><div class="inp"><span>R$</span><input id="tAvaria" v-model="form.avaria" inputmode="decimal" /></div><div class="small">Cobrada se o aparelho voltar danificado.</div></div>
           <div class="field"><label for="tRepo">Reposição (perda, furto ou roubo)</label><div class="inp"><span>R$</span><input id="tRepo" v-model="form.reposicao" inputmode="decimal" /></div><div class="small">Valor para repor o aparelho.</div></div>
