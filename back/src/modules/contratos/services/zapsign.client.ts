@@ -18,13 +18,14 @@ export type DocumentoZapsign = {
 }
 
 export interface ZapsignClient {
-  /** `true` = os documentos nascem em modo teste (sem validade jurídica, sem consumir assinatura). */
+  /** `true` = fala com o ambiente de teste do ZapSign (sem validade jurídica e sem custo). */
   readonly sandbox: boolean
   criarDocumento(p: PedidoDocumento): Promise<DocumentoZapsign>
   obterDocumento(token: string): Promise<DocumentoZapsign>
 }
 
-const BASE = 'https://api.zapsign.com.br/api/v1'
+/** O teste é outro endereço, com outro token (conta criada em sandbox.app.zapsign.com.br). A API de produção não aceita "sandbox" no corpo. */
+const BASES = { producao: 'https://api.zapsign.com.br/api/v1', teste: 'https://sandbox.api.zapsign.com.br/api/v1' } as const
 const so = (v: unknown) => (typeof v === 'string' && v ? v : null)
 
 function doc(j: any): DocumentoZapsign {
@@ -36,20 +37,36 @@ function doc(j: any): DocumentoZapsign {
   }
 }
 
+/** O ZapSign responde erro de várias formas: `detail`, `message` ou um objeto com os campos que falharam. */
+function mensagemDeErro(corpo: any): string {
+  const direto = corpo?.detail ?? corpo?.message ?? corpo?.error
+  if (typeof direto === 'string' && direto) return direto
+  const achar = (v: unknown, chave = ''): string | null => {
+    if (typeof v === 'string') return chave ? `${chave}: ${v}` : v
+    if (Array.isArray(v)) { for (const x of v) { const r = achar(x, chave); if (r) return r } return null }
+    if (v && typeof v === 'object') { for (const [k, x] of Object.entries(v)) { const r = achar(x, k); if (r) return r } }
+    return null
+  }
+  return (achar(corpo) ?? 'O ZapSign recusou o pedido.').slice(0, 300)
+}
+
 /** Cliente da API do ZapSign. O token fica só no servidor (nunca vai para o front nem para o log). */
 export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?: typeof fetch }): ZapsignClient {
   const f = o.fetch ?? fetch
   async function chamar(caminho: string, init: RequestInit = {}) {
     let r: Response
     try {
-      r = await f(`${BASE}${caminho}`, { ...init, signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${o.token}`, Accept: 'application/json', ...(init.body ? { 'content-type': 'application/json' } : {}) } })
+      r = await f(`${o.sandbox ? BASES.teste : BASES.producao}${caminho}`, { ...init, signal: AbortSignal.timeout(30_000), headers: { Authorization: `Bearer ${o.token}`, Accept: 'application/json', ...(init.body ? { 'content-type': 'application/json' } : {}) } })
     } catch {
       throw new HttpError(502, 'Não consegui falar com o ZapSign. Tente de novo em instantes.', 'ZAPSIGN_INDISPONIVEL')
     }
-    const corpo: any = await r.json().catch(() => ({}))
+    const texto = await r.text().catch(() => '')
+    let corpo: any = {}
+    try { corpo = texto ? JSON.parse(texto) : {} } catch { corpo = { message: texto.slice(0, 300) } }
     if (!r.ok) {
-      let msg = String(corpo?.detail ?? corpo?.message ?? 'O ZapSign recusou o pedido.')
-      if (/plano de api|modo produ/i.test(msg)) msg = 'A conta do ZapSign não tem o Plano de API para enviar em produção.'
+      let msg = mensagemDeErro(corpo)
+      if (r.status === 401 || r.status === 403) msg = 'O token do ZapSign não vale neste ambiente. Confira o token e se ZAPSIGN_SANDBOX está certo (teste ou produção).'
+      if (/plano de api/i.test(msg)) msg = 'A conta do ZapSign não tem o Plano de API para enviar em produção.'
       throw new HttpError(r.status === 401 || r.status === 403 ? 502 : 422, msg, 'ZAPSIGN_RECUSOU')
     }
     return corpo
@@ -68,7 +85,6 @@ export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?:
           auth_mode: s.email ? 'assinaturaTela-tokenEmail' : 'assinaturaTela', send_automatic_email: false, send_automatic_whatsapp: false, lock_name: true,
           ...(s.cpf ? { require_cpf: true, cpf: s.cpf } : {}),
         }],
-        ...(o.sandbox ? { sandbox: true } : {}),
       }
       return doc(await chamar('/docs/', { method: 'POST', body: JSON.stringify(corpo) }))
     },

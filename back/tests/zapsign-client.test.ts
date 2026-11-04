@@ -12,19 +12,20 @@ describe('cliente do ZapSign', () => {
     const c = criarZapsignClient({ token: 'TOKEN-SECRETO', sandbox: true, fetch: (async (u: string, i: RequestInit) => { url = u; init = i; return resposta(200, { token: 'doc1', status: 'pending', external_id: '2026-0001', signers: [{ token: 's1', sign_url: 'https://app.zapsign.com.br/verificar/s1' }] }) }) as never })
     const d = await c.criarDocumento(pedido)
     expect(d).toMatchObject({ token: 'doc1', status: 'pending', externalId: '2026-0001', signerToken: 's1', signUrl: 'https://app.zapsign.com.br/verificar/s1' })
-    expect(url).toBe('https://api.zapsign.com.br/api/v1/docs/')
+    expect(url).toBe('https://sandbox.api.zapsign.com.br/api/v1/docs/')
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer TOKEN-SECRETO')
     const corpo = JSON.parse(init.body as string)
-    expect(corpo).toMatchObject({ sandbox: true, lang: 'pt-br', external_id: '2026-0001', name: 'Contrato 2026-0001' })
+    expect(corpo.sandbox).toBeUndefined()
+    expect(corpo).toMatchObject({ lang: 'pt-br', external_id: '2026-0001', name: 'Contrato 2026-0001' })
     expect(Buffer.from(corpo.base64_pdf, 'base64').toString()).toBe('%PDF-1.4 teste')
     expect(corpo.signers[0]).toMatchObject({ name: 'ANA SOUZA', email: 'ana@x.com', phone_country: '55', phone_number: '11988124410', cpf: '52998224725', require_cpf: true, auth_mode: 'assinaturaTela-tokenEmail' })
     expect(JSON.stringify(corpo)).not.toContain('TOKEN-SECRETO')
   })
-  it('fora do modo teste não manda sandbox; sem e-mail assina só na tela', async () => {
-    let corpo: any
-    const c = criarZapsignClient({ token: 't', sandbox: false, fetch: (async (_u: string, i: RequestInit) => { corpo = JSON.parse(i.body as string); return resposta(200, { token: 'd', status: 'pending', signers: [] }) }) as never })
+  it('em produção fala com a API de produção e nunca manda "sandbox" (ela recusa); sem e-mail assina só na tela', async () => {
+    let corpo: any, url = ''
+    const c = criarZapsignClient({ token: 't', sandbox: false, fetch: (async (u: string, i: RequestInit) => { url = u; corpo = JSON.parse(i.body as string); return resposta(200, { token: 'd', status: 'pending', signers: [] }) }) as never })
     await c.criarDocumento({ ...pedido, signatario: { ...pedido.signatario, email: null } })
-    expect(corpo.sandbox).toBeUndefined(); expect(corpo.signers[0].auth_mode).toBe('assinaturaTela'); expect(corpo.signers[0].email).toBeUndefined()
+    expect(url).toBe('https://api.zapsign.com.br/api/v1/docs/'); expect(corpo.sandbox).toBeUndefined(); expect(corpo.signers[0].auth_mode).toBe('assinaturaTela'); expect(corpo.signers[0].email).toBeUndefined()
   })
   it('fone com 55 na frente não duplica o código do país', async () => {
     let corpo: any
@@ -38,7 +39,11 @@ describe('cliente do ZapSign', () => {
   })
   it('erros viram mensagem clara, sem vazar o token', async () => {
     const quer = (status: number, corpo: unknown) => criarZapsignClient({ token: 'TOKEN-SECRETO', sandbox: false, fetch: (async () => resposta(status, corpo)) as never })
-    await expect(quer(403, { detail: 'Invalid token TOKEN-SECRETO' }).obterDocumento('doc12345')).rejects.toMatchObject({ status: 502, code: 'ZAPSIGN_RECUSOU' })
+    const e403 = await quer(403, { detail: 'Invalid token TOKEN-SECRETO' }).obterDocumento('doc12345').catch((e) => e)
+    expect(e403).toMatchObject({ status: 502, code: 'ZAPSIGN_RECUSOU' }); expect(e403.message).not.toContain('TOKEN-SECRETO'); expect(e403.message).toContain('ZAPSIGN_SANDBOX')
+    const texto = criarZapsignClient({ token: 't', sandbox: false, fetch: (async () => new Response('O parâmetro "sandbox" não é permitido em modo produção.', { status: 400 })) as never })
+    await expect(texto.criarDocumento(pedido)).rejects.toThrow(/não é permitido/)
+    await expect(quer(400, { signers: [{ email: ['Informe um e-mail válido.'] }] }).criarDocumento(pedido)).rejects.toThrow(/email: Informe um e-mail válido/)
     await expect(quer(400, { detail: 'Seu plano de API não permite modo produção' }).criarDocumento(pedido)).rejects.toThrow(/Plano de API/)
     const rede = criarZapsignClient({ token: 't', sandbox: true, fetch: (async () => { throw new Error('ECONNRESET') }) as never })
     await expect(rede.obterDocumento('doc12345')).rejects.toMatchObject({ status: 502, code: 'ZAPSIGN_INDISPONIVEL' })
