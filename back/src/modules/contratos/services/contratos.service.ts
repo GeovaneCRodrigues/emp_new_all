@@ -48,6 +48,10 @@ export type ContratosService = {
   previa(s: Sessao, corpo: Record<string, unknown>): Promise<Preenchido>
   empresa(s: Sessao): Promise<Empresa>
   salvarEmpresa(s: Sessao, corpo: Record<string, unknown>): Promise<Empresa>
+  salvarLogo(s: Sessao, imagem: unknown): Promise<Empresa>
+  removerLogo(s: Sessao): Promise<Empresa>
+  /** Pública: a imagem da logo para o <img> (o navegador não manda cabeçalho de login). null = não tem. */
+  logoPublica(): Promise<{ tipo: string; bytes: Buffer } | null>
 }
 
 type Dependencias = { repo: ContratosRepository; auditoria: AuditoriaRepository; log?: (msg: string, err: unknown) => void }
@@ -56,6 +60,13 @@ const TEXTO_MIN = 50
 const TEXTO_MAX = 30_000
 const DINHEIRO_MAX = 1_000_000
 const LINK_DIAS = 7
+const LOGO_MAX_BYTES = 300_000
+/** O arquivo tem de começar como o tipo que diz ser (não confia só no texto do data URL). */
+function assinaturaDoArquivo(tipo: string, b: Buffer): boolean {
+  if (tipo === 'image/png') return b.length > 8 && b.readUInt32BE(0) === 0x89504e47
+  if (tipo === 'image/jpeg') return b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
+  return b.length > 12 && b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP'
+}
 const TENTATIVAS_DE_CPF = 5
 const IMAGEM_MAX = 400_000
 const PNG_URL = 'data:image/png;base64,'
@@ -267,7 +278,7 @@ export function createContratosService(d: Dependencias): ContratosService {
     async salvarEmpresa(s, corpo) {
       exigirAdmin(s, 'Só o administrador muda os dados da empresa')
       const atual = await d.repo.empresa()
-      const texto = (k: 'nome' | 'cnpj' | 'endereco' | 'email' | 'atendente', max: number): string | null => {
+      const texto = (k: 'nome' | 'cnpj' | 'endereco' | 'email' | 'atendente' | 'telefone' | 'cidade' | 'uf' | 'pixChave', max: number): string | null => {
         if (!(k in corpo)) return atual[k]
         const v = corpo[k]
         if (v === null || v === '') { if (k === 'nome') throw requisicaoInvalida('A razão social não pode ficar vazia'); return null }
@@ -288,15 +299,51 @@ export function createContratosService(d: Dependencias): ContratosService {
         else if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100) throw requisicaoInvalida('cancelamentoPct precisa ficar entre 0 e 100')
         else cancelamentoPct = Math.round(v * 100) / 100
       }
-      const nova: Empresa = {
+      const nova: Omit<Empresa, 'temLogo'> = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
+        telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77),
         avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'), seguro: dinheiro('seguro'), cancelamentoPct, recuperacao: dinheiro('recuperacao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw requisicaoInvalida('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw requisicaoInvalida('E-mail inválido')
+      if (nova.telefone !== null) {
+        const dig = nova.telefone.replace(/\D/g, '')
+        if (dig.length < 10 || dig.length > 11) throw requisicaoInvalida('Telefone precisa ter DDD + número (10 ou 11 números)')
+        nova.telefone = dig
+      }
+      if (nova.uf !== null) {
+        if (!/^[A-Za-z]{2}$/.test(nova.uf)) throw requisicaoInvalida('UF deve ter 2 letras, por exemplo SP')
+        nova.uf = nova.uf.toUpperCase()
+      }
+      if (nova.pixChave !== null && (nova.pixChave.length < 3 || /[\u0000-\u001f]/.test(nova.pixChave))) throw requisicaoInvalida('Chave Pix inválida')
       await d.repo.salvarEmpresa(nova)
-      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_EMPRESA_SALVA', entidade: 'empresa', entidadeId: 1, antes: atual, depois: nova })
-      return nova
+      const { temLogo, ...antes } = atual
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_EMPRESA_SALVA', entidade: 'empresa', entidadeId: 1, antes, depois: nova })
+      return { ...nova, temLogo }
+    },
+
+    async salvarLogo(s, imagem) {
+      exigirAdmin(s, 'Só o administrador troca a logo da empresa')
+      if (typeof imagem !== 'string') throw requisicaoInvalida('imagem precisa ser um texto (data URL)')
+      const m = imagem.match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/)
+      if (!m) throw requisicaoInvalida('A logo precisa ser PNG, JPEG ou WEBP')
+      const bytes = Buffer.from(m[2], 'base64')
+      if (bytes.length > LOGO_MAX_BYTES) throw requisicaoInvalida(`A logo passa de ${Math.round(LOGO_MAX_BYTES / 1000)} KB. Use uma imagem menor`)
+      if (!assinaturaDoArquivo(m[1], bytes)) throw requisicaoInvalida('O arquivo não é uma imagem válida')
+      await d.repo.salvarLogo(imagem)
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_EMPRESA_LOGO', entidade: 'empresa', entidadeId: 1, depois: { tipo: m[1], bytes: bytes.length } })
+      return d.repo.empresa()
+    },
+    async removerLogo(s) {
+      exigirAdmin(s, 'Só o administrador remove a logo da empresa')
+      await d.repo.salvarLogo(null)
+      await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_EMPRESA_LOGO', entidade: 'empresa', entidadeId: 1, depois: { removida: true } })
+      return d.repo.empresa()
+    },
+    async logoPublica() {
+      const url = await d.repo.logo()
+      const m = url?.match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/)
+      return m ? { tipo: m[1], bytes: Buffer.from(m[2], 'base64') } : null
     },
   }
 }

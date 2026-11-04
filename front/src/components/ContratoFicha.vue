@@ -82,6 +82,12 @@ function imprimir() {
   const w = window.open('', '_blank')
   if (!w) { erro.value = 'O navegador bloqueou a janela de impressão. Libere pop-ups e tente de novo.'; return }
   w.document.title = `Contrato ${d.value.contrato.numero}`
+  // a logo da loja no alto (se não houver, a imagem falha e é removida)
+  const logo = w.document.createElement('img')
+  logo.src = contratosApi.logoSrc().startsWith('data:') ? contratosApi.logoSrc() : new URL(contratosApi.logoSrc(), window.location.origin).toString()
+  logo.alt = ''; logo.setAttribute('data-testid', 'contrato-impressao-logo'); logo.style.cssText = 'display:block;max-height:70px;max-width:220px;margin:24px 24px 0;object-fit:contain'
+  logo.onerror = () => logo.remove()
+  if (contratosApi.logoSrc()) w.document.body.appendChild(logo)
   const pre = w.document.createElement('pre')
   pre.setAttribute('data-testid', 'contrato-impressao')
   pre.style.cssText = 'font:13px/1.6 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:24px'

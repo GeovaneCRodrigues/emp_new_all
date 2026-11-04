@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
-import type { ContratoItemApi, EmpresaApi, ListaContratosApi, ModeloApi, PreviaApi } from '@/api/contratos'
+import type { ContratoItemApi, ListaContratosApi, ModeloApi, PreviaApi } from '@/api/contratos'
 import { contratosApi } from '@/api/recursos'
 import Abas from '@/components/Abas.vue'
 import CampoBusca from '@/components/CampoBusca.vue'
@@ -10,7 +10,7 @@ import Icon from '@/components/Icon.vue'
 import Seg from '@/components/Seg.vue'
 import { useApp } from '@/composables/useApp'
 import { casaBusca } from '@/domain/busca'
-import { dmy, moneyBR, numBR } from '@/domain/format'
+import { dmy } from '@/domain/format'
 
 /** Contratos das vendas de iPhone: a lista com o status, o texto do modelo e os dados da empresa (só o administrador). */
 const { sessao } = useApp()
@@ -77,32 +77,7 @@ async function salvarModelo() {
 }
 const voltarAoPadrao = () => { if (modelo.value) { texto.value = modelo.value.padrao; modeloMsg.value = 'Texto padrão de volta. Salve para valer.' } }
 
-// ---------- empresa ----------
-type Form = { nome: string; cnpj: string; endereco: string; email: string; atendente: string; avaria: string; reposicao: string; seguro: string; cancelamentoPct: string; recuperacao: string }
-const form = ref<Form | null>(null)
-const empresaErro = ref('')
-const empresaMsg = ref('')
-const dinheiroTxt = (v: number | null) => (v === null ? '' : moneyBR(v))
-const pctTxt = (v: number | null) => (v === null ? '' : String(v).replace('.', ','))
-async function abrirEmpresa() {
-  empresaErro.value = ''; empresaMsg.value = ''
-  try {
-    const e: EmpresaApi = await contratosApi.empresa(sessao.value)
-    form.value = { nome: e.nome, cnpj: e.cnpj ?? '', endereco: e.endereco ?? '', email: e.email ?? '', atendente: e.atendente ?? '', avaria: dinheiroTxt(e.avaria), reposicao: dinheiroTxt(e.reposicao), seguro: dinheiroTxt(e.seguro), cancelamentoPct: pctTxt(e.cancelamentoPct), recuperacao: dinheiroTxt(e.recuperacao) }
-  } catch (e) { empresaErro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir os dados.' }
-}
-const num = (t: string) => (t.trim() === '' ? null : numBR(t))
-async function salvarEmpresa() {
-  if (!form.value) return
-  const f = form.value
-  salvando.value = true; empresaErro.value = ''; empresaMsg.value = ''
-  try {
-    await contratosApi.salvarEmpresa(sessao.value, { nome: f.nome, cnpj: f.cnpj.trim() || null, endereco: f.endereco.trim() || null, email: f.email.trim() || null, atendente: f.atendente.trim() || null, avaria: num(f.avaria), reposicao: num(f.reposicao), seguro: num(f.seguro), cancelamentoPct: num(f.cancelamentoPct), recuperacao: num(f.recuperacao) })
-    empresaMsg.value = 'Dados da empresa e taxas salvos'
-    await abrirEmpresa(); empresaMsg.value = 'Dados da empresa e taxas salvos'
-  } catch (e) { empresaErro.value = e instanceof ErroApi ? e.message : 'Não consegui salvar.' } finally { salvando.value = false }
-}
-watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo(); if (a === 'empresa' && !form.value) abrirEmpresa() })
+watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo() })
 </script>
 
 <template>
@@ -164,36 +139,12 @@ watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo(); if (a ==
     </template>
   </div>
 
-  <!-- empresa -->
-  <template v-else>
-    <div v-if="empresaErro && !form" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)">{{ empresaErro }}</div>
-    <form v-if="form" style="display: flex; flex-direction: column; gap: 14px" data-testid="ct-empresa" @submit.prevent="salvarEmpresa">
-      <div class="card pad" style="display: flex; flex-direction: column; gap: 12px">
-        <div><div class="val">Dados da empresa</div><div class="small">Saem no cabeçalho de todo contrato.</div></div>
-        <div class="duo">
-          <div class="field"><label for="eNome">Razão social</label><div class="inp"><input id="eNome" v-model="form.nome" maxlength="120" /></div></div>
-          <div class="field"><label for="eCnpj">CNPJ</label><div class="inp"><input id="eCnpj" v-model="form.cnpj" inputmode="numeric" maxlength="18" placeholder="00.000.000/0001-00" /></div></div>
-          <div class="field"><label for="eEmail">E-mail</label><div class="inp"><input id="eEmail" v-model="form.email" type="email" maxlength="120" /></div></div>
-          <div class="field"><label for="eAtend">Atendente que assina</label><div class="inp"><input id="eAtend" v-model="form.atendente" maxlength="80" /></div></div>
-        </div>
-        <div class="field"><label for="eEnd">Endereço</label><div class="inp"><input id="eEnd" v-model="form.endereco" maxlength="200" /></div></div>
-      </div>
-      <div class="card pad" style="display: flex; flex-direction: column; gap: 12px">
-        <div><div class="val">Taxas do contrato</div><div class="small">Valem para os próximos contratos. Deixe em branco o que não se aplica: o contrato só sai com todos os campos preenchidos.</div></div>
-        <div class="duo">
-          <div class="field"><label for="tAvaria">Avaria do aparelho</label><div class="inp"><span>R$</span><input id="tAvaria" v-model="form.avaria" inputmode="decimal" /></div><div class="small">Cobrada se o aparelho voltar danificado.</div></div>
-          <div class="field"><label for="tRepo">Reposição (perda, furto ou roubo)</label><div class="inp"><span>R$</span><input id="tRepo" v-model="form.reposicao" inputmode="decimal" /></div><div class="small">Valor para repor o aparelho.</div></div>
-          <div class="field"><label for="tSeguro">Seguro por mês</label><div class="inp"><span>R$</span><input id="tSeguro" v-model="form.seguro" inputmode="decimal" /></div><div class="small">Se o cliente quiser, entra junto da parcela.</div></div>
-          <div class="field"><label for="tCanc">Multa de cancelamento</label><div class="inp"><input id="tCanc" v-model="form.cancelamentoPct" inputmode="decimal" /><span>%</span></div><div class="small">Sobre o saldo em aberto, se o cliente desistir.</div></div>
-          <div class="field"><label for="tRecup">Recuperação por atraso</label><div class="inp"><span>R$</span><input id="tRecup" v-model="form.recuperacao" inputmode="decimal" /></div><div class="small">Quando é preciso ir buscar o aparelho.</div></div>
-        </div>
-      </div>
-      <div class="card pad"><div class="between"><div><div class="val">Assinatura eletrônica</div><div class="small">ZapSign: entra numa próxima etapa. Por enquanto você copia o texto, manda ao cliente e marca como enviado e assinado.</div></div><span class="chip c-neu">não conectada</span></div></div>
-      <div v-if="empresaErro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)" data-testid="ct-empresa-erro">{{ empresaErro }}</div>
-      <div v-if="empresaMsg" class="small" role="status" style="color: var(--ok)" data-testid="ct-empresa-msg">{{ empresaMsg }}</div>
-      <button class="btn b-pri b-block" type="submit" :disabled="salvando || !form.nome.trim()" data-testid="ct-salvar-empresa"><Icon name="check" small />Salvar</button>
-    </form>
-  </template>
+  <!-- empresa: agora fica em Configurações -->
+  <div v-else class="card pad" data-testid="ct-empresa-atalho" style="display: flex; flex-direction: column; gap: 10px">
+    <div class="val">Empresa e taxas ficam em Configurações</div>
+    <div class="small">Razão social, CNPJ, endereço, logo, Pix da loja e as taxas do contrato agora são editados em um lugar só.</div>
+    <router-link class="btn b-pri" to="/config" data-testid="ct-ir-config"><Icon name="settings" small />Abrir Configurações</router-link>
+  </div>
 
   <ContratoFicha :contrato-id="aberto" @fechar="aberto = null" @mudou="carregar" />
 </template>

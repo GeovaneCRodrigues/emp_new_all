@@ -12,6 +12,7 @@ const dados = (o: Partial<DadosVenda> = {}): DadosVenda => ({
 })
 const empresa = (o: Partial<Empresa> = {}): Empresa => ({
   nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'a@b.com', atendente: 'Geovane',
+  telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: 'loja@mundo.com', temLogo: false,
   avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250, ...o,
 })
 const campo = (chave: string, d = dados(), e = empresa()) => preencher(`{{${chave}}}`, d, e)
@@ -72,6 +73,13 @@ describe('modelo do contrato: preencher', () => {
   })
   it('o modelo padrão traz as cláusulas do contrato de locação (anexos I a IV)', () => {
     for (const t of ['ANEXO I. ABERTURA DE CONTRATO', 'ANEXO II - MINUTA DE CONTRATO', 'ANEXO III. TARIFÁRIO LOCADORA', 'ANEXO IV. DECLARAÇÃO DE CONHECIMENTO DE MONITORAMENTO', 'CLÁUSULA DÉCIMA OITAVA – FORO']) expect(MODELO_PADRAO).toContain(t)
+  })
+  it('telefone sai formatado; cidade e UF entram na data e no foro; Pix e telefone sem cadastro saem como "Não informad"', () => {
+    expect(campo('empresa_telefone').texto).toBe('(11) 3333-4444')
+    expect(campo('empresa_telefone', dados(), empresa({ telefone: '11933334444' })).texto).toBe('(11) 93333-4444')
+    const p = preencher('{{empresa_cidade}}/{{empresa_uf}} {{empresa_telefone}} {{empresa_pix}}', dados(), empresa({ telefone: null, pixChave: null }))
+    expect(p.faltam).toEqual([]); expect(p.texto).toBe('Taboão da Serra/SP Não informado Não informada')
+    expect(preencher('{{empresa_cidade}}{{empresa_uf}}', dados(), empresa({ cidade: null, uf: null })).faltam).toEqual(['Cidade da empresa', 'UF da empresa'])
   })
   it('multa de cancelamento sai com vírgula', () => { expect(campo('taxa_cancelamento', dados(), empresa({ cancelamentoPct: 12.5 })).texto).toBe('12,5%') })
   it('campo que não existe fica marcado e não some do texto', () => {

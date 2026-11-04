@@ -82,5 +82,10 @@ export interface ContratosApi {
   salvarModelo(s: Sessao, texto: string): Promise<ModeloApi>
   previa(s: Sessao, texto: string, vendaId: number): Promise<PreviaApi>
   empresa(s: Sessao): Promise<EmpresaApi>
-  salvarEmpresa(s: Sessao, e: Partial<EmpresaApi>): Promise<EmpresaApi>
+  salvarEmpresa(s: Sessao, e: Partial<Omit<EmpresaApi, 'temLogo'>>): Promise<EmpresaApi>
+  /** `imagem`: data URL PNG, JPEG ou WEBP (até ~300 KB). */
+  salvarLogo(s: Sessao, imagem: string): Promise<EmpresaApi>
+  removerLogo(s: Sessao): Promise<EmpresaApi>
+  /** Endereço da imagem da logo para um <img> (público). `versao` força recarregar depois de trocar. */
+  logoSrc(versao?: number): string
 }

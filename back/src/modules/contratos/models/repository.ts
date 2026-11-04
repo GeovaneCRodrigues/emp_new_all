@@ -20,7 +20,10 @@ export interface ContratosRepository {
   modelo(versao: number): Promise<string | null>
   salvarModelo(texto: string, usuarioId: number): Promise<number>
   empresa(): Promise<Empresa>
-  salvarEmpresa(e: Empresa): Promise<void>
+  salvarEmpresa(e: Omit<Empresa, 'temLogo'>): Promise<void>
+  /** A logo (data URL PNG, JPEG ou WEBP). */
+  logo(): Promise<string | null>
+  salvarLogo(dataUrl: string | null): Promise<void>
   /** Guarda o hash do link (o anterior deixa de valer) e zera as tentativas de CPF. */
   gravarLink(id: number, hash: string, expiraEm: Date): Promise<void>
   porLink(hash: string): Promise<ContratoDoLink | null>
@@ -43,8 +46,9 @@ const paraLinha = (l: Linha): LinhaContrato => ({
   aparelho: l.gb > 0 ? `${l.modelo} ${l.gb} GB` : l.modelo, dataVenda: dia(l.data_venda), vendaStatus: l.venda_status,
 })
 
-const CHAVES: Record<keyof Empresa, string> = {
+const CHAVES: Record<Exclude<keyof Empresa, 'temLogo'>, string> = {
   nome: 'empresa_nome', cnpj: 'empresa_cnpj', endereco: 'empresa_endereco', email: 'empresa_email', atendente: 'empresa_atendente',
+  telefone: 'empresa_telefone', cidade: 'empresa_cidade', uf: 'empresa_uf', pixChave: 'empresa_pix',
   avaria: 'taxa_avaria', reposicao: 'taxa_reposicao', seguro: 'taxa_seguro_mensal', cancelamentoPct: 'taxa_cancelamento_pct', recuperacao: 'taxa_recuperacao',
 }
 
@@ -134,11 +138,13 @@ export function createContratosRepository(db: Knex): ContratosRepository {
 
     async empresa() {
       const ls = await db('sistema_config').whereIn('chave', Object.values(CHAVES)).select<{ chave: string; valor: unknown }[]>('chave', 'valor')
-      const v = (k: keyof Empresa) => ls.find((l) => l.chave === CHAVES[k])?.valor
-      const txt = (k: keyof Empresa) => { const x = v(k); return typeof x === 'string' && x.trim() ? x : null }
-      const num = (k: keyof Empresa) => { const x = v(k); return typeof x === 'number' && Number.isFinite(x) ? x : null }
+      const v = (k: keyof typeof CHAVES) => ls.find((l) => l.chave === CHAVES[k])?.valor
+      const txt = (k: keyof typeof CHAVES) => { const x = v(k); return typeof x === 'string' && x.trim() ? x : null }
+      const num = (k: keyof typeof CHAVES) => { const x = v(k); return typeof x === 'number' && Number.isFinite(x) ? x : null }
+      const temLogo = !!(await db('sistema_config').where({ chave: 'empresa_logo' }).first('chave'))
       return {
         nome: txt('nome') ?? 'Mundo dos iPhones', cnpj: txt('cnpj'), endereco: txt('endereco'), email: txt('email'), atendente: txt('atendente'),
+        telefone: txt('telefone'), cidade: txt('cidade'), uf: txt('uf'), pixChave: txt('pixChave'), temLogo,
         avaria: num('avaria'), reposicao: num('reposicao'), seguro: num('seguro'), cancelamentoPct: num('cancelamentoPct'), recuperacao: num('recuperacao'),
       }
     },
@@ -169,8 +175,16 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     },
 
     async salvarEmpresa(e) {
-      await db('sistema_config').insert((Object.keys(CHAVES) as (keyof Empresa)[]).map((k) => ({ chave: CHAVES[k], valor: JSON.stringify(e[k]) })))
+      await db('sistema_config').insert((Object.keys(CHAVES) as (keyof typeof CHAVES)[]).map((k) => ({ chave: CHAVES[k], valor: JSON.stringify(e[k]) })))
         .onConflict('chave').merge({ valor: db.raw('excluded.valor'), updated_at: db.fn.now() })
+    },
+    async logo() {
+      const l = await db('sistema_config').where({ chave: 'empresa_logo' }).first<{ valor: unknown } | undefined>('valor')
+      return typeof l?.valor === 'string' ? l.valor : null
+    },
+    async salvarLogo(dataUrl) {
+      if (dataUrl === null) { await db('sistema_config').where({ chave: 'empresa_logo' }).del(); return }
+      await db('sistema_config').insert({ chave: 'empresa_logo', valor: JSON.stringify(dataUrl) }).onConflict('chave').merge({ valor: db.raw('excluded.valor'), updated_at: db.fn.now() })
     },
   }
 }
