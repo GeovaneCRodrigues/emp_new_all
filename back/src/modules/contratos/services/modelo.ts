@@ -15,6 +15,7 @@ export function enderecoCompleto(c: DadosVenda['cliente']): string | null {
   const cidadeUf = [c.cidade, c.uf].filter(Boolean).join(' - ')
   return [c.endereco, c.numero && `nº ${c.numero}`, c.bairro, cidadeUf, c.cep && `CEP ${cepFmt(c.cep)}`].filter(Boolean).join(', ')
 }
+const telefoneFmt = (t: string) => (t.length === 11 ? `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}` : t.length === 10 ? `(${t.slice(0, 2)}) ${t.slice(2, 6)}-${t.slice(6)}` : t)
 const taxa = (v: number | null) => (v === null ? null : brl(v))
 const DEFS: Def[] = [
   { grupo: 'Contrato', chave: 'contrato_numero', rotulo: 'Número do contrato', valor: (d) => d.numero },
@@ -48,6 +49,10 @@ const DEFS: Def[] = [
   { grupo: 'Empresa e taxas', chave: 'empresa_cnpj', rotulo: 'CNPJ', valor: (_d, e) => e.cnpj },
   { grupo: 'Empresa e taxas', chave: 'empresa_endereco', rotulo: 'Endereço', valor: (_d, e) => e.endereco },
   { grupo: 'Empresa e taxas', chave: 'empresa_email', rotulo: 'E-mail', valor: (_d, e) => e.email },
+  { grupo: 'Empresa e taxas', chave: 'empresa_telefone', rotulo: 'Telefone', valor: (_d, e) => (e.telefone && telefoneFmt(e.telefone)), opcional: 'Não informado' },
+  { grupo: 'Empresa e taxas', chave: 'empresa_cidade', rotulo: 'Cidade da empresa', valor: (_d, e) => e.cidade },
+  { grupo: 'Empresa e taxas', chave: 'empresa_uf', rotulo: 'UF da empresa', valor: (_d, e) => e.uf },
+  { grupo: 'Empresa e taxas', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
   { grupo: 'Empresa e taxas', chave: 'taxa_avaria', rotulo: 'Taxa de avaria', valor: (_d, e) => taxa(e.avaria) },
   { grupo: 'Empresa e taxas', chave: 'taxa_reposicao', rotulo: 'Reposição (perda/roubo)', valor: (_d, e) => taxa(e.reposicao) },
   { grupo: 'Empresa e taxas', chave: 'taxa_seguro', rotulo: 'Seguro (valor mensal)', valor: (_d, e) => taxa(e.seguro) },
@@ -219,9 +224,9 @@ CLÁUSULA DÉCIMA SÉTIMA: DISPOSIÇÕES GERAIS
 17.2. O LOCATÁRIO reconhece a forma de contratação por meio eletrônico e digital como válida e plenamente eficaz.
 
 CLÁUSULA DÉCIMA OITAVA – FORO
-18.1. As partes elegem o foro da Comarca de Taboão da Serra/SP para dirimirem quaisquer dúvidas do presente contrato.
+18.1. As partes elegem o foro da Comarca de {{empresa_cidade}}/{{empresa_uf}} para dirimirem quaisquer dúvidas do presente contrato.
 
-Taboão da Serra, {{data_venda}}
+{{empresa_cidade}}, {{data_venda}}
 
 ______________________________________________________
 LOCADORA – {{empresa_nome}}
@@ -249,7 +254,7 @@ Seguro contra queda: {{taxa_seguro}} (mensal)
 2) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
 3) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
 
-Taboão da Serra, {{data_venda}}
+{{empresa_cidade}}, {{data_venda}}
 
 _____________________________________________
 LOCATÁRIO - {{cliente_nome}}
@@ -262,7 +267,7 @@ i) ter sido amplamente informado de que o APARELHO CELULAR possui dispositivo pa
 ii) ter sido amplamente informado de que o atraso na devolução do APARELHO CELULAR, em casos específicos, poderá caracterizar o crime de apropriação indébita, e que o APARELHO CELULAR poderá ainda ser remotamente e automaticamente bloqueado pelo Sistema de rastreamento;
 iii) ter sido amplamente informado que o inadimplemento das minhas obrigações financeiras junto à LOCADORA, especialmente atraso maior do que 72 hrs no pagamento devido, implicará no imediato bloqueio remoto do APARELHO CELULAR, sem prejuízo da cobrança dos valores devidos.
 
-Taboão da Serra, {{data_venda}}
+{{empresa_cidade}}, {{data_venda}}
 
 _____________________________________________
 LOCATÁRIO - {{cliente_nome}}`
