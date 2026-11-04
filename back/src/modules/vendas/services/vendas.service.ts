@@ -109,7 +109,9 @@ export function createVendasService(d: Dependencias): VendasService {
     const dia = parcelas > 0 ? inteiro(e.diaVencimento, 'diaVencimento', 1, 31) : null
     const indicadorId = e.indicadorId === undefined || e.indicadorId === null ? null : inteiro(e.indicadorId, 'indicadorId', 1, 2 ** 31 - 1)
     const vendedorId = e.vendedorId === undefined || e.vendedorId === null ? null : inteiro(e.vendedorId, 'vendedorId', 1, 2 ** 31 - 1)
-    return { aparelhoId, clienteId, entrada, forma, troca, preco, parcelas, dia, indicadorId, vendedorId }
+    // valor da parcela combinado com o cliente (só o administrador pode; o servidor confere quem pediu)
+    const parcelaEditada = e.parcelaEditada === undefined ? null : dinheiro(e.parcelaEditada, 'parcelaEditada', true)
+    return { aparelhoId, clienteId, entrada, forma, troca, preco, parcelas, dia, indicadorId, vendedorId, parcelaEditada }
   }
 
   const trataDuplicado = (err: unknown): never => {
@@ -124,8 +126,10 @@ export function createVendasService(d: Dependencias): VendasService {
       const juros = await d.config.juros()
       const e = lerEntrada(corpo, juros.maxParcelas)
       if (s.perfil === 'VENDEDOR' && e.vendedorId !== null) throw semPermissao('O vendedor vende sempre em nome dele')
+      if (s.perfil !== 'ADMIN' && e.parcelaEditada !== null) throw semPermissao('Só o administrador edita o valor da parcela')
       const dataVenda = hoje()
 
+      const edicao: { v: { sugerida: number; editada: number } | null } = { v: null }
       const vendaId = await d.vendas
         .emTransacao(async (tx) => {
           const ap = await tx.travarAparelho(e.aparelhoId)
@@ -154,8 +158,14 @@ export function createVendasService(d: Dependencias): VendasService {
           let vendedorId: number | null = s.perfil === 'VENDEDOR' ? s.usuarioId : e.vendedorId
           if (vendedorId !== null && s.perfil === 'ADMIN' && !(await tx.vendedorValido(vendedorId))) throw requisicaoInvalida('Vendedor inválido')
 
-          const plano = planoParc(parcelado, e.parcelas, juros.pct)
+          const sugerido = planoParc(parcelado, e.parcelas, juros.pct)
+          if (e.parcelaEditada !== null && e.parcelas < 1) throw requisicaoInvalida('Não há parcelas para editar')
+          // parcela combinada: todas iguais a ela; o juros efetivo passa a ser o que sobra entre o total e o financiado
+          const editada = e.parcelaEditada !== null && e.parcelas > 0 && e.parcelaEditada !== sugerido.parc
+          const plano = editada ? { parc: e.parcelaEditada!, totalParcelas: arred2(e.parcelaEditada! * e.parcelas) } : sugerido
+          const jurosEfetivo = editada ? Math.max(-999.99, Math.min(999.99, Math.round(((plano.totalParcelas - parcelado) / parcelado / e.parcelas) * 10000) / 100)) : juros.pct
           const total = arred2(e.entrada + trocaValor + plano.totalParcelas)
+          if (editada) edicao.v = { sugerida: sugerido.parc, editada: plano.parc }
 
           let trocaBemId: number | null = null
           if (e.troca) {
@@ -168,7 +178,7 @@ export function createVendasService(d: Dependencias): VendasService {
           const id = await tx.criarVenda({
             bemId: ap.id, clienteId: cliente.id, vendedorId, indicadorId: indicador?.id ?? null,
             // o % do indicador fica congelado nesta venda: mudar o indicador depois não altera vendas antigas
-            pct: indicador?.pct ?? 0, dataVenda, precoAcordado: preco, entrada: e.entrada, troca: trocaValor, trocaBemId, jurosPct: juros.pct,
+            pct: indicador?.pct ?? 0, dataVenda, precoAcordado: preco, entrada: e.entrada, troca: trocaValor, trocaBemId, jurosPct: jurosEfetivo,
             // o custo do dia: corrigir o custo do aparelho depois não muda o lucro desta venda
             investido: arred2(ap.custo + ap.extras), total, status: parcelado === 0 ? 'QUITADA' : 'ATIVA',
           })
@@ -188,7 +198,7 @@ export function createVendasService(d: Dependencias): VendasService {
       const calc = calcular(venda)
       await d.auditoria.registrar({
         usuarioId: s.usuarioId, acao: 'VENDA_CRIADA', entidade: 'venda', entidadeId: vendaId,
-        depois: { aparelhoId: venda.aparelho.id, clienteId: venda.cliente.id, indicadorId: venda.indicador?.id ?? null, pct: venda.pct, preco: venda.precoAcordado, entrada: venda.entrada, troca: venda.troca, parcelas: venda.parcelas.length, total: calc.total, investido: venda.investido },
+        depois: { aparelhoId: venda.aparelho.id, clienteId: venda.cliente.id, indicadorId: venda.indicador?.id ?? null, pct: venda.pct, preco: venda.precoAcordado, entrada: venda.entrada, troca: venda.troca, parcelas: venda.parcelas.length, total: calc.total, investido: venda.investido, ...(edicao.v ? { parcelaSugerida: edicao.v.sugerida, parcelaEditada: edicao.v.editada } : {}) },
       })
       // o contador de operações do indicador andou: o % dos automáticos acompanha o nível (se falhar, a venda já está salva)
       await d.sincronizarNiveis().catch((err) => d.log?.('Falha ao sincronizar os níveis dos indicadores', err))
