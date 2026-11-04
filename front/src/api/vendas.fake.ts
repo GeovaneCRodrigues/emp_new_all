@@ -266,12 +266,19 @@ export function criarVendasFake(dep: Dependencias): VendasFake {
         if (!indicador) throw erro('Indicador não encontrado ou desativado')
       }
 
-      const parc = n > 0 ? ceilCent(arred2(parcelado * (1 + (JUROS.pct / 100) * n)) / n) : 0
+      const sugerida = n > 0 ? ceilCent(arred2(parcelado * (1 + (JUROS.pct / 100) * n)) / n) : 0
+      if (e.parcelaEditada !== undefined && s.perfil !== 'ADMIN') throw new ErroApi(403, 'Só o administrador edita o valor da parcela', 'SEM_PERMISSAO')
+      const combinada = e.parcelaEditada === undefined ? null : dinheiro(e.parcelaEditada, 'parcelaEditada', true)
+      if (combinada !== null && n < 1) throw erro('Não há parcelas para editar')
+      const editada = combinada !== null && combinada !== sugerida
+      const parc = editada ? combinada! : sugerida
+      // com a parcela combinada, o juros por parcela passa a ser o efetivo (mesma conta do servidor)
+      const jurosEfetivo = editada ? Math.max(-999.99, Math.min(999.99, Math.round(((arred2(parc * n) - parcelado) / parcelado / n) * 10000) / 100)) : JUROS.pct
       if (troca) dep.estoque._interno.receberTroca({ modelo: troca.modelo, gb: troca.gb, cor: troca.cor, bateria: troca.bateria, imei: troca.imei, custo: troca.valor, preco: troca.precoRevenda ?? arred2(troca.valor * MARGEM_REVENDA) })
       const reg: Registro = {
         id: ++proximoId, aparelho: { id: ap.id, modelo: ap.modelo, gb: ap.gb, cor: ap.cor }, cliente: { id: cliente.id, nome: cliente.nome },
         vendedorId: s.perfil === 'VENDEDOR' ? (s.usuarioId ?? null) : (e.vendedorId ?? null), indicador: indicador ? { id: indicador.id, nome: indicador.nome } : null,
-        pct: indicador?.pct ?? 0, dataVenda: hoje, precoAcordado: preco, entrada, troca: trocaValor, jurosPct: JUROS.pct, investido: arred2(ap.custo + ap.extras),
+        pct: indicador?.pct ?? 0, dataVenda: hoje, precoAcordado: preco, entrada, troca: trocaValor, jurosPct: jurosEfetivo, investido: arred2(ap.custo + ap.extras),
         status: parcelado === 0 ? 'QUITADA' : 'ATIVA', contrato: 'AGUARDANDO', retomada: null,
         parcelas: Array.from({ length: n }, (_, i) => ({ numero: i + 1, vencimento: somaMes(hoje, i + 1, dia), vencimentoOriginal: null, valor: parc, desconto: 0, pago: 0, quitadaEm: null })),
       }

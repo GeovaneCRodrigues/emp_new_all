@@ -140,9 +140,13 @@ export function simularVenda(a: {
   investido: number
   pctIndicador: number
   juros?: ConfigJuros
+  /** valor da parcela combinado com o cliente (só o admin edita): todas as parcelas passam a valer isso */
+  parcelaEditada?: number
 }) {
   const parcelado = Math.max(0, a.preco - a.entrada - a.troca)
-  const pl = planoParc(parcelado, a.n, a.juros)
+  const sugerido = planoParc(parcelado, a.n, a.juros)
+  const editada = a.parcelaEditada !== undefined && a.parcelaEditada > 0 && a.n > 0 && a.parcelaEditada !== sugerido.parc
+  const pl = editada ? { parc: arred2(a.parcelaEditada!), total: arred2(a.parcelaEditada! * a.n), juros: arred2(a.parcelaEditada! * a.n - parcelado) } : sugerido
   const total = a.entrada + a.troca + pl.total
   const lucro = total - a.investido
   const parteIndicador = lucro > 0 ? lucro * a.pctIndicador : 0
@@ -152,5 +156,5 @@ export function simularVenda(a: {
     acum += pl.parc
     if (acum >= a.investido) volta = i
   }
-  return { parcelado, parc: pl.parc, jurosTotal: pl.juros, total, lucro, parteIndicador, seuLucro: lucro - parteIndicador, volta, margem: total ? lucro / total : 0 }
+  return { parcelado, parc: pl.parc, parcSugerida: sugerido.parc, editada, jurosTotal: pl.juros, total, lucro, parteIndicador, seuLucro: lucro - parteIndicador, volta, margem: total ? lucro / total : 0 }
 }

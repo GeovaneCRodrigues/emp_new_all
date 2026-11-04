@@ -74,6 +74,8 @@ export interface EntradaVenda {
   troca?: TrocaEntrada | null
   parcelas?: number
   diaVencimento?: number
+  /** valor da parcela combinado com o cliente: só o administrador envia (o servidor recusa os outros) */
+  parcelaEditada?: number
   indicadorId?: number | null
   /** só o admin escolhe; o vendedor vende sempre em nome dele */
   vendedorId?: number | null

@@ -74,6 +74,7 @@ onBeforeUnmount(() => clearTimeout(espera))
 
 async function iniciar() {
   venda.value = null; erro.value = ''; passo.value = 1; aparelho.value = null; cliente.value = null; buscaAparelho.value = ''; buscaCliente.value = ''
+  parcelaEditada.value = null; editandoParcela.value = false
   Object.assign(f, { preco: 0, entrada: 0, forma: 'PIX', temTroca: false, n: juros.value.maxParcelas, dia: 10, indicadorId: '', troca: { modelo: '', gb: 128, cor: '', bateria: '80', valor: 0 } })
   const q = route.query
   // vindo de uma proposta de indicador: cliente e indicador já preenchidos
@@ -138,7 +139,21 @@ const parcelado = computed(() => Math.max(0, Math.round((f.preco - f.entrada - t
 const nEfetivo = computed(() => (parcelado.value > 0 ? f.n : 0))
 const investido = computed(() => (aparelho.value && aparelho.value.custo !== undefined ? investidoApi(aparelho.value) : 0))
 const indicadorSel = computed(() => indicadores.value.find((i) => String(i.id) === f.indicadorId) ?? null)
-const sim = computed(() => simularVenda({ preco: f.preco, entrada: f.entrada, troca: trocaValor.value, n: nEfetivo.value, investido: investido.value, pctIndicador: indicadorSel.value?.pct ?? 0, juros: juros.value }))
+/** valor da parcela combinado com o cliente (só o admin edita); null = usa o sugerido pela tabela de juros */
+const parcelaEditada = ref<number | null>(null)
+const editandoParcela = ref(false)
+const sim = computed(() => simularVenda({ preco: f.preco, entrada: f.entrada, troca: trocaValor.value, n: nEfetivo.value, investido: investido.value, pctIndicador: indicadorSel.value?.pct ?? 0, juros: juros.value, ...(parcelaEditada.value !== null ? { parcelaEditada: parcelaEditada.value } : {}) }))
+// mudou preço, entrada, troca ou nº de parcelas: o valor combinado antes já não vale para essa conta
+watch(() => [f.preco, f.entrada, trocaValor.value, f.n], () => { parcelaEditada.value = null; editandoParcela.value = false })
+function editarParcela() { parcelaEditada.value = sim.value.parcSugerida; editandoParcela.value = true }
+function voltarAoSugerido() { parcelaEditada.value = null; editandoParcela.value = false }
+/** O cliente pagaria menos do que o aparelho financiado, ou a venda daria prejuízo: avisa, mas não impede (o admin decide). */
+const avisoParcela = computed(() => {
+  if (!sim.value.editada) return ''
+  if (sim.value.jurosTotal < 0) return `Atenção: o cliente pagará ${fmt(-sim.value.jurosTotal)} a menos do que o valor financiado.`
+  if (aparelho.value?.custo !== undefined && sim.value.lucro < 0) return `Atenção: com essa parcela a venda dá prejuízo de ${fmt(-sim.value.lucro)}.`
+  return ''
+})
 const primeiroVenc = computed(() => somaMes(hoje.value, 1, f.dia))
 const abaixoDaTabela = computed(() => !ehAdmin.value && aparelho.value !== null && f.preco > 0 && f.preco < aparelho.value.preco)
 const nOpcoes = computed(() => Array.from({ length: juros.value.maxParcelas }, (_, i) => i + 1))
@@ -162,6 +177,7 @@ async function confirmar() {
   }
   if (f.entrada > 0) e.formaEntrada = f.forma
   if (nEfetivo.value > 0) e.diaVencimento = f.dia
+  if (ehAdmin.value && sim.value.editada) e.parcelaEditada = sim.value.parc
   if (f.temTroca) e.troca = { modelo: f.troca.modelo, gb: f.troca.gb, cor: f.troca.cor, bateria: Number(f.troca.bateria), valor: f.troca.valor }
   try {
     venda.value = await vendasApi.criar(sessao.value, e)
@@ -249,6 +265,31 @@ const irPara = (p: number) => { if (p === 1 || (p === 2 && aparelho.value) || (p
             <MiniFone :cor="aparelho.cor" />
             <div style="flex: 1; min-width: 0"><div class="val">{{ [aparelho.modelo, gbTxt(aparelho.gb)].filter(Boolean).join(' · ') }}</div><div class="small">para {{ cliente.nome }}</div></div>
             <button class="btn b-ghost b-sm" @click="passo = 1">Trocar</button>
+          </div>
+
+          <div class="card pad" data-testid="valor-parcela">
+            <div class="between" style="gap: 8px">
+              <div>
+                <div class="lbl">{{ nEfetivo ? 'Valor da parcela' : 'Pagamento' }}</div>
+                <div class="val num" style="font-size: 22px" data-testid="parcela-valor">{{ nEfetivo ? `${nEfetivo}x de ${fmt(sim.parc)}` : 'À vista' }}</div>
+                <div v-if="nEfetivo" class="small">1ª vence em {{ dmy(primeiroVenc) }} · o cliente paga {{ fmt(sim.total) }}</div>
+              </div>
+              <div style="text-align: right">
+                <span v-if="sim.editada" class="chip c-gold" data-testid="parcela-editada">valor editado</span>
+                <div v-if="sim.editada" class="small">sugerido {{ fmt(sim.parcSugerida) }}</div>
+              </div>
+            </div>
+            <template v-if="ehAdmin && nEfetivo">
+              <div v-if="editandoParcela" class="field" style="margin-top: 10px">
+                <label for="vParcela">Valor de cada parcela</label>
+                <MoneyInput id="vParcela" :model-value="parcelaEditada ?? sim.parcSugerida" @update:model-value="parcelaEditada = $event" />
+              </div>
+              <div class="row" style="gap: 8px; margin-top: 8px; flex-wrap: wrap">
+                <button v-if="!editandoParcela" class="btn b-out b-sm" type="button" data-testid="parcela-editar" @click="editarParcela">Editar valor</button>
+                <button v-if="sim.editada || editandoParcela" class="btn b-ghost b-sm" type="button" data-testid="parcela-voltar" @click="voltarAoSugerido">Voltar ao sugerido</button>
+              </div>
+              <div v-if="avisoParcela" class="aviso" role="status" style="margin-top: 8px" data-testid="parcela-aviso">{{ avisoParcela }}</div>
+            </template>
           </div>
 
           <div class="card pad" data-testid="dados-contrato" :style="{ borderColor: pendencias.obrigatorias.length ? 'var(--warn)' : 'var(--border)' }">
