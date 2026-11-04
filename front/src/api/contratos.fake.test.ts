@@ -260,4 +260,22 @@ describe('contratos (demonstração)', () => {
       for (const s of [COBRADOR, INDICADOR]) expect((await falha(api.enviarZapsign(s, 1)))?.status).toBe(403)
     })
   })
+
+  describe('dados da empresa (demonstração)', () => {
+    const PNG = 'data:image/png;base64,' + btoa('\x89PNG\r\n\x1a\n' + 'x'.repeat(300))
+    it('telefone vira dígitos, UF fica em maiúsculas, Pix aparado', async () => {
+      const e = await api.salvarEmpresa(ADMIN, { telefone: '(11) 93333-4444', cidade: 'Santos', uf: 'sp', pixChave: ' loja@x.com ' })
+      expect(e).toMatchObject({ telefone: '11933334444', cidade: 'Santos', uf: 'SP', pixChave: 'loja@x.com' })
+    })
+    it.each([[{ telefone: '123' }], [{ uf: 'SPP' }], [{ pixChave: 'ab' }], [{ cidade: 'x'.repeat(101) }]])('recusa %j (400)', async (corpo) => {
+      expect((await falha(api.salvarEmpresa(ADMIN, corpo)))?.status).toBe(400)
+    })
+    it('logo: salva e remove; só admin; recusa o que não é PNG, JPEG ou WEBP', async () => {
+      expect((await api.salvarLogo(ADMIN, PNG)).temLogo).toBe(true)
+      expect(api.logoSrc()).toBe(PNG)
+      expect((await api.removerLogo(ADMIN)).temLogo).toBe(false); expect(api.logoSrc()).toBe('')
+      expect((await falha(api.salvarLogo(ADMIN, 'data:image/gif;base64,AAAA')))?.status).toBe(400)
+      expect((await falha(api.salvarLogo(COBRADOR, PNG)))?.status).toBe(403)
+    })
+  })
 })

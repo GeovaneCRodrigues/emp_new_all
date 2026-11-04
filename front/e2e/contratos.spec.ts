@@ -112,8 +112,8 @@ test.describe('contratos (administrador)', () => {
     await expect(page.getByTestId('ct-modelo-erro')).toContainText('{{campo_inventado}}')
   })
 
-  test('empresa e taxas: carrega, valida o CNPJ, salva e lembra', async ({ page }) => {
-    await aba(page, 'Empresa e taxas').click()
+  test('empresa e taxas (em Configurações): carrega, valida o CNPJ, salva e lembra', async ({ page }) => {
+    await navegar(page, '/config')
     await expect(page.locator('#eNome')).toHaveValue('Mundo dos iPhones LTDA')
     await expect(page.locator('#tAvaria')).toHaveValue('350,00')
     await page.fill('#eCnpj', '123')
@@ -124,18 +124,26 @@ test.describe('contratos (administrador)', () => {
     await expect(page.getByTestId('ct-empresa-msg')).toContainText('salvos')
     await expect(page.locator('#tAvaria')).toHaveValue('400,50'); await expect(page.locator('#tCanc')).toHaveValue('12,5')
     // as taxas novas saem no contrato que ainda não foi enviado
-    await aba(page, 'Contratos').click()
+    await navegar(page, '/contratos')
     await item(page, 'Patrícia Gomes').click()
     await expect(page.getByTestId('ficha-texto')).toContainText('R$ 400,50'); await expect(page.getByTestId('ficha-texto')).toContainText('12,5%')
   })
 
+  test('a aba Empresa e taxas de Contratos manda para Configurações', async ({ page }) => {
+    await aba(page, 'Empresa e taxas').click()
+    await expect(page.getByTestId('ct-empresa-atalho')).toBeVisible()
+    await page.getByTestId('ct-ir-config').click()
+    await expect(page).toHaveURL(/\/config$/)
+    await expect(page.locator('#eNome')).toHaveValue('Mundo dos iPhones LTDA')
+  })
+
   test('taxa em branco: o contrato passa a pedir o campo e não deixa enviar', async ({ page }) => {
     await completarCliente(page, 'Ana Paula Ribeiro')
-    await aba(page, 'Empresa e taxas').click()
+    await navegar(page, '/config')
     await page.fill('#tRecup', '')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-msg')).toBeVisible()
-    await aba(page, 'Contratos').click()
+    await navegar(page, '/contratos')
     await item(page, 'Ana Paula Ribeiro').click()
     await expect(page.getByTestId('ficha-faltam')).toContainText('Taxa de recuperação')
     await expect(page.getByTestId('ficha-enviado')).toBeDisabled()

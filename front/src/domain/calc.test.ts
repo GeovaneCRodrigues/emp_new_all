@@ -90,6 +90,16 @@ describe('simularVenda', () => {
     expect(r.volta).toBe(3) // 1.500 + 3×1.200 = 5.100 ≥ 5.000
   })
 
+  it('parcela editada: todas valem o valor combinado, e total, lucro e onde o capital volta seguem', () => {
+    const r = simularVenda({ preco: 7500, entrada: 1500, troca: 0, n: 10, investido: 5000, pctIndicador: 0.5, parcelaEditada: 1100 })
+    expect(r).toMatchObject({ parc: 1100, parcSugerida: 1200, editada: true, parcelado: 6000, jurosTotal: 5000, total: 12500, lucro: 7500, parteIndicador: 3750, seuLucro: 3750 })
+    expect(r.volta).toBe(4) // 1.500 + 4×1.100 = 5.900 ≥ 5.000
+  })
+  it('parcela editada igual à sugerida ou sem parcelas não conta como edição', () => {
+    expect(simularVenda({ preco: 7500, entrada: 1500, troca: 0, n: 10, investido: 5000, pctIndicador: 0, parcelaEditada: 1200 }).editada).toBe(false)
+    expect(simularVenda({ preco: 7500, entrada: 7500, troca: 0, n: 0, investido: 5000, pctIndicador: 0, parcelaEditada: 900 })).toMatchObject({ editada: false, parc: 0, total: 7500 })
+    expect(simularVenda({ preco: 7500, entrada: 1500, troca: 0, n: 10, investido: 5000, pctIndicador: 0, parcelaEditada: 0 }).editada).toBe(false)
+  })
   it('a troca também entra como abatimento do parcelado', () => {
     expect(simularVenda({ preco: 7500, entrada: 1500, troca: 1000, n: 5, investido: 0, pctIndicador: 0 }).parcelado).toBe(5000)
   })

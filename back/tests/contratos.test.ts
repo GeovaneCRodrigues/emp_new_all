@@ -24,7 +24,7 @@ import { bancoDeTeste, limparBanco } from './helpers/db.js'
 const db: Knex | null = await bancoDeTeste()
 const SENHA = 'senha-forte-123'
 const HOJE = '2026-10-15'
-const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
+const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: '59215794000153', avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
 
 type Detalhe = { contrato: { id: number; vendaId: number; numero: string; status: string; seguro: boolean; modeloVersao: number; enviadoEm: string | null; assinadoEm: string | null }; congelado: boolean; trechos: { tipo: string; v: string }[]; faltam: string[]; texto: string }
 type Lista = { itens: { id: number; numero: string; status: string; clienteNome: string; seguro: boolean; vendaStatus: string }[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
@@ -34,7 +34,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   let depsApp: Parameters<typeof buildApp>[0]
   const t: Record<string, string> = {}
   const id: Record<string, number> = {}
-  const req = (metodo: 'GET' | 'POST' | 'PUT' | 'PATCH', url: string, papel?: string, payload?: object) => app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
+  const req = (metodo: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', url: string, papel?: string, payload?: object) => app.inject({ method: metodo, url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
   const empresaCompleta = () => req('PUT', '/api/contratos/empresa', 'admin', EMPRESA_OK)
   const detalhe = async (cid: number, papel = 'admin') => (await req('GET', `/api/contratos/${cid}`, papel)).json() as Detalhe
   const lista = async (q = '', papel = 'admin') => (await req('GET', `/api/contratos${q}`, papel)).json() as Lista
@@ -81,13 +81,13 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   beforeEach(async () => {
     const k = db!
     for (const tab of ['contratos', 'contrato_modelos', 'recebimentos', 'transacoes_recebimento', 'venda_parcelas', 'vendas', 'bens', 'auditoria']) await k(tab).del()
-    await k('sistema_config').whereIn('chave', ['empresa_endereco', 'empresa_email', 'empresa_atendente', 'taxa_avaria', 'taxa_reposicao', 'taxa_seguro_mensal', 'taxa_cancelamento_pct', 'taxa_recuperacao']).del()
+    await k('sistema_config').whereIn('chave', ['empresa_endereco', 'empresa_email', 'empresa_atendente', 'empresa_telefone', 'empresa_cidade', 'empresa_uf', 'empresa_pix', 'empresa_logo', 'taxa_avaria', 'taxa_reposicao', 'taxa_seguro_mensal', 'taxa_cancelamento_pct', 'taxa_recuperacao']).del()
     await k('sistema_config').insert({ chave: 'empresa_cnpj', valor: JSON.stringify(null) }).onConflict('chave').merge()
     await k('sistema_config').insert({ chave: 'empresa_nome', valor: JSON.stringify('Mundo dos iPhones') }).onConflict('chave').merge()
   })
   afterAll(async () => {
     // não deixa a empresa de teste para os outros arquivos (o recibo usa o CNPJ)
-    await db?.('sistema_config').whereIn('chave', ['empresa_endereco', 'empresa_email', 'empresa_atendente', 'taxa_avaria', 'taxa_reposicao', 'taxa_seguro_mensal', 'taxa_cancelamento_pct', 'taxa_recuperacao']).del()
+    await db?.('sistema_config').whereIn('chave', ['empresa_endereco', 'empresa_email', 'empresa_atendente', 'empresa_telefone', 'empresa_cidade', 'empresa_uf', 'empresa_pix', 'empresa_logo', 'taxa_avaria', 'taxa_reposicao', 'taxa_seguro_mensal', 'taxa_cancelamento_pct', 'taxa_recuperacao']).del()
     await db?.('sistema_config').insert([{ chave: 'empresa_nome', valor: JSON.stringify('Mundo dos iPhones') }, { chave: 'empresa_cnpj', valor: JSON.stringify(null) }]).onConflict('chave').merge()
     await app?.close(); await db?.destroy()
   })
@@ -361,12 +361,12 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
 
   describe('empresa e taxas', () => {
     it('começa com a razão social do recibo e o resto vazio (nenhuma taxa inventada)', async () => {
-      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, avaria: null, reposicao: null, seguro: null, cancelamentoPct: null, recuperacao: null })
+      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, telefone: null, cidade: null, uf: null, pixChave: null, temLogo: false, avaria: null, reposicao: null, seguro: null, cancelamentoPct: null, recuperacao: null })
     })
     it('salva tudo, devolve, e o recibo continua lendo nome e CNPJ da mesma configuração', async () => {
       const r = await empresaCompleta()
-      expect(r.statusCode).toBe(200); expect(r.json()).toEqual(EMPRESA_OK)
-      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual(EMPRESA_OK)
+      expect(r.statusCode).toBe(200); expect(r.json()).toEqual({ ...EMPRESA_OK, temLogo: false })
+      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ ...EMPRESA_OK, temLogo: false })
       expect(await db!('sistema_config').where({ chave: 'empresa_cnpj' }).first()).toMatchObject({ valor: '11.222.333/0001-81' })
       const log = await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_SALVA' }).first()
       expect(log.antes).toMatchObject({ cnpj: null, avaria: null }); expect(log.depois).toMatchObject({ cnpj: '11.222.333/0001-81', avaria: 350 })
@@ -377,7 +377,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
     it('salvar só um campo mantém os outros; vazio ou null limpa (menos a razão social)', async () => {
       await empresaCompleta()
-      expect((await req('PUT', '/api/contratos/empresa', 'admin', { avaria: 400 })).json()).toEqual({ ...EMPRESA_OK, avaria: 400 })
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', { avaria: 400 })).json()).toEqual({ ...EMPRESA_OK, temLogo: false, avaria: 400 })
       expect((await req('PUT', '/api/contratos/empresa', 'admin', { email: '', reposicao: null })).json()).toMatchObject({ email: null, reposicao: null, avaria: 400 })
       expect((await req('PUT', '/api/contratos/empresa', 'admin', { nome: '' })).statusCode).toBe(400)
     })
@@ -391,6 +391,74 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
     it('arredonda os centavos', async () => {
       expect((await req('PUT', '/api/contratos/empresa', 'admin', { seguro: 39.899, cancelamentoPct: 12.345 })).json()).toMatchObject({ seguro: 39.9, cancelamentoPct: 12.35 })
+    })
+  })
+
+  describe('dados da empresa: telefone, cidade, Pix e logo', () => {
+    const PNG = 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 5)]).toString('base64')
+    const JPG = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(300, 5)]).toString('base64')
+    const WEBP = 'data:image/webp;base64,' + Buffer.concat([Buffer.from('RIFF'), Buffer.from([1, 2, 3, 4]), Buffer.from('WEBP'), Buffer.alloc(300, 5)]).toString('base64')
+    const logo = (papel: string | undefined, imagem: unknown) => req('PUT', '/api/contratos/empresa/logo', papel, { imagem })
+
+    it('telefone vira só dígitos, cidade fica como digitada, UF em maiúsculas, Pix aparado', async () => {
+      const r = await req('PUT', '/api/contratos/empresa', 'admin', { telefone: '(11) 93333-4444', cidade: '  Taboão da Serra ', uf: 'sp', pixChave: '  loja@mundo.com  ' })
+      expect(r.json()).toMatchObject({ telefone: '11933334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: 'loja@mundo.com' })
+    })
+    it.each([
+      ['telefone curto', { telefone: '123' }], ['telefone com letras demais', { telefone: 'abcdefghij' }], ['UF com 3 letras', { uf: 'SPP' }], ['UF com número', { uf: 'S1' }],
+      ['cidade gigante', { cidade: 'x'.repeat(101) }], ['Pix curto', { pixChave: 'ab' }], ['Pix gigante', { pixChave: 'x'.repeat(78) }], ['Pix com quebra de linha', { pixChave: 'a\nb@c.com' }],
+      ['cidade que não é texto', { cidade: 5 }],
+    ])('%s: 400 e nada é gravado', async (_n, corpo) => {
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', corpo)).statusCode).toBe(400)
+      expect(await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_SALVA' }).count('* as n').first()).toMatchObject({ n: '0' })
+    })
+    it('vazio limpa telefone, cidade, UF e Pix', async () => {
+      await empresaCompleta()
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', { telefone: '', cidade: null, uf: '', pixChave: '' })).json()).toMatchObject({ telefone: null, cidade: null, uf: null, pixChave: null })
+    })
+    it('cidade e UF entram no contrato (data e foro) e, sem elas, o contrato avisa que faltam', async () => {
+      await empresaCompleta()
+      const cid = await contratoDe(await venda())
+      const d = await detalhe(cid)
+      expect(d.texto).toContain('Taboão da Serra, 05/10/2026'); expect(d.texto).toContain('foro da Comarca de Taboão da Serra/SP')
+      await req('PUT', '/api/contratos/empresa', 'admin', { cidade: null, uf: null })
+      expect((await detalhe(cid)).faltam).toEqual(expect.arrayContaining(['Cidade da empresa', 'UF da empresa']))
+    })
+    it('logo: salva PNG, JPEG e WEBP; a empresa passa a dizer temLogo e a imagem sai pelo endereço público', async () => {
+      for (const [img, tipo] of [[PNG, 'image/png'], [JPG, 'image/jpeg'], [WEBP, 'image/webp']] as const) {
+        const r = await logo('admin', img)
+        expect(r.statusCode).toBe(200); expect(r.json().temLogo).toBe(true)
+        const g = await req('GET', '/api/empresa/logo') // sem login: o <img> não manda cabeçalho
+        expect(g.statusCode).toBe(200); expect(g.headers['content-type']).toBe(tipo)
+        expect(g.rawPayload.length).toBeGreaterThan(300)
+      }
+      const e = (await req('GET', '/api/contratos/empresa', 'admin')).json()
+      expect(e.temLogo).toBe(true); expect(JSON.stringify(e)).not.toContain('base64')
+      expect(await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_LOGO' }).count('* as n').first()).toMatchObject({ n: '3' })
+    })
+    it('sem logo o endereço público dá 404; remover apaga', async () => {
+      expect((await req('GET', '/api/empresa/logo')).statusCode).toBe(404)
+      await logo('admin', PNG)
+      expect((await req('DELETE', '/api/contratos/empresa/logo', 'admin')).json().temLogo).toBe(false)
+      expect((await req('GET', '/api/empresa/logo')).statusCode).toBe(404)
+    })
+    it('só o administrador troca ou remove a logo', async () => {
+      for (const p of ['vendedorA', 'cobrador', 'indicador']) {
+        expect((await logo(p, PNG)).statusCode, p).toBe(403)
+        expect((await req('DELETE', '/api/contratos/empresa/logo', p)).statusCode, p).toBe(403)
+      }
+      expect((await logo(undefined, PNG)).statusCode).toBe(401)
+      expect((await req('GET', '/api/empresa/logo')).statusCode).toBe(404)
+    })
+    it.each([
+      ['SVG (pode levar script)', 'data:image/svg+xml;base64,' + Buffer.from('<svg onload="x"/>').toString('base64')],
+      ['texto qualquer', 'oi'], ['PNG que não é PNG', 'data:image/png;base64,' + Buffer.alloc(300, 1).toString('base64')],
+      ['JPEG dizendo ser PNG', JPG.replace('image/jpeg', 'image/png')], ['GIF', 'data:image/gif;base64,' + Buffer.from('GIF89a' + 'x'.repeat(300)).toString('base64')],
+      ['grande demais (> 300 KB)', 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(301_000, 1)]).toString('base64')],
+      ['não é texto', 123],
+    ])('recusa %s (400) e não grava', async (_n, img) => {
+      expect((await logo('admin', img)).statusCode).toBe(400)
+      expect(await db!('sistema_config').where({ chave: 'empresa_logo' }).count('* as n').first()).toMatchObject({ n: '0' })
     })
   })
 

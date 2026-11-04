@@ -38,6 +38,13 @@ export function createContratosController(s: ContratosService) {
     async salvarModelo(req: FastifyRequest) { return s.salvarModelo(sessaoOuErro(req), corpo(req).texto) },
     async previa(req: FastifyRequest) { return s.previa(sessaoOuErro(req), corpo(req)) },
     async empresa(req: FastifyRequest) { return s.empresa(sessaoOuErro(req)) },
+    async salvarLogo(req: FastifyRequest) { return s.salvarLogo(sessaoOuErro(req), corpo(req).imagem) },
+    async removerLogo(req: FastifyRequest) { return s.removerLogo(sessaoOuErro(req)) },
+    async logoPublica(_req: FastifyRequest, reply: FastifyReply) {
+      const l = await s.logoPublica()
+      if (!l) return reply.code(404).send({ erro: 'Sem logo' })
+      return reply.header('content-type', l.tipo).header('cache-control', 'public, max-age=300').header('x-content-type-options', 'nosniff').send(l.bytes)
+    },
     async salvarEmpresa(req: FastifyRequest) { return s.salvarEmpresa(sessaoOuErro(req), corpo(req)) },
   }
 }

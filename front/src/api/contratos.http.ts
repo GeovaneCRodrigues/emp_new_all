@@ -33,6 +33,9 @@ export function criarContratosHttp(baseUrl: string, requisicao: Requisicao): Con
     previa: (_s, texto, vendaId) => chamar('/contratos/modelo/previa', json('POST', { texto, vendaId })),
     empresa: () => chamar('/contratos/empresa'),
     salvarEmpresa: (_s, e) => chamar('/contratos/empresa', json('PUT', e)),
+    salvarLogo: (_s, imagem) => chamar('/contratos/empresa/logo', json('PUT', { imagem })),
+    removerLogo: () => chamar('/contratos/empresa/logo', json('DELETE')),
+    logoSrc: (versao = 0) => `${baseUrl}/api/empresa/logo?v=${versao}`,
   }
 }
 

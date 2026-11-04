@@ -12,6 +12,10 @@ export function contratosRoutes(service: ContratosService, auth: preHandlerAsync
     app.post('/contratos/modelo/previa', p, c.previa)
     app.get('/contratos/empresa', p, c.empresa)
     app.put('/contratos/empresa', p, c.salvarEmpresa)
+    app.put('/contratos/empresa/logo', { ...p, bodyLimit: 600_000 }, c.salvarLogo)
+    app.delete('/contratos/empresa/logo', p, c.removerLogo)
+    // a logo é identidade visual, não segredo: sai sem login para o <img> e para a página de assinatura do cliente
+    app.get('/empresa/logo', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, c.logoPublica)
     app.get('/contratos/venda/:vendaId', p, c.porVenda)
     app.post('/contratos/venda/:vendaId', p, c.gerar)
     app.get('/contratos', p, c.listar)

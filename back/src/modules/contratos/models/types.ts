@@ -9,6 +9,15 @@ export type Empresa = {
   endereco: string | null
   email: string | null
   atendente: string | null
+  /** só dígitos, com DDD */
+  telefone: string | null
+  cidade: string | null
+  /** 2 letras */
+  uf: string | null
+  /** chave Pix da loja (como foi digitada) */
+  pixChave: string | null
+  /** a imagem em si sai por GET /api/empresa/logo (não vai junto, é pesada) */
+  temLogo: boolean
   /** taxas do contrato; null = ainda não cadastrada (o contrato não pode ser enviado) */
   avaria: number | null
   reposicao: number | null

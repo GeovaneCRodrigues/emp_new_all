@@ -52,6 +52,27 @@ describe('as contas do plano', () => {
   })
 })
 
+describe('parcela editada (só o administrador)', () => {
+  it('o admin combina outro valor: parcelas iguais, total e juros efetivo refeitos', async () => {
+    const v = await api.criar(ADMIN, await base({ parcelaEditada: 1100 }))
+    expect(v).toMatchObject({ nParcelas: 10, valorParcela: 1100, total: 12500, jurosPct: 8.33 })
+    expect(v.parcelas.map((p) => p.valor)).toEqual(Array(10).fill(1100))
+  })
+  it('igual à sugerida não conta como edição', async () => {
+    expect(await api.criar(ADMIN, await base({ parcelaEditada: 1200 }))).toMatchObject({ valorParcela: 1200, jurosPct: 10, total: 13500 })
+  })
+  it('vendedor leva 403, e nada é vendido', async () => {
+    const e = await api.criar({ perfil: 'VENDEDOR', usuarioId: 2 }, await base({ parcelaEditada: 1300 })).then(() => null, (x: { status: number }) => x)
+    expect(e?.status).toBe(403)
+  })
+  it('à vista ou valor inválido: 400', async () => {
+    for (const o of [{ entrada: 7500, parcelas: 0, parcelaEditada: 500 }, { parcelaEditada: 0 }, { parcelaEditada: -5 }]) {
+      const e = await api.criar(ADMIN, await base(o)).then(() => null, (x: { status: number }) => x)
+      expect(e?.status, JSON.stringify(o)).toBe(400)
+    }
+  })
+})
+
 describe('lucro e indicador (só o admin vê)', () => {
   it('sem indicador, tudo do dono; o custo do dia fica gravado', async () => {
     const v = await api.criar(ADMIN, await base({ aparelhoId: await aparelho(7500, 4800, 200) }))
