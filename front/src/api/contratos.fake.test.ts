@@ -226,6 +226,41 @@ describe('contratos (demonstração)', () => {
     })
   })
 
+  describe('ZapSign (demonstração)', () => {
+    it('está ligado em modo teste', async () => { expect(await api.zapsignStatus(ADMIN)).toEqual({ ativo: true, sandbox: true, webhook: true }) })
+    it('envia: contrato vira ENVIADO e congelado, com o link do ZapSign e a marca de teste', async () => {
+      const p = await pendente(); await completarCliente(p.vendaId)
+      const d = await api.enviarZapsign(ADMIN, p.id)
+      expect(d.contrato.status).toBe('ENVIADO'); expect(d.congelado).toBe(true)
+      expect(d.zapsign).toMatchObject({ status: 'pending', sandbox: true }); expect(d.zapsign?.signUrl).toContain('zapsign')
+    })
+    it('enviar de novo devolve o mesmo documento', async () => {
+      const p = await pendente(); await completarCliente(p.vendaId)
+      const a = await api.enviarZapsign(ADMIN, p.id); const b = await api.enviarZapsign(ADMIN, p.id)
+      expect(b.zapsign?.signUrl).toBe(a.zapsign?.signUrl)
+    })
+    it('faltando dado: 409 DADOS_FALTANDO e nada é enviado', async () => {
+      const p = await pendente()
+      const e = await falha(api.enviarZapsign(ADMIN, p.id))
+      expect(e).toMatchObject({ status: 409, codigo: 'DADOS_FALTANDO' })
+      expect((await api.obter(ADMIN, p.id)).zapsign).toBeNull()
+    })
+    it('depois do ZapSign o link próprio é recusado (409)', async () => {
+      const p = await pendente(); await completarCliente(p.vendaId)
+      await api.enviarZapsign(ADMIN, p.id)
+      expect((await falha(api.gerarLink(ADMIN, p.id)))?.codigo).toBe('ZAPSIGN_EM_ANDAMENTO')
+    })
+    it('atualizar sem ter enviado: 409; depois de enviar devolve o contrato', async () => {
+      const p = await pendente(); await completarCliente(p.vendaId)
+      expect((await falha(api.atualizarZapsign(ADMIN, p.id)))?.codigo).toBe('ZAPSIGN_NAO_ENVIADO')
+      await api.enviarZapsign(ADMIN, p.id)
+      expect((await api.atualizarZapsign(ADMIN, p.id)).zapsign?.status).toBe('pending')
+    })
+    it('cobrador e indicador levam 403', async () => {
+      for (const s of [COBRADOR, INDICADOR]) expect((await falha(api.enviarZapsign(s, 1)))?.status).toBe(403)
+    })
+  })
+
   describe('dados da empresa (demonstração)', () => {
     const PNG = 'data:image/png;base64,' + btoa('\x89PNG\r\n\x1a\n' + 'x'.repeat(300))
     it('telefone vira dígitos, UF fica em maiúsculas, Pix aparado', async () => {

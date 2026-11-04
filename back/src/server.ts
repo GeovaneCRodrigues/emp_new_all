@@ -33,6 +33,7 @@ import { createCaixaRepository } from './modules/caixa/models/repository.js'
 import { createCaixaFechamentosRepository } from './modules/caixa-fechamentos/models/repository.js'
 import { createCaixaFechamentosService } from './modules/caixa-fechamentos/services/caixa-fechamentos.service.js'
 import { createCaixaService } from './modules/caixa/services/caixa.service.js'
+import { criarZapsignClient } from './modules/contratos/services/zapsign.client.js'
 import { createContratosRepository } from './modules/contratos/models/repository.js'
 import { createContratosService } from './modules/contratos/services/contratos.service.js'
 import { createRelatoriosRepository } from './modules/relatorios/models/repository.js'
@@ -59,7 +60,10 @@ const indicadores = createIndicadoresService(createIndicadoresRepository(db.knex
 const estoque = createEstoqueService(createEstoqueRepository(db.knex), createAuditoriaRepository(db.knex))
 
 const configRepo = createConfigRepository(db.knex)
-const contratos = createContratosService({ repo: createContratosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex), log: (msg, err) => console.error(msg, err) })
+// ZapSign: só liga com o token no ambiente. ZAPSIGN_SANDBOX=false é o que passa a valer como contrato de verdade (começa em teste).
+const tokenZapsign = (process.env.TOKEN_ZAPSIGN ?? '').trim()
+const zapsign = tokenZapsign ? criarZapsignClient({ token: tokenZapsign, sandbox: (process.env.ZAPSIGN_SANDBOX ?? 'true').trim().toLowerCase() !== 'false' }) : null
+const contratos = createContratosService({ repo: createContratosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex), log: (msg, err) => console.error(msg, err), zapsign, webhookSecret: (process.env.ZAPSIGN_WEBHOOK_SECRET ?? '').trim() || null })
 const vendas = createVendasService({
   vendas: createVendasRepository(db.knex), config: configRepo, auditoria: createAuditoriaRepository(db.knex), gerarContrato: (id, u) => contratos.gerarDaVenda(id, u),
   sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),
