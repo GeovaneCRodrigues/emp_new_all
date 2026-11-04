@@ -367,6 +367,65 @@ describe.skipIf(!db)('vendas (Postgres de verdade)', () => {
     })
   })
 
+  describe('parcela editada (só o administrador)', () => {
+    // base: 7.500, entrada 1.500, 10x a 10% → sugerida 1.200 (total 13.500)
+    it('o admin combina outro valor: todas as parcelas iguais, total refeito e juros efetivo gravado', async () => {
+      const r = await vender('admin', await corpoBase({ parcelaEditada: 1100 }))
+      expect(r.statusCode).toBe(201)
+      const v = r.json()
+      expect(v).toMatchObject({ nParcelas: 10, valorParcela: 1100, total: 12500, falta: 11000, recebido: 1500 })
+      expect(v.parcelas.map((p: { valor: number }) => p.valor)).toEqual(Array(10).fill(1100))
+      expect(v.jurosPct).toBe(8.33) // (11.000 − 6.000) ÷ 6.000 ÷ 10
+    })
+    it('pode ser maior que a sugerida', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1300 }))).json()
+      expect(v).toMatchObject({ valorParcela: 1300, total: 14500, jurosPct: 11.67 })
+    })
+    it('o recibo da entrada mostra a parcela combinada', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1100 }))).json()
+      const rec = await db!('transacoes_recebimento as t').join('recebimentos as r', 'r.transacao_id', 't.id').where('r.venda_id', v.id).first('t.resumo')
+      expect(rec.resumo).toMatchObject({ faltaDepois: 11000, proxima: { numero: 1, valor: 1100 }, restantes: 10 })
+    })
+    it('lucro e parte do indicador seguem o total editado (12.500 − 5.000 de custo, meio a meio)', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1100, indicadorId: id.ind1 }))).json()
+      expect(v).toMatchObject({ total: 12500, lucroTotal: 7500, parteIndicador: 3750, seuLucro: 3750 })
+    })
+    it('igual à sugerida não conta como edição (juros e auditoria como sempre)', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1200 }))).json()
+      expect(v).toMatchObject({ valorParcela: 1200, jurosPct: 10, total: 13500 })
+      const aud = await db!('auditoria').where({ acao: 'VENDA_CRIADA', entidade_id: v.id }).first()
+      expect(aud.depois.parcelaEditada).toBeUndefined()
+    })
+    it('a auditoria guarda a sugerida e a combinada', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1100 }))).json()
+      const aud = await db!('auditoria').where({ acao: 'VENDA_CRIADA', entidade_id: v.id }).first()
+      expect(aud.depois).toMatchObject({ parcelaSugerida: 1200, parcelaEditada: 1100, total: 12500 })
+    })
+    it('vendedor não edita a parcela (403), nem para mais, e a venda não é criada', async () => {
+      for (const valor of [1100, 1300]) {
+        const c = await corpoBase({ parcelaEditada: valor })
+        const r = await vender('vendedorA', c)
+        expect(r.statusCode).toBe(403)
+        expect(await db!('vendas').where({ bem_id: c.aparelhoId }).count('* as n').first()).toMatchObject({ n: '0' })
+      }
+    })
+    it('o campo antigo valorParcela continua ignorado até para o admin', async () => {
+      const v = (await vender('admin', await corpoBase({ valorParcela: 1 }))).json()
+      expect(v).toMatchObject({ valorParcela: 1200, total: 13500 })
+    })
+    it('sem nada a parcelar (à vista) não há parcela para editar: 400', async () => {
+      const r = await vender('admin', await corpoBase({ entrada: 7500, parcelas: 0, diaVencimento: undefined, parcelaEditada: 500 }))
+      expect(r.statusCode).toBe(400)
+    })
+    it.each([['zero', 0], ['negativa', -10], ['texto', '1100'], ['NaN', null], ['gigante', 1e9]])('valor %s: 400', async (_n, valor) => {
+      expect((await vender('admin', await corpoBase({ parcelaEditada: valor }))).statusCode).toBe(400)
+    })
+    it('centavos: arredonda para 2 casas', async () => {
+      const v = (await vender('admin', await corpoBase({ parcelaEditada: 1099.999 }))).json()
+      expect(v.valorParcela).toBe(1100)
+    })
+  })
+
   describe('auditoria e configuração', () => {
     it('grava quem vendeu, com os números da venda', async () => {
       const v = (await vender('vendedorA', await corpoBase())).json()
