@@ -8,7 +8,7 @@ import type { ResultadoLista } from '../services/estoque.service.js'
  */
 export function aparelhoView(a: Aparelho, perfil: Perfil) {
   const base = {
-    id: a.id, modelo: a.modelo, gb: a.gb, cor: a.cor, bateria: a.bateria, condicao: a.condicao, imei: a.imei, preco: a.preco,
+    id: a.id, modelo: a.modelo, gb: a.gb, cor: a.cor, bateria: a.bateria, condicao: a.condicao, imei: a.imei, serie: a.serie, preco: a.preco,
     estado: a.estado, origem: a.origem, dataCompra: a.dataCompra, paraCliente: a.paraCliente,
   }
   if (perfil !== 'ADMIN') return base

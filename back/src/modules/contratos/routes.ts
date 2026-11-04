@@ -2,7 +2,7 @@ import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify'
 import { createContratosController } from './controllers/contratos.controller.js'
 import type { ContratosService } from './services/contratos.service.js'
 
-export function contratosRoutes(service: ContratosService, auth: preHandlerAsyncHookHandler) {
+export function contratosRoutes(service: ContratosService, auth: preHandlerAsyncHookHandler, assinaturasPorMinuto = 10) {
   const c = createContratosController(service)
   const p = { preHandler: auth }
   return async (app: FastifyInstance) => {
@@ -19,5 +19,9 @@ export function contratosRoutes(service: ContratosService, auth: preHandlerAsync
     app.post('/contratos/:id/enviado', p, c.enviado)
     app.post('/contratos/:id/assinado', p, c.assinado)
     app.patch('/contratos/:id', p, c.seguro)
+    app.post('/contratos/:id/link', { ...p, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, c.link)
+    // páginas públicas de assinatura: sem login, limitadas por IP (o token é aleatório de 256 bits e só o hash fica guardado)
+    app.get('/assinar/:token', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, c.verParaAssinar)
+    app.post('/assinar/:token', { config: { rateLimit: { max: assinaturasPorMinuto, timeWindow: '1 minute' } }, bodyLimit: 600_000 }, c.assinarPeloLink)
   }
 }

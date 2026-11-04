@@ -113,6 +113,17 @@ describe.skipIf(!db)('estoque (Postgres de verdade)', () => {
       id.a13 = a.id
     })
 
+    it('número de série: opcional, maiúsculo, de 5 a 40 letras e números', async () => {
+      expect((await req('POST', '/api/aparelhos', 'admin', aparelho({ imei: undefined, serie: ' f2lxyz12345 ' }))).json().serie).toBe('F2LXYZ12345')
+      expect((await req('POST', '/api/aparelhos', 'admin', aparelho({ imei: undefined }))).json().serie).toBeNull()
+      for (const serie of ['abc', 'ABC 12345', 'x'.repeat(41), 'ÇÇÇÇÇÇ', 123456]) expect((await req('POST', '/api/aparelhos', 'admin', aparelho({ imei: undefined, serie }))).statusCode, String(serie)).toBe(400)
+    })
+    it('edita o número de série e limpa com vazio', async () => {
+      const a = (await req('POST', '/api/aparelhos', 'admin', aparelho({ imei: undefined }))).json()
+      expect((await req('PATCH', `/api/aparelhos/${a.id}`, 'admin', { serie: 'G9QWE98765' })).json().serie).toBe('G9QWE98765')
+      expect((await req('PATCH', `/api/aparelhos/${a.id}`, 'admin', { serie: '' })).json().serie).toBeNull()
+    })
+
     it('usa padrões: seminovo, compra, bateria 100, custo 0, disponível e data de hoje', async () => {
       const r = await req('POST', '/api/aparelhos', 'admin', { modelo: 'iPhone 12', gb: 64, cor: 'Branco', preco: 2400 })
       expect(r.json()).toMatchObject({ condicao: 'Seminovo', origem: 'COMPRA', bateria: 100, custo: 0, extras: 0, estado: 'DISPONIVEL', imei: null })

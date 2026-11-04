@@ -6,7 +6,14 @@ export type Cliente = {
   /** só dígitos */
   cpf: string | null
   rg: string | null
+  /** rua / texto livre do endereço (clientes antigos têm o endereço todo aqui) */
   endereco: string | null
+  numero: string | null
+  bairro: string | null
+  cidade: string | null
+  uf: string | null
+  /** só dígitos */
+  cep: string | null
   origem: string | null
   /** só o administrador vê e edita */
   email: string | null

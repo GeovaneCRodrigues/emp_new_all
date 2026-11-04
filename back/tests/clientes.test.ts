@@ -221,6 +221,32 @@ describe.skipIf(!db)('clientes (Postgres de verdade)', () => {
     it('sem login, 401', async () => expect((await req('POST', '/api/clientes', undefined, base)).statusCode).toBe(401))
   })
 
+  describe('endereço dividido', () => {
+    const base = { nome: 'Paulo Lima', fone: '11945052300' }
+    it('guarda número, bairro, cidade, UF e CEP (maiúsculas, UF em 2 letras, CEP só dígitos)', async () => {
+      const r = await req('POST', '/api/clientes', 'admin', { ...base, endereco: 'Rua Érico Veríssimo', numero: '25', bairro: 'Vila Indiana', cidade: 'Taboão da Serra', uf: 'sp', cep: '06786-490' })
+      expect(r.statusCode).toBe(201)
+      expect(r.json().cliente).toMatchObject({ endereco: 'RUA ÉRICO VERÍSSIMO', numero: '25', bairro: 'VILA INDIANA', cidade: 'TABOÃO DA SERRA', uf: 'SP', cep: '06786490' })
+    })
+    it('sem os campos novos continua valendo (cliente antigo): ficam null', async () => {
+      const r = await req('POST', '/api/clientes', 'admin', { ...base, fone: '11945052301', endereco: 'Rua A, 10, Centro, Santos' })
+      expect(r.json().cliente).toMatchObject({ endereco: 'RUA A, 10, CENTRO, SANTOS', numero: null, bairro: null, cidade: null, uf: null, cep: null })
+    })
+    it.each([['UF com 3 letras', { uf: 'SPP' }], ['UF com número', { uf: 'S1' }], ['CEP curto', { cep: '1234' }], ['CEP com letras demais', { cep: 'abcdefgh' }], ['bairro enorme', { bairro: 'x'.repeat(101) }]])('recusa %s (400)', async (_n, extra) => {
+      expect((await req('POST', '/api/clientes', 'admin', { ...base, fone: '11945052302', ...extra })).statusCode).toBe(400)
+    })
+    it('edita só a cidade sem mexer no resto, e limpa com vazio', async () => {
+      const c = (await req('POST', '/api/clientes', 'admin', { ...base, fone: '11945052303', numero: '9', cidade: 'Santos' })).json().cliente
+      const r = await req('PATCH', `/api/clientes/${c.id}`, 'admin', { cidade: 'Osasco' })
+      expect(r.json().cliente).toMatchObject({ cidade: 'OSASCO', numero: '9' })
+      expect((await req('PATCH', `/api/clientes/${c.id}`, 'admin', { numero: '' })).json().cliente.numero).toBeNull()
+    })
+    it('o vendedor também cadastra e edita o endereço completo', async () => {
+      const r = await req('POST', '/api/clientes', 'vendedorA', { ...base, fone: '11945052304', cidade: 'Santos', uf: 'SP' })
+      expect(r.statusCode).toBe(201); expect(r.json().cliente).toMatchObject({ cidade: 'SANTOS', uf: 'SP' })
+    })
+  })
+
   describe('e-mail e observações (só do administrador)', () => {
     it('o admin grava e lê; vendedor e cobrador nunca recebem esses campos, e o que mandarem é ignorado', async () => {
       const r = await req('PATCH', `/api/clientes/${id.maria}`, 'admin', { email: 'maria@exemplo.com', observacoes: 'Cliente antigo, paga sempre no dia 10' })

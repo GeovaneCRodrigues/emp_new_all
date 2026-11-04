@@ -3,10 +3,11 @@ import { describe, expect, it } from 'vitest'
 import type { DadosVenda, Empresa } from '../src/modules/contratos/models/types.js'
 import { brl, camposDesconhecidos, MODELO_PADRAO, preencher, VARIAVEIS } from '../src/modules/contratos/services/modelo.js'
 
+const CLIENTE_VAZIO = { email: null, rg: null, numero: null, bairro: null, cidade: null, uf: null, cep: null }
 const dados = (o: Partial<DadosVenda> = {}): DadosVenda => ({
   vendaId: 92, vendaStatus: 'ATIVA', numero: '2026-0092', dataVenda: '2026-10-05',
-  cliente: { nome: 'ANA SOUZA', cpf: '52998224725', fone: '11988124410', endereco: 'RUA A, 10' },
-  aparelho: { modelo: 'IPHONE 15', gb: 128, cor: 'PRETO', condicao: 'Seminovo', imei: '356938035643809' },
+  cliente: { ...CLIENTE_VAZIO, nome: 'ANA SOUZA', cpf: '52998224725', fone: '11988124410', endereco: 'RUA A, 10' },
+  aparelho: { modelo: 'IPHONE 15', gb: 128, cor: 'PRETO', condicao: 'Seminovo', imei: '356938035643809', serie: null },
   entrada: 1000, troca: 0, parcelas: [{ valor: 500, vencimento: '2026-11-10' }, { valor: 500, vencimento: '2026-12-10' }], seguro: false, ...o,
 })
 const empresa = (o: Partial<Empresa> = {}): Empresa => ({
@@ -20,7 +21,7 @@ describe('modelo do contrato: preencher', () => {
   it('o modelo padrão preenche tudo quando o cadastro está completo', () => {
     const p = preencher(MODELO_PADRAO, dados(), empresa())
     expect(p.faltam).toEqual([])
-    expect(p.texto).toContain('CONTRATO Nº 2026-0092')
+    expect(p.texto).toContain('CONTRATO N°: 2026-0092')
     expect(p.texto).toContain('CPF: 529.982.247-25')
     expect(p.texto).toContain('VALOR TOTAL DO CONTRATO: R$ 2.000,00')
     expect(p.texto).not.toContain('{{')
@@ -42,9 +43,9 @@ describe('modelo do contrato: preencher', () => {
     expect(p.faltam).toEqual([]); expect(p.texto).toBe('0 não há parcelas não há parcelas 05/10/2026')
   })
   it('CPF, endereço, IMEI e capacidade sem cadastro viram "falta" e saem em branco no texto', () => {
-    const d = dados({ cliente: { nome: 'ANA', cpf: null, fone: '11988124410', endereco: '' }, aparelho: { modelo: 'IPHONE 12', gb: 0, cor: 'A DEFINIR', condicao: 'Seminovo', imei: null } })
+    const d = dados({ cliente: { ...CLIENTE_VAZIO, nome: 'ANA', cpf: null, fone: '11988124410', endereco: '' }, aparelho: { modelo: 'IPHONE 12', gb: 0, cor: 'A DEFINIR', condicao: 'Seminovo', imei: null, serie: null } })
     const p = preencher('{{cliente_cpf}}|{{cliente_endereco}}|{{aparelho_imei}}|{{aparelho_capacidade}}|{{aparelho_cor}}', d, empresa())
-    expect(p.faltam).toEqual(['CPF', 'Endereço', 'IMEI', 'Capacidade', 'Cor'])
+    expect(p.faltam).toEqual(['CPF', 'Endereço completo', 'IMEI', 'Capacidade', 'Cor'])
     expect(p.texto).toBe('||||')
     expect(p.trechos.filter((t) => t.tipo === 'falta').map((t) => t.v)).toContain('CPF não cadastrado')
   })
@@ -56,6 +57,21 @@ describe('modelo do contrato: preencher', () => {
     expect(campo('seguro_texto', dados({ seguro: false }), empresa({ seguro: null })).texto).toBe('não contratado pelo cliente')
     expect(campo('seguro_texto', dados({ seguro: true })).texto).toBe('contratado, R$ 39,90 por mês junto da parcela')
     expect(campo('seguro_texto', dados({ seguro: true }), empresa({ seguro: null })).faltam).toEqual(['Seguro'])
+  })
+  it('endereço: junta rua, número, bairro, cidade-UF e CEP; cliente antigo sai como estava', () => {
+    const c = { ...CLIENTE_VAZIO, nome: 'X', cpf: null, fone: '1', endereco: 'RUA A', numero: '25', bairro: 'VILA B', cidade: 'TABOÃO DA SERRA', uf: 'SP', cep: '06786490' }
+    expect(campo('cliente_endereco', dados({ cliente: c })).texto).toBe('RUA A, nº 25, VILA B, TABOÃO DA SERRA - SP, CEP 06786-490')
+    expect(campo('cliente_endereco', dados({ cliente: { ...c, numero: null, bairro: null, cidade: null, uf: null, cep: null, endereco: 'RUA VELHA, 3, CENTRO, SANTOS' } })).texto).toBe('RUA VELHA, 3, CENTRO, SANTOS')
+    expect(campo('cliente_endereco', dados({ cliente: { ...c, endereco: null } })).faltam).toEqual(['Endereço completo'])
+  })
+  it('RG, e-mail e série não travam: sem cadastro saem como "Não informado"', () => {
+    const p = preencher('{{cliente_rg}}|{{cliente_email}}|{{aparelho_serie}}', dados(), empresa())
+    expect(p.faltam).toEqual([]); expect(p.texto).toBe('Não informado|Não informado|Não informado')
+    const cheio = preencher('{{cliente_rg}}|{{cliente_email}}|{{aparelho_serie}}', dados({ cliente: { ...CLIENTE_VAZIO, nome: 'A', cpf: null, fone: '1', endereco: 'R', rg: '12.345', email: 'a@b.com' }, aparelho: { modelo: 'X', gb: 1, cor: 'P', condicao: 'Novo', imei: null, serie: 'F2L123' } }), empresa())
+    expect(cheio.texto).toBe('12.345|a@b.com|F2L123')
+  })
+  it('o modelo padrão traz as cláusulas do contrato de locação (anexos I a IV)', () => {
+    for (const t of ['ANEXO I. ABERTURA DE CONTRATO', 'ANEXO II - MINUTA DE CONTRATO', 'ANEXO III. TARIFÁRIO LOCADORA', 'ANEXO IV. DECLARAÇÃO DE CONHECIMENTO DE MONITORAMENTO', 'CLÁUSULA DÉCIMA OITAVA – FORO']) expect(MODELO_PADRAO).toContain(t)
   })
   it('multa de cancelamento sai com vírgula', () => { expect(campo('taxa_cancelamento', dados(), empresa({ cancelamentoPct: 12.5 })).texto).toBe('12,5%') })
   it('campo que não existe fica marcado e não some do texto', () => {
@@ -72,7 +88,7 @@ describe('modelo do contrato: preencher', () => {
     expect(new Set(VARIAVEIS.map((v) => v.grupo))).toEqual(new Set(['Contrato', 'Cliente', 'Aparelho', 'Pagamento', 'Empresa e taxas']))
   })
   it('um HTML no nome do cliente fica como texto (a tela nunca interpreta)', () => {
-    expect(campo('cliente_nome', dados({ cliente: { nome: '<b>X</b>', cpf: null, fone: '1', endereco: null } })).texto).toBe('<b>X</b>')
+    expect(campo('cliente_nome', dados({ cliente: { ...CLIENTE_VAZIO, nome: '<b>X</b>', cpf: null, fone: '1', endereco: null } })).texto).toBe('<b>X</b>')
   })
 })
 

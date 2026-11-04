@@ -76,7 +76,7 @@ export type Deps = {
   fechamentos: FechamentosService
   equipe: EquipeService
   /** Ajustes de limite; os testes sobem o limite para não esbarrar nele. */
-  limites?: { vendasPorMinuto?: number; recebimentosPorMinuto?: number; geralPorMinuto?: number }
+  limites?: { vendasPorMinuto?: number; recebimentosPorMinuto?: number; geralPorMinuto?: number; assinaturasPorMinuto?: number }
 }
 
 export async function buildApp(deps: Deps): Promise<FastifyInstance> {
@@ -129,7 +129,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   await app.register(aprovacoesRoutes(deps.aprovacoes, exigir), { prefix: '/api' })
   if (deps.caixa) await app.register(caixaRoutes(deps.caixa, exigir), { prefix: '/api' })
   if (deps.caixaFechamentos) await app.register(caixaFechamentosRoutes(deps.caixaFechamentos, exigir), { prefix: '/api' })
-  if (deps.contratos) await app.register(contratosRoutes(deps.contratos, exigir), { prefix: '/api' })
+  if (deps.contratos) await app.register(contratosRoutes(deps.contratos, exigir, deps.limites?.assinaturasPorMinuto), { prefix: '/api' })
   if (deps.relatorios) await app.register(relatoriosRoutes(deps.relatorios, exigir), { prefix: '/api' })
   await app.register(fechamentosRoutes(deps.fechamentos, exigir), { prefix: '/api' })
   await app.register(equipeRoutes(deps.equipe, exigir), { prefix: '/api' })

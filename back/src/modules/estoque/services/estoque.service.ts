@@ -96,6 +96,11 @@ export function createEstoqueService(repo: EstoqueRepository, auditoria: Auditor
       else if (typeof e.imei !== 'string' || !imeiValido(e.imei)) throw requisicaoInvalida('IMEI inválido. Confira os 15 dígitos')
       else d.imei = soDigitos(e.imei)
     } else if (!parcial) d.imei = null
+    if ('serie' in e) {
+      if (e.serie === null || e.serie === '') d.serie = null
+      else if (typeof e.serie !== 'string' || !/^[A-Za-z0-9]{5,40}$/.test(e.serie.trim())) throw requisicaoInvalida('Número de série inválido (de 5 a 40 letras e números)')
+      else d.serie = e.serie.trim().toUpperCase()
+    } else if (!parcial) d.serie = null
     if ('observacoes' in e) {
       if (e.observacoes === null || e.observacoes === '') d.observacoes = null
       else if (typeof e.observacoes !== 'string' || e.observacoes.length > 500) throw requisicaoInvalida('observacoes pode ter no máximo 500 caracteres')

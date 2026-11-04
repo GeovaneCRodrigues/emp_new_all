@@ -1,5 +1,5 @@
 import type { Knex } from 'knex'
-import type { DadosVenda, Empresa, EscopoContratos, LinhaContrato, StatusContrato } from './types.js'
+import type { Assinatura, ContratoDoLink, DadosVenda, Empresa, EscopoContratos, LinhaContrato, StatusContrato } from './types.js'
 
 export type ContratoCompleto = { linha: LinhaContrato; dados: DadosVenda }
 
@@ -21,6 +21,14 @@ export interface ContratosRepository {
   salvarModelo(texto: string, usuarioId: number): Promise<number>
   empresa(): Promise<Empresa>
   salvarEmpresa(e: Empresa): Promise<void>
+  /** Guarda o hash do link (o anterior deixa de valer) e zera as tentativas de CPF. */
+  gravarLink(id: number, hash: string, expiraEm: Date): Promise<void>
+  porLink(hash: string): Promise<ContratoDoLink | null>
+  /** Soma um erro de CPF e devolve o total. */
+  contarErroDeCpf(id: number): Promise<number>
+  /** Grava a assinatura e fecha o contrato. false = já tinha sido assinado (outra pessoa chegou antes). */
+  assinar(id: number, a: Omit<Assinatura, 'assinadoEm'>): Promise<boolean>
+  assinaturaDe(id: number): Promise<Assinatura | null>
 }
 
 type Linha = {
@@ -50,13 +58,19 @@ export function createContratosRepository(db: Knex): ContratosRepository {
 
   async function dadosDaVenda(vendaId: number, numero: string, seguro: boolean): Promise<DadosVenda> {
     const v = await db('vendas as v').join('clientes as c', 'c.id', 'v.cliente_id').join('bens as b', 'b.id', 'v.bem_id').where('v.id', vendaId)
-      .first<{ data_venda: Date | string; entrada: string; troca_valor: string; status: string; nome: string; cpf: string | null; fone: string; endereco: string | null; modelo: string; gb: number; cor: string; condicao: string; imei: string | null }>(
-        'v.data_venda', 'v.entrada', 'v.troca_valor', 'v.status', 'c.nome', 'c.cpf', 'c.fone', 'c.endereco', 'b.modelo', 'b.gb', 'b.cor', 'b.condicao', 'b.imei')
+      .first<{
+        data_venda: Date | string; entrada: string; troca_valor: string; status: string; nome: string; cpf: string | null; fone: string; email: string | null; rg: string | null
+        endereco: string | null; numero: string | null; bairro: string | null; cidade: string | null; uf: string | null; cep: string | null
+        modelo: string; gb: number; cor: string; condicao: string; imei: string | null; serie: string | null
+      }>(
+        'v.data_venda', 'v.entrada', 'v.troca_valor', 'v.status', 'c.nome', 'c.cpf', 'c.fone', 'c.email', 'c.rg', 'c.endereco', 'c.numero', 'c.bairro', 'c.cidade', 'c.uf', 'c.cep',
+        'b.modelo', 'b.gb', 'b.cor', 'b.condicao', 'b.imei', 'b.serie')
     if (!v) throw new Error('venda sumiu')
     const ps = await db('venda_parcelas').where({ venda_id: vendaId }).orderBy('numero').select<{ valor: string; vencimento: Date | string }[]>('valor', 'vencimento')
     return {
       vendaId, vendaStatus: v.status, numero, dataVenda: dia(v.data_venda),
-      cliente: { nome: v.nome, cpf: v.cpf, fone: v.fone, endereco: v.endereco }, aparelho: { modelo: v.modelo, gb: v.gb, cor: v.cor, condicao: v.condicao, imei: v.imei },
+      cliente: { nome: v.nome, cpf: v.cpf, fone: v.fone, email: v.email, rg: v.rg, endereco: v.endereco, numero: v.numero, bairro: v.bairro, cidade: v.cidade, uf: v.uf, cep: v.cep },
+      aparelho: { modelo: v.modelo, gb: v.gb, cor: v.cor, condicao: v.condicao, imei: v.imei, serie: v.serie },
       entrada: Number(v.entrada), troca: Number(v.troca_valor), parcelas: ps.map((p) => ({ valor: Number(p.valor), vencimento: dia(p.vencimento) })), seguro,
     }
   }
@@ -128,6 +142,32 @@ export function createContratosRepository(db: Knex): ContratosRepository {
         avaria: num('avaria'), reposicao: num('reposicao'), seguro: num('seguro'), cancelamentoPct: num('cancelamentoPct'), recuperacao: num('recuperacao'),
       }
     },
+    async gravarLink(id, hash, expiraEm) {
+      await db('contratos').where({ id }).update({ link_hash: hash, link_expira_em: expiraEm, link_tentativas: 0 })
+    },
+    async porLink(hash) {
+      const l = await base({ tipo: 'TODOS' }).select('c.cpf as cliente_cpf', 'ct.link_expira_em', 'ct.link_tentativas').where('ct.link_hash', hash).first<Linha & { cliente_cpf: string | null; link_expira_em: Date | null; link_tentativas: number } | undefined>()
+      if (!l) return null
+      return { linha: paraLinha(l), cpf: l.cliente_cpf, expiraEm: l.link_expira_em, tentativas: l.link_tentativas }
+    },
+    async contarErroDeCpf(id) {
+      const [r] = await db('contratos').where({ id }).increment('link_tentativas', 1).returning('link_tentativas')
+      return r.link_tentativas as number
+    },
+    async assinar(id, a) {
+      return db.transaction(async (trx) => {
+        const [c] = await trx('contratos').where({ id }).whereNull('assinado_em').update({ assinado_em: trx.fn.now(), link_hash: null, link_expira_em: null }).returning('venda_id')
+        if (!c) return false
+        await trx('contrato_assinaturas').insert({ contrato_id: id, imagem: a.imagem, cpf: a.cpf, texto_hash: a.textoHash, ip: a.ip, user_agent: a.userAgent })
+        await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
+        return true
+      })
+    },
+    async assinaturaDe(id) {
+      const l = await db('contrato_assinaturas').where({ contrato_id: id }).first<{ imagem: string; cpf: string; texto_hash: string; ip: string | null; user_agent: string | null; assinado_em: Date } | undefined>()
+      return l ? { imagem: l.imagem, cpf: l.cpf, textoHash: l.texto_hash, ip: l.ip, userAgent: l.user_agent, assinadoEm: l.assinado_em.toISOString() } : null
+    },
+
     async salvarEmpresa(e) {
       await db('sistema_config').insert((Object.keys(CHAVES) as (keyof Empresa)[]).map((k) => ({ chave: CHAVES[k], valor: JSON.stringify(e[k]) })))
         .onConflict('chave').merge({ valor: db.raw('excluded.valor'), updated_at: db.fn.now() })

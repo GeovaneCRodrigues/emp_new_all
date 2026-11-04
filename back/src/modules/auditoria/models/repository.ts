@@ -1,7 +1,8 @@
 import type { Knex } from 'knex'
 
 export type RegistroAuditoria = {
-  usuarioId: number
+  /** null = ação de quem não tem login (o cliente assinando pelo link) */
+  usuarioId: number | null
   acao: string
   entidade: string
   entidadeId: number
