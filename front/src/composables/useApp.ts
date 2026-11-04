@@ -1,4 +1,5 @@
 import { computed, ref, shallowRef, watch } from 'vue'
+import { hojeBR } from '@/domain/hojeBR'
 import { criarApiFalsa } from '@/api/fake'
 import { modoDemo } from '@/composables/useAuth'
 import type { Api } from '@/api'
@@ -61,7 +62,7 @@ export function useApp() {
   const d = computed(() => dados.value)
   const pronto = computed(() => dados.value !== null)
   // na demonstração o dia é fixo (bate com os dados de exemplo); fora dela, é o dia de hoje de verdade
-  const hoje = computed(() => (modoDemo ? dados.value?.hoje : null) ?? new Date().toISOString().slice(0, 10))
+  const hoje = computed(() => (modoDemo ? dados.value?.hoje : null) ?? hojeBR())
   const pode = computed(() => permissoes(sessao.value.perfil))
 
   const bens = computed(() => new Map((dados.value?.bens ?? []).map((b) => [b.id, b])))
