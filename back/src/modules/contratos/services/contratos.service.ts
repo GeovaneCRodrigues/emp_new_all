@@ -60,6 +60,17 @@ const TENTATIVAS_DE_CPF = 5
 const IMAGEM_MAX = 400_000
 const PNG_URL = 'data:image/png;base64,'
 const sha256 = (t: string) => createHash('sha256').update(t).digest('hex')
+/**
+ * O CPF é o que o cliente digita para provar quem é: a página pública não pode mostrá-lo (quem só tem o link leria e passaria).
+ * Na tela ele aparece como ***.***.***-25; o texto gravado e assinado continua com o CPF inteiro.
+ */
+export function mascararCpf(texto: string, cpf: string | null): string {
+  const dig = soDigitos(cpf ?? '')
+  if (dig.length !== 11) return texto
+  const mascarado = `***.***.***-${dig.slice(9)}`
+  const formatado = `${dig.slice(0, 3)}.${dig.slice(3, 6)}.${dig.slice(6, 9)}-${dig.slice(9)}`
+  return texto.replaceAll(formatado, mascarado).replaceAll(dig, mascarado)
+}
 const linkInvalido = () => naoEncontrado('Link inválido. Peça um novo ao vendedor.')
 
 const conflito = (msg: string, codigo: string) => new HttpError(409, msg, codigo)
@@ -195,7 +206,7 @@ export function createContratosService(d: Dependencias): ContratosService {
       const l = await linkVivo(token)
       return {
         numero: l.linha.numero, clienteNome: l.linha.clienteNome, aparelho: l.linha.aparelho, empresa: (await d.repo.empresa()).nome,
-        texto: l.linha.textoEnviado ?? '', expiraEm: l.expiraEm!.toISOString(),
+        texto: mascararCpf(l.linha.textoEnviado ?? '', l.cpf), expiraEm: l.expiraEm!.toISOString(),
       }
     },
 

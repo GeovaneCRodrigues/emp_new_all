@@ -466,6 +466,9 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       expect(r.statusCode).toBe(200)
       expect(r.json()).toMatchObject({ clienteNome: 'ANA SOUZA', empresa: 'Mundo dos iPhones LTDA' })
       expect(r.json().texto).toContain('ANEXO II - MINUTA DE CONTRATO')
+      // o CPF é a prova de quem assina: a página pública não o mostra, mas o contrato gravado (e assinado) o tem inteiro
+      expect(r.json().texto).not.toContain('529.982.247-25'); expect(r.json().texto).not.toContain('52998224725'); expect(r.json().texto).toContain('***.***.***-25')
+      expect((await detalhe((await db!('contratos').first('id')).id)).texto).toContain('529.982.247-25')
       expect(Object.keys(r.json()).sort()).toEqual(['aparelho', 'clienteNome', 'empresa', 'expiraEm', 'numero', 'texto'])
     })
     it('token inventado ou torto: 404', async () => {
