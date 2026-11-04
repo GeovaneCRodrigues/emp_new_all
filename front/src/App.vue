@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import Carregando from '@/components/Carregando.vue'
 import Icon from '@/components/Icon.vue'
 import NovoSheet from '@/components/NovoSheet.vue'
 import Sheet from '@/components/Sheet.vue'
@@ -157,6 +158,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
 
     <NovoSheet :aberto="novoAberto" @fechar="novoAberto = false" />
     <Toast />
+    <Carregando />
     <Sheet :aberto="maisAberto" @fechar="maisAberto = false">
       <h3>Mais</h3>
       <template v-for="g in gruposMais" :key="g.titulo">

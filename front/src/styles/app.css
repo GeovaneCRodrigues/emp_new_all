@@ -319,6 +319,9 @@ input,select{font:inherit;color:var(--strong)}
 @keyframes fade{from{opacity:0}}
 .toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:60;background:var(--strong);color:var(--surface);padding:10px 14px;border-radius:12px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:fade .15s;max-width:calc(100% - 32px)}
 .toast button{color:var(--gold);font-weight:600}
+.toast-ok{background:var(--ok);color:#fff}
+.toast-erro{background:var(--bad);color:#fff}
+.toast-ok button,.toast-erro button{color:#fff;text-decoration:underline}
 .timeline{display:flex;gap:3px;flex-wrap:wrap}
 .timeline i{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:9px;font-style:normal;font-weight:600;background:var(--muted);color:var(--soft)}
 .timeline i.p{background:var(--ok);color:#fff}.timeline i.a{background:var(--bad);color:#fff}.timeline i.h{background:var(--warn);color:#fff}
