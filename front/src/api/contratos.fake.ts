@@ -40,7 +40,8 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   const estados = new Map<number, Estado>()
   const modelos: { versao: number; texto: string }[] = []
   // a demonstração já vem com a empresa preenchida (no sistema de verdade começa vazia)
-  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
+  let logo: string | null = null
+  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: null, temLogo: false, avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
 
   const exigirAdmin = (s: Sessao, m: string) => { if (s.perfil !== 'ADMIN') throw semPermissao(m) }
   /** Contrato de venda nova nasce com a versão do modelo que valia na hora (como o backend, que gera na venda). */
@@ -211,6 +212,21 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       return detalhe(r)
     },
 
+    async salvarLogo(s, imagem) {
+      exigirAdmin(s, 'Só o administrador troca a logo da empresa')
+      const m = typeof imagem === 'string' ? imagem.match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/) : null
+      if (!m) throw erro('A logo precisa ser PNG, JPEG ou WEBP')
+      if (m[2].length * 0.75 > 300_000) throw erro('A logo passa de 300 KB. Use uma imagem menor')
+      logo = imagem; empresa = { ...empresa, temLogo: true }
+      return { ...empresa }
+    },
+    async removerLogo(s) {
+      exigirAdmin(s, 'Só o administrador remove a logo da empresa')
+      logo = null; empresa = { ...empresa, temLogo: false }
+      return { ...empresa }
+    },
+    logoSrc: () => logo ?? '',
+
     async modelo(s) { exigirAdmin(s, 'Só o administrador vê o modelo do contrato'); return viewModelo() },
     async salvarModelo(s, texto) {
       exigirAdmin(s, 'Só o administrador muda o modelo do contrato')
@@ -235,7 +251,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     async empresa(s) { exigirAdmin(s, 'Só o administrador vê os dados da empresa'); return { ...empresa } },
     async salvarEmpresa(s, corpo): Promise<EmpresaApi> {
       exigirAdmin(s, 'Só o administrador muda os dados da empresa')
-      const texto = (k: 'nome' | 'cnpj' | 'endereco' | 'email' | 'atendente', max: number): string | null => {
+      const texto = (k: 'nome' | 'cnpj' | 'endereco' | 'email' | 'atendente' | 'telefone' | 'cidade' | 'uf' | 'pixChave', max: number): string | null => {
         if (!(k in corpo)) return empresa[k]
         const v = corpo[k]
         if (v === null || v === undefined || v === '') { if (k === 'nome') throw erro('A razão social não pode ficar vazia'); return null }
@@ -258,10 +274,21 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       }
       const nova: Empresa = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
+        telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77), temLogo: empresa.temLogo,
         avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'), seguro: dinheiro('seguro'), cancelamentoPct, recuperacao: dinheiro('recuperacao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw erro('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw erro('E-mail inválido')
+      if (nova.telefone !== null) {
+        const dig = nova.telefone.replace(/\D/g, '')
+        if (dig.length < 10 || dig.length > 11) throw erro('Telefone precisa ter DDD + número (10 ou 11 números)')
+        nova.telefone = dig
+      }
+      if (nova.uf !== null) {
+        if (!/^[A-Za-z]{2}$/.test(nova.uf)) throw erro('UF deve ter 2 letras, por exemplo SP')
+        nova.uf = nova.uf.toUpperCase()
+      }
+      if (nova.pixChave !== null && (nova.pixChave.length < 3 || /[\u0000-\u001f]/.test(nova.pixChave))) throw erro('Chave Pix inválida')
       empresa = nova
       return { ...empresa }
     },

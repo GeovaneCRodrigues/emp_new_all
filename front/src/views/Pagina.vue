@@ -17,6 +17,7 @@ import Indicadores from './admin/Indicadores.vue'
 import Vender from './admin/Vender.vue'
 import Equipe from './admin/Equipe.vue'
 import Usuarios from './admin/Usuarios.vue'
+import Configuracoes from './admin/Configuracoes.vue'
 import InicioVendedor from './vendedor/Inicio.vue'
 import CobradorCaixa from './cobrador/Caixa.vue'
 import CobradorCarteira from './cobrador/Carteira.vue'
@@ -38,7 +39,7 @@ const { sessao, pronto } = useApp()
 
 // telas já prontas, por perfil; o que não está aqui mostra "Em breve"
 const TELAS: Record<string, Record<string, unknown>> = {
-  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, cronograma: Cronograma, caixa: Caixa, relatorios: Relatorios, contratos: Contratos, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe, usuarios: Usuarios },
+  ADMIN: { inicio: Inicio, cobrancas: Cobrancas, cronograma: Cronograma, caixa: Caixa, relatorios: Relatorios, contratos: Contratos, operacoes: Operacoes, estoque: Estoque, simulador: Simulador, clientes: Clientes, indicadores: Indicadores, vender: Vender, equipe: Equipe, usuarios: Usuarios, config: Configuracoes },
   COBRADOR: { hoje: CobradorHoje, carteira: CobradorCarteira, recebi: CobradorRecebi, caixa: CobradorCaixa, pedidos: CobradorPedidos },
   // o vendedor vê o estoque só com o preço de venda: a própria tela esconde custo e lucro conforme o perfil; o indicador não vê estoque
   INDICADOR: { inicio: IndicadorInicio, indicar: Indicar, clientes: IndicadorClientes, cobranca: IndicadorCobranca, cronograma: IndicadorCronograma, repasse: IndicadorRepasse, niveis: IndicadorNiveis, vendas: IndicadorVendas, simulador: Simulador },
