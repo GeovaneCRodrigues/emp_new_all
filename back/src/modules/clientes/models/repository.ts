@@ -1,4 +1,5 @@
 import type { Knex } from 'knex'
+import { hojeBR } from '../../../shared/relogio.js'
 import { soDigitos } from '../../../shared/documentos.js'
 import type { Cliente, DadosCliente, EscopoClientes, FiltroClientes } from './types.js'
 import { naCarteira } from '../../../shared/carteira.js'
@@ -23,7 +24,7 @@ type Linha = {
 
 const paraCliente = (l: Linha): Cliente => ({
   id: l.id, nome: l.nome, fone: l.fone, cpf: l.cpf, rg: l.rg, endereco: l.endereco, origem: l.origem, email: l.email, observacoes: l.observacoes,
-  responsavelId: l.responsavel_id, indicadorId: l.indicador_id, desde: new Date(l.created_at).toISOString().slice(0, 10),
+  responsavelId: l.responsavel_id, indicadorId: l.indicador_id, desde: hojeBR(new Date(l.created_at)),
 })
 
 const paraLinha = (d: Partial<DadosCliente>) => {
