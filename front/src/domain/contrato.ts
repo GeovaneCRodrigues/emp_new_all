@@ -250,6 +250,7 @@ CLÁUSULA DÉCIMA SEXTA: FORÇA MAIOR
 CLÁUSULA DÉCIMA SÉTIMA: DISPOSIÇÕES GERAIS
 17.1. O LOCATÁRIO concorda que a sua assinatura no Contrato deverá ser idêntica a do documento de identificação apresentado.
 17.2. O LOCATÁRIO reconhece a forma de contratação por meio eletrônico e digital como válida e plenamente eficaz.
+17.3. As comunicações e notificações da LOCADORA ao LOCATÁRIO serão feitas por WhatsApp, no telefone, e por e-mail, ambos informados na Abertura de Contrato, e valem como recebidas a partir do envio. O LOCATÁRIO deve avisar a LOCADORA se mudar de telefone ou de e-mail.
 
 CLÁUSULA DÉCIMA OITAVA – FORO
 18.1. As partes elegem o foro do domicílio do LOCATÁRIO para dirimirem quaisquer dúvidas do presente contrato.
