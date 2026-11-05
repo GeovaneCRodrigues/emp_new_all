@@ -131,6 +131,7 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       expect(recibo.mensagem).toContain('Recibo nº ' + recibo.numero)
       expect(recibo.mensagem).toContain('Recebemos R$ 840,00 em 10/11/2026 (Pix), referente à parcela 1/4 do seu iPhone 13.')
       expect(recibo.mensagem).toContain('Próxima: 2ª, R$ 840,00, vence 10/12. Faltam 3 parcelas (R$ 2.520,00).')
+      expect(recibo.mensagem).not.toContain('TERMO DE QUITAÇÃO') // ainda não quitou: sem termo
       expect((await parcelas(v))[0]).toMatchObject({ quitada: '2026-11-10' })
     })
     it('quitar a última parcela fecha a venda; pagar de novo é 409', async () => {
@@ -139,6 +140,8 @@ describe.skipIf(!db)('recebimentos (Postgres de verdade)', () => {
       expect(r.statusCode).toBe(201)
       expect(r.json()).toMatchObject({ quitada: true })
       expect(r.json().recibo.mensagem).toContain('Tudo quitado! Obrigado pela confiança.')
+      // venda quitada: a mensagem já leva o termo de quitação e transferência do aparelho
+      expect(r.json().recibo.mensagem).toContain('TERMO DE QUITAÇÃO E TRANSFERÊNCIA'); expect(r.json().recibo.mensagem).toContain('Cláusula 14')
       expect(r.json().recibo.proxima).toBeNull()
       expect(await statusVenda(v)).toBe('QUITADA')
       expect((await receber('admin', v, { parcela: 4, valor: 10 })).json().codigo).toBe('PARCELA_PAGA')

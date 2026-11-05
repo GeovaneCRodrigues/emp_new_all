@@ -195,7 +195,7 @@ describe.skipIf(!db)('baixas de empréstimo (Postgres de verdade)', () => {
       const f = await ficha(e)
       expect(f).toMatchObject({ falta: 0, status: 'QUITADA', total: 3360, recebido: 3360, lucroTotal: 360 })
       expect(f.parcelas.every((p: { falta: number }) => p.falta === 0)).toBe(true)
-      expect(r.json().recibo.mensagem).toContain('Tudo quitado')
+      expect(r.json().recibo.mensagem).toContain('Tudo quitado'); expect(r.json().recibo.mensagem).not.toContain('TERMO DE QUITAÇÃO') // empréstimo não transfere aparelho
     })
     it('passar de juro + capital é 400 e nada muda; excedente na última parcela também', async () => {
       const e = await juros()
