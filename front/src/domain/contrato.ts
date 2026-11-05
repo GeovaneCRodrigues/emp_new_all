@@ -158,15 +158,11 @@ E-MAIL: {{empresa_email}} ENDEREÇO: {{empresa_endereco}}
 
 MODELO DO APARELHO CELULAR: {{aparelho_modelo}} {{aparelho_capacidade}}
 NÚMERO DE SÉRIE: {{aparelho_serie}}
-CAPACIDADE: {{aparelho_capacidade}}
 COR: {{aparelho_cor}}
 ESTADO: {{aparelho_estado}}
-QUANTIDADE DE APARELHOS CELULARES LOCADOS: 1
 IMEI: {{aparelho_imei}}
 
 VALOR DO PAGAMENTO MENSAL: {{parcela_valor}}
-VALOR DA ENTRADA: {{entrada_valor}}
-VALORES MENSAIS: {{parcela_valor}}
 VALOR TOTAL DO CONTRATO: {{valor_total}}
 
 ANEXO II - MINUTA DE CONTRATO
@@ -222,8 +218,8 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período, mantidos os mesmos valores contratados;
 6.2.5. A LOCADORA pode, a qualquer tempo, realizar cobranças de valores devidos e ainda não pagos. O não envio das cobranças na periodicidade contratada não desabona a responsabilidade do LOCATÁRIO de realizar os pagamentos a tempo e modo, conforme previsto nesse Contrato;
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
-6.3.1.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
-6.3.6.1. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
+6.3.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
+6.3.2. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
 6.4. No ato de contratação fica disponibilizado ao LOCATÁRIO o SEGURO CONTRA QUEDAS, que visa proteger os APARELHOS CELULARES em caso de quedas que acarretam em danos ao mesmo, ficando a manutenção a cargo da LOCADORA.
 6.4.1. O SEGURO CONTRA QUEDAS possui valor mensal de {{taxa_seguro}} a serem pagos juntamente com a parcela de cada mês, opcional. Situação do seguro: {{seguro_texto}}.
 
@@ -236,7 +232,6 @@ CLÁUSULA OITAVA: RESPONSABILIDADE DA LOCADORA
 
 CLÁUSULA NONA: RESPONSABILIDADE DO LOCATÁRIO
 9.1. Além de todas as obrigações apontadas ao longo do presente termo, O LOCATÁRIO deverá zelar pelo aparelho e cumprir as obrigações financeiras.
-9.1.8.1. Em caso que quebra do APARELHO CELULAR, ficará o LOCATÁRIO sujeito ao pagamento de multa no importe de {{taxa_avaria}}, para que seja reparado o aparelho danoso.
 
 CLÁUSULA DÉCIMA: RENOVAÇÃO DA LOCAÇÃO
 10.1. Se o aparelho ainda não tiver sido transferido ao LOCATÁRIO nos termos da Cláusula Décima Quarta, a locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar. Com a transferência do aparelho, a locação se encerra.
