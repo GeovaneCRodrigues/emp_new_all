@@ -18,9 +18,6 @@ export type Empresa = {
   pixChave: string | null
   /** a imagem em si sai por GET /api/empresa/logo (não vai junto, é pesada) */
   temLogo: boolean
-  /** taxas do contrato; null = ainda não cadastrada (o contrato não pode ser enviado) */
-  avaria: number | null
-  reposicao: number | null
 }
 
 /** Tudo o que o texto do contrato usa, tirado da venda. */

@@ -5,14 +5,12 @@ import type { EmpresaApi } from '@/api/contratos'
 import { contratosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { mascaraFone } from '@/domain/documentos'
-import { moneyBR, numBR } from '@/domain/format'
-import { TAXAS_PADRAO_PF } from '@/domain/taxasPadrao'
 import Icon from './Icon.vue'
 
-/** Dados da empresa (cabeçalho do contrato, recibos), logo, Pix da loja e taxas do contrato. Só o administrador. */
+/** Dados da empresa (cabeçalho do contrato, recibos), logo e Pix da loja. Só o administrador. */
 const { sessao } = useApp()
 
-type Form = { nome: string; cnpj: string; endereco: string; email: string; atendente: string; telefone: string; cidade: string; uf: string; pixChave: string; avaria: string; reposicao: string }
+type Form = { nome: string; cnpj: string; endereco: string; email: string; atendente: string; telefone: string; cidade: string; uf: string; pixChave: string; }
 const form = ref<Form | null>(null)
 const temLogo = ref(false)
 const versaoLogo = ref(Date.now())
@@ -23,8 +21,6 @@ const logoErro = ref('')
 const logoMsg = ref('')
 const trocandoLogo = ref(false)
 
-const dinheiroTxt = (v: number | null) => (v === null ? '' : moneyBR(v))
-const num = (t: string) => (t.trim() === '' ? null : numBR(t))
 
 async function abrir() {
   erro.value = ''
@@ -33,19 +29,10 @@ async function abrir() {
     temLogo.value = e.temLogo
     form.value = {
       nome: e.nome, cnpj: e.cnpj ?? '', endereco: e.endereco ?? '', email: e.email ?? '', atendente: e.atendente ?? '', telefone: e.telefone ? mascaraFone(e.telefone) : '', cidade: e.cidade ?? '', uf: e.uf ?? '', pixChave: e.pixChave ?? '',
-      avaria: dinheiroTxt(e.avaria), reposicao: dinheiroTxt(e.reposicao),
     }
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir os dados.' }
 }
 onMounted(abrir)
-
-/** Preenche as taxas com o padrão de mercado para pessoa física; só vale depois de Salvar. */
-function usarPadraoMercado() {
-  if (!form.value) return
-  const t = TAXAS_PADRAO_PF
-  Object.assign(form.value, { avaria: dinheiroTxt(t.avaria), reposicao: dinheiroTxt(t.reposicao) })
-  msg.value = 'Padrão de mercado preenchido. Revise os valores e toque em Salvar.'
-}
 
 async function salvar() {
   if (!form.value) return
@@ -55,9 +42,8 @@ async function salvar() {
     await contratosApi.salvarEmpresa(sessao.value, {
       nome: f.nome, cnpj: f.cnpj.trim() || null, endereco: f.endereco.trim() || null, email: f.email.trim() || null, atendente: f.atendente.trim() || null,
       telefone: f.telefone.trim() || null, cidade: f.cidade.trim() || null, uf: f.uf.trim() || null, pixChave: f.pixChave.trim() || null,
-      avaria: num(f.avaria), reposicao: num(f.reposicao),
     })
-    await abrir(); msg.value = 'Dados da empresa e taxas salvos'
+    await abrir(); msg.value = 'Dados da empresa salvos'
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui salvar.' } finally { salvando.value = false }
 }
 
@@ -134,14 +120,6 @@ async function removerLogo() {
       <div class="field"><label for="ePix">Chave Pix</label><div class="inp"><input id="ePix" v-model="form.pixChave" maxlength="77" autocomplete="off" data-testid="pix-chave" /></div></div>
     </div>
 
-    <div class="card pad" style="display: flex; flex-direction: column; gap: 12px">
-        <div><div class="val">Taxas do contrato</div><div class="small">Valem para os próximos contratos. Deixe em branco o que não se aplica: o contrato só sai com todos os campos preenchidos.</div></div>
-        <button class="btn b-block" type="button" data-testid="taxas-padrao" @click="usarPadraoMercado">Usar padrão de mercado (pessoa física)</button>
-        <div class="duo">
-          <div class="field"><label for="tAvaria">Avaria do aparelho</label><div class="inp"><span>R$</span><input id="tAvaria" v-model="form.avaria" inputmode="decimal" /></div><div class="small">Cobrada se o aparelho voltar danificado.</div></div>
-          <div class="field"><label for="tRepo">Reposição (perda, furto ou roubo)</label><div class="inp"><span>R$</span><input id="tRepo" v-model="form.reposicao" inputmode="decimal" /></div><div class="small">Valor para repor o aparelho.</div></div>
-        </div>
-      </div>
     <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad)" data-testid="ct-empresa-erro">{{ erro }}</div>
     <div v-if="msg" class="small" role="status" style="color: var(--ok)" data-testid="ct-empresa-msg">{{ msg }}</div>
     <button class="btn b-pri b-block" type="submit" :disabled="salvando || !form.nome.trim()" data-testid="ct-salvar-empresa"><Icon name="check" small />Salvar</button>

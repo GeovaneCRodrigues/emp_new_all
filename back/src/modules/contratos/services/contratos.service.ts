@@ -76,7 +76,6 @@ type Dependencias = {
 
 const TEXTO_MIN = 50
 const TEXTO_MAX = 30_000
-const DINHEIRO_MAX = 1_000_000
 const LINK_DIAS = 7
 const LOGO_MAX_BYTES = 300_000
 /** O arquivo tem de começar como o tipo que diz ser (não confia só no texto do data URL). */
@@ -358,17 +357,9 @@ export function createContratosService(d: Dependencias): ContratosService {
         if (typeof v !== 'string' || v.trim().length > max) throw requisicaoInvalida(`${k}: no máximo ${max} letras`)
         return v.trim()
       }
-      const dinheiro = (k: 'avaria' | 'reposicao'): number | null => {
-        if (!(k in corpo)) return atual[k]
-        const v = corpo[k]
-        if (v === null || v === '') return null
-        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DINHEIRO_MAX) throw requisicaoInvalida(`${k} precisa ser um valor entre 0 e ${DINHEIRO_MAX}`)
-        return Math.round(v * 100) / 100
-      }
       const nova: Omit<Empresa, 'temLogo'> = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
         telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77),
-        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw requisicaoInvalida('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw requisicaoInvalida('E-mail inválido')

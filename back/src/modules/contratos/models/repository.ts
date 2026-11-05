@@ -56,7 +56,6 @@ const paraLinha = (l: Linha): LinhaContrato => ({
 const CHAVES: Record<Exclude<keyof Empresa, 'temLogo'>, string> = {
   nome: 'empresa_nome', cnpj: 'empresa_cnpj', endereco: 'empresa_endereco', email: 'empresa_email', atendente: 'empresa_atendente',
   telefone: 'empresa_telefone', cidade: 'empresa_cidade', uf: 'empresa_uf', pixChave: 'empresa_pix',
-  avaria: 'taxa_avaria', reposicao: 'taxa_reposicao',
 }
 
 export function createContratosRepository(db: Knex): ContratosRepository {
@@ -151,7 +150,6 @@ export function createContratosRepository(db: Knex): ContratosRepository {
       return {
         nome: txt('nome') ?? 'Mundo dos iPhones', cnpj: txt('cnpj'), endereco: txt('endereco'), email: txt('email'), atendente: txt('atendente'),
         telefone: txt('telefone'), cidade: txt('cidade'), uf: txt('uf'), pixChave: txt('pixChave'), temLogo,
-        avaria: num('avaria'), reposicao: num('reposicao'),
       }
     },
     async gravarLink(id, hash, expiraEm) {

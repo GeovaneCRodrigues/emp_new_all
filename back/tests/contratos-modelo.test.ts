@@ -13,7 +13,7 @@ const dados = (o: Partial<DadosVenda> = {}): DadosVenda => ({
 const empresa = (o: Partial<Empresa> = {}): Empresa => ({
   nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'a@b.com', atendente: 'Geovane',
   telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: 'loja@mundo.com', temLogo: false,
-  avaria: 350, reposicao: 1500, ...o,
+  ...o,
 })
 const campo = (chave: string, d = dados(), e = empresa()) => preencher(`{{${chave}}}`, d, e)
 
@@ -51,8 +51,8 @@ describe('modelo do contrato: preencher', () => {
     expect(p.trechos.filter((t) => t.tipo === 'falta').map((t) => t.v)).toContain('CPF não cadastrado')
   })
   it('taxas e dados da empresa sem cadastro também faltam', () => {
-    const p = preencher(MODELO_PADRAO, dados(), empresa({ cnpj: null, avaria: null, atendente: null }))
-    expect(p.faltam).toEqual(expect.arrayContaining(['Atendente', 'CNPJ', 'Taxa de avaria']))
+    const p = preencher(MODELO_PADRAO, dados(), empresa({ cnpj: null, cidade: null, atendente: null }))
+    expect(p.faltam).toEqual(expect.arrayContaining(['Atendente', 'CNPJ', 'Cidade da empresa']))
     // o contrato não tem mais multa de cancelamento: sem esse dado, o envio não trava
     expect(p.faltam).not.toContain('Multa de cancelamento')
   })
@@ -89,7 +89,7 @@ describe('modelo do contrato: preencher', () => {
   })
   it('a lista de campos oferecida na tela tem grupo, rótulo e chave sem repetir', () => {
     expect(new Set(VARIAVEIS.map((v) => v.chave)).size).toBe(VARIAVEIS.length)
-    expect(new Set(VARIAVEIS.map((v) => v.grupo))).toEqual(new Set(['Contrato', 'Cliente', 'Aparelho', 'Pagamento', 'Empresa e taxas']))
+    expect(new Set(VARIAVEIS.map((v) => v.grupo))).toEqual(new Set(['Contrato', 'Cliente', 'Aparelho', 'Pagamento', 'Empresa']))
   })
   it('um HTML no nome do cliente fica como texto (a tela nunca interpreta)', () => {
     expect(campo('cliente_nome', dados({ cliente: { ...CLIENTE_VAZIO, nome: '<b>X</b>', cpf: null, fone: '1', endereco: null } })).texto).toBe('<b>X</b>')

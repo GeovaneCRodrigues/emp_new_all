@@ -34,7 +34,7 @@ onMounted(carregar)
 const ABAS = computed(() => [
   { id: 'lista', label: 'Contratos', icon: 'file-signature', n: lista.value?.resumo.esperando ?? 0 },
   { id: 'modelo', label: 'Modelo', icon: 'receipt-text' },
-  { id: 'empresa', label: 'Empresa e taxas', icon: 'landmark' },
+  { id: 'empresa', label: 'Empresa', icon: 'landmark' },
 ])
 const FILTROS = computed(() => [{ id: 'TODOS', label: 'Todos' }, { id: 'ESPERANDO', label: `Esperando · ${lista.value?.resumo.esperando ?? 0}` }, { id: 'ASSINADO', label: 'Assinados' }])
 const visiveis = computed(() => (lista.value?.itens ?? []).filter((c) => (filtro.value === 'ASSINADO' ? c.status === 'ASSINADO' : filtro.value === 'ESPERANDO' ? c.status !== 'ASSINADO' && c.vendaStatus !== 'RETOMADA' && c.vendaStatus !== 'CANCELADA' : true)).filter((c) => casaBusca([c.clienteNome, c.aparelho, c.numero], busca.value)))
@@ -140,7 +140,7 @@ watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo() })
 
   <!-- empresa: agora fica em Configurações -->
   <div v-else class="card pad" data-testid="ct-empresa-atalho" style="display: flex; flex-direction: column; gap: 10px">
-    <div class="val">Empresa e taxas ficam em Configurações</div>
+    <div class="val">Os dados da empresa ficam em Configurações</div>
     <div class="small">Razão social, CNPJ, endereço, logo, Pix da loja e as taxas do contrato agora são editados em um lugar só.</div>
     <router-link class="btn b-pri" to="/config" data-testid="ct-ir-config"><Icon name="settings" small />Abrir Configurações</router-link>
   </div>

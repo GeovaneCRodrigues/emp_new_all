@@ -9,7 +9,6 @@ import type { Registro, VendasFake } from './vendas.fake'
 const ADM: Sessao = { perfil: 'ADMIN', usuarioId: 1 }
 const TEXTO_MIN = 50
 const TEXTO_MAX = 30_000
-const DINHEIRO_MAX = 1_000_000
 const erro = (m: string) => new ErroApi(400, m)
 const conflito = (m: string, codigo: string) => new ErroApi(409, m, codigo)
 const semPermissao = (m: string) => new ErroApi(403, m, 'SEM_PERMISSAO')
@@ -43,7 +42,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   const modelos: { versao: number; texto: string }[] = []
   // a demonstração já vem com a empresa preenchida (no sistema de verdade começa vazia)
   let logo: string | null = null
-  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: null, temLogo: false, avaria: 350, reposicao: 1500 }
+  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: null, temLogo: false }
 
   const exigirAdmin = (s: Sessao, m: string) => { if (s.perfil !== 'ADMIN') throw semPermissao(m) }
   /** Contrato de venda nova nasce com a versão do modelo que valia na hora (como o backend, que gera na venda). */
@@ -274,17 +273,9 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
         if (typeof v !== 'string' || v.trim().length > max) throw erro(`${k}: no máximo ${max} letras`)
         return v.trim()
       }
-      const dinheiro = (k: 'avaria' | 'reposicao'): number | null => {
-        if (!(k in corpo)) return empresa[k]
-        const v = corpo[k]
-        if (v === null || v === undefined) return null
-        if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DINHEIRO_MAX) throw erro(`${k} precisa ser um valor entre 0 e ${DINHEIRO_MAX}`)
-        return Math.round(v * 100) / 100
-      }
       const nova: Empresa = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
         telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77), temLogo: empresa.temLogo,
-        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw erro('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw erro('E-mail inválido')

@@ -109,40 +109,39 @@ test.describe('contratos (administrador)', () => {
     await expect(page.getByTestId('ct-modelo-erro')).toContainText('{{campo_inventado}}')
   })
 
-  test('empresa e taxas (em Configurações): carrega, valida o CNPJ, salva e lembra', async ({ page }) => {
+  test('empresa (em Configurações): carrega, valida o CNPJ, salva e lembra', async ({ page }) => {
     await navegar(page, '/config')
     await expect(page.locator('#eNome')).toHaveValue('Mundo dos iPhones LTDA')
-    await expect(page.locator('#tAvaria')).toHaveValue('350,00')
     await page.fill('#eCnpj', '123')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-erro')).toContainText('CNPJ')
-    await page.fill('#eCnpj', '11.222.333/0001-81'); await page.fill('#tAvaria', '400,50'); await page.fill('#tRepo', '999,90')
+    await page.fill('#eCnpj', '11.222.333/0001-81'); await page.fill('#eCidade', 'Maringá')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-msg')).toContainText('salvos')
-    await expect(page.locator('#tAvaria')).toHaveValue('400,50'); await expect(page.locator('#tRepo')).toHaveValue('999,90')
-    // as taxas novas saem no contrato que ainda não foi enviado
+    await expect(page.locator('#eCidade')).toHaveValue('Maringá')
+    // a cidade nova sai no contrato que ainda não foi enviado
     await navegar(page, '/contratos')
     await item(page, 'Patrícia Gomes').click()
-    await expect(page.getByTestId('ficha-texto')).toContainText('R$ 400,50')
+    await expect(page.getByTestId('ficha-texto')).toContainText('Maringá')
   })
 
-  test('a aba Empresa e taxas de Contratos manda para Configurações', async ({ page }) => {
-    await aba(page, 'Empresa e taxas').click()
+  test('a aba Empresa de Contratos manda para Configurações', async ({ page }) => {
+    await aba(page, 'Empresa').click()
     await expect(page.getByTestId('ct-empresa-atalho')).toBeVisible()
     await page.getByTestId('ct-ir-config').click()
     await expect(page).toHaveURL(/\/config$/)
     await expect(page.locator('#eNome')).toHaveValue('Mundo dos iPhones LTDA')
   })
 
-  test('taxa em branco: o contrato passa a pedir o campo e não deixa enviar', async ({ page }) => {
+  test('dado da empresa em branco: o contrato passa a pedir o campo e não deixa enviar', async ({ page }) => {
     await completarCliente(page, 'Ana Paula Ribeiro')
     await navegar(page, '/config')
-    await page.fill('#tAvaria', '')
+    await page.fill('#eCidade', '')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-msg')).toBeVisible()
     await navegar(page, '/contratos')
     await item(page, 'Ana Paula Ribeiro').click()
-    await expect(page.getByTestId('ficha-faltam')).toContainText('Taxa de avaria')
+    await expect(page.getByTestId('ficha-faltam')).toContainText('Cidade da empresa')
     await expect(page.getByTestId('ficha-enviado')).toBeDisabled()
   })
 
@@ -155,7 +154,7 @@ test.describe('contratos (administrador)', () => {
   })
 
   test('as três abas cabem na tela sem rolagem lateral na página', async ({ page }) => {
-    for (const nome of ['Contratos', 'Modelo', 'Empresa e taxas']) { await aba(page, nome).click(); expect(await semRolagemLateral(page), nome).toBe(true) }
+    for (const nome of ['Contratos', 'Modelo', 'Empresa']) { await aba(page, nome).click(); expect(await semRolagemLateral(page), nome).toBe(true) }
   })
 })
 
