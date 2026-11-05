@@ -227,7 +227,7 @@ describe('contratos (demonstração)', () => {
   })
 
   describe('ZapSign (demonstração)', () => {
-    it('está ligado em modo teste', async () => { expect(await api.zapsignStatus(ADMIN)).toEqual({ ativo: true, sandbox: true, webhook: true }) })
+    it('está ligado em modo teste', async () => { expect(await api.zapsignStatus(ADMIN)).toEqual({ ativo: true, sandbox: true, webhook: true, facial: 'nenhuma' }) })
     it('envia: contrato vira ENVIADO e congelado, com o link do ZapSign e a marca de teste', async () => {
       const p = await pendente(); await completarCliente(p.vendaId)
       const d = await api.enviarZapsign(ADMIN, p.id)

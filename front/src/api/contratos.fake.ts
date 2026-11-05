@@ -190,7 +190,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       e.assinadoEm = agora; e.via = 'MANUAL'; r.contrato = 'ASSINADO'
       return detalhe(r)
     },
-    async zapsignStatus(s) { registrosDe(s); return { ativo: true, sandbox: true, webhook: true } },
+    async zapsignStatus(s) { registrosDe(s); return { ativo: true, sandbox: true, webhook: true, facial: 'nenhuma' } },
     async enviarZapsign(s, id) {
       const r = achar(s, id); const e = await estadoDe(r)
       if (statusDe(r) === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')

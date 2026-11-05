@@ -171,6 +171,9 @@ function imprimir() {
         </div>
         <div class="small" style="margin-top: 6px">Este link aparece só agora. Se perder, gere outro (o anterior deixa de valer).</div>
       </div>
+      <div v-if="status !== 'ASSINADO' && zap?.ativo && zap.facial !== 'nenhuma'" class="small" style="margin-top: 14px" data-testid="ficha-zapsign-facial">
+        {{ zap.facial === 'liveness' ? 'Pelo ZapSign o cliente confirma o rosto: foto do documento e vídeo, conferidos automaticamente.' : 'Pelo ZapSign o cliente tira uma selfie ao assinar (fica guardada como prova).' }}
+      </div>
       <div style="display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap">
         <button v-if="status !== 'ASSINADO' && zap?.ativo" class="btn b-pri" style="flex: 1" :disabled="enviando || d.faltam.length > 0 || zapPendente" data-testid="ficha-enviar-zapsign" @click="enviarZapsign"><Icon name="file-signature" small />{{ d.zapsign ? 'Enviar de novo pelo ZapSign' : 'Enviar pelo ZapSign' }}</button>
         <button v-if="status !== 'ASSINADO'" class="btn" :class="zap?.ativo ? 'b-out' : 'b-pri'" style="flex: 1" :disabled="enviando || d.faltam.length > 0 || zapPendente" data-testid="ficha-gerar-link" @click="gerarLink"><Icon name="file-signature" small />{{ link || status === 'ENVIADO' ? 'Gerar novo link' : 'Link próprio de assinatura' }}</button>
