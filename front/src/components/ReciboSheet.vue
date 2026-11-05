@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { copiarTexto } from '@/domain/copiar'
 import { computed, ref } from 'vue'
 import type { ReciboApi } from '@/api/recebimentos'
 import { dmyA, fmt } from '@/domain/format'
@@ -20,7 +21,7 @@ const NOME_FORMA = { PIX: 'Pix', DINHEIRO: 'Dinheiro', CARTAO: 'Cartão' } as co
 
 async function copiar() {
   if (!props.recibo) return
-  try { await navigator.clipboard.writeText(props.recibo.mensagem); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { /* o texto está na tela */ }
+  if (await copiarTexto(props.recibo.mensagem)) { copiado.value = true; setTimeout(() => (copiado.value = false), 2000) }
 }
 </script>
 

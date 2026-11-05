@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { copiarTexto } from '@/domain/copiar'
 import { computed, ref, watch } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { ContratoDetalheApi, ZapsignStatusApi } from '@/api/contratos'
@@ -83,13 +84,13 @@ const whatsapp = computed(() => {
 })
 async function copiarLink() {
   if (!urlParaCliente.value) return
-  try { await navigator.clipboard.writeText(urlParaCliente.value); linkCopiado.value = true; setTimeout(() => (linkCopiado.value = false), 2000) } catch { erro.value = 'Não consegui copiar. Selecione o link na tela.' }
+  if (await copiarTexto(urlParaCliente.value)) { linkCopiado.value = true; setTimeout(() => (linkCopiado.value = false), 2000) } else erro.value = 'Não consegui copiar. Selecione o link na tela.'
 }
 const seguro = (v: boolean) => acao(() => contratosApi.definirSeguro(sessao.value, props.contratoId!, v))
 
 async function copiar() {
   if (!d.value) return
-  try { await navigator.clipboard.writeText(d.value.texto); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { erro.value = 'Não consegui copiar. Selecione o texto na tela.' }
+  if (await copiarTexto(d.value.texto)) { copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } else erro.value = 'Não consegui copiar. Selecione o texto na tela.'
 }
 /** Abre só o contrato numa janela limpa e chama a impressão (de lá dá para salvar em PDF). */
 function imprimir() {

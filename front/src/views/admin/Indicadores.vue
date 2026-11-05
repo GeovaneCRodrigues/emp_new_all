@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { copiarTexto } from '@/domain/copiar'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ErroApi } from '@/api/clientes'
 import type { AcessoCriado, IndicadorApi, TabelaNiveis } from '@/api/indicadores'
@@ -149,7 +150,7 @@ async function criarAcesso() {
 }
 async function copiarAcesso() {
   if (!acesso.value) return
-  try { await navigator.clipboard.writeText(`E-mail: ${acesso.value.email}\nSenha temporária: ${acesso.value.senhaTemporaria}`); copiado.value = true } catch { /* o texto está na tela */ }
+  if (await copiarTexto(`E-mail: ${acesso.value.email}\nSenha temporária: ${acesso.value.senhaTemporaria}`)) copiado.value = true
 }
 // a senha aparece uma vez: fechar descarta
 const fecharAcesso = () => { acessoPara.value = null; acesso.value = null }

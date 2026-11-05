@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { copiarTexto } from '@/domain/copiar'
 import { computed, ref, watch } from 'vue'
 import type { EmprestimoApi } from '@/api/emprestimos'
 import type { PagamentoApi } from '@/api/recebimentos'
@@ -15,7 +16,7 @@ watch(() => props.aberto, (a) => { if (a) { modo.value = 'SIMPLES'; copiado.valu
 const texto = computed(() => (props.emprestimo ? detalhamentoEmprestimo(props.emprestimo, props.pagamentos, props.hoje, modo.value) : ''))
 const linkWhats = computed(() => `https://wa.me/?text=${encodeURIComponent(texto.value)}`)
 async function copiar() {
-  try { await navigator.clipboard.writeText(texto.value); copiado.value = true; setTimeout(() => (copiado.value = false), 2000) } catch { /* o texto está na tela */ }
+  if (await copiarTexto(texto.value)) { copiado.value = true; setTimeout(() => (copiado.value = false), 2000) }
 }
 </script>
 
