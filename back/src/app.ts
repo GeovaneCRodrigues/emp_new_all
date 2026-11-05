@@ -46,6 +46,8 @@ import type { ContratosService } from './modules/contratos/services/contratos.se
 import { relatoriosRoutes } from './modules/relatorios/routes.js'
 import { notificacoesRoutes } from './modules/notificacoes/routes.js'
 import type { NotificacoesService } from './modules/notificacoes/services/notificacoes.service.js'
+import { pushRoutes } from './modules/push/routes.js'
+import type { PushService } from './modules/push/services/push.service.js'
 import type { RelatoriosService } from './modules/relatorios/services/relatorios.service.js'
 import type { CaixaService } from './modules/caixa/services/caixa.service.js'
 import { contaIndicadorRoutes } from './modules/conta-indicador/routes.js'
@@ -73,6 +75,7 @@ export type Deps = {
   relatorios?: RelatoriosService
   contratos?: ContratosService
   notificacoes?: NotificacoesService
+  push?: PushService
   config: ConfigService
   recebimentos: RecebimentosService
   aprovacoes: AprovacoesService
@@ -135,6 +138,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   if (deps.contratos) await app.register(contratosRoutes(deps.contratos, exigir, deps.limites?.assinaturasPorMinuto), { prefix: '/api' })
   if (deps.relatorios) await app.register(relatoriosRoutes(deps.relatorios, exigir), { prefix: '/api' })
   if (deps.notificacoes) await app.register(notificacoesRoutes(deps.notificacoes, exigir), { prefix: '/api' })
+  if (deps.push) await app.register(pushRoutes(deps.push, exigir), { prefix: '/api' })
   await app.register(fechamentosRoutes(deps.fechamentos, exigir), { prefix: '/api' })
   await app.register(equipeRoutes(deps.equipe, exigir), { prefix: '/api' })
   await app.register(recebimentosRoutes(deps.recebimentos, exigir, deps.limites?.recebimentosPorMinuto), { prefix: '/api' })

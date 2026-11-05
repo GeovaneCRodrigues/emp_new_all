@@ -38,6 +38,8 @@ import { createContratosRepository } from './modules/contratos/models/repository
 import { createContratosService } from './modules/contratos/services/contratos.service.js'
 import { createNotificacoesRepository } from './modules/notificacoes/models/repository.js'
 import { createNotificacoesService } from './modules/notificacoes/services/notificacoes.service.js'
+import { createPushRepository } from './modules/push/models/repository.js'
+import { createPushService } from './modules/push/services/push.service.js'
 import { hojeBR } from './shared/relogio.js'
 import { createRelatoriosRepository } from './modules/relatorios/models/repository.js'
 import { createRelatoriosService } from './modules/relatorios/services/relatorios.service.js'
@@ -101,11 +103,17 @@ const relatorios = createRelatoriosService({
   repo: createRelatoriosRepository(db.knex), vendas: createVendasRepository(db.knex), emprestimos: createEmprestimosRepository(db.knex), caixa: createCaixaRepository(db.knex),
   indicadores: createIndicadoresRepository(db.knex), repasses,
 })
+// push para o celular: só liga com VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY no ambiente
+const push = createPushService({
+  repo: createPushRepository(db.knex), chavePublica: (process.env.VAPID_PUBLIC_KEY ?? '').trim() || null, chavePrivada: (process.env.VAPID_PRIVATE_KEY ?? '').trim() || null,
+  assunto: (process.env.VAPID_SUBJECT ?? '').trim() || 'mailto:contato@mundodosiphones.com.br', log: (msg, err) => console.error(msg, err),
+})
 const notificacoes = createNotificacoesService({
   repo: createNotificacoesRepository(db.knex), hoje: () => hojeBR(), log: (msg, err) => console.error(msg, err),
+  aoCriar: (usuarioId, a) => push.enviar(usuarioId, { titulo: a.titulo, texto: a.texto, rota: a.rota, tag: a.chave }),
   atrasos: async (s) => (await recebimentos.cobrancas(s, { aba: 'atrasadas', limite: 1 })).contagens,
 })
-const app = await buildApp({ env, db, tokens, auth, notificacoes, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, notificacoes, push, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

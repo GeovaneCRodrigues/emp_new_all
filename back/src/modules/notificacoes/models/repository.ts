@@ -8,8 +8,8 @@ export type FatoAuditado = { id: number; usuarioId: number | null; acao: string;
 export interface NotificacoesRepository {
   /** Quem recebe avisos de cada perfil (só usuários ativos). */
   usuariosAtivos(perfis: Perfil[]): Promise<{ id: number; perfil: Perfil }[]>
-  /** Não repete: se a pessoa já tem um aviso com essa chave, nada acontece. */
-  inserir(n: NovaNotificacao): Promise<void>
+  /** Não repete: se a pessoa já tem um aviso com essa chave, nada acontece (e devolve false). */
+  inserir(n: NovaNotificacao): Promise<boolean>
   listar(usuarioId: number, limite: number): Promise<Notificacao[]>
   naoLidas(usuarioId: number): Promise<number>
   marcarLida(id: number, usuarioId: number): Promise<boolean>
@@ -32,9 +32,10 @@ export function createNotificacoesRepository(db: Knex): NotificacoesRepository {
       return l as { id: number; perfil: Perfil }[]
     },
     async inserir(n) {
-      await db('notificacoes')
+      const novos = await db('notificacoes')
         .insert({ usuario_id: n.usuarioId, tipo: n.tipo, texto: n.texto, rota: n.rota, chave: n.chave })
-        .onConflict(['usuario_id', 'chave']).ignore()
+        .onConflict(['usuario_id', 'chave']).ignore().returning('id')
+      return novos.length > 0
     },
     async listar(usuarioId, limite) {
       const l: Linha[] = await db('notificacoes').where({ usuario_id: usuarioId }).orderBy('id', 'desc').limit(limite)
