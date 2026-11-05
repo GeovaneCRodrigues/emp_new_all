@@ -24,10 +24,10 @@ import { bancoDeTeste, limparBanco } from './helpers/db.js'
 const db: Knex | null = await bancoDeTeste()
 const SENHA = 'senha-forte-123'
 const HOJE = '2026-10-15'
-const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: '59215794000153', avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
+const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: '59215794000153', avaria: 350, reposicao: 1500 }
 
-type Detalhe = { contrato: { id: number; vendaId: number; numero: string; status: string; seguro: boolean; modeloVersao: number; enviadoEm: string | null; assinadoEm: string | null }; congelado: boolean; trechos: { tipo: string; v: string }[]; faltam: string[]; texto: string }
-type Lista = { itens: { id: number; numero: string; status: string; clienteNome: string; seguro: boolean; vendaStatus: string }[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
+type Detalhe = { contrato: { id: number; vendaId: number; numero: string; status: string; modeloVersao: number; enviadoEm: string | null; assinadoEm: string | null }; congelado: boolean; trechos: { tipo: string; v: string }[]; faltam: string[]; texto: string }
+type Lista = { itens: { id: number; numero: string; status: string; clienteNome: string; vendaStatus: string }[]; resumo: { assinados: number; esperando: number } }
 
 describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   let app: FastifyInstance
@@ -99,9 +99,9 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     it.each(['cobrador', 'indicador'])('%s: 403 nas listas, no modelo, na empresa e ao gerar', async (p) => {
       for (const [m, u] of [['GET', '/api/contratos'], ['GET', '/api/contratos/1'], ['GET', '/api/contratos/venda/1'], ['GET', '/api/contratos/modelo'], ['GET', '/api/contratos/empresa'], ['POST', '/api/contratos/venda/1']] as const) expect((await req(m, u, p)).statusCode, `${p} ${u}`).toBe(403)
     })
-    it('vendedor: não vê nem muda o modelo e a empresa, não marca assinado nem muda o seguro', async () => {
+    it('vendedor: não vê nem muda o modelo e a empresa, não marca assinado', async () => {
       const cid = await contratoDe(await venda())
-      for (const [m, u, b] of [['GET', '/api/contratos/modelo'], ['PUT', '/api/contratos/modelo', { texto: MODELO_PADRAO }], ['POST', '/api/contratos/modelo/previa', { texto: 'x', vendaId: 1 }], ['GET', '/api/contratos/empresa'], ['PUT', '/api/contratos/empresa', EMPRESA_OK], ['POST', `/api/contratos/${cid}/assinado`], ['PATCH', `/api/contratos/${cid}`, { seguro: true }]] as const)
+      for (const [m, u, b] of [['GET', '/api/contratos/modelo'], ['PUT', '/api/contratos/modelo', { texto: MODELO_PADRAO }], ['POST', '/api/contratos/modelo/previa', { texto: 'x', vendaId: 1 }], ['GET', '/api/contratos/empresa'], ['PUT', '/api/contratos/empresa', EMPRESA_OK], ['POST', `/api/contratos/${cid}/assinado`]] as const)
         expect((await req(m, u, 'vendedorA', b as object | undefined)).statusCode, `${m} ${u}`).toBe(403)
     })
     it('vendedor só enxerga os contratos das vendas dele (feitas por ele ou de clientes da carteira dele)', async () => {
@@ -121,7 +121,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       const r = await gerar(v)
       expect(r.statusCode).toBe(201)
       const d = r.json() as Detalhe
-      expect(d.contrato).toMatchObject({ vendaId: v, numero: `2026-${String(v).padStart(4, '0')}`, status: 'AGUARDANDO', seguro: false, modeloVersao: 0, enviadoEm: null, assinadoEm: null })
+      expect(d.contrato).toMatchObject({ vendaId: v, numero: `2026-${String(v).padStart(4, '0')}`, status: 'AGUARDANDO', modeloVersao: 0, enviadoEm: null, assinadoEm: null })
       expect(d.congelado).toBe(false)
       expect(d.texto).toContain(`CONTRATO N°: 2026-${String(v).padStart(4, '0')}`)
       expect(d.texto).toContain('ANA SOUZA'); expect(d.texto).toContain('529.982.247-25'); expect(d.texto).toContain('IPHONE 15 128 GB'); expect(d.texto).toContain('COR: PRETO')
@@ -187,15 +187,14 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   })
 
   describe('lista e resumo', () => {
-    it('conta assinados, esperando (sem retomada) e com seguro; filtra por status', async () => {
+    it('conta assinados, esperando (sem retomada); filtra por status', async () => {
       const [v1, v2, v3] = [await venda({ cliente: id.cli }), await venda(), await venda()]
       const [c1, c2, c3] = [await contratoDe(v1), await contratoDe(v2), await contratoDe(v3)]
       await empresaCompleta()
-      await req('PATCH', `/api/contratos/${c2}`, 'admin', { seguro: true })
       await req('POST', `/api/contratos/${c1}/enviado`, 'admin'); await req('POST', `/api/contratos/${c1}/assinado`, 'admin')
       await db!('vendas').where({ id: v3 }).update({ status: 'RETOMADA' })
       const l = await lista()
-      expect(l.resumo).toEqual({ assinados: 1, esperando: 1, comSeguro: 1 })
+      expect(l.resumo).toEqual({ assinados: 1, esperando: 1 })
       expect(l.itens).toHaveLength(3)
       expect((await lista('?status=ASSINADO')).itens.map((i) => i.id)).toEqual([c1])
       expect((await lista('?status=ESPERANDO')).itens.map((i) => i.id)).toEqual([c2]) // a retomada não espera assinatura
@@ -290,32 +289,6 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
   })
 
-  describe('seguro', () => {
-    it('muda antes de enviar: o texto passa a falar do seguro e a lista conta; depois de enviado não muda', async () => {
-      await empresaCompleta()
-      const cid = await contratoDe(await venda())
-      expect((await detalhe(cid)).texto).toContain('Situação do seguro: não contratado pelo cliente.')
-      const r = await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: true })
-      expect((r.json() as Detalhe).contrato.seguro).toBe(true); expect((r.json() as Detalhe).texto).toContain('Situação do seguro: contratado, R$ 39,90 por mês junto da parcela.')
-      await req('POST', `/api/contratos/${cid}/enviado`, 'admin')
-      expect((await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: false })).json().codigo).toBe('CONTRATO_JA_ENVIADO')
-      expect(await db!('auditoria').where({ acao: 'CONTRATO_SEGURO' }).count('* as n').first()).toMatchObject({ n: '1' })
-    })
-    it('valor que não é verdadeiro/falso: 400; igual ao que já está: não audita', async () => {
-      const cid = await contratoDe(await venda())
-      expect((await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: 'sim' })).statusCode).toBe(400)
-      expect((await req('PATCH', `/api/contratos/${cid}`, 'admin', {})).statusCode).toBe(400)
-      await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: false })
-      expect(await db!('auditoria').where({ acao: 'CONTRATO_SEGURO' }).count('* as n').first()).toMatchObject({ n: '0' })
-    })
-    it('com seguro e sem o valor do seguro cadastrado: falta, e não envia', async () => {
-      await req('PUT', '/api/contratos/empresa', 'admin', { ...EMPRESA_OK, seguro: null })
-      const cid = await contratoDe(await venda())
-      await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: true })
-      expect((await req('POST', `/api/contratos/${cid}/enviado`, 'admin')).json().erro).toContain('Seguro')
-    })
-  })
-
   describe('modelo', () => {
     it('sem nada salvo: devolve o padrão na versão 0, com a lista de campos', async () => {
       const m = (await req('GET', '/api/contratos/modelo', 'admin')).json()
@@ -361,7 +334,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
 
   describe('empresa e taxas', () => {
     it('começa com a razão social do recibo e o resto vazio (nenhuma taxa inventada)', async () => {
-      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, telefone: null, cidade: null, uf: null, pixChave: null, temLogo: false, avaria: null, reposicao: null, seguro: null, cancelamentoPct: null, recuperacao: null })
+      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, telefone: null, cidade: null, uf: null, pixChave: null, temLogo: false, avaria: null, reposicao: null })
     })
     it('salva tudo, devolve, e o recibo continua lendo nome e CNPJ da mesma configuração', async () => {
       const r = await empresaCompleta()
@@ -383,14 +356,14 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
     it.each([
       ['CNPJ com poucos números', { cnpj: '123' }], ['e-mail sem arroba', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['taxa gigante', { reposicao: 1e7 }],
-      ['taxa em texto', { seguro: '10' }], ['multa acima de 100%', { cancelamentoPct: 101 }], ['multa negativa', { cancelamentoPct: -1 }], ['nome gigante', { nome: 'x'.repeat(121) }],
-      ['endereço gigante', { endereco: 'x'.repeat(201) }], ['texto onde vai número', { recuperacao: 'muito' }], ['nome que não é texto', { nome: 5 }],
+      ['taxa em texto', { avaria: '10' }], ['nome gigante', { nome: 'x'.repeat(121) }],
+      ['endereço gigante', { endereco: 'x'.repeat(201) }], ['texto onde vai número', { reposicao: 'muito' }], ['nome que não é texto', { nome: 5 }],
     ])('%s: 400 e nada é gravado', async (_n, corpo) => {
       expect((await req('PUT', '/api/contratos/empresa', 'admin', corpo)).statusCode).toBe(400)
       expect(await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_SALVA' }).count('* as n').first()).toMatchObject({ n: '0' })
     })
     it('arredonda os centavos', async () => {
-      expect((await req('PUT', '/api/contratos/empresa', 'admin', { seguro: 39.899, cancelamentoPct: 12.345 })).json()).toMatchObject({ seguro: 39.9, cancelamentoPct: 12.35 })
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', { avaria: 39.899 })).json()).toMatchObject({ avaria: 39.9 })
     })
   })
 

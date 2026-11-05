@@ -18,7 +18,6 @@ export function createContratosController(s: ContratosService) {
     async gerar(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(await s.gerar(sessaoOuErro(req), id(req, 'vendaId'))) },
     async enviado(req: FastifyRequest) { return s.marcarEnviado(sessaoOuErro(req), id(req)) },
     async assinado(req: FastifyRequest) { return s.marcarAssinado(sessaoOuErro(req), id(req)) },
-    async seguro(req: FastifyRequest) { return s.definirSeguro(sessaoOuErro(req), id(req), corpo(req).seguro) },
     async link(req: FastifyRequest, reply: FastifyReply) { return reply.code(201).send(await s.gerarLink(sessaoOuErro(req), id(req))) },
     // as duas abaixo são públicas (o cliente não tem login): quem manda é o token do link
     async verParaAssinar(req: FastifyRequest) { return s.verParaAssinar((req.params as { token: string }).token) },

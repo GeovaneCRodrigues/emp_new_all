@@ -23,7 +23,6 @@ export function criarContratosHttp(baseUrl: string, requisicao: Requisicao): Con
     gerar: (_s, vendaId) => chamar(`/contratos/venda/${vendaId}`, json('POST')),
     marcarEnviado: (_s, id) => chamar(`/contratos/${id}/enviado`, json('POST')),
     marcarAssinado: (_s, id) => chamar(`/contratos/${id}/assinado`, json('POST')),
-    definirSeguro: (_s, id, seguro) => chamar(`/contratos/${id}`, json('PATCH', { seguro })),
     gerarLink: (_s, id) => chamar(`/contratos/${id}/link`, json('POST')),
     zapsignStatus: () => chamar('/contratos/zapsign/status'),
     enviarZapsign: (_s, id) => chamar(`/contratos/${id}/zapsign`, json('POST')),

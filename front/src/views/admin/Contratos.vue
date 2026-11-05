@@ -91,14 +91,13 @@ watch(aba, (a) => { if (a === 'modelo' && !modelo.value) abrirModelo() })
       <div class="resumo3" data-testid="ct-resumo">
         <div><div class="lbl">Assinados</div><div class="val num" style="color: var(--ok)" data-testid="ct-assinados">{{ lista.resumo.assinados }}</div></div>
         <div><div class="lbl">Esperando</div><div class="val num" :style="lista.resumo.esperando ? 'color: var(--warn)' : ''" data-testid="ct-esperando">{{ lista.resumo.esperando }}</div></div>
-        <div><div class="lbl">Com seguro</div><div class="val num" data-testid="ct-seguro">{{ lista.resumo.comSeguro }}</div></div>
       </div>
       <CampoBusca v-model="busca" placeholder="Cliente, aparelho ou número" rotulo="Buscar contrato" />
       <Seg v-model="filtro" :itens="FILTROS" data-testid="ct-filtro" />
       <div class="card list" data-testid="ct-lista">
         <button v-for="c in visiveis" :key="c.id" class="li" :data-contrato="c.id" :data-status="c.status" @click="aberto = c.id">
           <span class="ini" style="background: var(--primary-soft); color: var(--primary)"><Icon name="file-signature" small /></span>
-          <span class="mid"><span class="t" style="display: block">{{ c.clienteNome }}</span><span class="s" style="display: block">Nº {{ c.numero }} · {{ c.aparelho }} · {{ dmy(c.dataVenda) }}{{ c.seguro ? ' · com seguro' : '' }}</span></span>
+          <span class="mid"><span class="t" style="display: block">{{ c.clienteNome }}</span><span class="s" style="display: block">Nº {{ c.numero }} · {{ c.aparelho }} · {{ dmy(c.dataVenda) }}</span></span>
           <span class="chip" :class="statusChip(c).cls">{{ statusChip(c).txt }}</span>
         </button>
         <div v-if="!visiveis.length" class="empty" data-testid="ct-vazio">{{ busca.trim() ? 'Nenhum contrato com essa busca.' : lista.itens.length ? 'Nada aqui.' : 'Nenhum contrato ainda. Cada venda nova gera o seu.' }}</div>

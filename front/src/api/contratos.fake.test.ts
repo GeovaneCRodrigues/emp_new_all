@@ -38,10 +38,10 @@ describe('contratos (demonstração)', () => {
   it('só administrador e vendedor entram; cobrador e indicador levam 403', async () => {
     for (const s of [COBRADOR, INDICADOR]) { expect((await falha(api.listar(s)))?.status).toBe(403); expect((await falha(api.modelo(s)))?.status).toBe(403) }
   })
-  it('vendedor não mexe em modelo, empresa, assinatura nem seguro', async () => {
+  it('vendedor não mexe em modelo, empresa nem assinatura', async () => {
     const V: Sessao = { perfil: 'VENDEDOR', usuarioId: 2 }
     const p = await pendente()
-    for (const f of [() => api.modelo(V), () => api.salvarModelo(V, MODELO_PADRAO), () => api.empresa(V), () => api.salvarEmpresa(V, {}), () => api.marcarAssinado(V, p.id), () => api.definirSeguro(V, p.id, true), () => api.previa(V, 'x', p.vendaId)]) expect((await falha(f()))?.status).toBe(403)
+    for (const f of [() => api.modelo(V), () => api.salvarModelo(V, MODELO_PADRAO), () => api.empresa(V), () => api.salvarEmpresa(V, {}), () => api.marcarAssinado(V, p.id), () => api.previa(V, 'x', p.vendaId)]) expect((await falha(f()))?.status).toBe(403)
   })
   it('vendedor só enxerga os contratos das vendas dele, e o contrato de venda de outro dá 404', async () => {
     const V: Sessao = { perfil: 'VENDEDOR', usuarioId: 2 }
@@ -53,7 +53,7 @@ describe('contratos (demonstração)', () => {
   })
   it('lista com o resumo; filtra esperando e assinados; os mais novos primeiro', async () => {
     const l = await api.listar(ADMIN)
-    expect(l.resumo).toMatchObject({ assinados: 7, esperando: 2, comSeguro: 0 })
+    expect(l.resumo).toMatchObject({ assinados: 7, esperando: 2 })
     expect((await api.listar(ADMIN, { status: 'ASSINADO' })).itens.every((i) => i.status === 'ASSINADO')).toBe(true)
     expect((await api.listar(ADMIN, { status: 'ESPERANDO' })).itens).toHaveLength(2)
     const datas = l.itens.map((i) => i.dataVenda); expect(datas).toEqual([...datas].sort().reverse())
@@ -117,20 +117,6 @@ describe('contratos (demonstração)', () => {
     expect((await api.listar(ADMIN)).resumo.esperando).toBe(1)
     expect((await falha(api.marcarEnviado(ADMIN, p.id)))?.codigo).toBe('VENDA_ENCERRADA')
   })
-  it('seguro: muda antes de enviar (e o texto muda), depois não; valor que não é booleano dá 400', async () => {
-    const p = await pendente(); await completarCliente(p.vendaId)
-    const d = await api.definirSeguro(ADMIN, p.id, true)
-    expect(d.contrato.seguro).toBe(true); expect(d.texto).toContain('contratado, R$ 39,90 por mês')
-    expect((await api.listar(ADMIN)).resumo.comSeguro).toBe(1)
-    expect((await falha(api.definirSeguro(ADMIN, p.id, 'sim' as never)))?.status).toBe(400)
-    await api.marcarEnviado(ADMIN, p.id)
-    expect((await falha(api.definirSeguro(ADMIN, p.id, false)))?.codigo).toBe('CONTRATO_JA_ENVIADO')
-  })
-  it('com seguro e sem o valor cadastrado: falta e não envia', async () => {
-    const p = await pendente(); await completarCliente(p.vendaId)
-    await api.salvarEmpresa(ADMIN, { seguro: null }); await api.definirSeguro(ADMIN, p.id, true)
-    expect((await falha(api.marcarEnviado(ADMIN, p.id)))?.message).toContain('Seguro')
-  })
   describe('modelo', () => {
     it('começa no padrão (versão 0); salvar cria versão nova; o mesmo texto não cria outra', async () => {
       expect(await api.modelo(ADMIN)).toMatchObject({ versao: 0, texto: MODELO_PADRAO })
@@ -160,11 +146,11 @@ describe('contratos (demonstração)', () => {
   })
   describe('empresa', () => {
     it('salva, mantém o que não veio, limpa com null e arredonda', async () => {
-      const e = await api.salvarEmpresa(ADMIN, { avaria: 400.456, cancelamentoPct: 12.345 })
-      expect(e).toMatchObject({ avaria: 400.46, cancelamentoPct: 12.35, nome: 'Mundo dos iPhones LTDA' })
+      const e = await api.salvarEmpresa(ADMIN, { avaria: 400.456 })
+      expect(e).toMatchObject({ avaria: 400.46, nome: 'Mundo dos iPhones LTDA' })
       expect(await api.salvarEmpresa(ADMIN, { email: null })).toMatchObject({ email: null, avaria: 400.46 })
     })
-    it.each([['CNPJ curto', { cnpj: '1' }], ['e-mail ruim', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['multa > 100', { cancelamentoPct: 101 }], ['nome vazio', { nome: '' }], ['taxa em texto', { seguro: '1' }]])('%s: 400', async (_n, corpo) => {
+    it.each([['CNPJ curto', { cnpj: '1' }], ['e-mail ruim', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['nome vazio', { nome: '' }], ['taxa em texto', { avaria: '1' }]])('%s: 400', async (_n, corpo) => {
       expect((await falha(api.salvarEmpresa(ADMIN, corpo as never)))?.status).toBe(400)
     })
   })

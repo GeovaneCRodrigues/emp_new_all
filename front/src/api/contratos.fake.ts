@@ -15,7 +15,7 @@ const conflito = (m: string, codigo: string) => new ErroApi(409, m, codigo)
 const semPermissao = (m: string) => new ErroApi(403, m, 'SEM_PERMISSAO')
 
 type Estado = {
-  modeloVersao: number; seguro: boolean; enviadoEm: string | null; assinadoEm: string | null; textoEnviado: string | null
+  modeloVersao: number; enviadoEm: string | null; assinadoEm: string | null; textoEnviado: string | null
   assinatura?: AssinaturaContratoApi
   via?: ViaAssinaturaApi
   zapsign?: { token: string; url: string; status: string }
@@ -43,13 +43,13 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   const modelos: { versao: number; texto: string }[] = []
   // a demonstração já vem com a empresa preenchida (no sistema de verdade começa vazia)
   let logo: string | null = null
-  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: null, temLogo: false, avaria: 350, reposicao: 1500, seguro: 39.9, cancelamentoPct: 20, recuperacao: 250 }
+  let empresa: Empresa = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua de Exemplo, 100 - Centro, São Paulo - SP', email: 'contato@exemplo.com.br', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: null, temLogo: false, avaria: 350, reposicao: 1500 }
 
   const exigirAdmin = (s: Sessao, m: string) => { if (s.perfil !== 'ADMIN') throw semPermissao(m) }
   /** Contrato de venda nova nasce com a versão do modelo que valia na hora (como o backend, que gera na venda). */
   function sincronizar() {
     for (const r of dep.vendas._interno.registros) {
-      if (r.contrato === 'AGUARDANDO' && !estados.has(r.id)) estados.set(r.id, { modeloVersao: modelos.at(-1)?.versao ?? 0, seguro: false, enviadoEm: null, assinadoEm: null, textoEnviado: null })
+      if (r.contrato === 'AGUARDANDO' && !estados.has(r.id)) estados.set(r.id, { modeloVersao: modelos.at(-1)?.versao ?? 0, enviadoEm: null, assinadoEm: null, textoEnviado: null })
     }
   }
   function registrosDe(s: Sessao): Registro[] {
@@ -61,7 +61,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   const textoVersao = (v: number) => (v > 0 ? modelos.find((m) => m.versao === v)?.texto : undefined) ?? MODELO_PADRAO
   const statusDe = (r: Registro): StatusContratoApi => (r.contrato === 'ASSINADO' ? 'ASSINADO' : r.contrato === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO')
 
-  async function dados(r: Registro, seguro: boolean): Promise<DadosVenda> {
+  async function dados(r: Registro): Promise<DadosVenda> {
     const c = await dep.clientes.obter(ADM, r.cliente.id)
     const a = await dep.estoque.obter(ADM, r.aparelho.id).catch(() => null)
     return {
@@ -71,17 +71,17 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
         endereco: c.endereco ?? null, numero: c.numero ?? null, bairro: c.bairro ?? null, cidade: c.cidade ?? null, uf: c.uf ?? null, cep: c.cep ?? null,
       },
       aparelho: { modelo: r.aparelho.modelo, gb: r.aparelho.gb, cor: r.aparelho.cor, condicao: a?.condicao ?? 'Seminovo', imei: a?.imei ?? null, serie: a?.serie ?? null },
-      entrada: r.entrada, troca: r.troca, parcelas: r.parcelas.map((p) => ({ valor: p.valor, vencimento: p.vencimento })), seguro,
+      entrada: r.entrada, troca: r.troca, parcelas: r.parcelas.map((p) => ({ valor: p.valor, vencimento: p.vencimento })),
     }
   }
   async function estadoDe(r: Registro): Promise<Estado> {
     let e = estados.get(r.id)
     if (!e) {
-      e = { modeloVersao: 0, seguro: false, enviadoEm: null, assinadoEm: null, textoEnviado: null }
+      e = { modeloVersao: 0, enviadoEm: null, assinadoEm: null, textoEnviado: null }
       estados.set(r.id, e)
       // contrato que a demonstração já traz enviado ou assinado: o texto já está fechado
       if (r.contrato === 'ENVIADO' || r.contrato === 'ASSINADO') {
-        e.enviadoEm = `${r.dataVenda}T12:00:00.000Z`; e.textoEnviado = preencher(MODELO_PADRAO, await dados(r, false), empresa).texto
+        e.enviadoEm = `${r.dataVenda}T12:00:00.000Z`; e.textoEnviado = preencher(MODELO_PADRAO, await dados(r), empresa).texto
         if (r.contrato === 'ASSINADO') e.assinadoEm = `${r.dataVenda}T12:00:00.000Z`
       }
     }
@@ -90,7 +90,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   async function item(r: Registro): Promise<ContratoItemApi> {
     const e = await estadoDe(r)
     return {
-      id: r.id, vendaId: r.id, numero: numero(r), status: statusDe(r), modeloVersao: e.modeloVersao, seguro: e.seguro, geradoEm: `${r.dataVenda}T12:00:00.000Z`, enviadoEm: e.enviadoEm, assinadoEm: e.assinadoEm,
+      id: r.id, vendaId: r.id, numero: numero(r), status: statusDe(r), modeloVersao: e.modeloVersao, geradoEm: `${r.dataVenda}T12:00:00.000Z`, enviadoEm: e.enviadoEm, assinadoEm: e.assinadoEm,
       clienteNome: r.cliente.nome, clienteFone: (await dep.clientes.obter(ADM, r.cliente.id)).fone, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, dataVenda: r.dataVenda, vendaStatus: r.status,
     }
   }
@@ -99,7 +99,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     const contrato = await item(r)
     const extra = { assinatura: e.assinatura ?? null, assinaturaVia: e.via ?? (e.assinadoEm ? ('MANUAL' as const) : null), zapsign: e.zapsign ? { status: e.zapsign.status, sandbox: true, signUrl: e.zapsign.url, arquivoAssinado: null } : null }
     if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado, ...extra }
-    const p = preencher(textoVersao(e.modeloVersao), await dados(r, e.seguro), empresa)
+    const p = preencher(textoVersao(e.modeloVersao), await dados(r), empresa)
     return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, ...extra }
   }
   function achar(s: Sessao, id: number): Registro {
@@ -122,7 +122,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     if (e.link.tentativas >= TENTATIVAS_DE_CPF) throw new ErroApi(410, 'Link bloqueado por tentativas erradas. Peça um novo ao vendedor.', 'LINK_BLOQUEADO')
     if (Date.parse(e.link.expiraEm) < Date.parse(agora)) throw new ErroApi(410, 'Este link venceu. Peça um novo ao vendedor.', 'LINK_VENCIDO')
     if (!ativa(r)) throw new ErroApi(410, 'Esta venda foi encerrada.', 'VENDA_ENCERRADA')
-    return { r, e, link: e.link, texto: e.textoEnviado, cpf: (await dados(r, e.seguro)).cliente.cpf }
+    return { r, e, link: e.link, texto: e.textoEnviado, cpf: (await dados(r)).cliente.cpf }
   }
   const publico: AssinarPublicoApi = {
     async ver(token) {
@@ -154,7 +154,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       const filtra = (r: Registro) => (q.status === 'ASSINADO' ? r.contrato === 'ASSINADO' : q.status === 'ESPERANDO' ? pendente(r) : true)
       return {
         itens: itens.filter((_, i) => filtra(todos[i])),
-        resumo: { assinados: todos.filter((r) => r.contrato === 'ASSINADO').length, esperando: todos.filter(pendente).length, comSeguro: itens.filter((i) => i.seguro).length },
+        resumo: { assinados: todos.filter((r) => r.contrato === 'ASSINADO').length, esperando: todos.filter(pendente).length },
       }
     },
     async obter(s, id) { return detalhe(achar(s, id)) },
@@ -170,7 +170,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       if (r.contrato !== 'SEM_CONTRATO') throw conflito('Esta venda já tem contrato', 'CONTRATO_JA_EXISTE')
       if (!ativa(r)) throw conflito('Venda retomada ou cancelada não tem contrato', 'VENDA_ENCERRADA')
       r.contrato = 'AGUARDANDO'
-      estados.set(r.id, { modeloVersao: modelos.at(-1)?.versao ?? 0, seguro: false, enviadoEm: null, assinadoEm: null, textoEnviado: null })
+      estados.set(r.id, { modeloVersao: modelos.at(-1)?.versao ?? 0, enviadoEm: null, assinadoEm: null, textoEnviado: null })
       return detalhe(r)
     },
     async marcarEnviado(s, id) {
@@ -198,7 +198,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       if (e.zapsign?.status === 'pending') return detalhe(r)
       const det = await detalhe(r)
       const faltam = [...det.faltam]
-      const cpf = (await dados(r, e.seguro)).cliente.cpf
+      const cpf = (await dados(r)).cliente.cpf
       if ((cpf ?? '').replace(/\D/g, '').length !== 11 && !faltam.includes('CPF')) faltam.push('CPF')
       if (faltam.length) throw conflito(`Falta cadastrar: ${faltam.join(', ')}`, 'DADOS_FALTANDO')
       if (statusDe(r) === 'AGUARDANDO') { e.enviadoEm = agora; e.textoEnviado = det.texto; r.contrato = 'ENVIADO' }
@@ -218,7 +218,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       if (!ativa(r)) throw conflito('Venda retomada ou cancelada não envia contrato', 'VENDA_ENCERRADA')
       const det = await detalhe(r)
       const faltam = [...det.faltam]
-      const cpf = (await dados(r, e.seguro)).cliente.cpf
+      const cpf = (await dados(r)).cliente.cpf
       if ((cpf ?? '').replace(/\D/g, '').length !== 11 && !faltam.includes('CPF')) faltam.push('CPF')
       if (faltam.length) throw conflito(`Falta cadastrar: ${faltam.join(', ')}`, 'DADOS_FALTANDO')
       if (statusDe(r) === 'AGUARDANDO') { e.enviadoEm = agora; e.textoEnviado = det.texto; r.contrato = 'ENVIADO' }
@@ -226,14 +226,6 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       const expiraEm = new Date(Date.parse(agora) + LINK_DIAS * 86_400_000).toISOString()
       e.link = { token, expiraEm, tentativas: 0 }
       return { token, expiraEm, contrato: await detalhe(r) }
-    },
-    async definirSeguro(s, id, seguro) {
-      exigirAdmin(s, 'Só o administrador muda o seguro do contrato')
-      if (typeof seguro !== 'boolean') throw erro('seguro precisa ser verdadeiro ou falso')
-      const r = achar(s, id); const e = await estadoDe(r)
-      if (statusDe(r) !== 'AGUARDANDO') throw conflito('O contrato já foi enviado: o seguro não muda mais', 'CONTRATO_JA_ENVIADO')
-      e.seguro = seguro
-      return detalhe(r)
     },
 
     async salvarLogo(s, imagem) {
@@ -269,7 +261,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       if (typeof texto !== 'string' || texto.length > TEXTO_MAX) throw erro('texto inválido')
       const r = dep.vendas._interno.registros.find((x) => x.id === vendaId)
       if (!r) throw new ErroApi(404, 'Venda não encontrada', 'NAO_ENCONTRADO')
-      return preencher(texto, await dados(r, false), empresa)
+      return preencher(texto, await dados(r), empresa)
     },
 
     async empresa(s) { exigirAdmin(s, 'Só o administrador vê os dados da empresa'); return { ...empresa } },
@@ -282,24 +274,17 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
         if (typeof v !== 'string' || v.trim().length > max) throw erro(`${k}: no máximo ${max} letras`)
         return v.trim()
       }
-      const dinheiro = (k: 'avaria' | 'reposicao' | 'seguro' | 'recuperacao'): number | null => {
+      const dinheiro = (k: 'avaria' | 'reposicao'): number | null => {
         if (!(k in corpo)) return empresa[k]
         const v = corpo[k]
         if (v === null || v === undefined) return null
         if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > DINHEIRO_MAX) throw erro(`${k} precisa ser um valor entre 0 e ${DINHEIRO_MAX}`)
         return Math.round(v * 100) / 100
       }
-      let cancelamentoPct = empresa.cancelamentoPct
-      if ('cancelamentoPct' in corpo) {
-        const v = corpo.cancelamentoPct
-        if (v === null || v === undefined) cancelamentoPct = null
-        else if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 100) throw erro('cancelamentoPct precisa ficar entre 0 e 100')
-        else cancelamentoPct = Math.round(v * 100) / 100
-      }
       const nova: Empresa = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
         telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77), temLogo: empresa.temLogo,
-        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'), seguro: dinheiro('seguro'), cancelamentoPct, recuperacao: dinheiro('recuperacao'),
+        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw erro('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw erro('E-mail inválido')

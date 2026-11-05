@@ -44,7 +44,6 @@ const DEFS: Def[] = [
   { grupo: 'Pagamento', chave: 'parcela_valor', rotulo: 'Valor da parcela', valor: (d) => (d.parcelas[0] ? brl(d.parcelas[0].valor) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'primeiro_vencimento', rotulo: '1º vencimento', valor: (d) => (d.parcelas[0] ? dmyA(d.parcelas[0].vencimento) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'valor_total', rotulo: 'Valor total', valor: (d) => brl(arred(d.entrada + d.troca + d.parcelas.reduce((s, p) => s + p.valor, 0))) },
-  { grupo: 'Pagamento', chave: 'seguro_texto', rotulo: 'Seguro', valor: (d, e) => (d.seguro ? (e.seguro === null ? null : `contratado, ${brl(e.seguro)} por mês junto da parcela`) : 'não contratado pelo cliente') },
   { grupo: 'Empresa e taxas', chave: 'empresa_nome', rotulo: 'Razão social', valor: (_d, e) => e.nome },
   { grupo: 'Empresa e taxas', chave: 'empresa_cnpj', rotulo: 'CNPJ', valor: (_d, e) => e.cnpj },
   { grupo: 'Empresa e taxas', chave: 'empresa_endereco', rotulo: 'Endereço', valor: (_d, e) => e.endereco },
@@ -55,9 +54,6 @@ const DEFS: Def[] = [
   { grupo: 'Empresa e taxas', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
   { grupo: 'Empresa e taxas', chave: 'taxa_avaria', rotulo: 'Taxa de avaria', valor: (_d, e) => taxa(e.avaria) },
   { grupo: 'Empresa e taxas', chave: 'taxa_reposicao', rotulo: 'Reposição (perda/roubo)', valor: (_d, e) => taxa(e.reposicao) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_seguro', rotulo: 'Seguro (valor mensal)', valor: (_d, e) => taxa(e.seguro) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_cancelamento', rotulo: 'Multa de cancelamento', valor: (_d, e) => (e.cancelamentoPct === null ? null : `${String(e.cancelamentoPct).replace('.', ',')}%`) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_recuperacao', rotulo: 'Taxa de recuperação', valor: (_d, e) => taxa(e.recuperacao) },
 ]
 const POR_CHAVE = new Map(DEFS.map((d) => [d.chave, d]))
 export const VARIAVEIS: Variavel[] = DEFS.map(({ chave, rotulo, grupo }) => ({ chave, rotulo, grupo }))
@@ -179,8 +175,6 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
 6.3.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
 6.3.2. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
-6.4. No ato de contratação fica disponibilizado ao LOCATÁRIO o SEGURO CONTRA QUEDAS, que visa proteger os APARELHOS CELULARES em caso de quedas que acarretam em danos ao mesmo, ficando a manutenção a cargo da LOCADORA.
-6.4.1. O SEGURO CONTRA QUEDAS possui valor mensal de {{taxa_seguro}} a serem pagos juntamente com a parcela de cada mês, opcional. Situação do seguro: {{seguro_texto}}.
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
@@ -210,7 +204,7 @@ CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO 
 14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
 14.1.1. O LOCATÁRIO pode antecipar parcelas ou quitar o saldo de uma vez, a qualquer momento. A transferência do aparelho ocorre assim que o último valor for pago, sem esperar o fim do prazo previsto.
 14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
-14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
+14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, as taxas de locação e o direito de retomada previstos neste Contrato.
 
 CLÁUSULA DÉCIMA QUINTA: DA AUSÊNCIA DE MULTA NA RESCISÃO
 15.1. Este Contrato não prevê multa por rescisão nem por devolução antecipada do aparelho. Nesses casos aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2.
@@ -247,10 +241,8 @@ Valor de entrada (parte do preço do aparelho): {{entrada_valor}} (único)
 Valor de locação Mensal: {{parcela_valor}} (mensal)
 Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por evento)
 Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
-Seguro contra queda: {{taxa_seguro}} (mensal)
 
 1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
-2) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
 
 {{empresa_cidade}}, {{data_venda}}
 
