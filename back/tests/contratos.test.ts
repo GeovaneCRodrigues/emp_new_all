@@ -24,7 +24,7 @@ import { bancoDeTeste, limparBanco } from './helpers/db.js'
 const db: Knex | null = await bancoDeTeste()
 const SENHA = 'senha-forte-123'
 const HOJE = '2026-10-15'
-const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: '59215794000153', avaria: 350, reposicao: 1500 }
+const EMPRESA_OK = { nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'contato@mundo.com', atendente: 'Geovane', telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: '59215794000153' }
 
 type Detalhe = { contrato: { id: number; vendaId: number; numero: string; status: string; modeloVersao: number; enviadoEm: string | null; assinadoEm: string | null }; congelado: boolean; trechos: { tipo: string; v: string }[]; faltam: string[]; texto: string }
 type Lista = { itens: { id: number; numero: string; status: string; clienteNome: string; vendaStatus: string }[]; resumo: { assinados: number; esperando: number } }
@@ -222,12 +222,12 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   })
 
   describe('enviar e assinar', () => {
-    it('com dados faltando (empresa sem CNPJ e taxas): não envia, 409 dizendo o que falta', async () => {
+    it('com dados faltando (empresa sem CNPJ e cidade): não envia, 409 dizendo o que falta', async () => {
       const cid = await contratoDe(await venda())
       const r = await req('POST', `/api/contratos/${cid}/enviado`, 'admin')
       expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('DADOS_FALTANDO')
-      expect(r.json().erro).toContain('CNPJ'); expect(r.json().erro).toContain('Taxa de avaria')
-      expect((await detalhe(cid)).faltam).toEqual(expect.arrayContaining(['CNPJ', 'Taxa de avaria', 'Atendente']))
+      expect(r.json().erro).toContain('CNPJ'); expect(r.json().erro).toContain('Cidade da empresa')
+      expect((await detalhe(cid)).faltam).toEqual(expect.arrayContaining(['CNPJ', 'Cidade da empresa', 'Atendente']))
       expect((await detalhe(cid)).trechos.some((x) => x.tipo === 'falta')).toBe(true)
     })
     it('cliente sem CPF e sem endereço também trava', async () => {
@@ -273,7 +273,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       const cid = await contratoDe(await venda())
       const antes = (await req('POST', `/api/contratos/${cid}/enviado`, 'admin')).json() as Detalhe
       await db!('clientes').where({ id: id.cli }).update({ nome: 'ANA TROCOU DE NOME' })
-      await req('PUT', '/api/contratos/empresa', 'admin', { atendente: 'Outra pessoa', avaria: 999 })
+      await req('PUT', '/api/contratos/empresa', 'admin', { atendente: 'Outra pessoa' })
       await req('PUT', '/api/contratos/modelo', 'admin', { texto: MODELO_PADRAO.replace('CLÁUSULA PRIMEIRA', 'CLÁUSULA 1') })
       expect((await detalhe(cid)).texto).toBe(antes.texto)
       await db!('clientes').where({ id: id.cli }).update({ nome: 'ANA SOUZA' })
@@ -322,9 +322,9 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
     it('prévia: preenche o texto que veio com a venda escolhida, sem salvar nada', async () => {
       const v = await venda()
-      const r = await req('POST', '/api/contratos/modelo/previa', 'admin', { texto: 'Cliente {{cliente_nome}} / {{taxa_avaria}} / {{xx}}', vendaId: v })
+      const r = await req('POST', '/api/contratos/modelo/previa', 'admin', { texto: 'Cliente {{cliente_nome}} / {{empresa_cidade}} / {{xx}}', vendaId: v })
       expect(r.statusCode).toBe(200)
-      expect(r.json()).toMatchObject({ faltam: ['Taxa de avaria'], texto: 'Cliente ANA SOUZA /  / {{xx}}' })
+      expect(r.json()).toMatchObject({ faltam: ['Cidade da empresa'], texto: 'Cliente ANA SOUZA /  / {{xx}}' })
       expect(await db!('contrato_modelos').count('* as n').first()).toMatchObject({ n: '0' })
       expect((await req('POST', '/api/contratos/modelo/previa', 'admin', { texto: 'x', vendaId: 999999 })).statusCode).toBe(404)
       expect((await req('POST', '/api/contratos/modelo/previa', 'admin', { texto: 'x' })).statusCode).toBe(400)
@@ -334,7 +334,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
 
   describe('empresa e taxas', () => {
     it('começa com a razão social do recibo e o resto vazio (nenhuma taxa inventada)', async () => {
-      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, telefone: null, cidade: null, uf: null, pixChave: null, temLogo: false, avaria: null, reposicao: null })
+      expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ nome: 'Mundo dos iPhones', cnpj: null, endereco: null, email: null, atendente: null, telefone: null, cidade: null, uf: null, pixChave: null, temLogo: false })
     })
     it('salva tudo, devolve, e o recibo continua lendo nome e CNPJ da mesma configuração', async () => {
       const r = await empresaCompleta()
@@ -342,7 +342,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       expect((await req('GET', '/api/contratos/empresa', 'admin')).json()).toEqual({ ...EMPRESA_OK, temLogo: false })
       expect(await db!('sistema_config').where({ chave: 'empresa_cnpj' }).first()).toMatchObject({ valor: '11.222.333/0001-81' })
       const log = await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_SALVA' }).first()
-      expect(log.antes).toMatchObject({ cnpj: null, avaria: null }); expect(log.depois).toMatchObject({ cnpj: '11.222.333/0001-81', avaria: 350 })
+      expect(log.antes).toMatchObject({ cnpj: null, cidade: null }); expect(log.depois).toMatchObject({ cnpj: '11.222.333/0001-81', cidade: 'Taboão da Serra' })
     })
     it('sem razão social gravada, usa Mundo dos iPhones', async () => {
       await db!('sistema_config').where({ chave: 'empresa_nome' }).del()
@@ -350,20 +350,16 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     })
     it('salvar só um campo mantém os outros; vazio ou null limpa (menos a razão social)', async () => {
       await empresaCompleta()
-      expect((await req('PUT', '/api/contratos/empresa', 'admin', { avaria: 400 })).json()).toEqual({ ...EMPRESA_OK, temLogo: false, avaria: 400 })
-      expect((await req('PUT', '/api/contratos/empresa', 'admin', { email: '', reposicao: null })).json()).toMatchObject({ email: null, reposicao: null, avaria: 400 })
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', { cidade: 'Umuarama' })).json()).toEqual({ ...EMPRESA_OK, temLogo: false, cidade: 'Umuarama' })
+      expect((await req('PUT', '/api/contratos/empresa', 'admin', { email: '' })).json()).toMatchObject({ email: null, cidade: 'Umuarama' })
       expect((await req('PUT', '/api/contratos/empresa', 'admin', { nome: '' })).statusCode).toBe(400)
     })
     it.each([
-      ['CNPJ com poucos números', { cnpj: '123' }], ['e-mail sem arroba', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['taxa gigante', { reposicao: 1e7 }],
-      ['taxa em texto', { avaria: '10' }], ['nome gigante', { nome: 'x'.repeat(121) }],
-      ['endereço gigante', { endereco: 'x'.repeat(201) }], ['texto onde vai número', { reposicao: 'muito' }], ['nome que não é texto', { nome: 5 }],
+      ['CNPJ com poucos números', { cnpj: '123' }], ['e-mail sem arroba', { email: 'abc' }], ['nome gigante', { nome: 'x'.repeat(121) }],
+      ['endereço gigante', { endereco: 'x'.repeat(201) }], ['nome que não é texto', { nome: 5 }],
     ])('%s: 400 e nada é gravado', async (_n, corpo) => {
       expect((await req('PUT', '/api/contratos/empresa', 'admin', corpo)).statusCode).toBe(400)
       expect(await db!('auditoria').where({ acao: 'CONTRATO_EMPRESA_SALVA' }).count('* as n').first()).toMatchObject({ n: '0' })
-    })
-    it('arredonda os centavos', async () => {
-      expect((await req('PUT', '/api/contratos/empresa', 'admin', { avaria: 39.899 })).json()).toMatchObject({ avaria: 39.9 })
     })
   })
 
@@ -661,7 +657,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
         expect((await post(a, `/api/contratos/${cid}/zapsign`, 'vendedorB')).statusCode).toBe(404)
         expect((await post(a, `/api/contratos/${cid}/zapsign`, 'cobrador')).statusCode).toBe(403)
         expect((await post(a, `/api/contratos/${cid}/zapsign`)).statusCode).toBe(401)
-        await db!('sistema_config').where({ chave: 'taxa_avaria' }).del()
+        await db!('sistema_config').where({ chave: 'empresa_cidade' }).del()
         const r = await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
         expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('DADOS_FALTANDO')
         expect(z.criados).toHaveLength(0)

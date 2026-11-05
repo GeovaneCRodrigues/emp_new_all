@@ -31,9 +31,6 @@ export type Empresa = {
   pixChave: string | null
   /** a imagem sai por GET /api/empresa/logo (não vem junto) */
   temLogo: boolean
-  /** taxas do contrato; null = ainda não cadastrada (o contrato não pode ser enviado) */
-  avaria: number | null
-  reposicao: number | null
 }
 
 
@@ -53,7 +50,6 @@ export function enderecoCompleto(c: DadosVenda['cliente']): string | null {
   return [c.endereco, c.numero && `nº ${c.numero}`, c.bairro, cidadeUf, c.cep && `CEP ${cepFmt(c.cep)}`].filter(Boolean).join(', ')
 }
 const telefoneFmt = (t: string) => (t.length === 11 ? `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}` : t.length === 10 ? `(${t.slice(0, 2)}) ${t.slice(2, 6)}-${t.slice(6)}` : t)
-const taxa = (v: number | null) => (v === null ? null : brl(v))
 const DEFS: Def[] = [
   { grupo: 'Contrato', chave: 'contrato_numero', rotulo: 'Número do contrato', valor: (d) => d.numero },
   { grupo: 'Contrato', chave: 'data_venda', rotulo: 'Data da venda', valor: (d) => dmyA(d.dataVenda) },
@@ -81,16 +77,14 @@ const DEFS: Def[] = [
   { grupo: 'Pagamento', chave: 'parcela_valor', rotulo: 'Valor da parcela', valor: (d) => (d.parcelas[0] ? brl(d.parcelas[0].valor) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'primeiro_vencimento', rotulo: '1º vencimento', valor: (d) => (d.parcelas[0] ? dmyA(d.parcelas[0].vencimento) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'valor_total', rotulo: 'Valor total', valor: (d) => brl(arred(d.entrada + d.troca + d.parcelas.reduce((s, p) => s + p.valor, 0))) },
-  { grupo: 'Empresa e taxas', chave: 'empresa_nome', rotulo: 'Razão social', valor: (_d, e) => e.nome },
-  { grupo: 'Empresa e taxas', chave: 'empresa_cnpj', rotulo: 'CNPJ', valor: (_d, e) => e.cnpj },
-  { grupo: 'Empresa e taxas', chave: 'empresa_endereco', rotulo: 'Endereço', valor: (_d, e) => e.endereco },
-  { grupo: 'Empresa e taxas', chave: 'empresa_email', rotulo: 'E-mail', valor: (_d, e) => e.email },
-  { grupo: 'Empresa e taxas', chave: 'empresa_telefone', rotulo: 'Telefone', valor: (_d, e) => (e.telefone && telefoneFmt(e.telefone)), opcional: 'Não informado' },
-  { grupo: 'Empresa e taxas', chave: 'empresa_cidade', rotulo: 'Cidade da empresa', valor: (_d, e) => e.cidade },
-  { grupo: 'Empresa e taxas', chave: 'empresa_uf', rotulo: 'UF da empresa', valor: (_d, e) => e.uf },
-  { grupo: 'Empresa e taxas', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
-  { grupo: 'Empresa e taxas', chave: 'taxa_avaria', rotulo: 'Taxa de avaria', valor: (_d, e) => taxa(e.avaria) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_reposicao', rotulo: 'Reposição (perda/roubo)', valor: (_d, e) => taxa(e.reposicao) },
+  { grupo: 'Empresa', chave: 'empresa_nome', rotulo: 'Razão social', valor: (_d, e) => e.nome },
+  { grupo: 'Empresa', chave: 'empresa_cnpj', rotulo: 'CNPJ', valor: (_d, e) => e.cnpj },
+  { grupo: 'Empresa', chave: 'empresa_endereco', rotulo: 'Endereço', valor: (_d, e) => e.endereco },
+  { grupo: 'Empresa', chave: 'empresa_email', rotulo: 'E-mail', valor: (_d, e) => e.email },
+  { grupo: 'Empresa', chave: 'empresa_telefone', rotulo: 'Telefone', valor: (_d, e) => (e.telefone && telefoneFmt(e.telefone)), opcional: 'Não informado' },
+  { grupo: 'Empresa', chave: 'empresa_cidade', rotulo: 'Cidade da empresa', valor: (_d, e) => e.cidade },
+  { grupo: 'Empresa', chave: 'empresa_uf', rotulo: 'UF da empresa', valor: (_d, e) => e.uf },
+  { grupo: 'Empresa', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
 ]
 const POR_CHAVE = new Map(DEFS.map((d) => [d.chave, d]))
 export const VARIAVEIS: Variavel[] = DEFS.map(({ chave, rotulo, grupo }) => ({ chave, rotulo, grupo }))
@@ -210,8 +204,8 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período, mantidos os mesmos valores contratados;
 6.2.5. A LOCADORA pode, a qualquer tempo, realizar cobranças de valores devidos e ainda não pagos. O não envio das cobranças na periodicidade contratada não desabona a responsabilidade do LOCATÁRIO de realizar os pagamentos a tempo e modo, conforme previsto nesse Contrato;
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
-6.3.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
-6.3.2. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
+6.3.1. Em caso de quebra ou avaria do APARELHO CELULAR, inclusive se ele for devolvido danificado, o LOCATÁRIO pagará o valor do conserto, conforme orçamento da LOCADORA.
+6.3.2. Em caso de furto ou roubo do APARELHO CELULAR, o LOCATÁRIO pagará o saldo das parcelas do Contrato que ainda não foram pagas, ficando então quitado o Contrato, sem outra cobrança pelo aparelho.
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
@@ -276,8 +270,8 @@ Eu, {{cliente_nome}}, CPF/CNPJ: {{cliente_cpf}}, RG: {{cliente_rg}}, residente e
 
 Valor de entrada (parte do preço do aparelho): {{entrada_valor}} (único)
 Valor de locação Mensal: {{parcela_valor}} (mensal)
-Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por evento)
-Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
+Danos ao aparelho (quebra ou avaria): valor do conserto, conforme orçamento (por evento)
+Furto ou roubo do aparelho: saldo das parcelas ainda não pagas
 
 1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
 

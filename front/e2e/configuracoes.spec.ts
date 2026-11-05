@@ -16,7 +16,6 @@ test.describe('configurações: dados da empresa', () => {
     await abrir(page)
     await expect(page.getByTestId('config')).toContainText('Logo da empresa')
     await expect(page.getByTestId('config')).toContainText('Pix da loja')
-    await expect(page.getByTestId('config')).toContainText('Taxas do contrato')
   })
 
   test('telefone, cidade/UF e Pix: salva, valida e lembra', async ({ page }) => {
