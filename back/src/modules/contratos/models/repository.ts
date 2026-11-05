@@ -15,7 +15,6 @@ export interface ContratosRepository {
   criar(vendaId: number, numero: string, versao: number, usuarioId: number): Promise<{ id: number; criado: boolean }>
   marcarEnviado(id: number, texto: string): Promise<void>
   marcarAssinado(id: number): Promise<void>
-  definirSeguro(id: number, seguro: boolean): Promise<void>
   modeloAtual(): Promise<{ versao: number; texto: string } | null>
   modelo(versao: number): Promise<string | null>
   salvarModelo(texto: string, usuarioId: number): Promise<number>
@@ -41,14 +40,14 @@ export interface ContratosRepository {
 }
 
 type Linha = {
-  id: number; venda_id: number; numero: string; modelo_versao: number; seguro: boolean; gerado_em: Date; enviado_em: Date | null; assinado_em: Date | null; texto_enviado: string | null
+  id: number; venda_id: number; numero: string; modelo_versao: number; gerado_em: Date; enviado_em: Date | null; assinado_em: Date | null; texto_enviado: string | null
   zapsign_token: string | null; zapsign_signer_token: string | null; zapsign_url: string | null; zapsign_status: string | null; zapsign_sandbox: boolean | null; assinatura_via: ViaAssinatura | null
   cliente_nome: string; cliente_fone: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
 }
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
 const paraLinha = (l: Linha): LinhaContrato => ({
-  id: l.id, vendaId: l.venda_id, numero: l.numero, status: l.contrato_status === 'ASSINADO' ? 'ASSINADO' : l.contrato_status === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO', modeloVersao: l.modelo_versao, seguro: l.seguro,
+  id: l.id, vendaId: l.venda_id, numero: l.numero, status: l.contrato_status === 'ASSINADO' ? 'ASSINADO' : l.contrato_status === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO', modeloVersao: l.modelo_versao,
   geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, assinaturaVia: l.assinatura_via,
   zapsign: l.zapsign_token ? { token: l.zapsign_token, signerToken: l.zapsign_signer_token, url: l.zapsign_url, status: l.zapsign_status ?? 'pending', sandbox: l.zapsign_sandbox ?? false } : null,
   aparelho: l.gb > 0 ? `${l.modelo} ${l.gb} GB` : l.modelo, dataVenda: dia(l.data_venda), vendaStatus: l.venda_status,
@@ -57,7 +56,7 @@ const paraLinha = (l: Linha): LinhaContrato => ({
 const CHAVES: Record<Exclude<keyof Empresa, 'temLogo'>, string> = {
   nome: 'empresa_nome', cnpj: 'empresa_cnpj', endereco: 'empresa_endereco', email: 'empresa_email', atendente: 'empresa_atendente',
   telefone: 'empresa_telefone', cidade: 'empresa_cidade', uf: 'empresa_uf', pixChave: 'empresa_pix',
-  avaria: 'taxa_avaria', reposicao: 'taxa_reposicao', seguro: 'taxa_seguro_mensal', cancelamentoPct: 'taxa_cancelamento_pct', recuperacao: 'taxa_recuperacao',
+  avaria: 'taxa_avaria', reposicao: 'taxa_reposicao', cancelamentoPct: 'taxa_cancelamento_pct', recuperacao: 'taxa_recuperacao',
 }
 
 export function createContratosRepository(db: Knex): ContratosRepository {
@@ -68,7 +67,7 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     return q
   }
 
-  async function dadosDaVenda(vendaId: number, numero: string, seguro: boolean): Promise<DadosVenda> {
+  async function dadosDaVenda(vendaId: number, numero: string): Promise<DadosVenda> {
     const v = await db('vendas as v').join('clientes as c', 'c.id', 'v.cliente_id').join('bens as b', 'b.id', 'v.bem_id').where('v.id', vendaId)
       .first<{
         data_venda: Date | string; entrada: string; troca_valor: string; status: string; nome: string; cpf: string | null; fone: string; email: string | null; rg: string | null
@@ -83,12 +82,12 @@ export function createContratosRepository(db: Knex): ContratosRepository {
       vendaId, vendaStatus: v.status, numero, dataVenda: dia(v.data_venda),
       cliente: { nome: v.nome, cpf: v.cpf, fone: v.fone, email: v.email, rg: v.rg, endereco: v.endereco, numero: v.numero, bairro: v.bairro, cidade: v.cidade, uf: v.uf, cep: v.cep },
       aparelho: { modelo: v.modelo, gb: v.gb, cor: v.cor, condicao: v.condicao, imei: v.imei, serie: v.serie },
-      entrada: Number(v.entrada), troca: Number(v.troca_valor), parcelas: ps.map((p) => ({ valor: Number(p.valor), vencimento: dia(p.vencimento) })), seguro,
+      entrada: Number(v.entrada), troca: Number(v.troca_valor), parcelas: ps.map((p) => ({ valor: Number(p.valor), vencimento: dia(p.vencimento) })),
     }
   }
   async function completo(l: Linha | undefined): Promise<ContratoCompleto | null> {
     if (!l) return null
-    return { linha: paraLinha(l), dados: await dadosDaVenda(l.venda_id, l.numero, l.seguro) }
+    return { linha: paraLinha(l), dados: await dadosDaVenda(l.venda_id, l.numero) }
   }
 
   return {
@@ -104,7 +103,7 @@ export function createContratosRepository(db: Knex): ContratosRepository {
       const v = await q.first<{ data_venda: Date | string; legacy_id: number | null } | undefined>('v.data_venda', 'v.legacy_id')
       if (!v) return null
       const numero = `${dia(v.data_venda).slice(0, 4)}-${String(vendaId).padStart(4, '0')}`
-      return { dados: await dadosDaVenda(vendaId, numero, false), temContrato: !!(await db('contratos').where({ venda_id: vendaId }).first('id')), legado: v.legacy_id !== null }
+      return { dados: await dadosDaVenda(vendaId, numero), temContrato: !!(await db('contratos').where({ venda_id: vendaId }).first('id')), legado: v.legacy_id !== null }
     },
 
     async criar(vendaId, numero, versao, usuarioId) {
@@ -127,7 +126,6 @@ export function createContratosRepository(db: Knex): ContratosRepository {
         await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
       })
     },
-    async definirSeguro(id, seguro) { await db('contratos').where({ id }).update({ seguro }) },
 
     async modeloAtual() {
       const l = await db('contrato_modelos').orderBy('versao', 'desc').first<{ versao: number; texto: string }>('versao', 'texto')
@@ -153,7 +151,7 @@ export function createContratosRepository(db: Knex): ContratosRepository {
       return {
         nome: txt('nome') ?? 'Mundo dos iPhones', cnpj: txt('cnpj'), endereco: txt('endereco'), email: txt('email'), atendente: txt('atendente'),
         telefone: txt('telefone'), cidade: txt('cidade'), uf: txt('uf'), pixChave: txt('pixChave'), temLogo,
-        avaria: num('avaria'), reposicao: num('reposicao'), seguro: num('seguro'), cancelamentoPct: num('cancelamentoPct'), recuperacao: num('recuperacao'),
+        avaria: num('avaria'), reposicao: num('reposicao'), cancelamentoPct: num('cancelamentoPct'), recuperacao: num('recuperacao'),
       }
     },
     async gravarLink(id, hash, expiraEm) {

@@ -116,11 +116,6 @@
    "grupo": "Pagamento"
   },
   {
-   "chave": "seguro_texto",
-   "rotulo": "Seguro",
-   "grupo": "Pagamento"
-  },
-  {
    "chave": "empresa_nome",
    "rotulo": "Razão social",
    "grupo": "Empresa e taxas"
@@ -168,11 +163,6 @@
   {
    "chave": "taxa_reposicao",
    "rotulo": "Reposição (perda/roubo)",
-   "grupo": "Empresa e taxas"
-  },
-  {
-   "chave": "taxa_seguro",
-   "rotulo": "Seguro (valor mensal)",
    "grupo": "Empresa e taxas"
   },
   {
@@ -226,8 +216,7 @@
       "valor": 500,
       "vencimento": "2026-12-10"
      }
-    ],
-    "seguro": false
+    ]
    },
    "empresa": {
     "telefone": "1133334444",
@@ -242,7 +231,6 @@
     "atendente": "Geovane",
     "avaria": 350,
     "reposicao": 1500,
-    "seguro": 39.9,
     "cancelamentoPct": 12.5,
     "recuperacao": 250
    },
@@ -820,8 +808,7 @@
       "valor": 500,
       "vencimento": "2026-12-10"
      }
-    ],
-    "seguro": true
+    ]
    },
    "empresa": {
     "telefone": "1133334444",
@@ -836,7 +823,6 @@
     "atendente": "Geovane",
     "avaria": 350,
     "reposicao": 1500,
-    "seguro": 39.9,
     "cancelamentoPct": 12.5,
     "recuperacao": 250
    },
@@ -1405,8 +1391,7 @@
     },
     "entrada": 2000,
     "troca": 0,
-    "parcelas": [],
-    "seguro": false
+    "parcelas": []
    },
    "empresa": {
     "telefone": "1133334444",
@@ -1421,7 +1406,6 @@
     "atendente": "Geovane",
     "avaria": null,
     "reposicao": 1500,
-    "seguro": 39.9,
     "cancelamentoPct": 12.5,
     "recuperacao": 250
    },
@@ -2007,8 +1991,7 @@
       "valor": 500,
       "vencimento": "2026-12-10"
      }
-    ],
-    "seguro": true
+    ]
    },
    "empresa": {
     "telefone": "1133334444",
@@ -2023,7 +2006,6 @@
     "atendente": "Geovane",
     "avaria": 350,
     "reposicao": 1500,
-    "seguro": null,
     "cancelamentoPct": 12.5,
     "recuperacao": 250
    },
@@ -2601,8 +2583,7 @@
       "valor": 500,
       "vencimento": "2026-12-10"
      }
-    ],
-    "seguro": false
+    ]
    },
    "empresa": {
     "telefone": "1133334444",
@@ -2617,7 +2598,6 @@
     "atendente": "Geovane",
     "avaria": 350,
     "reposicao": 1500,
-    "seguro": 39.9,
     "cancelamentoPct": 12.5,
     "recuperacao": 250
    },
@@ -3196,8 +3176,7 @@
      "valor": 500,
      "vencimento": "2026-12-10"
     }
-   ],
-   "seguro": false
+   ]
   },
   "empresa": {
    "telefone": "1133334444",
@@ -3212,7 +3191,6 @@
    "atendente": "Geovane",
    "avaria": 350,
    "reposicao": 1500,
-   "seguro": 39.9,
    "cancelamentoPct": 12.5,
    "recuperacao": 250
   },

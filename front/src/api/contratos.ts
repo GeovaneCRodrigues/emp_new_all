@@ -11,7 +11,6 @@ export interface ContratoItemApi {
   status: StatusContratoApi
   /** versão do modelo com que foi gerado (0 = o texto padrão do sistema) */
   modeloVersao: number
-  seguro: boolean
   geradoEm: string
   enviadoEm: string | null
   assinadoEm: string | null
@@ -67,7 +66,7 @@ export interface AssinarPublicoApi {
   assinar(token: string, e: EntradaAssinatura): Promise<{ numero: string; assinadoEm: string }>
 }
 
-export interface ListaContratosApi { itens: ContratoItemApi[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
+export interface ListaContratosApi { itens: ContratoItemApi[]; resumo: { assinados: number; esperando: number } }
 export interface VariavelApi { chave: string; rotulo: string; grupo: string }
 export interface ModeloApi { versao: number; texto: string; padrao: string; variaveis: VariavelApi[] }
 export interface PreviaApi { trechos: Trecho[]; faltam: string[]; texto: string }
@@ -82,7 +81,6 @@ export interface ContratosApi {
   gerar(s: Sessao, vendaId: number): Promise<ContratoDetalheApi>
   marcarEnviado(s: Sessao, id: number): Promise<ContratoDetalheApi>
   marcarAssinado(s: Sessao, id: number): Promise<ContratoDetalheApi>
-  definirSeguro(s: Sessao, id: number, seguro: boolean): Promise<ContratoDetalheApi>
   /** Gera (ou troca) o link de assinatura; envia o contrato e fecha o texto. */
   gerarLink(s: Sessao, id: number): Promise<LinkGeradoApi>
   /** O ZapSign está ligado no servidor? Em teste ou em produção? */

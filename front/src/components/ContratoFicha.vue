@@ -85,7 +85,6 @@ async function copiarLink() {
   if (!urlParaCliente.value) return
   try { await navigator.clipboard.writeText(urlParaCliente.value); linkCopiado.value = true; setTimeout(() => (linkCopiado.value = false), 2000) } catch { erro.value = 'Não consegui copiar. Selecione o link na tela.' }
 }
-const seguro = (v: boolean) => acao(() => contratosApi.definirSeguro(sessao.value, props.contratoId!, v))
 
 async function copiar() {
   if (!d.value) return
@@ -145,7 +144,6 @@ function imprimir() {
         <div class="small" style="overflow-wrap: anywhere">Impressão digital do texto (SHA-256): {{ d.assinatura.textoHash }}</div>
       </div>
       <div v-if="d.congelado" class="small" style="margin-top: 8px" data-testid="ficha-congelado">Contrato enviado: o texto não muda mais, mesmo que o modelo ou o cadastro mudem.</div>
-      <label v-else-if="ehAdmin" class="row" style="margin-top: 12px; gap: 8px; font-size: 14px"><input type="checkbox" :checked="d.contrato.seguro" :disabled="enviando" data-testid="ficha-seguro" @change="seguro(($event.target as HTMLInputElement).checked)" />Cliente contratou o seguro</label>
       <div v-if="erro" class="aviso" role="alert" style="background: var(--bad-soft); color: var(--bad); margin-top: 12px">{{ erro }}</div>
       <div v-if="d.zapsign" class="card pad" style="margin-top: 12px" data-testid="ficha-zapsign">
         <div class="between" style="gap: 8px"><div class="lbl">ZapSign</div><span class="row" style="gap: 6px"><span v-if="d.zapsign.sandbox" class="chip c-neu" data-testid="ficha-zapsign-teste">TESTE · sem validade jurídica</span><span v-if="zapChip" class="chip" :class="zapChip.cls" data-testid="ficha-zapsign-status">{{ zapChip.txt }}</span></span></div>

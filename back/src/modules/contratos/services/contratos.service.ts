@@ -29,7 +29,7 @@ export type LinkGerado = { token: string; expiraEm: string; contrato: ContratoDe
 /** O que a página pública de assinatura mostra (nada além do contrato daquele link). */
 export type ContratoParaAssinar = { numero: string; clienteNome: string; aparelho: string; empresa: string; texto: string; expiraEm: string }
 export type OrigemDaAssinatura = { ip: string | null; userAgent: string | null }
-export type ResultadoLista = { itens: ContratoItem[]; resumo: { assinados: number; esperando: number; comSeguro: number } }
+export type ResultadoLista = { itens: ContratoItem[]; resumo: { assinados: number; esperando: number } }
 export type ModeloView = { versao: number; texto: string; padrao: string; variaveis: Variavel[] }
 
 export type ContratosService = {
@@ -42,7 +42,6 @@ export type ContratosService = {
   gerarDaVenda(vendaId: number, usuarioId: number): Promise<void>
   marcarEnviado(s: Sessao, id: number): Promise<ContratoDetalhe>
   marcarAssinado(s: Sessao, id: number): Promise<ContratoDetalhe>
-  definirSeguro(s: Sessao, id: number, seguro: unknown): Promise<ContratoDetalhe>
   /** Gera (ou troca) o link de assinatura; o contrato é enviado e o texto congela. O token só aparece aqui. */
   gerarLink(s: Sessao, id: number): Promise<LinkGerado>
   zapsignStatus(s: Sessao): { ativo: boolean; sandbox: boolean; webhook: boolean }
@@ -169,7 +168,7 @@ export function createContratosService(d: Dependencias): ContratosService {
       if (f.status !== undefined && f.status !== 'ESPERANDO' && f.status !== 'ASSINADO') throw requisicaoInvalida('status deve ser ESPERANDO ou ASSINADO')
       const todas = await d.repo.listar(escopo)
       const itens = todas.filter((l) => (f.status === 'ASSINADO' ? l.status === 'ASSINADO' : f.status === 'ESPERANDO' ? pendente(l) : true))
-      return { itens: itens.map(semTexto), resumo: { assinados: todas.filter((l) => l.status === 'ASSINADO').length, esperando: todas.filter(pendente).length, comSeguro: todas.filter((l) => l.seguro).length } }
+      return { itens: itens.map(semTexto), resumo: { assinados: todas.filter((l) => l.status === 'ASSINADO').length, esperando: todas.filter(pendente).length } }
     },
     async obter(s, id) { return montar(await carregar(s, id)) },
     async porVenda(s, vendaId) {
@@ -214,18 +213,6 @@ export function createContratosService(d: Dependencias): ContratosService {
       await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_ASSINADO', entidade: 'contrato', entidadeId: id, depois: { vendaId: c.linha.vendaId } })
       return montar(await carregar(s, id))
     },
-    async definirSeguro(s, id, seguro) {
-      exigirAdmin(s, 'Só o administrador muda o seguro do contrato')
-      if (typeof seguro !== 'boolean') throw requisicaoInvalida('seguro precisa ser verdadeiro ou falso')
-      const c = await carregar(s, id)
-      if (c.linha.status !== 'AGUARDANDO') throw conflito('O contrato já foi enviado: o seguro não muda mais', 'CONTRATO_JA_ENVIADO')
-      if (c.linha.seguro !== seguro) {
-        await d.repo.definirSeguro(id, seguro)
-        await d.auditoria.registrar({ usuarioId: s.usuarioId, acao: 'CONTRATO_SEGURO', entidade: 'contrato', entidadeId: id, antes: { seguro: c.linha.seguro }, depois: { seguro } })
-      }
-      return montar(await carregar(s, id))
-    },
-
     async gerarLink(s, id) {
       const c = await carregar(s, id)
       if (c.linha.status === 'ASSINADO') throw conflito('Este contrato já foi assinado', 'CONTRATO_JA_ASSINADO')
@@ -371,7 +358,7 @@ export function createContratosService(d: Dependencias): ContratosService {
         if (typeof v !== 'string' || v.trim().length > max) throw requisicaoInvalida(`${k}: no máximo ${max} letras`)
         return v.trim()
       }
-      const dinheiro = (k: 'avaria' | 'reposicao' | 'seguro' | 'recuperacao'): number | null => {
+      const dinheiro = (k: 'avaria' | 'reposicao' | 'recuperacao'): number | null => {
         if (!(k in corpo)) return atual[k]
         const v = corpo[k]
         if (v === null || v === '') return null
@@ -388,7 +375,7 @@ export function createContratosService(d: Dependencias): ContratosService {
       const nova: Omit<Empresa, 'temLogo'> = {
         nome: texto('nome', 120)!, cnpj: texto('cnpj', 18), endereco: texto('endereco', 200), email: texto('email', 120), atendente: texto('atendente', 80),
         telefone: texto('telefone', 20), cidade: texto('cidade', 100), uf: texto('uf', 2), pixChave: texto('pixChave', 77),
-        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'), seguro: dinheiro('seguro'), cancelamentoPct, recuperacao: dinheiro('recuperacao'),
+        avaria: dinheiro('avaria'), reposicao: dinheiro('reposicao'), cancelamentoPct, recuperacao: dinheiro('recuperacao'),
       }
       if (nova.cnpj !== null && nova.cnpj.replace(/\D/g, '').length !== 14) throw requisicaoInvalida('CNPJ precisa ter 14 números')
       if (nova.email !== null && !/^\S+@\S+\.\S+$/.test(nova.email)) throw requisicaoInvalida('E-mail inválido')

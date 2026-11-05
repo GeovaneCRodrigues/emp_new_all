@@ -21,7 +21,6 @@ export type Empresa = {
   /** taxas do contrato; null = ainda não cadastrada (o contrato não pode ser enviado) */
   avaria: number | null
   reposicao: number | null
-  seguro: number | null
   cancelamentoPct: number | null
   recuperacao: number | null
 }
@@ -40,7 +39,6 @@ export type DadosVenda = {
   entrada: number
   troca: number
   parcelas: { valor: number; vencimento: string }[]
-  seguro: boolean
 }
 
 export type ViaAssinatura = 'LINK' | 'ZAPSIGN' | 'MANUAL'
@@ -53,7 +51,6 @@ export type LinhaContrato = {
   numero: string
   status: StatusContrato
   modeloVersao: number
-  seguro: boolean
   geradoEm: string
   enviadoEm: string | null
   assinadoEm: string | null

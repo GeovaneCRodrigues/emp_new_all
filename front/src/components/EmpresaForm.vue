@@ -12,7 +12,7 @@ import Icon from './Icon.vue'
 /** Dados da empresa (cabeçalho do contrato, recibos), logo, Pix da loja e taxas do contrato. Só o administrador. */
 const { sessao } = useApp()
 
-type Form = { nome: string; cnpj: string; endereco: string; email: string; atendente: string; telefone: string; cidade: string; uf: string; pixChave: string; avaria: string; reposicao: string; seguro: string; cancelamentoPct: string; recuperacao: string }
+type Form = { nome: string; cnpj: string; endereco: string; email: string; atendente: string; telefone: string; cidade: string; uf: string; pixChave: string; avaria: string; reposicao: string; cancelamentoPct: string; recuperacao: string }
 const form = ref<Form | null>(null)
 const temLogo = ref(false)
 const versaoLogo = ref(Date.now())
@@ -34,7 +34,7 @@ async function abrir() {
     temLogo.value = e.temLogo
     form.value = {
       nome: e.nome, cnpj: e.cnpj ?? '', endereco: e.endereco ?? '', email: e.email ?? '', atendente: e.atendente ?? '', telefone: e.telefone ? mascaraFone(e.telefone) : '', cidade: e.cidade ?? '', uf: e.uf ?? '', pixChave: e.pixChave ?? '',
-      avaria: dinheiroTxt(e.avaria), reposicao: dinheiroTxt(e.reposicao), seguro: dinheiroTxt(e.seguro), cancelamentoPct: pctTxt(e.cancelamentoPct), recuperacao: dinheiroTxt(e.recuperacao),
+      avaria: dinheiroTxt(e.avaria), reposicao: dinheiroTxt(e.reposicao), cancelamentoPct: pctTxt(e.cancelamentoPct), recuperacao: dinheiroTxt(e.recuperacao),
     }
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir os dados.' }
 }
@@ -44,7 +44,7 @@ onMounted(abrir)
 function usarPadraoMercado() {
   if (!form.value) return
   const t = TAXAS_PADRAO_PF
-  Object.assign(form.value, { avaria: dinheiroTxt(t.avaria), reposicao: dinheiroTxt(t.reposicao), seguro: dinheiroTxt(t.seguro), cancelamentoPct: pctTxt(t.cancelamentoPct), recuperacao: dinheiroTxt(t.recuperacao) })
+  Object.assign(form.value, { avaria: dinheiroTxt(t.avaria), reposicao: dinheiroTxt(t.reposicao), cancelamentoPct: pctTxt(t.cancelamentoPct), recuperacao: dinheiroTxt(t.recuperacao) })
   msg.value = 'Padrão de mercado preenchido. Revise os valores e toque em Salvar.'
 }
 
@@ -56,7 +56,7 @@ async function salvar() {
     await contratosApi.salvarEmpresa(sessao.value, {
       nome: f.nome, cnpj: f.cnpj.trim() || null, endereco: f.endereco.trim() || null, email: f.email.trim() || null, atendente: f.atendente.trim() || null,
       telefone: f.telefone.trim() || null, cidade: f.cidade.trim() || null, uf: f.uf.trim() || null, pixChave: f.pixChave.trim() || null,
-      avaria: num(f.avaria), reposicao: num(f.reposicao), seguro: num(f.seguro), cancelamentoPct: num(f.cancelamentoPct), recuperacao: num(f.recuperacao),
+      avaria: num(f.avaria), reposicao: num(f.reposicao), cancelamentoPct: num(f.cancelamentoPct), recuperacao: num(f.recuperacao),
     })
     await abrir(); msg.value = 'Dados da empresa e taxas salvos'
   } catch (e) { erro.value = e instanceof ErroApi ? e.message : 'Não consegui salvar.' } finally { salvando.value = false }
@@ -141,7 +141,6 @@ async function removerLogo() {
         <div class="duo">
           <div class="field"><label for="tAvaria">Avaria do aparelho</label><div class="inp"><span>R$</span><input id="tAvaria" v-model="form.avaria" inputmode="decimal" /></div><div class="small">Cobrada se o aparelho voltar danificado.</div></div>
           <div class="field"><label for="tRepo">Reposição (perda, furto ou roubo)</label><div class="inp"><span>R$</span><input id="tRepo" v-model="form.reposicao" inputmode="decimal" /></div><div class="small">Valor para repor o aparelho.</div></div>
-          <div class="field"><label for="tSeguro">Seguro por mês</label><div class="inp"><span>R$</span><input id="tSeguro" v-model="form.seguro" inputmode="decimal" /></div><div class="small">Se o cliente quiser, entra junto da parcela.</div></div>
           <div class="field"><label for="tCanc">Multa de cancelamento</label><div class="inp"><input id="tCanc" v-model="form.cancelamentoPct" inputmode="decimal" /><span>%</span></div><div class="small">Sobre o saldo em aberto, se o cliente desistir.</div></div>
           <div class="field"><label for="tRecup">Recuperação por atraso</label><div class="inp"><span>R$</span><input id="tRecup" v-model="form.recuperacao" inputmode="decimal" /></div><div class="small">Quando é preciso ir buscar o aparelho.</div></div>
         </div>

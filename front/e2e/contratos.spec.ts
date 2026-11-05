@@ -23,7 +23,7 @@ test.describe('contratos (administrador)', () => {
   test.beforeEach(async ({ page }) => { await entrar(page, 'admin'); await navegar(page, '/contratos'); await expect(page.getByTestId('ct-abas')).toBeVisible() })
 
   test('lista com resumo, filtros e o status de cada contrato', async ({ page }) => {
-    await expect(page.getByTestId('ct-assinados')).toHaveText('7'); await expect(page.getByTestId('ct-esperando')).toHaveText('2'); await expect(page.getByTestId('ct-seguro')).toHaveText('0')
+    await expect(page.getByTestId('ct-assinados')).toHaveText('7'); await expect(page.getByTestId('ct-esperando')).toHaveText('2')
     await expect(page.getByTestId('ct-lista').locator('[data-contrato]')).toHaveCount(9)
     await page.getByTestId('ct-filtro').getByRole('button', { name: /Esperando/ }).click()
     await expect(page.getByTestId('ct-lista').locator('[data-contrato]')).toHaveCount(2)
@@ -54,23 +54,20 @@ test.describe('contratos (administrador)', () => {
     await expect(page.getByTestId('ficha-assinado')).toHaveCount(0)
   })
 
-  test('fluxo completo: completa o cadastro, marca seguro, envia (o texto fecha) e depois marca assinado', async ({ page }) => {
+  test('fluxo completo: completa o cadastro, envia (o texto fecha) e depois marca assinado', async ({ page }) => {
     await completarCliente(page, 'Ana Paula Ribeiro')
     await item(page, 'Ana Paula Ribeiro').click()
     await expect(page.getByTestId('ficha-faltam')).toHaveCount(0)
     await expect(page.getByTestId('ficha-texto')).toContainText('529.982.247-25')
-    await page.getByTestId('ficha-seguro').check()
-    await expect(page.getByTestId('ficha-texto')).toContainText('contratado, R$ 39,90 por mês')
+    await expect(page.getByTestId('ficha-texto')).toContainText('ENTRADA (PARTE DO PREÇO DO APARELHO)')
     await page.getByTestId('ficha-enviado').click()
     await expect(page.getByTestId('ficha-congelado')).toBeVisible()
     await expect(page.getByTestId('ficha-passos').locator('.ok')).toHaveCount(2)
-    await expect(page.getByTestId('ficha-seguro')).toHaveCount(0) // depois de enviado o seguro não muda
     await page.getByTestId('ficha-assinado').click()
     await expect(page.getByTestId('ficha-status')).toHaveText('assinado')
     await expect(page.getByTestId('ficha-passos').locator('.ok')).toHaveCount(3)
     await page.keyboard.press('Escape')
-    await expect(page.getByTestId('ct-assinados')).toHaveText('8'); await expect(page.getByTestId('ct-esperando')).toHaveText('1'); await expect(page.getByTestId('ct-seguro')).toHaveText('1')
-    await expect(item(page, 'Ana Paula Ribeiro')).toContainText('com seguro')
+    await expect(page.getByTestId('ct-assinados')).toHaveText('8'); await expect(page.getByTestId('ct-esperando')).toHaveText('1')
   })
 
   test('copiar o texto do contrato', async ({ page, context }) => {
@@ -126,7 +123,7 @@ test.describe('contratos (administrador)', () => {
     // as taxas novas saem no contrato que ainda não foi enviado
     await navegar(page, '/contratos')
     await item(page, 'Patrícia Gomes').click()
-    await expect(page.getByTestId('ficha-texto')).toContainText('R$ 400,50'); await expect(page.getByTestId('ficha-texto')).toContainText('12,5%')
+    await expect(page.getByTestId('ficha-texto')).toContainText('R$ 400,50')
   })
 
   test('a aba Empresa e taxas de Contratos manda para Configurações', async ({ page }) => {
@@ -140,12 +137,12 @@ test.describe('contratos (administrador)', () => {
   test('taxa em branco: o contrato passa a pedir o campo e não deixa enviar', async ({ page }) => {
     await completarCliente(page, 'Ana Paula Ribeiro')
     await navegar(page, '/config')
-    await page.fill('#tRecup', '')
+    await page.fill('#tAvaria', '')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-msg')).toBeVisible()
     await navegar(page, '/contratos')
     await item(page, 'Ana Paula Ribeiro').click()
-    await expect(page.getByTestId('ficha-faltam')).toContainText('Taxa de recuperação')
+    await expect(page.getByTestId('ficha-faltam')).toContainText('Taxa de avaria')
     await expect(page.getByTestId('ficha-enviado')).toBeDisabled()
   })
 

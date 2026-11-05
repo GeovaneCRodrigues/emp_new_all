@@ -44,7 +44,6 @@ const DEFS: Def[] = [
   { grupo: 'Pagamento', chave: 'parcela_valor', rotulo: 'Valor da parcela', valor: (d) => (d.parcelas[0] ? brl(d.parcelas[0].valor) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'primeiro_vencimento', rotulo: '1º vencimento', valor: (d) => (d.parcelas[0] ? dmyA(d.parcelas[0].vencimento) : 'não há parcelas') },
   { grupo: 'Pagamento', chave: 'valor_total', rotulo: 'Valor total', valor: (d) => brl(arred(d.entrada + d.troca + d.parcelas.reduce((s, p) => s + p.valor, 0))) },
-  { grupo: 'Pagamento', chave: 'seguro_texto', rotulo: 'Seguro', valor: (d, e) => (d.seguro ? (e.seguro === null ? null : `contratado, ${brl(e.seguro)} por mês junto da parcela`) : 'não contratado pelo cliente') },
   { grupo: 'Empresa e taxas', chave: 'empresa_nome', rotulo: 'Razão social', valor: (_d, e) => e.nome },
   { grupo: 'Empresa e taxas', chave: 'empresa_cnpj', rotulo: 'CNPJ', valor: (_d, e) => e.cnpj },
   { grupo: 'Empresa e taxas', chave: 'empresa_endereco', rotulo: 'Endereço', valor: (_d, e) => e.endereco },
@@ -55,7 +54,6 @@ const DEFS: Def[] = [
   { grupo: 'Empresa e taxas', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
   { grupo: 'Empresa e taxas', chave: 'taxa_avaria', rotulo: 'Taxa de avaria', valor: (_d, e) => taxa(e.avaria) },
   { grupo: 'Empresa e taxas', chave: 'taxa_reposicao', rotulo: 'Reposição (perda/roubo)', valor: (_d, e) => taxa(e.reposicao) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_seguro', rotulo: 'Seguro (valor mensal)', valor: (_d, e) => taxa(e.seguro) },
   { grupo: 'Empresa e taxas', chave: 'taxa_cancelamento', rotulo: 'Multa de cancelamento', valor: (_d, e) => (e.cancelamentoPct === null ? null : `${String(e.cancelamentoPct).replace('.', ',')}%`) },
   { grupo: 'Empresa e taxas', chave: 'taxa_recuperacao', rotulo: 'Taxa de recuperação', valor: (_d, e) => taxa(e.recuperacao) },
 ]
