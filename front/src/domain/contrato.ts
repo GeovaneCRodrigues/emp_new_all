@@ -243,7 +243,8 @@ CLÁUSULA DÉCIMA: RENOVAÇÃO DA LOCAÇÃO
 10.1. Se o aparelho ainda não tiver sido transferido ao LOCATÁRIO nos termos da Cláusula Décima Quarta, a locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar. Com a transferência do aparelho, a locação se encerra.
 
 CLÁUSULA DECIMA PRIMEIRA: RESCISÃO
-11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem que isso enseje qualquer direito de retenção ou indenização.
+11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação, e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem direito de retenção por parte do LOCATÁRIO.
+11.1.1. Na retomada, a LOCADORA devolverá ao LOCATÁRIO 30% (trinta por cento) do total que ele já pagou neste Contrato (caução e parcelas), podendo compensar com esse valor o que o LOCATÁRIO ainda deva à LOCADORA por força deste Contrato.
 
 CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
 12.1. A LOCADORA poderá, a seu exclusivo critério, reajustar os valores relativos às tarifas, taxas e outros incidentes sobre a locação.
