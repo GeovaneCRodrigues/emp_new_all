@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="mdi-s-t">
+  <title id="mdi-s-t">Mundo dos iPhones</title>
+  <defs>
+    <!-- tile: verde escuro no canto inferior esquerdo, mais claro no superior direito -->
+    <linearGradient id="mdi-s-g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0a3a27"/>
+      <stop offset=".55" stop-color="#0f8f5f"/>
+      <stop offset="1" stop-color="#3db572"/>
+    </linearGradient>
+    <radialGradient id="mdi-s-b" cx="1" cy="0" r="1">
+      <stop offset="0" stop-color="#b8e35a" stop-opacity=".28"/>
+      <stop offset=".6" stop-color="#b8e35a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- tela: um pouco mais escura que o tile para a moldura branca e o lime saltarem -->
+    <linearGradient id="mdi-s-t2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a4530"/>
+      <stop offset="1" stop-color="#0f7a50"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#mdi-s-g)"/>
+  <rect width="64" height="64" rx="15" fill="url(#mdi-s-b)"/>
+  <!-- órbita, segmento de trás (passa atrás do celular, fino, pontas afiladas) -->
+  <g transform="rotate(-22 32 36)" fill="#b8e35a">
+    <path d="M5 36A27 8 0 0 1 59 36A27 6.4 0 0 0 5 36Z"/>
+  </g>
+  <!-- celular: moldura branca grossa com a tela vazada -->
+  <rect x="21" y="12" width="22" height="40" rx="4" fill="url(#mdi-s-t2)"/>
+  <path fill="#fff" fill-rule="evenodd" d="M24.5 9h15a6.5 6.5 0 0 1 6.5 6.5v33a6.5 6.5 0 0 1-6.5 6.5h-15a6.5 6.5 0 0 1-6.5-6.5v-33a6.5 6.5 0 0 1 6.5-6.5ZM25 12h14a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H25a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Z"/>
+  <!-- ilha no topo da tela -->
+  <rect x="28" y="14" width="8" height="2.4" rx="1.2" fill="#fff"/>
+  <!-- centro da tela: ponto de luz (brilho) -->
+  <circle cx="32" cy="30" r="8.2" fill="#b8e35a" fill-opacity=".18"/>
+  <circle cx="32" cy="30" r="5" fill="#b8e35a"/>
+  <circle cx="30.3" cy="28.3" r="1.5" fill="#fff" fill-opacity=".9"/>
+  <!-- órbita, segmento da frente (passa por cima do celular, grosso, pontas afiladas) -->
+  <g transform="rotate(-22 32 36)" fill="#b8e35a">
+    <path d="M5 36A27 8 0 0 0 59 36A27 4.8 0 0 1 5 36Z"/>
+  </g>
+</svg>

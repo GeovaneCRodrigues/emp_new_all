@@ -35,6 +35,11 @@ export interface AssinaturaContratoApi {
   assinadoEm: string
 }
 
+/** O documento do contrato no ZapSign (só existe se foi enviado por lá). `sandbox`: de teste, sem validade jurídica. */
+export interface ZapsignDocumentoApi { status: string; sandbox: boolean; signUrl: string | null; arquivoAssinado: string | null }
+export interface ZapsignStatusApi { ativo: boolean; sandbox: boolean; webhook: boolean }
+export type ViaAssinaturaApi = 'LINK' | 'ZAPSIGN' | 'MANUAL'
+
 export interface ContratoDetalheApi {
   contrato: ContratoItemApi
   /** já foi marcado como enviado: o texto não muda mais */
@@ -45,6 +50,8 @@ export interface ContratoDetalheApi {
   /** o texto final, para copiar */
   texto: string
   assinatura: AssinaturaContratoApi | null
+  assinaturaVia: ViaAssinaturaApi | null
+  zapsign: ZapsignDocumentoApi | null
 }
 
 /** O link de assinatura: o token só aparece quando é gerado (no servidor fica só o hash). */
@@ -78,6 +85,12 @@ export interface ContratosApi {
   definirSeguro(s: Sessao, id: number, seguro: boolean): Promise<ContratoDetalheApi>
   /** Gera (ou troca) o link de assinatura; envia o contrato e fecha o texto. */
   gerarLink(s: Sessao, id: number): Promise<LinkGeradoApi>
+  /** O ZapSign está ligado no servidor? Em teste ou em produção? */
+  zapsignStatus(s: Sessao): Promise<ZapsignStatusApi>
+  /** Manda o contrato para o ZapSign (o texto fecha). Se já foi, devolve o que existe. */
+  enviarZapsign(s: Sessao, id: number): Promise<ContratoDetalheApi>
+  /** Pergunta ao ZapSign como está o documento (e traz o PDF assinado quando houver). */
+  atualizarZapsign(s: Sessao, id: number): Promise<ContratoDetalheApi>
   modelo(s: Sessao): Promise<ModeloApi>
   salvarModelo(s: Sessao, texto: string): Promise<ModeloApi>
   previa(s: Sessao, texto: string, vendaId: number): Promise<PreviaApi>

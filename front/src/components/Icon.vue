@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import {
-  Award, BatteryMedium, CalendarRange, Calculator, ChartNoAxesCombined, ChevronLeft, CircleHelp, ClipboardList, Copy,
+  Award, BatteryMedium, Bell, CalendarRange, Calculator, ChartNoAxesCombined, ChevronLeft, CircleHelp, ClipboardList, Copy,
   FileSignature, HandCoins, House, Landmark, Layers, LogOut, Menu, Send, KeyRound, Check, UserPlus, MessageCircle, Plus, ReceiptText, Search, Settings, Share2,
   Pencil, Smartphone, UserCog, Users, Wallet, X, ChevronRight, CalendarDays, Handshake, Inbox, BadgeDollarSign, ArrowDownLeft, ArrowUpRight,
 } from 'lucide-vue-next'
@@ -9,7 +9,7 @@ import {
 const ICONES = {
   'arrow-down-left': ArrowDownLeft, 'arrow-up-right': ArrowUpRight,
   'badge-dollar-sign': BadgeDollarSign,
-  'award': Award, 'battery-medium': BatteryMedium, 'calendar-range': CalendarRange, 'calculator': Calculator,
+  'bell': Bell, 'award': Award, 'battery-medium': BatteryMedium, 'calendar-range': CalendarRange, 'calculator': Calculator,
   'chart-no-axes-combined': ChartNoAxesCombined, 'chevron-left': ChevronLeft, 'clipboard-list': ClipboardList, 'copy': Copy,
   'file-signature': FileSignature, 'hand-coins': HandCoins, 'house': House, 'landmark': Landmark, 'layers': Layers, 'log-out': LogOut, 'send': Send, 'key-round': KeyRound, 'check': Check, 'user-plus': UserPlus, 'menu': Menu,
   'message-circle': MessageCircle, 'pencil': Pencil, 'plus': Plus, 'receipt-text': ReceiptText, 'search': Search, 'settings': Settings,

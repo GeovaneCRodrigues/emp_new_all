@@ -12,6 +12,7 @@ import { createConfigService } from '../src/modules/config/services/config.servi
 import { createContratosRepository } from '../src/modules/contratos/models/repository.js'
 import { createContratosService } from '../src/modules/contratos/services/contratos.service.js'
 import { MODELO_PADRAO } from '../src/modules/contratos/services/modelo.js'
+import type { DocumentoZapsign, PedidoDocumento, ZapsignClient } from '../src/modules/contratos/services/zapsign.client.js'
 import { createEstoqueRepository } from '../src/modules/estoque/models/repository.js'
 import { createEstoqueService } from '../src/modules/estoque/services/estoque.service.js'
 import { createIndicadoresRepository } from '../src/modules/indicadores/models/repository.js'
@@ -616,6 +617,192 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       await db!('vendas').whereIn('id', db!('contratos').where({ id: cid }).select('venda_id')).update({ status: 'RETOMADA' })
       const r = await req('GET', `/api/assinar/${token}`)
       expect(r.statusCode).toBe(410); expect(r.json().codigo).toBe('VENDA_ENCERRADA')
+    })
+  })
+
+  describe('ZapSign', () => {
+    const SEGREDO = 'segredo-do-webhook-123'
+    /** Um ZapSign de mentira: guarda o que recebeu e deixa o teste decidir como o documento está. */
+    function falso(sandbox: boolean) {
+      const docs = new Map<string, DocumentoZapsign>()
+      const criados: PedidoDocumento[] = []
+      const cliente: ZapsignClient = {
+        sandbox,
+        async criarDocumento(p) {
+          criados.push(p)
+          const token = `doc-${criados.length}-${'a'.repeat(30)}`
+          const d: DocumentoZapsign = { token, status: 'pending', externalId: p.numero, signerToken: `sig-${criados.length}`, signUrl: `https://app.zapsign.com.br/verificar/sig-${criados.length}`, arquivoAssinado: null, assinadoEm: null }
+          docs.set(token, d)
+          return { ...d }
+        },
+        async obterDocumento(token) { const d = docs.get(token); if (!d) throw new Error('documento sumiu'); return { ...d } },
+      }
+      return { cliente, docs, criados }
+    }
+    async function appCom(z: ZapsignClient | null, webhookSecret: string | null = SEGREDO) {
+      const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: z, webhookSecret })
+      return buildApp({ ...depsApp, contratos: svc })
+    }
+    const pronto = async () => { await empresaCompleta(); const cid = await contratoDe(await venda()); return cid }
+    const post = (a: FastifyInstance, url: string, papel?: string, payload?: object) => a.inject({ method: 'POST', url, payload, headers: papel ? { authorization: `Bearer ${t[papel]}` } : {} })
+    type DetZ = Detalhe & { zapsign: { status: string; sandbox: boolean; signUrl: string | null; arquivoAssinado: string | null } | null; assinaturaVia: string | null }
+
+    it('desligado (sem token no servidor): status diz isso e enviar dá 503', async () => {
+      const cid = await pronto()
+      expect((await req('GET', '/api/contratos/zapsign/status', 'admin')).json()).toEqual({ ativo: false, sandbox: false, webhook: false })
+      const r = await req('POST', `/api/contratos/${cid}/zapsign`, 'admin')
+      expect(r.statusCode).toBe(503); expect(r.json().codigo).toBe('ZAPSIGN_DESLIGADO')
+    })
+    it('ligado: status mostra se está em teste e se o webhook tem segredo', async () => {
+      const a = await appCom(falso(true).cliente)
+      try { expect((await a.inject({ method: 'GET', url: '/api/contratos/zapsign/status', headers: { authorization: `Bearer ${t.admin}` } })).json()).toEqual({ ativo: true, sandbox: true, webhook: true }) } finally { await a.close() }
+    })
+    it('envia: PDF e dados do cliente vão ao ZapSign, o contrato vira ENVIADO e congelado, e o link devolvido é o do ZapSign', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        const r = await post(a, `/api/contratos/${cid}/zapsign`, 'vendedorA')
+        expect(r.statusCode).toBe(200)
+        const d = r.json() as DetZ
+        expect(d.contrato.status).toBe('ENVIADO'); expect(d.congelado).toBe(true)
+        expect(d.zapsign).toMatchObject({ status: 'pending', sandbox: true, signUrl: 'https://app.zapsign.com.br/verificar/sig-1' })
+        expect(z.criados).toHaveLength(1)
+        const p = z.criados[0]
+        expect(p.pdf.subarray(0, 5).toString()).toBe('%PDF-'); expect(p.numero).toBe(d.contrato.numero)
+        expect(p.signatario).toEqual({ nome: 'ANA SOUZA', email: null, foneDigitos: '11988124410', cpf: '52998224725' })
+        expect(await db!('auditoria').where({ acao: 'CONTRATO_ZAPSIGN_ENVIADO' }).count('* as n').first()).toMatchObject({ n: '1' })
+      } finally { await a.close() }
+    })
+    it('enviar de novo não cria outro documento', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        await post(a, `/api/contratos/${cid}/zapsign`, 'admin'); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        expect(z.criados).toHaveLength(1)
+      } finally { await a.close() }
+    })
+    it('quem não tem o contrato não envia; sem login 401; cobrador 403; faltando dado 409 e nada vai ao ZapSign', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        expect((await post(a, `/api/contratos/${cid}/zapsign`, 'vendedorB')).statusCode).toBe(404)
+        expect((await post(a, `/api/contratos/${cid}/zapsign`, 'cobrador')).statusCode).toBe(403)
+        expect((await post(a, `/api/contratos/${cid}/zapsign`)).statusCode).toBe(401)
+        await db!('sistema_config').where({ chave: 'taxa_avaria' }).del()
+        const r = await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('DADOS_FALTANDO')
+        expect(z.criados).toHaveLength(0)
+      } finally { await a.close() }
+    })
+    it('o ZapSign derruba o link próprio, e depois não dá para gerar link próprio (409)', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        const proprio = (await req('POST', `/api/contratos/${cid}/link`, 'admin')).json() as { token: string }
+        expect((await req('GET', `/api/assinar/${proprio.token}`)).statusCode).toBe(200)
+        await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        expect((await req('GET', `/api/assinar/${proprio.token}`)).statusCode).toBe(404)
+        const l2 = await post(a, `/api/contratos/${cid}/link`, 'admin')
+        expect(l2.statusCode).toBe(409); expect(l2.json().codigo).toBe('ZAPSIGN_EM_ANDAMENTO')
+      } finally { await a.close() }
+    })
+    it('atualizar: enquanto pendente nada muda; assinado de verdade fecha o contrato e a venda (via ZAPSIGN)', async () => {
+      const z = falso(false); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        expect(((await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')).json() as DetZ).contrato.status).toBe('ENVIADO')
+        const doc = [...z.docs.values()][0]; doc.status = 'signed'; doc.arquivoAssinado = 'https://s3.zapsign/assinado.pdf'
+        const r = (await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')).json() as DetZ
+        expect(r.contrato.status).toBe('ASSINADO'); expect(r.assinaturaVia).toBe('ZAPSIGN'); expect(r.zapsign).toMatchObject({ status: 'signed', arquivoAssinado: 'https://s3.zapsign/assinado.pdf' })
+        expect(await db!('vendas').where({ id: r.contrato.vendaId }).first('contrato_status')).toMatchObject({ contrato_status: 'ASSINADO' })
+        expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN' }).count('* as n').first()).toMatchObject({ n: '1' })
+        // de novo: não duplica nada
+        await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')
+        expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN' }).count('* as n').first()).toMatchObject({ n: '1' })
+      } finally { await a.close() }
+    })
+    it('documento de TESTE assinado não fecha o contrato (sem validade jurídica)', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        ;[...z.docs.values()][0].status = 'signed'
+        const r = (await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')).json() as DetZ
+        expect(r.contrato.status).toBe('ENVIADO'); expect(r.zapsign).toMatchObject({ status: 'signed', sandbox: true })
+      } finally { await a.close() }
+    })
+    it('atualizar um contrato que não foi pelo ZapSign: 409', async () => {
+      const a = await appCom(falso(true).cliente)
+      try {
+        const cid = await pronto()
+        const r = await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')
+        expect(r.statusCode).toBe(409); expect(r.json().codigo).toBe('ZAPSIGN_NAO_ENVIADO')
+      } finally { await a.close() }
+    })
+    it('recusado no ZapSign: dá para mandar um documento novo', async () => {
+      const z = falso(true); const a = await appCom(z.cliente)
+      try {
+        const cid = await pronto()
+        await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        ;[...z.docs.values()][0].status = 'refused'
+        await post(a, `/api/contratos/${cid}/zapsign/atualizar`, 'admin')
+        expect(((await post(a, `/api/contratos/${cid}/zapsign`, 'admin')).json() as DetZ).zapsign).toMatchObject({ status: 'pending' })
+        expect(z.criados).toHaveLength(2)
+      } finally { await a.close() }
+    })
+    describe('webhook', () => {
+      const aviso = (a: FastifyInstance, corpo: object, segredo?: string, como: 'header' | 'query' = 'header') =>
+        a.inject({ method: 'POST', url: `/api/zapsign/webhook${segredo && como === 'query' ? `?secret=${segredo}` : ''}`, payload: corpo, headers: segredo && como === 'header' ? { 'x-webhook-secret': segredo } : {} })
+      async function enviado(z: ReturnType<typeof falso>, a: FastifyInstance) {
+        const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+        return { cid, doc: [...z.docs.values()][0] }
+      }
+      it('sem segredo ou com segredo errado: 401 (e não mexe em nada)', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const { cid, doc } = await enviado(z, a); doc.status = 'signed'
+          expect((await aviso(a, { token: doc.token })).statusCode).toBe(401)
+          expect((await aviso(a, { token: doc.token }, 'errado')).statusCode).toBe(401)
+          expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+        } finally { await a.close() }
+      })
+      it('segredo certo (no cabeçalho ou na URL): confere no ZapSign e fecha o contrato', async () => {
+        for (const como of ['header', 'query'] as const) {
+          const z = falso(false); const a = await appCom(z.cliente)
+          try {
+            const { cid, doc } = await enviado(z, a); doc.status = 'signed'
+            expect((await aviso(a, { token: doc.token, status: 'signed' }, SEGREDO, como)).json()).toEqual({ ok: true })
+            const d = await detalhe(cid)
+            expect(d.contrato.status).toBe('ASSINADO')
+            expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade_id: cid }).first('usuario_id')).toMatchObject({ usuario_id: null })
+          } finally { await a.close() }
+          await db!('contratos').del(); await db!('venda_parcelas').del(); await db!('vendas').del(); await db!('bens').del()
+        }
+      })
+      it('o corpo do aviso não manda: dizer "signed" com o documento pendente no ZapSign não fecha nada', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const { cid, doc } = await enviado(z, a)
+          await aviso(a, { token: doc.token, status: 'signed', event_type: 'doc_signed', signed_file: 'https://x' }, SEGREDO)
+          expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+        } finally { await a.close() }
+      })
+      it('documento que não é nosso ou external_id diferente: ignorado, sem erro', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const { cid, doc } = await enviado(z, a)
+          expect((await aviso(a, { token: 'nao-existe-nenhum-contrato' }, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
+          expect((await aviso(a, {}, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
+          doc.status = 'signed'; doc.externalId = 'OUTRO-NUMERO'
+          expect((await aviso(a, { token: doc.token }, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
+          expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+        } finally { await a.close() }
+      })
+      it('sem segredo configurado no servidor, o webhook nem existe (404)', async () => {
+        const a = await appCom(falso(false).cliente, null)
+        try { expect((await aviso(a, { token: 'x' }, SEGREDO)).statusCode).toBe(404) } finally { await a.close() }
+      })
     })
   })
 })

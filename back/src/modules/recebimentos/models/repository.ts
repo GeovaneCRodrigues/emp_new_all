@@ -89,14 +89,26 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
   const colunasDeBusca = (e: EscopoRecebimentos) => (e.tipo === 'INDICADOR' ? ['u.cliente_nome'] : ['u.cliente_nome', 'u.indicador_nome'])
 
   // uma consulta por tipo de operação, com as mesmas colunas; depois as duas são unidas
-  const linhasDeCobranca = (alvo: Alvo, escopo: EscopoRecebimentos) => {
+  /** As parcelas que entram na cobrança (junções e filtros). Quem usa escolhe as colunas. */
+  const baseDeCobranca = (alvo: Alvo, escopo: EscopoRecebimentos) => {
       const t = T[alvo]
       const q = db(`${t.parcela} as p`).join(`${t.op} as o`, 'o.id', `p.${t.opFk}`).join('clientes as c', 'c.id', 'o.cliente_id')
       if (alvo === 'VENDA') q.join('bens as b', 'b.id', 'o.bem_id').whereNotIn('o.status', ['RETOMADA', 'CANCELADA'])
       else q.whereNot('o.status', 'CANCELADA')
       q.leftJoin('indicadores as i', 'i.id', 'o.indicador_id')
       escopoSql(q, escopo)
-      return q.select(
+      return q
+    }
+  /**
+   * Só o que as contagens das abas precisam (vencimento, quanto falta e o indicador). A versão completa abaixo faz sete
+   * subconsultas por parcela para mostrar a lista; para contar, isso era 670 ms com 2 mil parcelas.
+   */
+  const colunasParaContar = (alvo: Alvo, escopo: EscopoRecebimentos) => baseDeCobranca(alvo, escopo).select(
+    'p.vencimento', 'o.indicador_id as indicador_id', db.raw(`(p.valor - ${pagoSql(alvo)} - p.desconto) as falta`),
+  )
+  const linhasDeCobranca = (alvo: Alvo, escopo: EscopoRecebimentos) => {
+      const t = T[alvo]
+      return baseDeCobranca(alvo, escopo).select(
         db.raw('? as tipo', [alvo]), 'o.id as operacao_id', 'p.numero', 'p.vencimento', 'p.vencimento_original', 'p.valor', 'p.desconto', 'c.id as cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'i.nome as indicador_nome', 'o.indicador_id as indicador_id', db.raw(alvo === 'VENDA' ? 'null::text as modalidade' : 'o.modalidade::text as modalidade'),
         db.raw(alvo === 'VENDA' ? 'b.modelo as descricao' : `${NOME_EMPRESTIMO_SQL.replace(/\be\./g, 'o.')} as descricao`),
         db.raw(`(select count(*) from ${t.parcela} x where x.${t.opFk} = o.id) as n_parcelas`),
@@ -270,17 +282,19 @@ export function createRecebimentosRepository(db: Knex): RecebimentosRepository {
         return q
       }
       // o indicador escolhido vale para a lista, o total e as contagens das abas
-      const fonte = () => {
-        const q = db.from(db.raw('(' + tipos.map((a) => `(${linhas(a).toQuery()})`).join(' union all ') + ') as u'))
+      const fonteDe = (colunas: (alvo: Alvo) => Knex.QueryBuilder) => () => {
+        const q = db.from(db.raw('(' + tipos.map((a) => `(${colunas(a).toQuery()})`).join(' union all ') + ') as u'))
         if (f.indicador === 'SEM') q.whereNull('u.indicador_id')
         else if (f.indicador !== undefined) q.where('u.indicador_id', f.indicador)
         return q
       }
+      const fonte = fonteDe(linhas)
+      const fonteParaContar = fonteDe((a) => colunasParaContar(a, escopo))
       const [soma] = await filtroAba(fonte()).select<{ n: string; total: string }[]>(db.raw('count(*) as n'), db.raw(f.aba === 'recebidas' ? 'coalesce(sum(u.pago), 0) as total' : 'coalesce(sum(u.falta), 0) as total'))
       const ordem = f.aba === 'recebidas' ? 'u.ultima_data desc, u.operacao_id desc, u.numero desc' : 'u.vencimento asc, u.tipo asc, u.operacao_id asc, u.numero asc'
       const ls = await filtroAba(fonte()).select<LinhaBruta[]>('u.*')
         .orderByRaw(ordem).limit(f.limite).offset(f.offset)
-      const [c] = await fonte().select<{ atrasadas: string; hoje: string; proximas: string }[]>(
+      const [c] = await fonteParaContar().select<{ atrasadas: string; hoje: string; proximas: string }[]>(
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento < ?) as atrasadas', [h]),
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento between ? and ?) as hoje', [h, mais7]),
         db.raw('count(*) filter (where u.falta > 0.009 and u.vencimento between ? and ?) as proximas', [mais8, mais45]),
