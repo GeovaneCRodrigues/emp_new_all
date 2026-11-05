@@ -145,9 +145,9 @@ CLÁUSULA SEGUNDA: DAS DEFINIÇÕES DOS TERMOS UTILIZADOS NO CONTRATO
 2.2. Contrato: é o presente instrumento, que define as regras gerais aplicadas nas locações de APARELHOS CELULARES e similar.
 2.3. Abertura de Contrato: é o documento que identifica cada locação específica realizada, o qual contempla os detalhes da locação, os dados do APARELHO CELULAR, preços, prazos e demais condições contratadas.
 2.4. Tarifário: é o documento que identifica os preços praticados pela LOCADORA, sempre disponível no site oficial da LOCADORA. Os valores deste Contrato ficam fixos, nos termos da Cláusula Décima Segunda.
-2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará no Demonstrativo de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
-2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados necessários para preenchimento de termo de indicação do locatário para possíveis infrações e acidentes, obrigatoriamente, constarão no Demonstrativo de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
-2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido no Demonstrativo do Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
+2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará na Abertura de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
+2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados, obrigatoriamente, constarão na Abertura de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
+2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido na Abertura de Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
 2.8. CEDENTE: é a LOCADORA, quando o aparelho é transferido ao LOCATÁRIO ao final do plano, nos termos da Cláusula Décima Quarta.
 2.9. CESSIONÁRIO: é o LOCATÁRIO, quando recebe o aparelho ao final do plano, nos termos da Cláusula Décima Quarta.
 
@@ -157,7 +157,7 @@ CLÁUSULA TERCEIRA: DA CIÊNCIA E CONCORDÂNCIA COM OS TERMOS ORA AJUSTADOS
 3.3. Adicionalmente, o LOCATÁRIO reconhece e declara:
 3.3.1. compreender que atrasos de pagamento e a consequente devolução do APARELHO CELULAR podem ser considerados apropriação indébita, o que poderá levar ao bloqueio remoto do aparelho, além de custos adicionais;
 3.3.2. reconhecer que a falta de cumprimento financeiro resultará no bloqueio remoto e imediato do APARELHO CELULAR e na cobrança dos valores devidos, incluindo custos adicionais para recuperação do aparelho.
-3.4. Caso o LOCATÁRIO não efetue o pagamento completo do período de fidelização, deixando de devolver o APARELHO CELULAR após notificação, em data estipulada, fica resguardado à LOCADORA o direito de realizar, a qualquer tempo, a cobrança dos valores devidos até a sua efetiva devolução, incluindo os débitos relativos a eventuais avarias, diárias adicionais, perdas e danos, além de bloqueio do APARELHO CELULAR.
+3.4. Caso o LOCATÁRIO não efetue o pagamento completo do período de fidelização, deixando de devolver o APARELHO CELULAR após notificação, em data estipulada, fica resguardado à LOCADORA o direito de realizar, a qualquer tempo, a cobrança dos valores devidos até a sua efetiva devolução, incluindo os débitos relativos a eventuais avarias, perdas e danos, além de bloqueio do APARELHO CELULAR.
 
 CLÁUSULA QUARTA: DOS REQUISITOS PARA LOCAÇÃO E UTILIZAÇÃO DO APARELHO CELULAR
 4.1. O LOCATÁRIO deverá obrigatoriamente:
@@ -191,7 +191,7 @@ CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.2. Caso ocorra a devolução antecipada do APARELHO CELULAR, seja por vontade do LOCATÁRIO ou caso ele tenha dado causa conforme previsões contratuais, não há multa: aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2, com a avaliação do aparelho e a devolução ao LOCATÁRIO de 30% (trinta por cento) do total pago.
 
 CLÁUSULA OITAVA: RESPONSABILIDADE DA LOCADORA
-8.1. Disponibilizar o APARELHO CELULAR em condições de uso, funcionamento e segurança, com todos os equipamentos e documentos exigidos pela legislação aplicável.
+8.1. Disponibilizar o APARELHO CELULAR em condições de uso e funcionamento, conforme descrito na Abertura de Contrato.
 
 CLÁUSULA NONA: RESPONSABILIDADE DO LOCATÁRIO
 9.1. Além de todas as obrigações apontadas ao longo do presente termo, O LOCATÁRIO deverá zelar pelo aparelho e cumprir as obrigações financeiras.
