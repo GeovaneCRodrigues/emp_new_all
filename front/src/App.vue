@@ -108,7 +108,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
       <div class="shell">
         <aside class="side">
           <div class="marca">
-            <span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
+            <img class="logo" src="/icons/logo-simbolo.svg" alt="" />
             <span>Mundo dos<br /><em>iPhones</em></span>
           </div>
           <button v-if="temNovo && fabSide" class="novo" @click="ir(fabSide.id)"><Icon name="plus" />{{ sessao.perfil === 'INDICADOR' || sessao.perfil === 'ADMIN' ? 'Novo' : 'Nova venda' }}</button>
@@ -141,7 +141,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
 
         <div class="main">
           <header class="top">
-            <span class="logo logo-m"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
+            <img class="logo logo-m" src="/icons/logo-simbolo.svg" alt="" />
             <h1>{{ titulo }}</h1>
             <Sino v-if="temSino" />
             <button v-if="secao === 'operacoes'" class="btn b-pri b-sm" @click="ir('vender')"><Icon name="plus" small />Venda</button>

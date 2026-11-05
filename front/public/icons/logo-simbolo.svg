@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="mdi-s-t">
+  <title id="mdi-s-t">Mundo dos iPhones</title>
+  <defs>
+    <linearGradient id="mdi-s-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b3b2a"/>
+      <stop offset="1" stop-color="#0f8f5f"/>
+    </linearGradient>
+    <radialGradient id="mdi-s-b" cx="1" cy="0" r="1">
+      <stop offset="0" stop-color="#b8e35a" stop-opacity=".34"/>
+      <stop offset=".62" stop-color="#b8e35a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="mdi-s-c"><circle cx="32" cy="32" r="9"/></clipPath>
+  </defs>
+  <!-- tile: o mesmo gradiente do hero e do botão "vender" do app -->
+  <rect width="64" height="64" rx="15" fill="url(#mdi-s-g)"/>
+  <rect width="64" height="64" rx="15" fill="url(#mdi-s-b)"/>
+  <!-- celular: moldura branca com a tela e o alto-falante vazados -->
+  <path fill="#fff" fill-rule="evenodd" d="M25 8h14a8 8 0 0 1 8 8v32a8 8 0 0 1-8 8H25a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8ZM25.5 13h13a4.5 4.5 0 0 1 4.5 4.5v29a4.5 4.5 0 0 1-4.5 4.5h-13a4.5 4.5 0 0 1-4.5-4.5v-29a4.5 4.5 0 0 1 4.5-4.5ZM29.9 9.6h4.2a.9.9 0 0 1 0 1.8h-4.2a.9.9 0 0 1 0-1.8Z"/>
+  <!-- mundo: globo dourado na tela, com meridiano, equador e paralelos inclinados -->
+  <circle cx="32" cy="32" r="9" fill="#b8e35a"/>
+  <g clip-path="url(#mdi-s-c)" transform="rotate(-18 32 32)" fill="none" stroke="#0b3b2a" stroke-width="1.6">
+    <ellipse cx="32" cy="32" rx="3.8" ry="9"/>
+    <path d="M22 32h20M25.3 26h13.4M25.3 38h13.4"/>
+  </g>
+</svg>
