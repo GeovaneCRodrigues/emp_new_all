@@ -18,12 +18,17 @@ type Dependencias = {
   atrasos: (s: Sessao) => Promise<{ atrasadas: number; hoje: number }>
   /** Hoje no fuso da loja, AAAA-MM-DD */
   hoje: () => string
+  /** Chamado quando um aviso novo é criado (nunca para um que já existia): é onde o push para o celular sai. */
+  aoCriar?: (usuarioId: number, aviso: { tipo: string; titulo: string; texto: string; rota: string; chave: string }) => Promise<unknown>
   log?: (msg: string, err: unknown) => void
 }
 
 const LIMITE_LISTA = 50
 const LOTE = 200
 const brl = (v: unknown) => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const TITULO: Record<string, string> = {
+  contrato_assinado: 'Contrato assinado', pagamento: 'Pagamento recebido', pedido: 'Pedido esperando você', atraso: 'Parcelas atrasadas', vencimento: 'Parcelas vencem hoje',
+}
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 
 const ASSINADO = ['CONTRATO_ASSINADO', 'CONTRATO_ASSINADO_PELO_LINK', 'CONTRATO_ASSINADO_ZAPSIGN']
@@ -39,6 +44,12 @@ const PEDIDO_TEXTO: Record<string, string> = {
 
 export function createNotificacoesService(d: Dependencias): NotificacoesService {
   const log = d.log ?? (() => {})
+
+  /** Grava o aviso do sino e, se ele é novo, manda também para o celular. Um push que falha não derruba o aviso. */
+  async function avisar(n: { usuarioId: number; tipo: string; texto: string; rota: string; chave: string }) {
+    if (!(await d.repo.inserir(n))) return
+    try { await d.aoCriar?.(n.usuarioId, { tipo: n.tipo, titulo: TITULO[n.tipo] ?? 'Mundo dos iPhones', texto: n.texto, rota: n.rota, chave: n.chave }) } catch (e) { log('notificações: falha ao mandar o push', e) }
+  }
 
   /** Escreve o aviso de um fato da auditoria. Devolve null quando o fato não gera aviso. */
   async function avisoDe(f: FatoAuditado): Promise<{ tipo: string; texto: string; rota: string; para: Perfil[] } | null> {
@@ -67,7 +78,7 @@ export function createNotificacoesService(d: Dependencias): NotificacoesService 
         if (a) {
           for (const u of await d.repo.usuariosAtivos(a.para)) {
             if (u.id === f.usuarioId) continue // quem fez a ação já sabe
-            await d.repo.inserir({ usuarioId: u.id, tipo: a.tipo, texto: a.texto, rota: a.rota, chave: `aud:${f.id}` })
+            await avisar({ usuarioId: u.id, tipo: a.tipo, texto: a.texto, rota: a.rota, chave: `aud:${f.id}` })
           }
         }
         cursor = f.id
@@ -83,8 +94,8 @@ export function createNotificacoesService(d: Dependencias): NotificacoesService 
     for (const u of await d.repo.usuariosAtivos(['ADMIN', 'COBRADOR'])) {
       const { atrasadas, hoje } = await d.atrasos({ sessaoId: 'notificacoes', usuarioId: u.id, perfil: u.perfil, indicadorId: null })
       const rota = u.perfil === 'ADMIN' ? '/cobrancas' : '/hoje'
-      if (atrasadas > 0) await d.repo.inserir({ usuarioId: u.id, tipo: 'atraso', texto: `${plural(atrasadas, 'parcela atrasada', 'parcelas atrasadas')} para cobrar.`, rota, chave: `atrasadas:${dia}` })
-      if (hoje > 0) await d.repo.inserir({ usuarioId: u.id, tipo: 'vencimento', texto: `${plural(hoje, 'parcela vence', 'parcelas vencem')} hoje.`, rota, chave: `vencem-hoje:${dia}` })
+      if (atrasadas > 0) await avisar({ usuarioId: u.id, tipo: 'atraso', texto: `${plural(atrasadas, 'parcela atrasada', 'parcelas atrasadas')} para cobrar.`, rota, chave: `atrasadas:${dia}` })
+      if (hoje > 0) await avisar({ usuarioId: u.id, tipo: 'vencimento', texto: `${plural(hoje, 'parcela vence', 'parcelas vencem')} hoje.`, rota, chave: `vencem-hoje:${dia}` })
     }
   }
 

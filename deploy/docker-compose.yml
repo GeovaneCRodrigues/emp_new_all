@@ -1,5 +1,5 @@
 # Mundo dos iPhones em produção, ao lado do sistema antigo (rede, volume e porta próprios).
-# Fica em /opt/mundo_iphones junto de um .env (POSTGRES_PASSWORD, JWT_SECRET, ORIGEM e, se usar o ZapSign, TOKEN_ZAPSIGN, ZAPSIGN_SANDBOX, ZAPSIGN_WEBHOOK_SECRET) que NÃO vai para o git.
+# Fica em /opt/mundo_iphones junto de um .env (POSTGRES_PASSWORD, JWT_SECRET, ORIGEM e, se usar o ZapSign, TOKEN_ZAPSIGN, ZAPSIGN_SANDBOX, ZAPSIGN_WEBHOOK_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY) que NÃO vai para o git.
 name: mundo-iphones-prod
 services:
   postgres:
@@ -30,6 +30,10 @@ services:
       TOKEN_ZAPSIGN: ${TOKEN_ZAPSIGN:-}
       ZAPSIGN_SANDBOX: ${ZAPSIGN_SANDBOX:-true}
       ZAPSIGN_WEBHOOK_SECRET: ${ZAPSIGN_WEBHOOK_SECRET:-}
+      # Avisos no celular (push): sem as chaves VAPID fica desligado.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:contato@mundodosiphones.com.br}
   web:
     image: nginx:1.27-alpine
     restart: unless-stopped

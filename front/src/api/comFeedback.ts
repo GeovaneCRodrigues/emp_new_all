@@ -2,7 +2,7 @@ import { useCarregando } from '@/composables/useCarregando'
 import { useToast } from '@/composables/useToast'
 
 /** Consultas que usam POST mas não gravam nada, e o que roda sem o usuário pedir: nada de "enviando" nem "feito". */
-const SILENCIOSAS = [/\/api\/auth\//, /\/api\/notificacoes/, /\/previa(\?|$)/]
+const SILENCIOSAS = [/\/api\/auth\//, /\/api\/notificacoes/, /\/api\/push\//, /\/previa(\?|$)/]
 
 /** Esta chamada é uma ação do usuário (grava algo)? Consultas (GET) e as chamadas silenciosas ficam de fora. */
 export function ehAcao(metodo: string, url: string): boolean {

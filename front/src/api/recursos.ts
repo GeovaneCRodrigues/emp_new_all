@@ -28,6 +28,9 @@ import type { FechamentosApi } from './fechamentos'
 import type { NotificacoesApi } from './notificacoes'
 import { criarNotificacoesFake } from './notificacoes.fake'
 import { criarNotificacoesHttp } from './notificacoes.http'
+import type { PushApi } from './push'
+import { criarPushFake } from './push.fake'
+import { criarPushHttp } from './push.http'
 import type { RecebimentosApi } from './recebimentos'
 import { criarRecebimentosFake } from './recebimentos.fake'
 import { criarRecebimentosHttp } from './recebimentos.http'
@@ -88,3 +91,5 @@ export const contratosApi: ContratosApi = contratosFake ?? criarContratosHttp(UR
 /** A página pública de assinatura (sem login). */
 export const assinarApi: AssinarPublicoApi = contratosFake?.publico ?? criarAssinarHttp(URL_API)
 export const notificacoesApi: NotificacoesApi = modoDemo ? criarNotificacoesFake() : criarNotificacoesHttp(URL_API, requisicao)
+/** Avisos no celular (push): só existe com servidor de verdade; na demonstração fica desligado. */
+export const pushApi: PushApi = modoDemo ? criarPushFake() : criarPushHttp(URL_API, requisicao)
