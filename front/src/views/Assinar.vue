@@ -57,7 +57,7 @@ async function assinar() {
     <div class="assinar-box">
       <div class="login-marca">
         <img v-if="logoOk" class="logo-loja" :src="logo" alt="" data-testid="assinar-logo" @error="logoOk = false" />
-        <span v-else class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
+        <img v-else class="logo" src="/icons/logo-simbolo.svg" alt="" />
         <div><div class="disp" style="font-size: 18px; color: var(--strong)">{{ c?.empresa ?? 'Mundo dos iPhones' }}</div><div class="small">Assinatura do contrato</div></div>
       </div>
 

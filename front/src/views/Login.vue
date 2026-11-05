@@ -34,7 +34,7 @@ async function enviar() {
   <main class="login">
     <form class="card pad login-box" @submit.prevent="enviar">
       <div class="login-marca">
-        <span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
+        <img class="logo" src="/icons/logo-simbolo.svg" alt="" />
         <div><div class="disp" style="font-size: 18px; color: var(--strong)">Mundo dos iPhones</div><div class="small">Entre para continuar</div></div>
       </div>
 

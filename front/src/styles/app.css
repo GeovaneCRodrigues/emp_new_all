@@ -132,7 +132,7 @@ input,select{font:inherit;color:var(--strong)}
 .main{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top,0px));background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
 .top h1{margin:0;font-size:18px;font-weight:700;color:var(--strong);flex:1;min-width:0}
-.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--side),var(--primary));display:grid;place-items:center;flex:none}
+.logo{width:34px;height:34px;border-radius:10px;flex:none;display:block}
 .avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;background:var(--primary-soft);color:var(--primary);flex:none}
 .content{padding:16px;display:flex;flex-direction:column;gap:16px;max-width:1180px;margin:0 auto;width:100%}
 
