@@ -22,8 +22,12 @@ export function mascaraCentavos(texto: string): { texto: string; valor: number }
 export const dmy = (iso: Iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 export const dmyA = (iso: Iso) => `${dmy(iso)}/${iso.slice(0, 4)}`
 
-export const iniciais = (nome: string) =>
-  nome.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+/** As iniciais da bolinha do cliente: a 1ª letra das duas primeiras palavras. O apelido entre parênteses ("WEVERTON (DEDA)") não conta, e símbolos nunca viram inicial. */
+export const iniciais = (nome: string) => {
+  const letras = (t: string) => t.split(/\s+/).map((p) => p.match(/\p{L}/u)?.[0]).filter((l): l is string => !!l)
+  const semApelido = letras(nome.replace(/\([^)]*\)?/g, ' '))
+  return (semApelido.length ? semApelido : letras(nome)).slice(0, 2).join('').toLocaleUpperCase('pt-BR')
+}
 
 /** Cadastro padronizado: sem espaços sobrando e em LETRAS MAIÚSCULAS (nomes e endereços). */
 export const maiusculas = (v: string): string => v.trim().replace(/\s+/g, ' ').toLocaleUpperCase('pt-BR')
