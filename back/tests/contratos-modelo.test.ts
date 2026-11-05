@@ -52,7 +52,9 @@ describe('modelo do contrato: preencher', () => {
   })
   it('taxas e dados da empresa sem cadastro também faltam', () => {
     const p = preencher(MODELO_PADRAO, dados(), empresa({ cnpj: null, avaria: null, cancelamentoPct: null, atendente: null }))
-    expect(p.faltam).toEqual(expect.arrayContaining(['Atendente', 'CNPJ', 'Taxa de avaria', 'Multa de cancelamento']))
+    expect(p.faltam).toEqual(expect.arrayContaining(['Atendente', 'CNPJ', 'Taxa de avaria']))
+    // o contrato não tem mais multa de cancelamento: sem esse dado, o envio não trava
+    expect(p.faltam).not.toContain('Multa de cancelamento')
   })
   it('seguro: não contratado não precisa de taxa; contratado usa o valor, e sem valor falta', () => {
     expect(campo('seguro_texto', dados({ seguro: false }), empresa({ seguro: null })).texto).toBe('não contratado pelo cliente')
