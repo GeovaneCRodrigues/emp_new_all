@@ -162,8 +162,7 @@ CLÁUSULA TERCEIRA: DA CIÊNCIA E CONCORDÂNCIA COM OS TERMOS ORA AJUSTADOS
 CLÁUSULA QUARTA: DOS REQUISITOS PARA LOCAÇÃO E UTILIZAÇÃO DO APARELHO CELULAR
 4.1. O LOCATÁRIO deverá obrigatoriamente:
 4.1.1. ter mais de 18 (dezoito) anos e comprovar tal condição por meio de documento pessoal com foto, que contenha o número do CPF, no momento da locação do APARELHO CELULAR;
-4.1.2. não possuir antecedentes criminais;
-4.1.3. efetuar o pagamento da entrada apontada no Termo de Abertura de Contrato, em dinheiro ou com aparelho dado na troca, conforme avaliação.
+4.1.2. efetuar o pagamento da entrada apontada no Termo de Abertura de Contrato, em dinheiro ou com aparelho dado na troca, conforme avaliação.
 
 CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 5.1. O APARELHO CELULAR alugado não poderá ser objeto de mau uso, má conduta, conduta danosa ao aparelho, desrespeito ao dever de cuidado e zelo do objeto locado, assim considerados:
