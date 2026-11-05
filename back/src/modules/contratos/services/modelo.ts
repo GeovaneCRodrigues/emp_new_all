@@ -174,6 +174,7 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.3. O valor total da locação é composto pela entrada e pelas parcelas indicadas na Abertura de Contrato, acrescido, se for o caso, dos valores previstos abaixo.
 6.3.1. Em caso de quebra ou avaria do APARELHO CELULAR, inclusive se ele for devolvido danificado, o LOCATÁRIO pagará o valor do conserto, conforme orçamento da LOCADORA.
 6.3.2. Em caso de furto ou roubo do APARELHO CELULAR, o LOCATÁRIO pagará o saldo das parcelas do Contrato que ainda não foram pagas, ficando então quitado o Contrato, sem outra cobrança pelo aparelho.
+6.3.3. Em caso de furto ou roubo, o LOCATÁRIO deverá avisar a LOCADORA em até 24 (vinte e quatro) horas e apresentar o boletim de ocorrência em até 48 (quarenta e oito) horas. A LOCADORA bloqueará o APARELHO CELULAR assim que for avisada. Se o aviso ou o boletim de ocorrência não forem feitos nesses prazos, a situação será tratada como mau uso, nos termos da Cláusula Quinta.
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
