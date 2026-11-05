@@ -189,7 +189,7 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
-7.2. Caso ocorra a devolução antecipada do APARELHO CELULAR, seja por vontade do LOCATÁRIO ou caso ele tenha dado causa conforme previsões contratuais, será cobrada uma multa no valor de R$ 500,00 (quinhentos reais), sem prejuízo das medidas judiciais cabíveis.
+7.2. Caso ocorra a devolução antecipada do APARELHO CELULAR, seja por vontade do LOCATÁRIO ou caso ele tenha dado causa conforme previsões contratuais, não há multa: aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2, com a avaliação do aparelho e a devolução ao LOCATÁRIO de 30% (trinta por cento) do total pago.
 
 CLÁUSULA OITAVA: RESPONSABILIDADE DA LOCADORA
 8.1. Disponibilizar o APARELHO CELULAR em condições de uso, funcionamento e segurança, com todos os equipamentos e documentos exigidos pela legislação aplicável.
@@ -217,8 +217,8 @@ CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO 
 14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
 14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
 
-CLÁUSULA DÉCIMA QUINTA: DA CLÁUSULA PENAL
-15.1. A parte que descumprir as obrigações dispostas nesse contrato ou que der causa à rescisão deste Contrato, salvo as exceções legais e contratuais já expostas, pagará multa no valor de R$ 500,00 (quinhentos reais).
+CLÁUSULA DÉCIMA QUINTA: DA AUSÊNCIA DE MULTA NA RESCISÃO
+15.1. Este Contrato não prevê multa por rescisão nem por devolução antecipada do aparelho. Nesses casos aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2.
 
 CLÁUSULA DÉCIMA SEXTA: FORÇA MAIOR
 16.1. Qualquer atraso ou falha no cumprimento deste contrato, ocasionado por motivo de força maior ou caso fortuito, conforme definido no Artigo 393 do Código Civil, não constituirá motivo de rescisão, exceto se tal evento perdurar por mais de 90 (noventa) dias.
@@ -254,9 +254,8 @@ Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por e
 Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
 Seguro contra queda: {{taxa_seguro}} (mensal)
 
-1) No caso de devolução antecipada do APARELHO CELULAR pelo LOCATÁRIO, seja por vontade própria ou por violação das condições contratuais, será aplicada uma multa correspondente a {{taxa_cancelamento}} do saldo restante das parcelas do plano escolhido, denominada “Taxa de Cancelamento”;
-2) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
-3) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
+1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
+2) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
 
 {{empresa_cidade}}, {{data_venda}}
 
