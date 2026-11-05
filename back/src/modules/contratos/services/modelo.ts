@@ -144,7 +144,7 @@ CLÁUSULA SEGUNDA: DAS DEFINIÇÕES DOS TERMOS UTILIZADOS NO CONTRATO
 2.1. Acidente: é a ocorrência de acontecimentos, involuntários e casuais, envolvendo o APARELHO CELULAR alugado, que ocasionem danos e/ou similar.
 2.2. Contrato: é o presente instrumento, que define as regras gerais aplicadas nas locações de APARELHOS CELULARES e similar.
 2.3. Abertura de Contrato: é o documento que identifica cada locação específica realizada, o qual contempla os detalhes da locação, os dados do APARELHO CELULAR, preços, prazos e demais condições contratadas.
-2.4. Tarifário: é o documento que identifica os preços praticados pela LOCADORA, podendo ser alterado a qualquer tempo, sem necessidade de aviso prévio e sempre disponível no site oficial da LOCADORA.
+2.4. Tarifário: é o documento que identifica os preços praticados pela LOCADORA, sempre disponível no site oficial da LOCADORA. Os valores deste Contrato ficam fixos, nos termos da Cláusula Décima Segunda.
 2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará no Demonstrativo de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
 2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados necessários para preenchimento de termo de indicação do locatário para possíveis infrações e acidentes, obrigatoriamente, constarão no Demonstrativo de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
 2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido no Demonstrativo do Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
@@ -178,8 +178,8 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente das consequências previstas neste Contrato em caso de inadimplência;
 6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), sem prejuízo das demais cobranças e correções cabíveis.
 6.2.2. Em caso de inadimplência do pagamento, o APARELHO CELULAR será bloqueado remotamente, impedindo sua utilização, até que o débito seja devidamente quitado, sem prejuízo das demais cobranças e correções cabíveis.
-6.2.3. Caso o presente termo se extrapole ao período de doze meses, o valor da locação será corrigido automaticamente pela variação positiva do Índice Nacional de Preços ao Consumidor (IPCA), publicado pelo IBGE, ou qualquer outro índice que a LOCADORA entenda como devido;
-6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período e estará sujeito aos valores atualizados e vigentes à época da renovação;
+6.2.3. Os valores deste Contrato (entrada, parcelas e taxas do Anexo III) são os combinados na assinatura e ficam fixos até o final, sem reajuste, mesmo que o prazo passe de doze meses;
+6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período, mantidos os mesmos valores contratados;
 6.2.5. A LOCADORA pode, a qualquer tempo, realizar cobranças de valores devidos e ainda não pagos. O não envio das cobranças na periodicidade contratada não desabona a responsabilidade do LOCATÁRIO de realizar os pagamentos a tempo e modo, conforme previsto nesse Contrato;
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
 6.3.1.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
@@ -207,7 +207,7 @@ CLÁUSULA DECIMA PRIMEIRA: RESCISÃO
 11.1.2. Havendo danos ao aparelho, a LOCADORA descontará do valor da cláusula 11.1.1 o custo do reparo, conforme a avaliação. Poderá também compensar com esse valor o que o LOCATÁRIO ainda deva à LOCADORA por força deste Contrato.
 
 CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
-12.1. A LOCADORA poderá, a seu exclusivo critério, reajustar os valores relativos às tarifas, taxas e outros incidentes sobre a locação.
+12.1. Os valores de entrada, parcelas e taxas combinados na assinatura, constantes do Termo de Abertura e do Anexo III, não poderão ser reajustados pela LOCADORA até o final do Contrato. Mudanças no Tarifário valem apenas para contratos novos.
 
 CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 13.1. No contexto deste Contrato, a LOCADORA trata dados pessoais referentes ao LOCATÁRIO na posição de controladora de dados pessoais, e pode compartilhar esses dados pessoais com terceiros, em conformidade com a LGPD.
