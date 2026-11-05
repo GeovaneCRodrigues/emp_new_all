@@ -146,11 +146,11 @@ describe('contratos (demonstração)', () => {
   })
   describe('empresa', () => {
     it('salva, mantém o que não veio, limpa com null e arredonda', async () => {
-      const e = await api.salvarEmpresa(ADMIN, { avaria: 400.456, cancelamentoPct: 12.345 })
-      expect(e).toMatchObject({ avaria: 400.46, cancelamentoPct: 12.35, nome: 'Mundo dos iPhones LTDA' })
+      const e = await api.salvarEmpresa(ADMIN, { avaria: 400.456 })
+      expect(e).toMatchObject({ avaria: 400.46, nome: 'Mundo dos iPhones LTDA' })
       expect(await api.salvarEmpresa(ADMIN, { email: null })).toMatchObject({ email: null, avaria: 400.46 })
     })
-    it.each([['CNPJ curto', { cnpj: '1' }], ['e-mail ruim', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['multa > 100', { cancelamentoPct: 101 }], ['nome vazio', { nome: '' }], ['taxa em texto', { avaria: '1' }]])('%s: 400', async (_n, corpo) => {
+    it.each([['CNPJ curto', { cnpj: '1' }], ['e-mail ruim', { email: 'abc' }], ['taxa negativa', { avaria: -1 }], ['nome vazio', { nome: '' }], ['taxa em texto', { avaria: '1' }]])('%s: 400', async (_n, corpo) => {
       expect((await falha(api.salvarEmpresa(ADMIN, corpo as never)))?.status).toBe(400)
     })
   })

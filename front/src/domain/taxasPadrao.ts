@@ -2,6 +2,4 @@
 export const TAXAS_PADRAO_PF = {
   avaria: 300,
   reposicao: 4000,
-  cancelamentoPct: 10,
-  recuperacao: 250,
 } as const

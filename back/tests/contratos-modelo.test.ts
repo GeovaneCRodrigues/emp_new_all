@@ -13,7 +13,7 @@ const dados = (o: Partial<DadosVenda> = {}): DadosVenda => ({
 const empresa = (o: Partial<Empresa> = {}): Empresa => ({
   nome: 'Mundo dos iPhones LTDA', cnpj: '11.222.333/0001-81', endereco: 'Rua X, 1', email: 'a@b.com', atendente: 'Geovane',
   telefone: '1133334444', cidade: 'Taboão da Serra', uf: 'SP', pixChave: 'loja@mundo.com', temLogo: false,
-  avaria: 350, reposicao: 1500, cancelamentoPct: 20, recuperacao: 250, ...o,
+  avaria: 350, reposicao: 1500, ...o,
 })
 const campo = (chave: string, d = dados(), e = empresa()) => preencher(`{{${chave}}}`, d, e)
 
@@ -51,7 +51,7 @@ describe('modelo do contrato: preencher', () => {
     expect(p.trechos.filter((t) => t.tipo === 'falta').map((t) => t.v)).toContain('CPF não cadastrado')
   })
   it('taxas e dados da empresa sem cadastro também faltam', () => {
-    const p = preencher(MODELO_PADRAO, dados(), empresa({ cnpj: null, avaria: null, cancelamentoPct: null, atendente: null }))
+    const p = preencher(MODELO_PADRAO, dados(), empresa({ cnpj: null, avaria: null, atendente: null }))
     expect(p.faltam).toEqual(expect.arrayContaining(['Atendente', 'CNPJ', 'Taxa de avaria']))
     // o contrato não tem mais multa de cancelamento: sem esse dado, o envio não trava
     expect(p.faltam).not.toContain('Multa de cancelamento')
@@ -78,7 +78,6 @@ describe('modelo do contrato: preencher', () => {
     expect(p.faltam).toEqual([]); expect(p.texto).toBe('Taboão da Serra/SP Não informado Não informada')
     expect(preencher('{{empresa_cidade}}{{empresa_uf}}', dados(), empresa({ cidade: null, uf: null })).faltam).toEqual(['Cidade da empresa', 'UF da empresa'])
   })
-  it('multa de cancelamento sai com vírgula', () => { expect(campo('taxa_cancelamento', dados(), empresa({ cancelamentoPct: 12.5 })).texto).toBe('12,5%') })
   it('campo que não existe fica marcado e não some do texto', () => {
     const p = preencher('Oi {{nao_existe}}!', dados(), empresa())
     expect(p.trechos).toEqual([{ tipo: 'txt', v: 'Oi ' }, { tipo: 'desconhecido', v: '{{nao_existe}}' }, { tipo: 'txt', v: '!' }])

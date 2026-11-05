@@ -21,8 +21,6 @@ export type Empresa = {
   /** taxas do contrato; null = ainda não cadastrada (o contrato não pode ser enviado) */
   avaria: number | null
   reposicao: number | null
-  cancelamentoPct: number | null
-  recuperacao: number | null
 }
 
 /** Tudo o que o texto do contrato usa, tirado da venda. */

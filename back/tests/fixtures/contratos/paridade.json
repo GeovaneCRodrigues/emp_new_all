@@ -164,16 +164,6 @@
    "chave": "taxa_reposicao",
    "rotulo": "Reposição (perda/roubo)",
    "grupo": "Empresa e taxas"
-  },
-  {
-   "chave": "taxa_cancelamento",
-   "rotulo": "Multa de cancelamento",
-   "grupo": "Empresa e taxas"
-  },
-  {
-   "chave": "taxa_recuperacao",
-   "rotulo": "Taxa de recuperação",
-   "grupo": "Empresa e taxas"
   }
  ],
  "casos": [
@@ -230,9 +220,7 @@
     "email": "a@b.com",
     "atendente": "Geovane",
     "avaria": 350,
-    "reposicao": 1500,
-    "cancelamentoPct": 12.5,
-    "recuperacao": 250
+    "reposicao": 1500
    },
    "esperado": {
     "trechos": [
@@ -822,9 +810,7 @@
     "email": "a@b.com",
     "atendente": "Geovane",
     "avaria": 350,
-    "reposicao": 1500,
-    "cancelamentoPct": 12.5,
-    "recuperacao": 250
+    "reposicao": 1500
    },
    "esperado": {
     "trechos": [
@@ -1405,9 +1391,7 @@
     "email": "a@b.com",
     "atendente": "Geovane",
     "avaria": null,
-    "reposicao": 1500,
-    "cancelamentoPct": 12.5,
-    "recuperacao": 250
+    "reposicao": 1500
    },
    "esperado": {
     "trechos": [
@@ -2005,9 +1989,7 @@
     "email": "a@b.com",
     "atendente": "Geovane",
     "avaria": 350,
-    "reposicao": 1500,
-    "cancelamentoPct": 12.5,
-    "recuperacao": 250
+    "reposicao": 1500
    },
    "esperado": {
     "trechos": [
@@ -2597,9 +2579,7 @@
     "email": "a@b.com",
     "atendente": "Geovane",
     "avaria": 350,
-    "reposicao": 1500,
-    "cancelamentoPct": 12.5,
-    "recuperacao": 250
+    "reposicao": 1500
    },
    "esperado": {
     "trechos": [
@@ -3190,9 +3170,7 @@
    "email": "a@b.com",
    "atendente": "Geovane",
    "avaria": 350,
-   "reposicao": 1500,
-   "cancelamentoPct": 12.5,
-   "recuperacao": 250
+   "reposicao": 1500
   },
   "esperado": {
    "trechos": [

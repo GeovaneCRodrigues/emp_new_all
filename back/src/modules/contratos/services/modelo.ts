@@ -54,8 +54,6 @@ const DEFS: Def[] = [
   { grupo: 'Empresa e taxas', chave: 'empresa_pix', rotulo: 'Chave Pix da loja', valor: (_d, e) => e.pixChave, opcional: 'Não informada' },
   { grupo: 'Empresa e taxas', chave: 'taxa_avaria', rotulo: 'Taxa de avaria', valor: (_d, e) => taxa(e.avaria) },
   { grupo: 'Empresa e taxas', chave: 'taxa_reposicao', rotulo: 'Reposição (perda/roubo)', valor: (_d, e) => taxa(e.reposicao) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_cancelamento', rotulo: 'Multa de cancelamento', valor: (_d, e) => (e.cancelamentoPct === null ? null : `${String(e.cancelamentoPct).replace('.', ',')}%`) },
-  { grupo: 'Empresa e taxas', chave: 'taxa_recuperacao', rotulo: 'Taxa de recuperação', valor: (_d, e) => taxa(e.recuperacao) },
 ]
 const POR_CHAVE = new Map(DEFS.map((d) => [d.chave, d]))
 export const VARIAVEIS: Variavel[] = DEFS.map(({ chave, rotulo, grupo }) => ({ chave, rotulo, grupo }))

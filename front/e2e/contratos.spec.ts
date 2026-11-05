@@ -116,10 +116,10 @@ test.describe('contratos (administrador)', () => {
     await page.fill('#eCnpj', '123')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-erro')).toContainText('CNPJ')
-    await page.fill('#eCnpj', '11.222.333/0001-81'); await page.fill('#tAvaria', '400,50'); await page.fill('#tCanc', '12,5')
+    await page.fill('#eCnpj', '11.222.333/0001-81'); await page.fill('#tAvaria', '400,50'); await page.fill('#tRepo', '999,90')
     await page.getByTestId('ct-salvar-empresa').click()
     await expect(page.getByTestId('ct-empresa-msg')).toContainText('salvos')
-    await expect(page.locator('#tAvaria')).toHaveValue('400,50'); await expect(page.locator('#tCanc')).toHaveValue('12,5')
+    await expect(page.locator('#tAvaria')).toHaveValue('400,50'); await expect(page.locator('#tRepo')).toHaveValue('999,90')
     // as taxas novas saem no contrato que ainda não foi enviado
     await navegar(page, '/contratos')
     await item(page, 'Patrícia Gomes').click()
