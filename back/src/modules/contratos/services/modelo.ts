@@ -90,7 +90,7 @@ export function preencher(texto: string, d: DadosVenda, e: Empresa): Preenchido 
 }
 
 
-export const MODELO_PADRAO = `INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO DE APARELHO (S) CELULAR COM POSSIBILIDADE DE CONVERSÃO EM CESSÃO DE BEM MÓVEL
+export const MODELO_PADRAO = `INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO DE APARELHO (S) CELULAR COM TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
 ANEXO I. ABERTURA DE CONTRATO
 
 CONTRATO N°: {{contrato_numero}}
@@ -132,7 +132,7 @@ ANEXO II - MINUTA DE CONTRATO
 Pelo presente instrumento ficam estabelecidas as seguintes cláusulas e condições que, em conjunto com o Termo de Abertura do Contrato, bem como todos os anexos que o compõe, regem a relação entre o LOCATÁRIO, e a LOCADORA, para a locação de APARELHO (S) CELULAR:
 
 CLÁUSULA PRIMEIRA: DO OBJETO
-1.1. O objeto do presente Contrato é a locação de APARELHO CELULAR, conforme discriminado, de propriedade, posse, uso ou gozo da LOCADORA, por prazo determinado, conforme confirmado e aceito pelo LOCATÁRIO pelo simples ato de sua retirada, com a aquisição do aparelho após período de fidelização.
+1.1. O objeto do presente Contrato é a locação de APARELHO CELULAR, conforme discriminado, de propriedade da LOCADORA, ficando o LOCATÁRIO com a posse e o uso do aparelho durante a locação, por prazo determinado, conforme confirmado e aceito pelo LOCATÁRIO pelo simples ato de sua retirada. Pagas todas as parcelas do plano, o aparelho passa a ser do LOCATÁRIO, nos termos da Cláusula Décima Quarta.
 1.1.1. São os aparelhos objeto do presente contrato:
 Modelo: {{aparelho_modelo}} {{aparelho_capacidade}}
 Número de Série: {{aparelho_serie}}
@@ -148,8 +148,8 @@ CLÁUSULA SEGUNDA: DAS DEFINIÇÕES DOS TERMOS UTILIZADOS NO CONTRATO
 2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará no Demonstrativo de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
 2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados necessários para preenchimento de termo de indicação do locatário para possíveis infrações e acidentes, obrigatoriamente, constarão no Demonstrativo de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
 2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido no Demonstrativo do Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
-2.8. CEDENTE: Após o aceite do plano “Fidelidade . Minha Loc”, o contrato poderá ser convertido em cessão de bem móvel, momento em que, a LOCADORA também poderá ser denominada como CEDENTE, a fim de concluir a transação de transferência do bem.
-2.9. CESSIONÁRIO: Após o aceite do plano “Fidelidade . Minha Loc”, o contrato poderá ser convertido em cessão de bem móvel, momento em que, o LOCATÁRIO também poderá ser denominado como CESSIONÁRIO, para fins de concluir a transação de recebimento do bem.
+2.8. CEDENTE: é a LOCADORA, quando o aparelho é transferido ao LOCATÁRIO ao final do plano, nos termos da Cláusula Décima Quarta.
+2.9. CESSIONÁRIO: é o LOCATÁRIO, quando recebe o aparelho ao final do plano, nos termos da Cláusula Décima Quarta.
 
 CLÁUSULA TERCEIRA: DA CIÊNCIA E CONCORDÂNCIA COM OS TERMOS ORA AJUSTADOS
 3.1. O LOCATÁRIO, declara que tomou conhecimento prévio e anuiu integralmente aos termos da presente transação, disponibilizado no atendimento e no momento de sua retirada.
@@ -175,7 +175,7 @@ CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 
 CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM NECESSÁRIAS
 6.1. O pagamento do valor inicial, bem como a primeiro mês da locação, será realizado no momento da reserva, no ato da negociação com os atendentes da locadora, podendo ser pago pelos meios de pagamento aceitos pela LOCADORA, no caso, via boleto bancário ou PIX.
-6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia das semanas subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente que em casos de inadimplência, o valor pago a título de caução poderá ser retido para estancar os prejuízos suportados pela LOCADORA;
+6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente que em casos de inadimplência, o valor pago a título de caução poderá ser retido para estancar os prejuízos suportados pela LOCADORA;
 6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), sem prejuízo das demais cobranças e correções cabíveis.
 6.2.2. Em caso de inadimplência do pagamento, o APARELHO CELULAR será bloqueado remotamente, impedindo sua utilização, até que o débito seja devidamente quitado, sem prejuízo das demais cobranças e correções cabíveis.
 6.2.3. Caso o presente termo se extrapole ao período de doze meses, o valor da locação será corrigido automaticamente pela variação positiva do Índice Nacional de Preços ao Consumidor (IPCA), publicado pelo IBGE, ou qualquer outro índice que a LOCADORA entenda como devido;
@@ -199,7 +199,7 @@ CLÁUSULA NONA: RESPONSABILIDADE DO LOCATÁRIO
 9.1.8.1. Em caso que quebra do APARELHO CELULAR, ficará o LOCATÁRIO sujeito ao pagamento de multa no importe de {{taxa_avaria}}, para que seja reparado o aparelho danoso.
 
 CLÁUSULA DÉCIMA: RENOVAÇÃO DA LOCAÇÃO
-10.1. A locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar.
+10.1. Se o aparelho ainda não tiver sido transferido ao LOCATÁRIO nos termos da Cláusula Décima Quarta, a locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar. Com a transferência do aparelho, a locação se encerra.
 
 CLÁUSULA DECIMA PRIMEIRA: RESCISÃO
 11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem que isso enseje qualquer direito de retenção ou indenização.
@@ -210,8 +210,10 @@ CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
 CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 13.1. No contexto deste Contrato, a LOCADORA trata dados pessoais referentes ao LOCATÁRIO na posição de controladora de dados pessoais, e pode compartilhar esses dados pessoais com terceiros, em conformidade com a LGPD.
 
-CLÁUSULA DÉCIMA QUARTA: OPÇÃO DE CESSÃO DE BEM MÓVEL (SOMENTE PLANO “MINHALOC – PLANO FIDELIDADE”)
-14.1. Opção de Cessão de Bem Móvel: Após o período de {{parcelas_qtd}} meses de locação ininterrupta, o LOCATÁRIO poderá, caso queira aderir o plano “Fidelidade - Minha Loc”, receber, por meio do caução pago na assinatura do contrato, o APARELHO CELULAR utilizado no período da locação, desde que, esteja estritamente em dia com todas as suas obrigações contratuais.
+CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
+14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, tendo o caução pago na assinatura sido aplicado ao valor do aparelho.
+14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
+14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
 
 CLÁUSULA DÉCIMA QUINTA: DA CLÁUSULA PENAL
 15.1. A parte que descumprir as obrigações dispostas nesse contrato ou que der causa à rescisão deste Contrato, salvo as exceções legais e contratuais já expostas, pagará multa no valor de R$ 500,00 (quinhentos reais).
