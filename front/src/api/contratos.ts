@@ -37,7 +37,8 @@ export interface AssinaturaContratoApi {
 
 /** O documento do contrato no ZapSign (só existe se foi enviado por lá). `sandbox`: de teste, sem validade jurídica. */
 export interface ZapsignDocumentoApi { status: string; sandbox: boolean; signUrl: string | null; arquivoAssinado: string | null }
-export interface ZapsignStatusApi { ativo: boolean; sandbox: boolean; webhook: boolean }
+/** `facial`: o que o ZapSign pede de quem assina — nada, uma selfie (guardada como prova) ou a conferência do rosto com o documento. */
+export interface ZapsignStatusApi { ativo: boolean; sandbox: boolean; webhook: boolean; facial: 'nenhuma' | 'selfie' | 'liveness' }
 export type ViaAssinaturaApi = 'LINK' | 'ZAPSIGN' | 'MANUAL'
 
 export interface ContratoDetalheApi {

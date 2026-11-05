@@ -17,9 +17,22 @@ export type DocumentoZapsign = {
   assinadoEm: string | null
 }
 
+/**
+ * Autenticação facial de quem assina:
+ * `nenhuma` (padrão) · `selfie`: tira uma selfie, guardada como prova, sem conferir com ninguém ·
+ * `liveness`: foto do documento + vídeo do rosto, e o ZapSign confere se é a mesma pessoa e se está presente (recurso pago do ZapSign).
+ */
+export type Facial = 'nenhuma' | 'selfie' | 'liveness'
+/** Lê ZAPSIGN_FACIAL do ambiente. Valor desconhecido vale `nenhuma` (nunca liga um recurso pago sem querer). */
+export const facialDoAmbiente = (v: string | undefined): Facial => {
+  const x = (v ?? '').trim().toLowerCase()
+  return x === 'selfie' || x === 'liveness' ? x : 'nenhuma'
+}
+
 export interface ZapsignClient {
   /** `true` = fala com o ambiente de teste do ZapSign (sem validade jurídica e sem custo). */
   readonly sandbox: boolean
+  readonly facial?: Facial
   criarDocumento(p: PedidoDocumento): Promise<DocumentoZapsign>
   obterDocumento(token: string): Promise<DocumentoZapsign>
 }
@@ -51,7 +64,8 @@ function mensagemDeErro(corpo: any): string {
 }
 
 /** Cliente da API do ZapSign. O token fica só no servidor (nunca vai para o front nem para o log). */
-export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?: typeof fetch }): ZapsignClient {
+export function criarZapsignClient(o: { token: string; sandbox: boolean; facial?: Facial; fetch?: typeof fetch }): ZapsignClient {
+  const facial = o.facial ?? 'nenhuma'
   const f = o.fetch ?? fetch
   async function chamar(caminho: string, init: RequestInit = {}) {
     let r: Response
@@ -73,6 +87,7 @@ export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?:
   }
   return {
     sandbox: o.sandbox,
+    facial,
     async criarDocumento(p) {
       const s = p.signatario
       const corpo: Record<string, unknown> = {
@@ -84,6 +99,8 @@ export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?:
           // com e-mail, o cliente também confirma por um código enviado a ele; sem e-mail, só assina na tela
           auth_mode: s.email ? 'assinaturaTela-tokenEmail' : 'assinaturaTela', send_automatic_email: false, send_automatic_whatsapp: false, lock_name: true,
           ...(s.cpf ? { require_cpf: true, cpf: s.cpf } : {}),
+          ...(facial === 'selfie' ? { require_selfie_photo: true } : {}),
+          ...(facial === 'liveness' ? { require_selfie_photo: true, require_document_photo: true, selfie_validation_type: 'liveness-document-match' } : {}),
         }],
       }
       return doc(await chamar('/docs/', { method: 'POST', body: JSON.stringify(corpo) }))

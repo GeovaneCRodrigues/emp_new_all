@@ -45,7 +45,7 @@ export type ContratosService = {
   definirSeguro(s: Sessao, id: number, seguro: unknown): Promise<ContratoDetalhe>
   /** Gera (ou troca) o link de assinatura; o contrato é enviado e o texto congela. O token só aparece aqui. */
   gerarLink(s: Sessao, id: number): Promise<LinkGerado>
-  zapsignStatus(s: Sessao): { ativo: boolean; sandbox: boolean; webhook: boolean }
+  zapsignStatus(s: Sessao): { ativo: boolean; sandbox: boolean; webhook: boolean; facial: 'nenhuma' | 'selfie' | 'liveness' }
   /** Manda o contrato para o ZapSign (o texto fecha). Se já foi, devolve o que existe sem criar outro documento. */
   enviarZapsign(s: Sessao, id: number): Promise<ContratoDetalhe>
   /** Pergunta ao ZapSign como está o documento e, se o cliente assinou, fecha o contrato. */
@@ -249,7 +249,7 @@ export function createContratosService(d: Dependencias): ContratosService {
 
     zapsignStatus(s) {
       escopoDe(s)
-      return { ativo: !!d.zapsign, sandbox: d.zapsign?.sandbox ?? false, webhook: !!d.webhookSecret }
+      return { ativo: !!d.zapsign, sandbox: d.zapsign?.sandbox ?? false, webhook: !!d.webhookSecret, facial: d.zapsign?.facial ?? 'nenhuma' }
     },
 
     async enviarZapsign(s, id) {

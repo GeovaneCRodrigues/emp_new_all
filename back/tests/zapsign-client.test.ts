@@ -1,6 +1,6 @@
 import { PDFDocument } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
-import { criarZapsignClient } from '../src/modules/contratos/services/zapsign.client.js'
+import { criarZapsignClient, facialDoAmbiente, type Facial } from '../src/modules/contratos/services/zapsign.client.js'
 import { gerarPdfDoContrato } from '../src/modules/contratos/services/pdf.js'
 
 const resposta = (status: number, corpo: unknown) => new Response(JSON.stringify(corpo), { status, headers: { 'content-type': 'application/json' } })
@@ -32,6 +32,33 @@ describe('cliente do ZapSign', () => {
     const c = criarZapsignClient({ token: 't', sandbox: true, fetch: (async (_u: string, i: RequestInit) => { corpo = JSON.parse(i.body as string); return resposta(200, { token: 'd', status: 'pending', signers: [] }) }) as never })
     await c.criarDocumento({ ...pedido, signatario: { ...pedido.signatario, foneDigitos: '5511988124410' } })
     expect(corpo.signers[0].phone_number).toBe('11988124410')
+  })
+  describe('autenticação facial', () => {
+    const enviar = async (facial?: Facial) => {
+      let corpo: any
+      const c = criarZapsignClient({ token: 't', sandbox: true, facial, fetch: (async (_u: string, i: RequestInit) => { corpo = JSON.parse(i.body as string); return resposta(200, { token: 'd', status: 'pending', signers: [] }) }) as never })
+      await c.criarDocumento(pedido)
+      return corpo.signers[0]
+    }
+    it('por padrão não pede selfie nem validação (nada pago é ligado sem querer)', async () => {
+      for (const f of [undefined, 'nenhuma' as const]) {
+        const s = await enviar(f)
+        expect(s.require_selfie_photo).toBeUndefined(); expect(s.selfie_validation_type).toBeUndefined(); expect(s.require_document_photo).toBeUndefined()
+      }
+    })
+    it('selfie: só pede a foto, sem validação', async () => {
+      const s = await enviar('selfie')
+      expect(s.require_selfie_photo).toBe(true); expect(s.selfie_validation_type).toBeUndefined()
+    })
+    it('liveness: pede selfie e documento e liga a conferência do rosto com o documento', async () => {
+      const s = await enviar('liveness')
+      expect(s).toMatchObject({ require_selfie_photo: true, require_document_photo: true, selfie_validation_type: 'liveness-document-match' })
+      expect(s.cpf).toBeDefined() // o CPF continua sendo exigido
+    })
+    it('ZAPSIGN_FACIAL: aceita selfie e liveness (qualquer caixa); o resto vale nenhuma', () => {
+      expect(facialDoAmbiente(' Liveness ')).toBe('liveness'); expect(facialDoAmbiente('SELFIE')).toBe('selfie')
+      for (const v of [undefined, '', 'true', 'facial', 'nenhuma']) expect(facialDoAmbiente(v)).toBe('nenhuma')
+    })
   })
   it('lê o documento e o arquivo assinado', async () => {
     const c = criarZapsignClient({ token: 't', sandbox: false, fetch: (async () => resposta(200, { token: 'doc1', status: 'signed', external_id: 'X', signed_file: 'https://s3/arquivo.pdf', signers: [{ token: 's', signed_at: '2026-11-05T10:00:00Z' }] })) as never })

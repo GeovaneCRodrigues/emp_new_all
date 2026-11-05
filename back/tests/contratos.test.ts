@@ -649,13 +649,13 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
 
     it('desligado (sem token no servidor): status diz isso e enviar dá 503', async () => {
       const cid = await pronto()
-      expect((await req('GET', '/api/contratos/zapsign/status', 'admin')).json()).toEqual({ ativo: false, sandbox: false, webhook: false })
+      expect((await req('GET', '/api/contratos/zapsign/status', 'admin')).json()).toEqual({ ativo: false, sandbox: false, webhook: false, facial: 'nenhuma' })
       const r = await req('POST', `/api/contratos/${cid}/zapsign`, 'admin')
       expect(r.statusCode).toBe(503); expect(r.json().codigo).toBe('ZAPSIGN_DESLIGADO')
     })
     it('ligado: status mostra se está em teste e se o webhook tem segredo', async () => {
       const a = await appCom(falso(true).cliente)
-      try { expect((await a.inject({ method: 'GET', url: '/api/contratos/zapsign/status', headers: { authorization: `Bearer ${t.admin}` } })).json()).toEqual({ ativo: true, sandbox: true, webhook: true }) } finally { await a.close() }
+      try { expect((await a.inject({ method: 'GET', url: '/api/contratos/zapsign/status', headers: { authorization: `Bearer ${t.admin}` } })).json()).toEqual({ ativo: true, sandbox: true, webhook: true, facial: 'nenhuma' }) } finally { await a.close() }
     })
     it('envia: PDF e dados do cliente vão ao ZapSign, o contrato vira ENVIADO e congelado, e o link devolvido é o do ZapSign', async () => {
       const z = falso(true); const a = await appCom(z.cliente)
