@@ -200,6 +200,7 @@ CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
 
 CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 13.1. No contexto deste Contrato, a LOCADORA trata dados pessoais referentes ao LOCATÁRIO na posição de controladora de dados pessoais, e pode compartilhar esses dados pessoais com terceiros, em conformidade com a LGPD.
+13.2. O APARELHO CELULAR possui rastreamento. A LOCADORA só consultará a localização do aparelho em caso de atraso de pagamento, furto ou roubo, com a finalidade de recuperá-lo. O rastreamento cessa com a quitação e a transferência do aparelho ao LOCATÁRIO, nos termos da Cláusula Décima Quarta.
 
 CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
 14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
@@ -258,6 +259,7 @@ Eu, {{cliente_nome}}, CPF/CNPJ: {{cliente_cpf}}, RG: {{cliente_rg}}, residente e
 i) ter sido amplamente informado de que o APARELHO CELULAR possui dispositivo para permitir seu imediato bloqueio, realizado remotamente, nos casos previstos em contrato;
 ii) ter sido amplamente informado de que o atraso na devolução do APARELHO CELULAR, em casos específicos, poderá caracterizar o crime de apropriação indébita, e que o APARELHO CELULAR poderá ainda ser remotamente e automaticamente bloqueado pelo Sistema de rastreamento;
 iii) ter sido amplamente informado que o inadimplemento das minhas obrigações financeiras junto à LOCADORA, especialmente atraso maior do que 72 hrs no pagamento devido, implicará no imediato bloqueio remoto do APARELHO CELULAR, sem prejuízo da cobrança dos valores devidos.
+iv) ter sido informado de que a LOCADORA só consulta a localização do APARELHO CELULAR em caso de atraso de pagamento, furto ou roubo, para recuperá-lo, e de que o rastreamento cessa com a quitação e a transferência do aparelho a mim.
 
 {{empresa_cidade}}, {{data_venda}}
 
