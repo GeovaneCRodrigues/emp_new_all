@@ -182,6 +182,7 @@ CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 
 CLÁUSULA OITAVA: RESPONSABILIDADE DA LOCADORA
 8.1. Disponibilizar o APARELHO CELULAR em condições de uso e funcionamento, conforme descrito na Abertura de Contrato.
+8.2. Havendo defeito de fábrica no APARELHO CELULAR durante o Contrato, a LOCADORA o consertará ou o trocará sem custo ao LOCATÁRIO, que deverá levá-lo à LOCADORA ou à assistência por ela indicada. Não se enquadram como defeito de fábrica os danos causados por queda, líquidos, mau uso ou reparo feito por terceiros, que seguem a cláusula 6.3.1.
 
 CLÁUSULA NONA: RESPONSABILIDADE DO LOCATÁRIO
 9.1. Além de todas as obrigações apontadas ao longo do presente termo, O LOCATÁRIO deverá zelar pelo aparelho e cumprir as obrigações financeiras.
