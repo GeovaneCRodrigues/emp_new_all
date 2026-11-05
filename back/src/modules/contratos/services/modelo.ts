@@ -96,6 +96,7 @@ FRANQUIA LOCAÇÃO DE APARELHO CELULAR
 FREQUÊNCIA DE PAGAMENTOS: Mensal
 VALOR: {{entrada_valor}} (entrada) + {{parcelas_qtd}}x de {{parcela_valor}} (mensal)
 PRIMEIRO VENCIMENTO: {{primeiro_vencimento}}
+CHAVE PIX DA LOJA: {{empresa_pix}}
 
 CLIENTE (LOCATÁRIO): {{cliente_nome}}
 E-MAIL: {{cliente_email}}
@@ -163,7 +164,7 @@ CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 5.1.5. Em qualquer das hipóteses acima, o Contrato poderá ser rescindido imediatamente, unilateralmente e por culpa do Locatário, ou, a conveniência da LOCADORA, poderá ser oportunizado, primeiramente, a devida notificação, além de serem aplicados o bloqueio do APARELHO CELULAR e cobrança dos valores devidos, sem prejuízo de quaisquer medidas judiciais e administrativas cabíveis.
 
 CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM NECESSÁRIAS
-6.1. O pagamento da entrada será realizado no momento da reserva, no ato da negociação com os atendentes da LOCADORA, podendo ser pago pelos meios de pagamento aceitos pela LOCADORA, no caso, via boleto bancário ou PIX. As parcelas vencem a partir da data do primeiro vencimento indicada na Abertura de Contrato.
+6.1. O pagamento da entrada será realizado no momento da reserva, no ato da negociação com os atendentes da LOCADORA, podendo ser pago pelos meios de pagamento aceitos pela LOCADORA, no caso, via boleto bancário ou PIX. Os pagamentos por PIX serão feitos na chave da LOCADORA indicada na Abertura de Contrato. As parcelas vencem a partir da data do primeiro vencimento indicada na Abertura de Contrato.
 6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente das consequências previstas neste Contrato em caso de inadimplência;
 6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), limitada a 2% (dois por cento) do valor da parcela em atraso, sem prejuízo das demais cobranças e correções cabíveis.
 6.2.2. Em caso de atraso de mais de 72 (setenta e duas) horas no pagamento, o APARELHO CELULAR será bloqueado remotamente, impedindo sua utilização, até que o débito seja devidamente quitado, sem prejuízo das demais cobranças e correções cabíveis.
