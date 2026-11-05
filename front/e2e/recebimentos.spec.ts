@@ -153,7 +153,7 @@ test.describe('ficha da venda', () => {
     await page.fill('#rValor', '300000') // 10 × 300 = 3.000: quita tudo
     await expect(page.getByTestId('previa')).toContainText('Quita a 1ª')
     await page.getByRole('button', { name: 'Confirmar recebimento' }).click()
-    await expect(page.getByTestId('recibo-mensagem')).toContainText('Tudo quitado!')
+    await expect(page.getByTestId('recibo-mensagem')).toContainText('Tudo quitado!'); await expect(page.getByTestId('recibo-mensagem')).toContainText('TERMO DE QUITAÇÃO E TRANSFERÊNCIA')
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
     await page.getByRole('button', { name: 'Quitadas' }).click()

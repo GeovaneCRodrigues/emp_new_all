@@ -69,7 +69,7 @@ describe('pagou o valor certo', () => {
     const v = await venda()
     const r = await receber(ADMIN, v, { valor: 3360 })
     expect(r.quitada).toBe(true)
-    expect(r.recibo.mensagem).toContain('Tudo quitado!')
+    expect(r.recibo.mensagem).toContain('Tudo quitado!'); expect(r.recibo.mensagem).toContain('TERMO DE QUITAÇÃO E TRANSFERÊNCIA')
     expect((await vendas.obter(ADMIN, v)).status).toBe('QUITADA')
     expect(await falha(receber(ADMIN, v, { parcela: 4, valor: 10 }))).toMatchObject({ status: 409, codigo: 'PARCELA_PAGA' })
   })

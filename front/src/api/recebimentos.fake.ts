@@ -29,9 +29,12 @@ function mensagemRecibo(r: Omit<ReciboApi, 'mensagem'>): string {
   const prox = r.proxima
     ? `Próxima: ${r.proxima.numero}ª, ${brl(r.proxima.valor)}, vence ${dmy(r.proxima.vencimento)}. ${r.restantes === 1 ? 'Falta 1 parcela' : `Faltam ${r.restantes} parcelas`} (${brl(r.faltaDepois)}).`
     : 'Tudo quitado! Obrigado pela confiança.'
+  // venda quitada: o aparelho passou a ser do cliente (cláusula 14 do contrato). Esta mensagem serve de termo de quitação e transferência.
+  const quitouVenda = r.operacao === 'VENDA' && !r.proxima && !r.desfeita && r.faltaDepois <= 0.009
+  const termo = quitouVenda ? `\n\n*TERMO DE QUITAÇÃO E TRANSFERÊNCIA*\nO contrato do seu ${r.aparelho} está quitado. O aparelho passou a ser seu, de propriedade definitiva, nos termos da Cláusula 14 do contrato, e já liberamos o bloqueio e o rastreamento. Guarde esta mensagem como comprovante.` : ''
   const amort = r.amortizacao ? `\nO que passou do juro (${brl(r.amortizacao.valor)}) abateu o capital. Capital em aberto: ${brl(r.amortizacao.capitalRestante)}.` : ''
   const resto = r.ficaDevendo ? `\nNa ${r.ficaDevendo.numero}ª ainda ficam ${brl(r.ficaDevendo.valor)}, para ${dmy(r.ficaDevendo.vencimento)}.` : ''
-  return `*${empresa}* · Recibo nº ${r.numero}\n\nOi ${primeiroNome(r.cliente.nome)}! Recebemos ${brl(r.valor)} em ${dmyA(r.data)} (${NOME_FORMA[r.forma]}), referente à ${r.referencia} do ${r.operacao === 'EMPRESTIMO' ? r.aparelho.toLowerCase() : 'seu ' + r.aparelho}.${resto}${amort}\n\n${prox}\n\nObrigado!`
+  return `*${empresa}* · Recibo nº ${r.numero}\n\nOi ${primeiroNome(r.cliente.nome)}! Recebemos ${brl(r.valor)} em ${dmyA(r.data)} (${NOME_FORMA[r.forma]}), referente à ${r.referencia} do ${r.operacao === 'EMPRESTIMO' ? r.aparelho.toLowerCase() : 'seu ' + r.aparelho}.${resto}${amort}\n\n${prox}${termo}\n\nObrigado!`
 }
 
 /** A venda ou o empréstimo, visto de um jeito só. */
