@@ -76,7 +76,7 @@ const DEFS: Def[] = [
   { grupo: 'Aparelho', chave: 'aparelho_estado', rotulo: 'Estado', valor: (d) => d.aparelho.condicao },
   { grupo: 'Aparelho', chave: 'aparelho_imei', rotulo: 'IMEI', valor: (d) => d.aparelho.imei },
   { grupo: 'Aparelho', chave: 'aparelho_serie', rotulo: 'Número de série', valor: (d) => d.aparelho.serie, opcional: 'Não informado' },
-  { grupo: 'Pagamento', chave: 'entrada_valor', rotulo: 'Entrada (caução)', valor: (d) => brl(arred(d.entrada + d.troca)) },
+  { grupo: 'Pagamento', chave: 'entrada_valor', rotulo: 'Entrada', valor: (d) => brl(arred(d.entrada + d.troca)) },
   {
     grupo: 'Pagamento', chave: 'entrada_composicao', rotulo: 'Como foi a entrada',
     valor: (d) => (d.entrada && d.troca ? `${brl(d.entrada)} em dinheiro e um aparelho na troca, avaliado em ${brl(d.troca)}` : d.troca ? `aparelho na troca, avaliado em ${brl(d.troca)}` : d.entrada ? `${brl(d.entrada)} em dinheiro` : 'sem entrada'),
@@ -131,7 +131,7 @@ export function preencher(texto: string, d: DadosVenda, e: Empresa): Preenchido 
 }
 
 
-export const MODELO_PADRAO = `INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO DE APARELHO (S) CELULAR COM POSSIBILIDADE DE CONVERSÃO EM CESSÃO DE BEM MÓVEL
+export const MODELO_PADRAO = `INSTRUMENTO PARTICULAR DE CONTRATO DE LOCAÇÃO DE APARELHO (S) CELULAR COM TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
 ANEXO I. ABERTURA DE CONTRATO
 
 CONTRATO N°: {{contrato_numero}}
@@ -151,29 +151,25 @@ CPF: {{cliente_cpf}}
 RG: {{cliente_rg}}
 TELEFONE: {{cliente_telefone}}
 QUANTIDADE DE APARELHOS CELULARES: 1
-VALOR TOTAL DO CAUÇÃO: {{entrada_valor}}
+ENTRADA (PARTE DO PREÇO DO APARELHO): {{entrada_valor}} ({{entrada_composicao}})
 
 Locadora: {{empresa_nome}} CNPJ: {{empresa_cnpj}}
 E-MAIL: {{empresa_email}} ENDEREÇO: {{empresa_endereco}}
 
 MODELO DO APARELHO CELULAR: {{aparelho_modelo}} {{aparelho_capacidade}}
 NÚMERO DE SÉRIE: {{aparelho_serie}}
-CAPACIDADE: {{aparelho_capacidade}}
 COR: {{aparelho_cor}}
 ESTADO: {{aparelho_estado}}
-QUANTIDADE DE APARELHOS CELULARES LOCADOS: 1
 IMEI: {{aparelho_imei}}
 
 VALOR DO PAGAMENTO MENSAL: {{parcela_valor}}
-VALOR TOTAL DA CAUÇÃO: {{entrada_valor}}
-VALORES MENSAIS: {{parcela_valor}}
 VALOR TOTAL DO CONTRATO: {{valor_total}}
 
 ANEXO II - MINUTA DE CONTRATO
 Pelo presente instrumento ficam estabelecidas as seguintes cláusulas e condições que, em conjunto com o Termo de Abertura do Contrato, bem como todos os anexos que o compõe, regem a relação entre o LOCATÁRIO, e a LOCADORA, para a locação de APARELHO (S) CELULAR:
 
 CLÁUSULA PRIMEIRA: DO OBJETO
-1.1. O objeto do presente Contrato é a locação de APARELHO CELULAR, conforme discriminado, de propriedade, posse, uso ou gozo da LOCADORA, por prazo determinado, conforme confirmado e aceito pelo LOCATÁRIO pelo simples ato de sua retirada, com a aquisição do aparelho após período de fidelização.
+1.1. O objeto do presente Contrato é a locação de APARELHO CELULAR, conforme discriminado, de propriedade da LOCADORA, ficando o LOCATÁRIO com a posse e o uso do aparelho durante a locação, por prazo determinado, conforme confirmado e aceito pelo LOCATÁRIO pelo simples ato de sua retirada. Pagas todas as parcelas do plano, o aparelho passa a ser do LOCATÁRIO, nos termos da Cláusula Décima Quarta.
 1.1.1. São os aparelhos objeto do presente contrato:
 Modelo: {{aparelho_modelo}} {{aparelho_capacidade}}
 Número de Série: {{aparelho_serie}}
@@ -185,12 +181,12 @@ CLÁUSULA SEGUNDA: DAS DEFINIÇÕES DOS TERMOS UTILIZADOS NO CONTRATO
 2.1. Acidente: é a ocorrência de acontecimentos, involuntários e casuais, envolvendo o APARELHO CELULAR alugado, que ocasionem danos e/ou similar.
 2.2. Contrato: é o presente instrumento, que define as regras gerais aplicadas nas locações de APARELHOS CELULARES e similar.
 2.3. Abertura de Contrato: é o documento que identifica cada locação específica realizada, o qual contempla os detalhes da locação, os dados do APARELHO CELULAR, preços, prazos e demais condições contratadas.
-2.4. Tarifário: é o documento que identifica os preços praticados pela LOCADORA, podendo ser alterado a qualquer tempo, sem necessidade de aviso prévio e sempre disponível no site oficial da LOCADORA.
-2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará no Demonstrativo de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
-2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados necessários para preenchimento de termo de indicação do locatário para possíveis infrações e acidentes, obrigatoriamente, constarão no Demonstrativo de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
-2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido no Demonstrativo do Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
-2.8. CEDENTE: Após o aceite do plano “Fidelidade . Minha Loc”, o contrato poderá ser convertido em cessão de bem móvel, momento em que, a LOCADORA também poderá ser denominada como CEDENTE, a fim de concluir a transação de transferência do bem.
-2.9. CESSIONÁRIO: Após o aceite do plano “Fidelidade . Minha Loc”, o contrato poderá ser convertido em cessão de bem móvel, momento em que, o LOCATÁRIO também poderá ser denominado como CESSIONÁRIO, para fins de concluir a transação de recebimento do bem.
+2.4. Tarifário: é o documento que identifica os preços praticados pela LOCADORA, sempre disponível no site oficial da LOCADORA. Os valores deste Contrato ficam fixos, nos termos da Cláusula Décima Segunda.
+2.5. LOCADORA: é a pessoa jurídica de direito privado, cuja razão social, obrigatoriamente, constará na Abertura de Contrato e será, sempre, a única e exclusiva responsável pela operação dos Contratos que vier a celebrar.
+2.6. LOCATÁRIO(a) ou Cliente: é a pessoa física, maior de 18 anos, cujo número de inscrição no CPF e demais dados, obrigatoriamente, constarão na Abertura de Contrato, responsável pelo integral cumprimento das condições impostas pelo Contrato e demais documentos relacionados a contratação da locação do(s) APARELHO(S) CELULAR.
+2.7. Plano da Locação: é o plano escolhido pelo LOCATÁRIO quando da contratação e estará definido na Abertura de Contrato, incluindo, período, valor, modelo do APARELHO CELULAR e condições de locação.
+2.8. CEDENTE: é a LOCADORA, quando o aparelho é transferido ao LOCATÁRIO ao final do plano, nos termos da Cláusula Décima Quarta.
+2.9. CESSIONÁRIO: é o LOCATÁRIO, quando recebe o aparelho ao final do plano, nos termos da Cláusula Décima Quarta.
 
 CLÁUSULA TERCEIRA: DA CIÊNCIA E CONCORDÂNCIA COM OS TERMOS ORA AJUSTADOS
 3.1. O LOCATÁRIO, declara que tomou conhecimento prévio e anuiu integralmente aos termos da presente transação, disponibilizado no atendimento e no momento de sua retirada.
@@ -198,13 +194,12 @@ CLÁUSULA TERCEIRA: DA CIÊNCIA E CONCORDÂNCIA COM OS TERMOS ORA AJUSTADOS
 3.3. Adicionalmente, o LOCATÁRIO reconhece e declara:
 3.3.1. compreender que atrasos de pagamento e a consequente devolução do APARELHO CELULAR podem ser considerados apropriação indébita, o que poderá levar ao bloqueio remoto do aparelho, além de custos adicionais;
 3.3.2. reconhecer que a falta de cumprimento financeiro resultará no bloqueio remoto e imediato do APARELHO CELULAR e na cobrança dos valores devidos, incluindo custos adicionais para recuperação do aparelho.
-3.4. Caso o LOCATÁRIO não efetue o pagamento completo do período de fidelização, deixando de devolver o APARELHO CELULAR após notificação, em data estipulada, fica resguardado à LOCADORA o direito de realizar, a qualquer tempo, a cobrança dos valores devidos até a sua efetiva devolução, incluindo os débitos relativos a eventuais avarias, diárias adicionais, perdas e danos, além de bloqueio do APARELHO CELULAR.
+3.4. Caso o LOCATÁRIO não efetue o pagamento completo do período de fidelização, deixando de devolver o APARELHO CELULAR após notificação, em data estipulada, fica resguardado à LOCADORA o direito de realizar, a qualquer tempo, a cobrança dos valores devidos até a sua efetiva devolução, incluindo os débitos relativos a eventuais avarias, perdas e danos, além de bloqueio do APARELHO CELULAR.
 
 CLÁUSULA QUARTA: DOS REQUISITOS PARA LOCAÇÃO E UTILIZAÇÃO DO APARELHO CELULAR
 4.1. O LOCATÁRIO deverá obrigatoriamente:
 4.1.1. ter mais de 18 (dezoito) anos e comprovar tal condição por meio de documento pessoal com foto, que contenha o número do CPF, no momento da locação do APARELHO CELULAR;
-4.1.2. não possuir antecedentes criminais;
-4.1.3. efetuar o pagamento do caução apontado no Termo de Abertura de Contrato.
+4.1.2. efetuar o pagamento da entrada apontada no Termo de Abertura de Contrato, em dinheiro ou com aparelho dado na troca, conforme avaliação.
 
 CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 5.1. O APARELHO CELULAR alugado não poderá ser objeto de mau uso, má conduta, conduta danosa ao aparelho, desrespeito ao dever de cuidado e zelo do objeto locado, assim considerados:
@@ -216,46 +211,50 @@ CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 
 CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM NECESSÁRIAS
 6.1. O pagamento do valor inicial, bem como a primeiro mês da locação, será realizado no momento da reserva, no ato da negociação com os atendentes da locadora, podendo ser pago pelos meios de pagamento aceitos pela LOCADORA, no caso, via boleto bancário ou PIX.
-6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia das semanas subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente que em casos de inadimplência, o valor pago a título de caução poderá ser retido para estancar os prejuízos suportados pela LOCADORA;
-6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), sem prejuízo das demais cobranças e correções cabíveis.
+6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente das consequências previstas neste Contrato em caso de inadimplência;
+6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), limitada a 2% (dois por cento) do valor da parcela em atraso, sem prejuízo das demais cobranças e correções cabíveis.
 6.2.2. Em caso de inadimplência do pagamento, o APARELHO CELULAR será bloqueado remotamente, impedindo sua utilização, até que o débito seja devidamente quitado, sem prejuízo das demais cobranças e correções cabíveis.
-6.2.3. Caso o presente termo se extrapole ao período de doze meses, o valor da locação será corrigido automaticamente pela variação positiva do Índice Nacional de Preços ao Consumidor (IPCA), publicado pelo IBGE, ou qualquer outro índice que a LOCADORA entenda como devido;
-6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período e estará sujeito aos valores atualizados e vigentes à época da renovação;
+6.2.3. Os valores deste Contrato (entrada, parcelas e taxas do Anexo III) são os combinados na assinatura e ficam fixos até o final, sem reajuste, mesmo que o prazo passe de doze meses;
+6.2.4. Na hipótese de renovação da locação, o LOCATÁRIO obriga-se a quitar toda a locação anterior até o primeiro dia do novo período, mantidos os mesmos valores contratados;
 6.2.5. A LOCADORA pode, a qualquer tempo, realizar cobranças de valores devidos e ainda não pagos. O não envio das cobranças na periodicidade contratada não desabona a responsabilidade do LOCATÁRIO de realizar os pagamentos a tempo e modo, conforme previsto nesse Contrato;
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
-6.3.1.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
-6.3.6.1. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
+6.3.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
+6.3.2. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
 6.4. No ato de contratação fica disponibilizado ao LOCATÁRIO o SEGURO CONTRA QUEDAS, que visa proteger os APARELHOS CELULARES em caso de quedas que acarretam em danos ao mesmo, ficando a manutenção a cargo da LOCADORA.
 6.4.1. O SEGURO CONTRA QUEDAS possui valor mensal de {{taxa_seguro}} a serem pagos juntamente com a parcela de cada mês, opcional. Situação do seguro: {{seguro_texto}}.
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
-7.2. Caso ocorra a devolução antecipada do APARELHO CELULAR, seja por vontade do LOCATÁRIO ou caso ele tenha dado causa conforme previsões contratuais, será cobrada uma multa no valor de R$ 500,00 (quinhentos reais), sem prejuízo das medidas judiciais cabíveis.
+7.2. Caso ocorra a devolução antecipada do APARELHO CELULAR, seja por vontade do LOCATÁRIO ou caso ele tenha dado causa conforme previsões contratuais, não há multa: aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2, com a avaliação do aparelho e a devolução ao LOCATÁRIO de 30% (trinta por cento) do total pago.
 
 CLÁUSULA OITAVA: RESPONSABILIDADE DA LOCADORA
-8.1. Disponibilizar o APARELHO CELULAR em condições de uso, funcionamento e segurança, com todos os equipamentos e documentos exigidos pela legislação aplicável.
+8.1. Disponibilizar o APARELHO CELULAR em condições de uso e funcionamento, conforme descrito na Abertura de Contrato.
 
 CLÁUSULA NONA: RESPONSABILIDADE DO LOCATÁRIO
 9.1. Além de todas as obrigações apontadas ao longo do presente termo, O LOCATÁRIO deverá zelar pelo aparelho e cumprir as obrigações financeiras.
-9.1.8.1. Em caso que quebra do APARELHO CELULAR, ficará o LOCATÁRIO sujeito ao pagamento de multa no importe de {{taxa_avaria}}, para que seja reparado o aparelho danoso.
 
 CLÁUSULA DÉCIMA: RENOVAÇÃO DA LOCAÇÃO
-10.1. A locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar.
+10.1. Se o aparelho ainda não tiver sido transferido ao LOCATÁRIO nos termos da Cláusula Décima Quarta, a locação será prorrogada automática e sucessivamente por igual período até que sobrevenha comunicação do LOCATÁRIO informando a intenção de não renovar. Com a transferência do aparelho, a locação se encerra.
 
 CLÁUSULA DECIMA PRIMEIRA: RESCISÃO
-11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem que isso enseje qualquer direito de retenção ou indenização.
+11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação, e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem direito de retenção por parte do LOCATÁRIO.
+11.1.1. Na retomada, a LOCADORA avaliará o APARELHO CELULAR. Estando o aparelho inteiro, sem danos além do desgaste normal de uso, devolverá ao LOCATÁRIO 30% (trinta por cento) do total que ele já pagou neste Contrato (entrada e parcelas). A entrada paga com aparelho na troca conta pelo valor da avaliação.
+11.1.2. Havendo danos ao aparelho, a LOCADORA descontará do valor da cláusula 11.1.1 o custo do reparo, conforme a avaliação. Poderá também compensar com esse valor o que o LOCATÁRIO ainda deva à LOCADORA por força deste Contrato.
 
 CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
-12.1. A LOCADORA poderá, a seu exclusivo critério, reajustar os valores relativos às tarifas, taxas e outros incidentes sobre a locação.
+12.1. Os valores de entrada, parcelas e taxas combinados na assinatura, constantes do Termo de Abertura e do Anexo III, não poderão ser reajustados pela LOCADORA até o final do Contrato. Mudanças no Tarifário valem apenas para contratos novos.
 
 CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 13.1. No contexto deste Contrato, a LOCADORA trata dados pessoais referentes ao LOCATÁRIO na posição de controladora de dados pessoais, e pode compartilhar esses dados pessoais com terceiros, em conformidade com a LGPD.
 
-CLÁUSULA DÉCIMA QUARTA: OPÇÃO DE CESSÃO DE BEM MÓVEL (SOMENTE PLANO “MINHALOC – PLANO FIDELIDADE”)
-14.1. Opção de Cessão de Bem Móvel: Após o período de {{parcelas_qtd}} meses de locação ininterrupta, o LOCATÁRIO poderá, caso queira aderir o plano “Fidelidade - Minha Loc”, receber, por meio do caução pago na assinatura do contrato, o APARELHO CELULAR utilizado no período da locação, desde que, esteja estritamente em dia com todas as suas obrigações contratuais.
+CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
+14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
+14.1.1. O LOCATÁRIO pode antecipar parcelas ou quitar o saldo de uma vez, a qualquer momento. A transferência do aparelho ocorre assim que o último valor for pago, sem esperar o fim do prazo previsto.
+14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
+14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
 
-CLÁUSULA DÉCIMA QUINTA: DA CLÁUSULA PENAL
-15.1. A parte que descumprir as obrigações dispostas nesse contrato ou que der causa à rescisão deste Contrato, salvo as exceções legais e contratuais já expostas, pagará multa no valor de R$ 500,00 (quinhentos reais).
+CLÁUSULA DÉCIMA QUINTA: DA AUSÊNCIA DE MULTA NA RESCISÃO
+15.1. Este Contrato não prevê multa por rescisão nem por devolução antecipada do aparelho. Nesses casos aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2.
 
 CLÁUSULA DÉCIMA SEXTA: FORÇA MAIOR
 16.1. Qualquer atraso ou falha no cumprimento deste contrato, ocasionado por motivo de força maior ou caso fortuito, conforme definido no Artigo 393 do Código Civil, não constituirá motivo de rescisão, exceto se tal evento perdurar por mais de 90 (noventa) dias.
@@ -265,7 +264,7 @@ CLÁUSULA DÉCIMA SÉTIMA: DISPOSIÇÕES GERAIS
 17.2. O LOCATÁRIO reconhece a forma de contratação por meio eletrônico e digital como válida e plenamente eficaz.
 
 CLÁUSULA DÉCIMA OITAVA – FORO
-18.1. As partes elegem o foro da Comarca de {{empresa_cidade}}/{{empresa_uf}} para dirimirem quaisquer dúvidas do presente contrato.
+18.1. As partes elegem o foro do domicílio do LOCATÁRIO para dirimirem quaisquer dúvidas do presente contrato.
 
 {{empresa_cidade}}, {{data_venda}}
 
@@ -285,15 +284,14 @@ DECLARAÇÃO DE CONHECIMENTO DOS VALORES CONTRATADOS
 
 Eu, {{cliente_nome}}, CPF/CNPJ: {{cliente_cpf}}, RG: {{cliente_rg}}, residente e domiciliado(a) à {{cliente_endereco}}, doravante mencionado como LOCATÁRIO do CELULAR: {{aparelho_modelo}} {{aparelho_capacidade}}, marca Apple, Imei: {{aparelho_imei}}, declaro expressamente ter sido informado a respeito dos valores de cada um dos itens abaixo:
 
-Valor de caução: {{entrada_valor}} (único)
+Valor de entrada (parte do preço do aparelho): {{entrada_valor}} (único)
 Valor de locação Mensal: {{parcela_valor}} (mensal)
 Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por evento)
 Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
 Seguro contra queda: {{taxa_seguro}} (mensal)
 
-1) No caso de devolução antecipada do APARELHO CELULAR pelo LOCATÁRIO, seja por vontade própria ou por violação das condições contratuais, será aplicada uma multa correspondente a {{taxa_cancelamento}} do saldo restante das parcelas do plano escolhido, denominada “Taxa de Cancelamento”;
-2) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
-3) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
+1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
+2) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
 
 {{empresa_cidade}}, {{data_venda}}
 
