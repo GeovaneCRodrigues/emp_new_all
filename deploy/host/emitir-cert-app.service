@@ -1,0 +1,7 @@
+[Unit]
+Description=Emitir o certificado HTTPS do app (espera o DNS propagar)
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/emitir-cert-app.sh
