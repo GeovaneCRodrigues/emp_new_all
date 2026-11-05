@@ -76,7 +76,7 @@ const DEFS: Def[] = [
   { grupo: 'Aparelho', chave: 'aparelho_estado', rotulo: 'Estado', valor: (d) => d.aparelho.condicao },
   { grupo: 'Aparelho', chave: 'aparelho_imei', rotulo: 'IMEI', valor: (d) => d.aparelho.imei },
   { grupo: 'Aparelho', chave: 'aparelho_serie', rotulo: 'Número de série', valor: (d) => d.aparelho.serie, opcional: 'Não informado' },
-  { grupo: 'Pagamento', chave: 'entrada_valor', rotulo: 'Entrada (caução)', valor: (d) => brl(arred(d.entrada + d.troca)) },
+  { grupo: 'Pagamento', chave: 'entrada_valor', rotulo: 'Entrada', valor: (d) => brl(arred(d.entrada + d.troca)) },
   {
     grupo: 'Pagamento', chave: 'entrada_composicao', rotulo: 'Como foi a entrada',
     valor: (d) => (d.entrada && d.troca ? `${brl(d.entrada)} em dinheiro e um aparelho na troca, avaliado em ${brl(d.troca)}` : d.troca ? `aparelho na troca, avaliado em ${brl(d.troca)}` : d.entrada ? `${brl(d.entrada)} em dinheiro` : 'sem entrada'),
@@ -151,7 +151,7 @@ CPF: {{cliente_cpf}}
 RG: {{cliente_rg}}
 TELEFONE: {{cliente_telefone}}
 QUANTIDADE DE APARELHOS CELULARES: 1
-VALOR TOTAL DO CAUÇÃO: {{entrada_valor}}
+ENTRADA (PARTE DO PREÇO DO APARELHO): {{entrada_valor}} ({{entrada_composicao}})
 
 Locadora: {{empresa_nome}} CNPJ: {{empresa_cnpj}}
 E-MAIL: {{empresa_email}} ENDEREÇO: {{empresa_endereco}}
@@ -165,7 +165,7 @@ QUANTIDADE DE APARELHOS CELULARES LOCADOS: 1
 IMEI: {{aparelho_imei}}
 
 VALOR DO PAGAMENTO MENSAL: {{parcela_valor}}
-VALOR TOTAL DA CAUÇÃO: {{entrada_valor}}
+VALOR DA ENTRADA: {{entrada_valor}}
 VALORES MENSAIS: {{parcela_valor}}
 VALOR TOTAL DO CONTRATO: {{valor_total}}
 
@@ -204,7 +204,7 @@ CLÁUSULA QUARTA: DOS REQUISITOS PARA LOCAÇÃO E UTILIZAÇÃO DO APARELHO CELUL
 4.1. O LOCATÁRIO deverá obrigatoriamente:
 4.1.1. ter mais de 18 (dezoito) anos e comprovar tal condição por meio de documento pessoal com foto, que contenha o número do CPF, no momento da locação do APARELHO CELULAR;
 4.1.2. não possuir antecedentes criminais;
-4.1.3. efetuar o pagamento do caução apontado no Termo de Abertura de Contrato.
+4.1.3. efetuar o pagamento da entrada apontada no Termo de Abertura de Contrato, em dinheiro ou com aparelho dado na troca, conforme avaliação.
 
 CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 5.1. O APARELHO CELULAR alugado não poderá ser objeto de mau uso, má conduta, conduta danosa ao aparelho, desrespeito ao dever de cuidado e zelo do objeto locado, assim considerados:
@@ -216,7 +216,7 @@ CLÁUSULA QUINTA: DO DESVIO DE FINALIDADE DA LOCAÇÃO E DEFINIÇÃO DE MAU USO
 
 CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM NECESSÁRIAS
 6.1. O pagamento do valor inicial, bem como a primeiro mês da locação, será realizado no momento da reserva, no ato da negociação com os atendentes da locadora, podendo ser pago pelos meios de pagamento aceitos pela LOCADORA, no caso, via boleto bancário ou PIX.
-6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente que em casos de inadimplência, o valor pago a título de caução poderá ser retido para estancar os prejuízos suportados pela LOCADORA;
+6.2. O pagamento da locação, será feito mensalmente, via boleto ou PIX, sempre devendo efetuar o pagamento antecipado, ou seja, pagamento antes da autorização de locação para aquele mês, e as demais vencíveis no mesmo dia dos meses subsequentes, durante todo o período de locação do aparelho celular, ficando a LOCADORA autorizada a cobrar os valores devidos diretamente, via instituições financeiras como SERASA, ainda que as obrigações tenham sido apuradas após o encerramento do Contrato, declarando-se o LOCATÁRIO, desde já, ciente das consequências previstas neste Contrato em caso de inadimplência;
 6.2.1. Em caso de atraso no pagamento mensal estipulado, estará o LOCATÁRIO obrigado ao pagamento da multa diária de R$5,00 (cinco reais), sem prejuízo das demais cobranças e correções cabíveis.
 6.2.2. Em caso de inadimplência do pagamento, o APARELHO CELULAR será bloqueado remotamente, impedindo sua utilização, até que o débito seja devidamente quitado, sem prejuízo das demais cobranças e correções cabíveis.
 6.2.3. Caso o presente termo se extrapole ao período de doze meses, o valor da locação será corrigido automaticamente pela variação positiva do Índice Nacional de Preços ao Consumidor (IPCA), publicado pelo IBGE, ou qualquer outro índice que a LOCADORA entenda como devido;
@@ -244,7 +244,7 @@ CLÁUSULA DÉCIMA: RENOVAÇÃO DA LOCAÇÃO
 
 CLÁUSULA DECIMA PRIMEIRA: RESCISÃO
 11.1. O Contrato poderá ser automaticamente rescindido, independentemente de qualquer notificação, e a LOCADORA, sem mais formalidades, providenciará o bloqueio e a retomada do APARELHO CELULAR, sem direito de retenção por parte do LOCATÁRIO.
-11.1.1. Na retomada, a LOCADORA avaliará o APARELHO CELULAR. Estando o aparelho inteiro, sem danos além do desgaste normal de uso, devolverá ao LOCATÁRIO 30% (trinta por cento) do total que ele já pagou neste Contrato (caução e parcelas).
+11.1.1. Na retomada, a LOCADORA avaliará o APARELHO CELULAR. Estando o aparelho inteiro, sem danos além do desgaste normal de uso, devolverá ao LOCATÁRIO 30% (trinta por cento) do total que ele já pagou neste Contrato (entrada e parcelas). A entrada paga com aparelho na troca conta pelo valor da avaliação.
 11.1.2. Havendo danos ao aparelho, a LOCADORA descontará do valor da cláusula 11.1.1 o custo do reparo, conforme a avaliação. Poderá também compensar com esse valor o que o LOCATÁRIO ainda deva à LOCADORA por força deste Contrato.
 
 CLÁUSULA DÉCIMA SEGUNDA: DO TARIFÁRIO
@@ -254,7 +254,7 @@ CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 13.1. No contexto deste Contrato, a LOCADORA trata dados pessoais referentes ao LOCATÁRIO na posição de controladora de dados pessoais, e pode compartilhar esses dados pessoais com terceiros, em conformidade com a LGPD.
 
 CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
-14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, tendo o caução pago na assinatura sido aplicado ao valor do aparelho.
+14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
 14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
 14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
 
@@ -289,7 +289,7 @@ DECLARAÇÃO DE CONHECIMENTO DOS VALORES CONTRATADOS
 
 Eu, {{cliente_nome}}, CPF/CNPJ: {{cliente_cpf}}, RG: {{cliente_rg}}, residente e domiciliado(a) à {{cliente_endereco}}, doravante mencionado como LOCATÁRIO do CELULAR: {{aparelho_modelo}} {{aparelho_capacidade}}, marca Apple, Imei: {{aparelho_imei}}, declaro expressamente ter sido informado a respeito dos valores de cada um dos itens abaixo:
 
-Valor de caução: {{entrada_valor}} (único)
+Valor de entrada (parte do preço do aparelho): {{entrada_valor}} (único)
 Valor de locação Mensal: {{parcela_valor}} (mensal)
 Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por evento)
 Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
