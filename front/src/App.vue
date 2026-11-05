@@ -5,6 +5,7 @@ import Carregando from '@/components/Carregando.vue'
 import Icon from '@/components/Icon.vue'
 import NovoSheet from '@/components/NovoSheet.vue'
 import Sheet from '@/components/Sheet.vue'
+import Sino from '@/components/Sino.vue'
 import Toast from '@/components/Toast.vue'
 import { useAtrasadas } from '@/composables/useAtrasadas'
 import { SESSOES, definirSessao, useApp } from '@/composables/useApp'
@@ -12,6 +13,7 @@ import { modoDemo, useAuth } from '@/composables/useAuth'
 import { iniciais } from '@/domain/format'
 import type { Perfil } from '@/domain/types'
 import { useEquipeBadge } from '@/composables/useEquipeBadge'
+import { useNotificacoes } from '@/composables/useNotificacoes'
 import { usePulso } from '@/composables/usePulso'
 import { GRUPOS_ADMIN, ITENS_ADMIN, MENUS, TITULOS, TITULOS_INDICADOR, type ItemMenu } from '@/layouts/menus'
 
@@ -21,6 +23,7 @@ const { sessao, d } = useApp()
 const { atrasadas, atualizar: atualizarAtrasadas } = useAtrasadas()
 const { pendentes: equipePendentes, atualizar: atualizarEquipe } = useEquipeBadge()
 const auth = useAuth()
+const { atualizar: atualizarAvisos, limpar: limparAvisos } = useNotificacoes()
 
 const ehLogin = computed(() => route.path === '/login' || route.path === '/trocar-senha' || route.path.startsWith('/assinar/'))
 
@@ -28,6 +31,7 @@ const ehLogin = computed(() => route.path === '/login' || route.path === '/troca
 watch(auth.usuario, () => { const s = auth.sessao(); if (s) definirSessao(s) }, { immediate: true })
 
 async function sair() {
+  limparAvisos()
   await auth.sair()
   router.replace('/login')
 }
@@ -39,6 +43,8 @@ const fabSide = computed(() => menu.value.abas.find((a) => a.fab))
 const maisAberto = ref(false)
 const contaAberta = ref(false)
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
+/** Só quem recebe avisos (administrador e cobrador) vê o sino. */
+const temSino = computed(() => sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'COBRADOR')
 /** "Mais" do celular: os grupos, sem o que já está na barra de baixo. */
 const gruposMais = computed(() => GRUPOS_ADMIN.map((g) => ({ titulo: g.titulo, itens: g.ids.filter((id) => !menu.value.abas.some((a) => a.id === id)).map((id) => ITENS_ADMIN[id]) })).filter((g) => g.itens.length))
 const gruposLateral = computed(() => GRUPOS_ADMIN.map((g) => ({ titulo: g.titulo, itens: g.ids.map((id) => ITENS_ADMIN[id]) })))
@@ -59,9 +65,9 @@ const nomeLogado = computed(() => {
 
 // o contador do menu vem do servidor (parcelas atrasadas) e é atualizado a cada recebimento
 // (no sistema de verdade só depois de entrar: antes disso o servidor responderia 401)
-watch([() => sessao.value, auth.usuario], ([s]) => { if (modoDemo || auth.usuario.value) { atualizarAtrasadas(s); atualizarEquipe(s) } }, { immediate: true, deep: true })
+watch([() => sessao.value, auth.usuario], ([s]) => { if (modoDemo || auth.usuario.value) { atualizarAtrasadas(s); atualizarEquipe(s); atualizarAvisos(s) } }, { immediate: true, deep: true })
 // e se atualizam sozinhos (pedido novo de um indicador, parcela que atrasou) enquanto o sistema está aberto
-usePulso(() => { if (!ehLogin.value && (modoDemo || auth.usuario.value)) { atualizarAtrasadas(sessao.value); atualizarEquipe(sessao.value) } })
+usePulso(() => { if (!ehLogin.value && (modoDemo || auth.usuario.value)) { atualizarAtrasadas(sessao.value); atualizarEquipe(sessao.value); atualizarAvisos(sessao.value) } })
 const contador = (id: string) => {
   if (id === 'equipe') return equipePendentes.value
   return (id === 'cobrancas' || id === 'cobranca' || id === 'hoje') && sessao.value.perfil !== 'INDICADOR' && atrasadas.value ? atrasadas.value : 0
@@ -137,6 +143,7 @@ const maisItens = computed<ItemMenu[]>(() => menu.value.mais.filter((x) => !menu
           <header class="top">
             <span class="logo logo-m"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="6" y="2.5" width="12" height="19" rx="3.2" stroke="#fff" stroke-width="2" /><circle cx="12" cy="12" r="3.6" stroke="#b8e35a" stroke-width="1.6" /></svg></span>
             <h1>{{ titulo }}</h1>
+            <Sino v-if="temSino" />
             <button v-if="secao === 'operacoes'" class="btn b-pri b-sm" @click="ir('vender')"><Icon name="plus" small />Venda</button>
             <!-- celular: o administrador sai pelo "Mais"; os outros perfis, pela bolinha com as iniciais (Minha conta) -->
             <button v-if="!ehAdmin" class="conta-btn sair-cel" aria-label="Minha conta" @click="contaAberta = true">{{ iniciais(nomeLogado) }}</button>
