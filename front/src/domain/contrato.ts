@@ -291,7 +291,6 @@ Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
 Seguro contra queda: {{taxa_seguro}} (mensal)
 
 1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
-2) Retomada do APARELHO CELULAR: Em caso de bloqueio do APARELHO CELULAR, por qualquer motivo, o LOCATÁRIO deverá arcar com uma taxa de {{taxa_recuperacao}} para disponibilização de equipe para localização e restituição do aparelho.
 
 {{empresa_cidade}}, {{data_venda}}
 
