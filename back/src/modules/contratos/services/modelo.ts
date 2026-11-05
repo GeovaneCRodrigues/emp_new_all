@@ -228,7 +228,7 @@ CLÁUSULA DÉCIMA SÉTIMA: DISPOSIÇÕES GERAIS
 17.2. O LOCATÁRIO reconhece a forma de contratação por meio eletrônico e digital como válida e plenamente eficaz.
 
 CLÁUSULA DÉCIMA OITAVA – FORO
-18.1. As partes elegem o foro da Comarca de {{empresa_cidade}}/{{empresa_uf}} para dirimirem quaisquer dúvidas do presente contrato.
+18.1. As partes elegem o foro do domicílio do LOCATÁRIO para dirimirem quaisquer dúvidas do presente contrato.
 
 {{empresa_cidade}}, {{data_venda}}
 

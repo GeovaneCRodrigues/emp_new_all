@@ -416,13 +416,13 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       await empresaCompleta()
       expect((await req('PUT', '/api/contratos/empresa', 'admin', { telefone: '', cidade: null, uf: '', pixChave: '' })).json()).toMatchObject({ telefone: null, cidade: null, uf: null, pixChave: null })
     })
-    it('cidade e UF entram no contrato (data e foro) e, sem elas, o contrato avisa que faltam', async () => {
+    it('a cidade entra no contrato (data) e, sem ela, o contrato avisa que falta; o foro é o do cliente', async () => {
       await empresaCompleta()
       const cid = await contratoDe(await venda())
       const d = await detalhe(cid)
-      expect(d.texto).toContain('Taboão da Serra, 05/10/2026'); expect(d.texto).toContain('foro da Comarca de Taboão da Serra/SP')
+      expect(d.texto).toContain('Taboão da Serra, 05/10/2026'); expect(d.texto).toContain('foro do domicílio do LOCATÁRIO')
       await req('PUT', '/api/contratos/empresa', 'admin', { cidade: null, uf: null })
-      expect((await detalhe(cid)).faltam).toEqual(expect.arrayContaining(['Cidade da empresa', 'UF da empresa']))
+      expect((await detalhe(cid)).faltam).toEqual(expect.arrayContaining(['Cidade da empresa']))
     })
     it('logo: salva PNG, JPEG e WEBP; a empresa passa a dizer temLogo e a imagem sai pelo endereço público', async () => {
       for (const [img, tipo] of [[PNG, 'image/png'], [JPG, 'image/jpeg'], [WEBP, 'image/webp']] as const) {
