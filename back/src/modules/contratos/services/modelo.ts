@@ -179,8 +179,6 @@ CLÁUSULA SEXTA: VALOR DA LOCAÇÃO, PAGAMENTO E OUTRAS DESPESAS QUE SE FIZEREM 
 6.3. O valor total da locação é composto pelo pagamento inicial da locação, e a soma dos itens apuráveis, cujos valores ficam definidos em Tarifário, no fechamento do Contrato ou na eventual rescisão do Contrato.
 6.3.1. Em caso de quebra do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_avaria}} à título de multa para reparação do aparelho.
 6.3.2. Em caso de furto/roubo do APARELHO CELULAR, ficará o LOCATÁRIO obrigado ao pagamento do importe de {{taxa_reposicao}} para receber outro aparelho em substituição ao aparelho perdido.
-6.4. No ato de contratação fica disponibilizado ao LOCATÁRIO o SEGURO CONTRA QUEDAS, que visa proteger os APARELHOS CELULARES em caso de quedas que acarretam em danos ao mesmo, ficando a manutenção a cargo da LOCADORA.
-6.4.1. O SEGURO CONTRA QUEDAS possui valor mensal de {{taxa_seguro}} a serem pagos juntamente com a parcela de cada mês, opcional. Situação do seguro: {{seguro_texto}}.
 
 CLÁUSULA SÉTIMA: DOS PRAZOS, ENTREGA E DEVOLUÇÃO DO APARELHO CELULAR
 7.1. O período de locação é aquele indicado no termo de Abertura do Contrato e de acordo com o plano escolhido pelo Cliente, sendo o primeiro dia de locação coincidente com o dia da retirada do APARELHO CELULAR junto à LOCADORA, podendo ou não ser renovado;
@@ -210,7 +208,7 @@ CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO 
 14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
 14.1.1. O LOCATÁRIO pode antecipar parcelas ou quitar o saldo de uma vez, a qualquer momento. A transferência do aparelho ocorre assim que o último valor for pago, sem esperar o fim do prazo previsto.
 14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
-14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
+14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, as taxas de locação e o direito de retomada previstos neste Contrato.
 
 CLÁUSULA DÉCIMA QUINTA: DA AUSÊNCIA DE MULTA NA RESCISÃO
 15.1. Este Contrato não prevê multa por rescisão nem por devolução antecipada do aparelho. Nesses casos aplica-se o previsto nas cláusulas 11.1.1 e 11.1.2.
@@ -247,7 +245,6 @@ Valor de entrada (parte do preço do aparelho): {{entrada_valor}} (único)
 Valor de locação Mensal: {{parcela_valor}} (mensal)
 Substituição de aparelho celular para furtos/roubos: {{taxa_reposicao}} (por evento)
 Danos ao aparelho (quebra): {{taxa_avaria}} (por evento)
-Seguro contra queda: {{taxa_seguro}} (mensal)
 
 1) Fica completamente vedada a realização de alterações estéticas no APARELHO CELULAR alugado pelo LOCATÁRIO, sob pena de incidência de multa de R$500,00 (Quinhentos reais);
 

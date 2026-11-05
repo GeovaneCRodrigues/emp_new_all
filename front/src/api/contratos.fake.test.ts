@@ -117,19 +117,19 @@ describe('contratos (demonstração)', () => {
     expect((await api.listar(ADMIN)).resumo.esperando).toBe(1)
     expect((await falha(api.marcarEnviado(ADMIN, p.id)))?.codigo).toBe('VENDA_ENCERRADA')
   })
-  it('seguro: muda antes de enviar (e o texto muda), depois não; valor que não é booleano dá 400', async () => {
+  it('seguro: o marcador muda antes de enviar (o texto não fala mais de seguro), depois não; valor que não é booleano dá 400', async () => {
     const p = await pendente(); await completarCliente(p.vendaId)
     const d = await api.definirSeguro(ADMIN, p.id, true)
-    expect(d.contrato.seguro).toBe(true); expect(d.texto).toContain('contratado, R$ 39,90 por mês')
+    expect(d.contrato.seguro).toBe(true); expect(d.texto).not.toMatch(/seguro/i)
     expect((await api.listar(ADMIN)).resumo.comSeguro).toBe(1)
     expect((await falha(api.definirSeguro(ADMIN, p.id, 'sim' as never)))?.status).toBe(400)
     await api.marcarEnviado(ADMIN, p.id)
     expect((await falha(api.definirSeguro(ADMIN, p.id, false)))?.codigo).toBe('CONTRATO_JA_ENVIADO')
   })
-  it('com seguro e sem o valor cadastrado: falta e não envia', async () => {
+  it('com seguro marcado e sem o valor cadastrado: não falta nada, o contrato não usa esse dado', async () => {
     const p = await pendente(); await completarCliente(p.vendaId)
     await api.salvarEmpresa(ADMIN, { seguro: null }); await api.definirSeguro(ADMIN, p.id, true)
-    expect((await falha(api.marcarEnviado(ADMIN, p.id)))?.message).toContain('Seguro')
+    expect((await api.obter(ADMIN, p.id)).faltam).not.toContain('Seguro')
   })
   describe('modelo', () => {
     it('começa no padrão (versão 0); salvar cria versão nova; o mesmo texto não cria outra', async () => {

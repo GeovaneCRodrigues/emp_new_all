@@ -291,12 +291,12 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   })
 
   describe('seguro', () => {
-    it('muda antes de enviar: o texto passa a falar do seguro e a lista conta; depois de enviado não muda', async () => {
+    it('o contrato não fala mais de seguro; o marcador ainda muda antes de enviar e a lista conta; depois de enviado não muda', async () => {
       await empresaCompleta()
       const cid = await contratoDe(await venda())
-      expect((await detalhe(cid)).texto).toContain('Situação do seguro: não contratado pelo cliente.')
+      expect((await detalhe(cid)).texto).not.toMatch(/seguro/i)
       const r = await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: true })
-      expect((r.json() as Detalhe).contrato.seguro).toBe(true); expect((r.json() as Detalhe).texto).toContain('Situação do seguro: contratado, R$ 39,90 por mês junto da parcela.')
+      expect((r.json() as Detalhe).contrato.seguro).toBe(true); expect((r.json() as Detalhe).texto).not.toMatch(/seguro/i)
       await req('POST', `/api/contratos/${cid}/enviado`, 'admin')
       expect((await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: false })).json().codigo).toBe('CONTRATO_JA_ENVIADO')
       expect(await db!('auditoria').where({ acao: 'CONTRATO_SEGURO' }).count('* as n').first()).toMatchObject({ n: '1' })
@@ -308,11 +308,11 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: false })
       expect(await db!('auditoria').where({ acao: 'CONTRATO_SEGURO' }).count('* as n').first()).toMatchObject({ n: '0' })
     })
-    it('com seguro e sem o valor do seguro cadastrado: falta, e não envia', async () => {
+    it('com seguro marcado e sem o valor do seguro cadastrado: não falta nada, o contrato não usa esse dado', async () => {
       await req('PUT', '/api/contratos/empresa', 'admin', { ...EMPRESA_OK, seguro: null })
       const cid = await contratoDe(await venda())
       await req('PATCH', `/api/contratos/${cid}`, 'admin', { seguro: true })
-      expect((await req('POST', `/api/contratos/${cid}/enviado`, 'admin')).json().erro).toContain('Seguro')
+      expect((await detalhe(cid)).faltam).not.toContain('Seguro')
     })
   })
 
