@@ -254,6 +254,7 @@ CLÁUSULA DÉCIMA TERCEIRA: TRATAMENTO DE DADOS PESSOAIS
 
 CLÁUSULA DÉCIMA QUARTA: TRANSFERÊNCIA DO APARELHO AO FINAL DO PLANO (CESSÃO DE BEM MÓVEL)
 14.1. Pagas todas as {{parcelas_qtd}} parcelas mensais do plano, e quitados os demais valores devidos neste Contrato, o APARELHO CELULAR passa a ser do LOCATÁRIO, sem necessidade de pedido, adesão ou pagamento adicional pela transferência, a título de cessão de bem móvel, já contada, como parte do pagamento do aparelho, a entrada paga na assinatura, seja em dinheiro ou com aparelho dado na troca.
+14.1.1. O LOCATÁRIO pode antecipar parcelas ou quitar o saldo de uma vez, a qualquer momento. A transferência do aparelho ocorre assim que o último valor for pago, sem esperar o fim do prazo previsto.
 14.2. Enquanto não ocorrer a transferência prevista na cláusula 14.1, o APARELHO CELULAR continua sendo de propriedade da LOCADORA.
 14.3. Com a transferência, a LOCADORA libera o bloqueio e o monitoramento remotos do aparelho e entrega ao LOCATÁRIO o termo de quitação e transferência. A partir daí deixam de valer as restrições de uso, o seguro, as taxas de locação e o direito de retomada previstos neste Contrato.
 
