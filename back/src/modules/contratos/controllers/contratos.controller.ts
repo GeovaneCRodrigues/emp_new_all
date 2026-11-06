@@ -27,12 +27,8 @@ export function createContratosController(s: ContratosService) {
     async zapsignStatus(req: FastifyRequest) { return s.zapsignStatus(sessaoOuErro(req)) },
     async enviarZapsign(req: FastifyRequest) { return s.enviarZapsign(sessaoOuErro(req), id(req)) },
     async atualizarZapsign(req: FastifyRequest) { return s.atualizarZapsign(sessaoOuErro(req), id(req)) },
-    // pública: o ZapSign avisa que mexeu num documento (o segredo vem no cabeçalho ou na URL)
-    async webhookZapsign(req: FastifyRequest) {
-      const h = req.headers['x-webhook-secret'] ?? req.headers.authorization?.replace(/^Bearer\s+/i, '')
-      const q = (req.query as Record<string, unknown>).secret
-      return s.webhookZapsign(corpo(req), typeof h === 'string' ? h : typeof q === 'string' ? q : null)
-    },
+    // pública, sem segredo: o ZapSign só avisa que mexeu num documento; o status vem de uma consulta ao ZapSign, não do corpo do aviso
+    async webhookZapsign(req: FastifyRequest) { return s.webhookZapsign(corpo(req)) },
     async modelo(req: FastifyRequest) { return s.modelo(sessaoOuErro(req)) },
     async salvarModelo(req: FastifyRequest) { return s.salvarModelo(sessaoOuErro(req), corpo(req).texto) },
     async previa(req: FastifyRequest) { return s.previa(sessaoOuErro(req), corpo(req)) },

@@ -590,7 +590,6 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
   })
 
   describe('ZapSign', () => {
-    const SEGREDO = 'segredo-do-webhook-123'
     /** Um ZapSign de mentira: guarda o que recebeu e deixa o teste decidir como o documento está. */
     function falso(sandbox: boolean) {
       const docs = new Map<string, DocumentoZapsign>()
@@ -608,8 +607,8 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       }
       return { cliente, docs, criados }
     }
-    async function appCom(z: ZapsignClient | null, webhookSecret: string | null = SEGREDO) {
-      const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: z, webhookSecret })
+    async function appCom(z: ZapsignClient | null) {
+      const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: z })
       return buildApp({ ...depsApp, contratos: svc })
     }
     const pronto = async () => { await empresaCompleta(); const cid = await contratoDe(await venda()); return cid }
@@ -622,7 +621,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       const r = await req('POST', `/api/contratos/${cid}/zapsign`, 'admin')
       expect(r.statusCode).toBe(503); expect(r.json().codigo).toBe('ZAPSIGN_DESLIGADO')
     })
-    it('ligado: status mostra se está em teste e se o webhook tem segredo', async () => {
+    it('ligado: status mostra se está em teste e se o webhook está ativo', async () => {
       const a = await appCom(falso(true).cliente)
       try { expect((await a.inject({ method: 'GET', url: '/api/contratos/zapsign/status', headers: { authorization: `Bearer ${t.admin}` } })).json()).toEqual({ ativo: true, sandbox: true, webhook: true }) } finally { await a.close() }
     })
@@ -721,39 +720,25 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       } finally { await a.close() }
     })
     describe('webhook', () => {
-      const aviso = (a: FastifyInstance, corpo: object, segredo?: string, como: 'header' | 'query' = 'header') =>
-        a.inject({ method: 'POST', url: `/api/zapsign/webhook${segredo && como === 'query' ? `?secret=${segredo}` : ''}`, payload: corpo, headers: segredo && como === 'header' ? { 'x-webhook-secret': segredo } : {} })
+      const aviso = (a: FastifyInstance, corpo: object) => a.inject({ method: 'POST', url: '/api/zapsign/webhook', payload: corpo })
       async function enviado(z: ReturnType<typeof falso>, a: FastifyInstance) {
         const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
         return { cid, doc: [...z.docs.values()][0] }
       }
-      it('sem segredo ou com segredo errado: 401 (e não mexe em nada)', async () => {
+      it('sem segredo: confere no ZapSign e fecha o contrato', async () => {
         const z = falso(false); const a = await appCom(z.cliente)
         try {
           const { cid, doc } = await enviado(z, a); doc.status = 'signed'
-          expect((await aviso(a, { token: doc.token })).statusCode).toBe(401)
-          expect((await aviso(a, { token: doc.token }, 'errado')).statusCode).toBe(401)
-          expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+          expect((await aviso(a, { token: doc.token, status: 'signed' })).json()).toEqual({ ok: true })
+          expect((await detalhe(cid)).contrato.status).toBe('ASSINADO')
+          expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade_id: cid }).first('usuario_id')).toMatchObject({ usuario_id: null })
         } finally { await a.close() }
-      })
-      it('segredo certo (no cabeçalho ou na URL): confere no ZapSign e fecha o contrato', async () => {
-        for (const como of ['header', 'query'] as const) {
-          const z = falso(false); const a = await appCom(z.cliente)
-          try {
-            const { cid, doc } = await enviado(z, a); doc.status = 'signed'
-            expect((await aviso(a, { token: doc.token, status: 'signed' }, SEGREDO, como)).json()).toEqual({ ok: true })
-            const d = await detalhe(cid)
-            expect(d.contrato.status).toBe('ASSINADO')
-            expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade_id: cid }).first('usuario_id')).toMatchObject({ usuario_id: null })
-          } finally { await a.close() }
-          await db!('contratos').del(); await db!('venda_parcelas').del(); await db!('vendas').del(); await db!('bens').del()
-        }
       })
       it('o corpo do aviso não manda: dizer "signed" com o documento pendente no ZapSign não fecha nada', async () => {
         const z = falso(false); const a = await appCom(z.cliente)
         try {
           const { cid, doc } = await enviado(z, a)
-          await aviso(a, { token: doc.token, status: 'signed', event_type: 'doc_signed', signed_file: 'https://x' }, SEGREDO)
+          await aviso(a, { token: doc.token, status: 'signed', event_type: 'doc_signed', signed_file: 'https://x' })
           expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
         } finally { await a.close() }
       })
@@ -761,16 +746,16 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
         const z = falso(false); const a = await appCom(z.cliente)
         try {
           const { cid, doc } = await enviado(z, a)
-          expect((await aviso(a, { token: 'nao-existe-nenhum-contrato' }, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
-          expect((await aviso(a, {}, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
+          expect((await aviso(a, { token: 'nao-existe-nenhum-contrato' })).json()).toEqual({ ok: true, ignorado: true })
+          expect((await aviso(a, {})).json()).toEqual({ ok: true, ignorado: true })
           doc.status = 'signed'; doc.externalId = 'OUTRO-NUMERO'
-          expect((await aviso(a, { token: doc.token }, SEGREDO)).json()).toEqual({ ok: true, ignorado: true })
+          expect((await aviso(a, { token: doc.token })).json()).toEqual({ ok: true, ignorado: true })
           expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
         } finally { await a.close() }
       })
-      it('sem segredo configurado no servidor, o webhook nem existe (404)', async () => {
-        const a = await appCom(falso(false).cliente, null)
-        try { expect((await aviso(a, { token: 'x' }, SEGREDO)).statusCode).toBe(404) } finally { await a.close() }
+      it('com o ZapSign desligado, o webhook nem existe (404)', async () => {
+        const a = await appCom(null)
+        try { expect((await aviso(a, { token: 'x' })).statusCode).toBe(404) } finally { await a.close() }
       })
     })
   })
