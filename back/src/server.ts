@@ -68,7 +68,7 @@ const configRepo = createConfigRepository(db.knex)
 // ZapSign: só liga com o token no ambiente. ZAPSIGN_SANDBOX=false é o que passa a valer como contrato de verdade (começa em teste).
 const tokenZapsign = (process.env.TOKEN_ZAPSIGN ?? '').trim()
 const zapsign = tokenZapsign ? criarZapsignClient({ token: tokenZapsign, sandbox: (process.env.ZAPSIGN_SANDBOX ?? 'true').trim().toLowerCase() !== 'false' }) : null
-const contratos = createContratosService({ repo: createContratosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex), log: (msg, err) => console.error(msg, err), zapsign, webhookSecret: (process.env.ZAPSIGN_WEBHOOK_SECRET ?? '').trim() || null })
+const contratos = createContratosService({ repo: createContratosRepository(db.knex), auditoria: createAuditoriaRepository(db.knex), log: (msg, err) => console.error(msg, err), zapsign })
 const vendas = createVendasService({
   vendas: createVendasRepository(db.knex), config: configRepo, auditoria: createAuditoriaRepository(db.knex), gerarContrato: (id, u) => contratos.gerarDaVenda(id, u),
   sincronizarNiveis: () => indicadores.sincronizarNiveis(), log: (msg, err) => console.error(msg, err),

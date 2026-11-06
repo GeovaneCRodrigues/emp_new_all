@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { HttpError, naoEncontrado, requisicaoInvalida, semPermissao } from '../../../shared/errors.js'
 import type { Sessao } from '../../../shared/perfis.js'
 import type { AuditoriaRepository } from '../../auditoria/models/repository.js'
@@ -50,7 +50,7 @@ export type ContratosService = {
   /** Pergunta ao ZapSign como está o documento e, se o cliente assinou, fecha o contrato. */
   atualizarZapsign(s: Sessao, id: number): Promise<ContratoDetalhe>
   /** Público: aviso do ZapSign. Só vale com o segredo, e o estado é sempre conferido na API do ZapSign (o corpo do aviso não é confiado). */
-  webhookZapsign(corpo: Record<string, unknown>, segredo: string | null): Promise<{ ok: true; ignorado?: true }>
+  webhookZapsign(corpo: Record<string, unknown>): Promise<{ ok: true; ignorado?: true }>
   /** Público (sem login): o contrato de um link. */
   verParaAssinar(token: string): Promise<ContratoParaAssinar>
   /** Público (sem login): o cliente confirma o CPF, assina e o contrato fecha. */
@@ -70,8 +70,6 @@ type Dependencias = {
   repo: ContratosRepository; auditoria: AuditoriaRepository; log?: (msg: string, err: unknown) => void
   /** sem isso o ZapSign fica desligado e o contrato continua assinando pelo link próprio */
   zapsign?: ZapsignClient | null
-  /** segredo que o ZapSign manda no aviso (webhook) */
-  webhookSecret?: string | null
 }
 
 const TEXTO_MIN = 50
@@ -235,7 +233,7 @@ export function createContratosService(d: Dependencias): ContratosService {
 
     zapsignStatus(s) {
       escopoDe(s)
-      return { ativo: !!d.zapsign, sandbox: d.zapsign?.sandbox ?? false, webhook: !!d.webhookSecret }
+      return { ativo: !!d.zapsign, sandbox: d.zapsign?.sandbox ?? false, webhook: !!d.zapsign }
     },
 
     async enviarZapsign(s, id) {
@@ -271,10 +269,8 @@ export function createContratosService(d: Dependencias): ContratosService {
       return montar(await carregar(s, id), doc.arquivoAssinado)
     },
 
-    async webhookZapsign(corpo, segredo) {
-      if (!d.zapsign || !d.webhookSecret) throw naoEncontrado('Não encontrado')
-      const a = createHash('sha256').update(segredo ?? '').digest(); const b = createHash('sha256').update(d.webhookSecret).digest()
-      if (!segredo || !timingSafeEqual(a, b)) throw new HttpError(401, 'Não autorizado', 'NAO_AUTORIZADO')
+    async webhookZapsign(corpo) {
+      if (!d.zapsign) throw naoEncontrado('Não encontrado')
       const token = typeof corpo.token === 'string' ? corpo.token : typeof corpo.document_token === 'string' ? corpo.document_token : ''
       const l = token ? await d.repo.porTokenZapsign(token) : null
       if (!l) return { ok: true, ignorado: true }
