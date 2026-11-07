@@ -182,3 +182,28 @@ describe('edição', () => {
     expect((await falha(api.responsaveis(VEND)))?.status).toBe(403)
   })
 })
+
+describe('documentos do cliente', () => {
+  const pdf = (nome = 'cnh.pdf') => new File(['%PDF-1.4'], nome, { type: 'application/pdf' })
+  const meu = async (s: Sessao) => (await api.listar(s, { limite: 100 })).itens[0].id
+
+  it('anexa, lista, abre e remove', async () => {
+    const id = await meu(VEND)
+    const d = await api.enviarDocumento(VEND, id, 'DOC_IDENTIDADE', pdf())
+    expect(await api.documentos(VEND, id)).toEqual([d])
+    expect(await (await api.abrirDocumento(VEND, id, d.id)).text()).toBe('%PDF-1.4')
+    await api.removerDocumento(VEND, id, d.id)
+    expect(await api.documentos(VEND, id)).toEqual([])
+  })
+  it('só administrador e vendedor; cliente de outra carteira dá 404', async () => {
+    const id = await meu(VEND)
+    expect((await falha(api.documentos(IND1, id)))?.status).toBe(403)
+    expect((await falha(api.documentos(COBR, id)))?.status).toBe(403)
+    const outro = (await api.listar(ADMIN, { limite: 100 })).itens.find((c) => c.responsavelId !== VEND.usuarioId)!.id
+    expect((await falha(api.documentos(VEND, outro)))?.status).toBe(404)
+  })
+  it('recusa tipo de arquivo que não é PDF/JPG/PNG', async () => {
+    const id = await meu(VEND)
+    expect((await falha(api.enviarDocumento(VEND, id, 'OUTRO', new File(['x'], 'a.html', { type: 'text/html' }))))?.status).toBe(400)
+  })
+})

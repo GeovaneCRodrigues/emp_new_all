@@ -2,7 +2,7 @@ import { maiusculas } from '@/domain/format'
 import { criarSeed } from '@/data/seed'
 import { cpfValido, normalizarFone, soDigitos } from '@/domain/documentos'
 import type { Sessao } from '@/domain/escopo'
-import { ErroApi, type ClienteApi, type ClientesApi, type EntradaCliente, type SalvoCliente } from './clientes'
+import { ErroApi, type DocumentoClienteApi, type ClienteApi, type ClientesApi, type EntradaCliente, type SalvoCliente } from './clientes'
 
 /**
  * Versão de demonstração: guarda os clientes na memória e aplica as mesmas regras do backend
@@ -85,7 +85,37 @@ export function criarClientesFake(): ClientesApi {
     if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Só o administrador e o vendedor cadastram clientes', 'SEM_PERMISSAO')
   }
 
+  // documentos na memória (só administrador e vendedor, e só de cliente do escopo — igual ao servidor)
+  const docs: { meta: DocumentoClienteApi; blob: Blob }[] = []
+  let proximoDoc = 1
+  const clienteDosDocs = (s: Sessao, id: number) => {
+    if (s.perfil !== 'ADMIN' && s.perfil !== 'VENDEDOR') throw new ErroApi(403, 'Você não tem acesso aos documentos dos clientes', 'SEM_PERMISSAO')
+    if (!noEscopo(s).some((c) => c.id === id)) throw new ErroApi(404, 'Cliente não encontrado', 'NAO_ENCONTRADO')
+  }
+
   return {
+    async documentos(s, id) { clienteDosDocs(s, id); return docs.filter((d) => d.meta.clienteId === id).map((d) => d.meta) },
+    async enviarDocumento(s, id, tipo, arquivo) {
+      clienteDosDocs(s, id)
+      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(arquivo.type)) throw new ErroApi(400, 'Envie um PDF, JPG ou PNG')
+      if (arquivo.size > 6 * 1024 * 1024) throw new ErroApi(400, 'Arquivo grande demais (máximo 6 MB)')
+      if (docs.filter((d) => d.meta.clienteId === id).length >= 20) throw new ErroApi(400, 'Cada cliente aceita até 20 documentos')
+      const meta: DocumentoClienteApi = { id: proximoDoc++, clienteId: id, tipo, nome: arquivo.name, mime: arquivo.type, tamanho: arquivo.size, enviadoPor: s.usuarioId ?? null, criadoEm: new Date().toISOString() }
+      docs.push({ meta, blob: arquivo })
+      return meta
+    },
+    async abrirDocumento(s, id, docId) {
+      clienteDosDocs(s, id)
+      const d = docs.find((x) => x.meta.id === docId && x.meta.clienteId === id)
+      if (!d) throw new ErroApi(404, 'Documento não encontrado', 'NAO_ENCONTRADO')
+      return d.blob
+    },
+    async removerDocumento(s, id, docId) {
+      clienteDosDocs(s, id)
+      const i = docs.findIndex((x) => x.meta.id === docId && x.meta.clienteId === id)
+      if (i < 0) throw new ErroApi(404, 'Documento não encontrado', 'NAO_ENCONTRADO')
+      docs.splice(i, 1)
+    },
     async listar(s, q) {
       const limite = Math.min(Math.max(q.limite ?? 20, 1), 100)
       const pagina = Math.max(q.pagina ?? 1, 1)
