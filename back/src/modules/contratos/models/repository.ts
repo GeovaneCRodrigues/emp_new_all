@@ -37,6 +37,12 @@ export interface ContratosRepository {
   /** Fecha o contrato como assinado pelo ZapSign. false = já estava assinado. */
   assinarViaZapsign(id: number): Promise<boolean>
   porTokenZapsign(token: string): Promise<LinhaContrato | null>
+  /** Cópia do PDF assinado guardada aqui. */
+  guardarCopia(id: number, pdf: Buffer, sha256: string): Promise<void>
+  copia(id: number): Promise<{ pdf: Buffer; sha256: string; baixadoEm: Date } | null>
+  temCopia(id: number): Promise<boolean>
+  /** Assinados pelo ZapSign (de verdade, não teste) que ainda não têm cópia guardada. */
+  semCopia(limite: number): Promise<LinhaContrato[]>
   /** Contratos mandados ao ZapSign que ainda esperam a assinatura (os mais antigos primeiro). */
   pendentesZapsign(limite: number): Promise<LinhaContrato[]>
 }
@@ -194,6 +200,17 @@ export function createContratosRepository(db: Knex): ContratosRepository {
     },
     async pendentesZapsign(limite) {
       return (await base({ tipo: 'TODOS' }).where('ct.zapsign_status', 'pending').whereNull('ct.assinado_em').orderBy('ct.enviado_em').limit(limite)).map(paraLinha)
+    },
+    async guardarCopia(id, pdf, sha256) {
+      await db('contrato_arquivos').insert({ contrato_id: id, pdf, sha256, tamanho: pdf.length }).onConflict('contrato_id').merge({ pdf, sha256, tamanho: pdf.length, baixado_em: db.fn.now() })
+    },
+    async copia(id) {
+      const l = await db('contrato_arquivos').where({ contrato_id: id }).first<{ pdf: Buffer; sha256: string; baixado_em: Date } | undefined>('pdf', 'sha256', 'baixado_em')
+      return l ? { pdf: l.pdf, sha256: l.sha256, baixadoEm: l.baixado_em } : null
+    },
+    async temCopia(id) { return !!(await db('contrato_arquivos').where({ contrato_id: id }).first('contrato_id')) },
+    async semCopia(limite) {
+      return (await base({ tipo: 'TODOS' }).where('ct.assinatura_via', 'ZAPSIGN').where('ct.zapsign_sandbox', false).whereNotExists(function () { this.select(db.raw('1')).from('contrato_arquivos as a').whereRaw('a.contrato_id = ct.id') }).orderBy('ct.assinado_em').limit(limite)).map(paraLinha)
     },
     async porTokenZapsign(token) {
       const l = await base({ tipo: 'TODOS' }).where('ct.zapsign_token', token).first<Linha | undefined>()

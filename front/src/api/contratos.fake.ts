@@ -96,7 +96,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
   async function detalhe(r: Registro): Promise<ContratoDetalheApi> {
     const e = await estadoDe(r)
     const contrato = await item(r)
-    const extra = { assinatura: e.assinatura ?? null, assinaturaVia: e.via ?? (e.assinadoEm ? ('MANUAL' as const) : null), zapsign: e.zapsign ? { status: e.zapsign.status, sandbox: true, signUrl: e.zapsign.url, arquivoAssinado: null } : null }
+    const extra = { assinatura: e.assinatura ?? null, assinaturaVia: e.via ?? (e.assinadoEm ? ('MANUAL' as const) : null), zapsign: e.zapsign ? { status: e.zapsign.status, sandbox: true, signUrl: e.zapsign.url, arquivoAssinado: null } : null, copiaArquivada: false }
     if (e.textoEnviado !== null) return { contrato, congelado: true, trechos: [{ tipo: 'txt', v: e.textoEnviado }], faltam: [], texto: e.textoEnviado, ...extra }
     const p = preencher(textoVersao(e.modeloVersao), await dados(r), empresa)
     return { contrato, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, ...extra }
@@ -209,6 +209,11 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
       const r = achar(s, id); const e = await estadoDe(r)
       if (!e.zapsign) throw conflito('Este contrato não foi enviado pelo ZapSign', 'ZAPSIGN_NAO_ENVIADO')
       return detalhe(r)
+    },
+    async baixarAssinado(s, id) {
+      const r = achar(s, id); const e = await estadoDe(r)
+      if (statusDe(r) !== 'ASSINADO') throw conflito('Este contrato ainda não foi assinado', 'CONTRATO_NAO_ASSINADO')
+      throw conflito(e.via === 'ZAPSIGN' ? 'O PDF assinado ainda não está disponível. Tente de novo em instantes.' : 'Este contrato não foi assinado pelo ZapSign, então não tem PDF assinado.', 'SEM_PDF_ASSINADO')
     },
     async gerarLink(s, id) {
       const r = achar(s, id); const e = await estadoDe(r)

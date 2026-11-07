@@ -24,6 +24,8 @@ export type ContratoDetalhe = {
   assinaturaVia: LinhaContrato['assinaturaVia']
   /** o documento no ZapSign, se o contrato foi enviado por lá */
   zapsign: { status: string; sandbox: boolean; signUrl: string | null; arquivoAssinado: string | null } | null
+  /** O PDF assinado (com a prova do ZapSign) está guardado aqui: dá para baixar sem depender de lá. */
+  copiaArquivada: boolean
 }
 export type LinkGerado = { token: string; expiraEm: string; contrato: ContratoDetalhe }
 /** O que a página pública de assinatura mostra (nada além do contrato daquele link). */
@@ -51,8 +53,10 @@ export type ContratosService = {
   atualizarZapsign(s: Sessao, id: number): Promise<ContratoDetalhe>
   /** Público: aviso do ZapSign. Só vale com o segredo, e o estado é sempre conferido na API do ZapSign (o corpo do aviso não é confiado). */
   webhookZapsign(corpo: Record<string, unknown>): Promise<{ ok: true; ignorado?: true }>
-  /** Pergunta ao ZapSign por todos os contratos que esperam assinatura (rodado de 15 em 15 minutos, caso o aviso automático falhe). */
-  sincronizarZapsign(): Promise<{ conferidos: number; assinados: number }>
+  /** Pergunta ao ZapSign por todos os contratos que esperam assinatura (rodado de 15 em 15 minutos, caso o aviso automático falhe) e guarda a cópia do PDF dos assinados que ainda não têm. */
+  sincronizarZapsign(): Promise<{ conferidos: number; assinados: number; arquivados: number }>
+  /** O PDF assinado guardado aqui (se ainda não tem, tenta buscar no ZapSign agora). */
+  arquivoAssinado(s: Sessao, id: number): Promise<{ nome: string; pdf: Buffer }>
   /** Público (sem login): o contrato de um link. */
   verParaAssinar(token: string): Promise<ContratoParaAssinar>
   /** Público (sem login): o cliente confirma o CPF, assina e o contrato fecha. */
@@ -120,7 +124,8 @@ export function createContratosService(d: Dependencias): ContratosService {
     const item = semTexto(c.linha)
     const assinatura = c.linha.status === 'ASSINADO' ? await d.repo.assinaturaDe(c.linha.id) : null
     const z = c.linha.zapsign
-    const extra = { assinatura, assinaturaVia: c.linha.assinaturaVia, zapsign: z ? { status: z.status, sandbox: z.sandbox, signUrl: z.url, arquivoAssinado: arquivo ?? null } : null }
+    const copiaArquivada = c.linha.status === 'ASSINADO' && (await d.repo.temCopia(c.linha.id))
+    const extra = { assinatura, assinaturaVia: c.linha.assinaturaVia, zapsign: z ? { status: z.status, sandbox: z.sandbox, signUrl: z.url, arquivoAssinado: arquivo ?? null } : null, copiaArquivada }
     if (c.linha.textoEnviado !== null) return { contrato: item, congelado: true, trechos: [{ tipo: 'txt', v: c.linha.textoEnviado }], faltam: [], texto: c.linha.textoEnviado, ...extra }
     const p = preencher(await textoDaVersao(c.linha.modeloVersao), c.dados, await d.repo.empresa())
     return { contrato: item, congelado: false, trechos: p.trechos, faltam: p.faltam, texto: p.texto, ...extra }
@@ -142,10 +147,21 @@ export function createContratosService(d: Dependencias): ContratosService {
   const soDig = (v: string | null) => (v ?? '').replace(/\D/g, '')
   const zap = (): ZapsignClient => { if (!d.zapsign) throw new HttpError(503, 'O ZapSign não está ligado neste sistema. Use o link de assinatura.', 'ZAPSIGN_DESLIGADO'); return d.zapsign }
   /** Aplica no contrato o que o ZapSign diz do documento. Documento de teste nunca fecha o contrato (não tem validade jurídica). */
-  async function aplicarZapsign(l: LinhaContrato, status: string, usuarioId: number | null) {
+  /** Baixa o PDF assinado do ZapSign e guarda aqui. Nunca derruba quem chamou: se falhar, a consulta de 15 em 15 minutos tenta de novo. */
+  async function arquivar(l: LinhaContrato, url: string | null): Promise<boolean> {
+    if (!d.zapsign || !url) return false
+    try {
+      const pdf = await d.zapsign.baixarArquivo(url)
+      await d.repo.guardarCopia(l.id, pdf, createHash('sha256').update(pdf).digest('hex'))
+      await d.auditoria.registrar({ usuarioId: null, acao: 'CONTRATO_COPIA_ARQUIVADA', entidade: 'contrato', entidadeId: l.id, depois: { vendaId: l.vendaId, bytes: pdf.length } })
+      return true
+    } catch (err) { d.log?.(`ZapSign: não consegui guardar a cópia do PDF do contrato ${l.numero}`, err); return false }
+  }
+  async function aplicarZapsign(l: LinhaContrato, status: string, usuarioId: number | null, arquivo: string | null = null) {
     if (l.zapsign && l.zapsign.status !== status) await d.repo.atualizarStatusZapsign(l.id, status)
     if (status === 'signed' && l.status !== 'ASSINADO' && l.zapsign && !l.zapsign.sandbox && (await d.repo.assinarViaZapsign(l.id))) {
       await d.auditoria.registrar({ usuarioId, acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade: 'contrato', entidadeId: l.id, depois: { vendaId: l.vendaId } })
+      await arquivar(l, arquivo)
     }
   }
 
@@ -267,7 +283,7 @@ export function createContratosService(d: Dependencias): ContratosService {
       const c = await carregar(s, id)
       if (!c.linha.zapsign) throw conflito('Este contrato não foi enviado pelo ZapSign', 'ZAPSIGN_NAO_ENVIADO')
       const doc = await z.obterDocumento(c.linha.zapsign.token)
-      await aplicarZapsign(c.linha, doc.status, s.usuarioId)
+      await aplicarZapsign(c.linha, doc.status, s.usuarioId, doc.arquivoAssinado)
       return montar(await carregar(s, id), doc.arquivoAssinado)
     },
 
@@ -279,25 +295,49 @@ export function createContratosService(d: Dependencias): ContratosService {
       // o aviso só diz "mexeu nesse documento": quem manda é o que o ZapSign responde para o token
       const doc = await d.zapsign.obterDocumento(token)
       if (doc.externalId !== l.numero) return { ok: true, ignorado: true }
-      await aplicarZapsign(l, doc.status, null)
+      await aplicarZapsign(l, doc.status, null, doc.arquivoAssinado)
       return { ok: true }
     },
 
     async sincronizarZapsign() {
       const z = d.zapsign
-      if (!z) return { conferidos: 0, assinados: 0 }
-      let conferidos = 0; let assinados = 0
+      if (!z) return { conferidos: 0, assinados: 0, arquivados: 0 }
+      let conferidos = 0; let assinados = 0; let arquivados = 0
       for (const l of await d.repo.pendentesZapsign(100)) {
         if (!zapsignVivo(l)) continue
         try {
           const doc = await z.obterDocumento(l.zapsign!.token)
           conferidos++
           if (doc.externalId !== l.numero) continue
-          await aplicarZapsign(l, doc.status, null)
+          await aplicarZapsign(l, doc.status, null, doc.arquivoAssinado)
           if (doc.status === 'signed') assinados++
         } catch (err) { d.log?.(`ZapSign: não consegui conferir o contrato ${l.numero}`, err) }
       }
-      return { conferidos, assinados }
+      // assinados que ainda não têm cópia do PDF (assinados antes desta função, ou o download falhou): o link do ZapSign é temporário, então pede um novo
+      for (const l of await d.repo.semCopia(20)) {
+        if (!l.zapsign) continue
+        try {
+          const doc = await z.obterDocumento(l.zapsign.token)
+          if (doc.externalId === l.numero && doc.status === 'signed' && (await arquivar(l, doc.arquivoAssinado))) arquivados++
+        } catch (err) { d.log?.(`ZapSign: não consegui buscar o PDF do contrato ${l.numero}`, err) }
+      }
+      return { conferidos, assinados, arquivados }
+    },
+
+    async arquivoAssinado(s, id) {
+      const c = await carregar(s, id)
+      if (c.linha.status !== 'ASSINADO') throw conflito('Este contrato ainda não foi assinado', 'CONTRATO_NAO_ASSINADO')
+      let copia = await d.repo.copia(id)
+      if (!copia && c.linha.assinaturaVia === 'ZAPSIGN' && c.linha.zapsign && !c.linha.zapsign.sandbox && d.zapsign) {
+        // assinado mas sem cópia ainda: busca agora
+        try {
+          const doc = await d.zapsign.obterDocumento(c.linha.zapsign.token)
+          if (doc.externalId === c.linha.numero && doc.status === 'signed') await arquivar(c.linha, doc.arquivoAssinado)
+        } catch (err) { d.log?.(`ZapSign: não consegui buscar o PDF do contrato ${c.linha.numero}`, err) }
+        copia = await d.repo.copia(id)
+      }
+      if (!copia) throw naoEncontrado(c.linha.assinaturaVia === 'ZAPSIGN' ? 'O PDF assinado ainda não está disponível. Tente de novo em instantes.' : 'Este contrato não foi assinado pelo ZapSign, então não tem PDF assinado.')
+      return { nome: `Contrato-${c.linha.numero}-assinado.pdf`, pdf: copia.pdf }
     },
 
     async verParaAssinar(token) {

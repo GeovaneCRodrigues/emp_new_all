@@ -22,6 +22,7 @@ export function contratosRoutes(service: ContratosService, auth: preHandlerAsync
     app.get('/contratos/:id', p, c.obter)
     app.post('/contratos/:id/enviado', p, c.enviado)
     app.post('/contratos/:id/assinado', p, c.assinado)
+    app.get('/contratos/:id/assinado.pdf', { ...p, config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, c.arquivoAssinado)
     app.post('/contratos/:id/link', { ...p, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, c.link)
     app.get('/contratos/zapsign/status', p, c.zapsignStatus)
     app.post('/contratos/:id/zapsign', { ...p, config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, c.enviarZapsign)

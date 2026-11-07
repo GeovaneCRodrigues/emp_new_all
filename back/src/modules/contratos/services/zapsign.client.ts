@@ -22,6 +22,8 @@ export interface ZapsignClient {
   readonly sandbox: boolean
   criarDocumento(p: PedidoDocumento): Promise<DocumentoZapsign>
   obterDocumento(token: string): Promise<DocumentoZapsign>
+  /** Baixa o PDF assinado. Só aceita https do domínio do ZapSign (o link vem de fora) e confere que é um PDF. */
+  baixarArquivo(url: string): Promise<Buffer>
 }
 
 /** O teste é outro endereço, com outro token (conta criada em sandbox.app.zapsign.com.br). A API de produção não aceita "sandbox" no corpo. */
@@ -48,6 +50,15 @@ function mensagemDeErro(corpo: any): string {
     return null
   }
   return (achar(corpo) ?? 'O ZapSign recusou o pedido.').slice(0, 300)
+}
+
+const MAX_PDF = 25 * 1024 * 1024
+/** O PDF assinado sai de um link temporário do S3 do ZapSign (ou do próprio domínio deles). Qualquer outro endereço é recusado. */
+export function hostDoZapsign(url: string): boolean {
+  let u: URL
+  try { u = new URL(url) } catch { return false }
+  const h = u.hostname.toLowerCase()
+  return u.protocol === 'https:' && !u.username && !u.password && (h === 'zapsign.s3.amazonaws.com' || h === 'zapsign.com.br' || h.endsWith('.zapsign.com.br'))
 }
 
 /** Cliente da API do ZapSign. O token fica só no servidor (nunca vai para o front nem para o log). */
@@ -87,6 +98,17 @@ export function criarZapsignClient(o: { token: string; sandbox: boolean; fetch?:
         }],
       }
       return doc(await chamar('/docs/', { method: 'POST', body: JSON.stringify(corpo) }))
+    },
+    async baixarArquivo(url) {
+      if (!hostDoZapsign(url)) throw new HttpError(422, 'Endereço do arquivo assinado não é do ZapSign.', 'ZAPSIGN_RECUSOU')
+      let r: Response
+      try { r = await f(url, { signal: AbortSignal.timeout(30_000), redirect: 'error' }) } catch { throw new HttpError(502, 'Não consegui baixar o PDF assinado do ZapSign.', 'ZAPSIGN_INDISPONIVEL') }
+      if (!r.ok) throw new HttpError(502, 'O ZapSign não entregou o PDF assinado.', 'ZAPSIGN_INDISPONIVEL')
+      const tam = Number(r.headers.get('content-length') ?? 0)
+      if (tam > MAX_PDF) throw new HttpError(422, 'O PDF assinado é grande demais.', 'ZAPSIGN_RECUSOU')
+      const bytes = Buffer.from(await r.arrayBuffer())
+      if (bytes.length > MAX_PDF || bytes.subarray(0, 5).toString('latin1') !== '%PDF-') throw new HttpError(422, 'O arquivo baixado do ZapSign não é um PDF.', 'ZAPSIGN_RECUSOU')
+      return bytes
     },
     async obterDocumento(token) {
       if (!/^[A-Za-z0-9-]{8,80}$/.test(token)) throw new HttpError(400, 'Token de documento inválido', 'ZAPSIGN_RECUSOU')

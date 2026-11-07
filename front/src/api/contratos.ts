@@ -51,6 +51,16 @@ export interface ContratoDetalheApi {
   assinatura: AssinaturaContratoApi | null
   assinaturaVia: ViaAssinaturaApi | null
   zapsign: ZapsignDocumentoApi | null
+  /** o PDF assinado (com a prova do ZapSign) está guardado no sistema */
+  copiaArquivada: boolean
+}
+
+/** Entrega um arquivo ao navegador como download. */
+export function salvarArquivo(blob: Blob, nome: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 /** O link de assinatura: o token só aparece quando é gerado (no servidor fica só o hash). */
@@ -89,6 +99,8 @@ export interface ContratosApi {
   enviarZapsign(s: Sessao, id: number): Promise<ContratoDetalheApi>
   /** Pergunta ao ZapSign como está o documento (e traz o PDF assinado quando houver). */
   atualizarZapsign(s: Sessao, id: number): Promise<ContratoDetalheApi>
+  /** Baixa o PDF assinado guardado no sistema. */
+  baixarAssinado(s: Sessao, id: number): Promise<void>
   modelo(s: Sessao): Promise<ModeloApi>
   salvarModelo(s: Sessao, texto: string): Promise<ModeloApi>
   previa(s: Sessao, texto: string, vendaId: number): Promise<PreviaApi>

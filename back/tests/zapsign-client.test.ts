@@ -70,4 +70,27 @@ describe('PDF do contrato', () => {
   it('texto vazio ainda gera um PDF válido', async () => {
     expect((await gerarPdfDoContrato('T', '')).subarray(0, 5).toString()).toBe('%PDF-')
   })
+
+  describe('baixarArquivo (PDF assinado)', () => {
+    const S3 = 'https://zapsign.s3.amazonaws.com/2026/11/pdf/x/y.pdf?AWSAccessKeyId=A&Expires=1&Signature=S'
+    const com = (f: (u: string, i: RequestInit) => Promise<Response>) => criarZapsignClient({ token: 't', sandbox: false, fetch: f as never })
+    it('baixa do S3 do ZapSign, sem mandar o token (o link já é assinado) e sem seguir redirecionamento', async () => {
+      let init: RequestInit = {}
+      const c = com(async (_u, i) => { init = i; return new Response('%PDF-1.7 ok', { status: 200 }) })
+      expect((await c.baixarArquivo(S3)).toString()).toBe('%PDF-1.7 ok')
+      expect(JSON.stringify(init.headers ?? {})).not.toContain('Bearer'); expect(init.redirect).toBe('error')
+    })
+    it('endereço que não é do ZapSign (ou não é https) é recusado sem nem tentar', async () => {
+      let chamou = false
+      const c = com(async () => { chamou = true; return new Response('%PDF-1.7') })
+      for (const u of ['http://zapsign.s3.amazonaws.com/a.pdf', 'https://evil.com/a.pdf', 'https://zapsign.s3.amazonaws.com.evil.com/a.pdf', 'https://user:senha@zapsign.s3.amazonaws.com/a.pdf', 'https://169.254.169.254/latest/meta-data', 'https://outro-bucket.s3.amazonaws.com/a.pdf', 'lixo'])
+        await expect(c.baixarArquivo(u)).rejects.toMatchObject({ status: 422 })
+      expect(chamou).toBe(false)
+    })
+    it('o que veio não é PDF, ou o S3 respondeu erro: recusa', async () => {
+      await expect(com(async () => new Response('<html>erro</html>', { status: 200 })).baixarArquivo(S3)).rejects.toMatchObject({ status: 422 })
+      await expect(com(async () => new Response('nope', { status: 403 })).baixarArquivo(S3)).rejects.toMatchObject({ status: 502 })
+      await expect(com(async () => { throw new Error('rede') }).baixarArquivo(S3)).rejects.toMatchObject({ status: 502 })
+    })
+  })
 })
