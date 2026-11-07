@@ -26,6 +26,10 @@ export interface ClienteApi {
   indicadorId?: number | null
 }
 
+export type TipoDocumento = 'DOC_IDENTIDADE' | 'COMPROVANTE_RESIDENCIA' | 'SELFIE' | 'OUTRO'
+/** Documento anexado ao cliente. O conteúdo só vem quando se abre o arquivo. */
+export interface DocumentoClienteApi { id: number; clienteId: number; tipo: TipoDocumento; nome: string; mime: string; tamanho: number; enviadoPor: number | null; criadoEm: string }
+
 export interface ListaClientes { itens: ClienteApi[]; total: number; pagina: number; limite: number }
 
 export interface EntradaCliente {
@@ -63,4 +67,10 @@ export interface ClientesApi {
   criar(s: Sessao, e: EntradaCliente): Promise<SalvoCliente>
   atualizar(s: Sessao, id: number, e: Partial<EntradaCliente>): Promise<SalvoCliente>
   responsaveis(s: Sessao): Promise<Responsavel[]>
+  /** Só administrador e vendedor (do cliente que está na carteira dele). */
+  documentos(s: Sessao, clienteId: number): Promise<DocumentoClienteApi[]>
+  enviarDocumento(s: Sessao, clienteId: number, tipo: TipoDocumento, arquivo: File): Promise<DocumentoClienteApi>
+  /** Devolve o arquivo para quem chamou abrir; cada abertura fica na auditoria. */
+  abrirDocumento(s: Sessao, clienteId: number, docId: number): Promise<Blob>
+  removerDocumento(s: Sessao, clienteId: number, docId: number): Promise<void>
 }

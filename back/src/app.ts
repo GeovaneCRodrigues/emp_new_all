@@ -12,6 +12,7 @@ import type { AuthService } from './modules/auth/services/auth.service.js'
 import type { TokensService } from './modules/auth/services/tokens.js'
 import { clientesRoutes } from './modules/clientes/routes.js'
 import type { ClientesService } from './modules/clientes/services/clientes.service.js'
+import type { DocumentosService } from './modules/clientes/services/documentos.service.js'
 import { usuariosRoutes } from './modules/usuarios/routes.js'
 import type { UsuariosService } from './modules/usuarios/services/usuarios.service.js'
 import { indicadoresRoutes } from './modules/indicadores/routes.js'
@@ -61,6 +62,8 @@ export type Deps = {
   tokens: TokensService
   auth: AuthService
   clientes: ClientesService
+  /** documentos do cliente (CNH, comprovante...); sem isso as rotas não existem */
+  documentosCliente?: DocumentosService
   usuarios: UsuariosService
   indicadores: IndicadoresService
   estoque: EstoqueService
@@ -121,7 +124,7 @@ export async function buildApp(deps: Deps): Promise<FastifyInstance> {
   const exigir = exigirAuth(deps.tokens, deps.auth)
   await app.register(healthRoutes(deps.db))
   await app.register(authRoutes(deps.auth, exigir), { prefix: '/api' })
-  await app.register(clientesRoutes(deps.clientes, exigir), { prefix: '/api' })
+  await app.register(clientesRoutes(deps.clientes, exigir, deps.documentosCliente), { prefix: '/api' })
   await app.register(usuariosRoutes(deps.usuarios, exigir), { prefix: '/api' })
   await app.register(indicadoresRoutes(deps.indicadores, exigir), { prefix: '/api' })
   await app.register(estoqueRoutes(deps.estoque, exigir), { prefix: '/api' })

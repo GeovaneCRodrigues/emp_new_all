@@ -47,6 +47,8 @@ import { createFechamentosService } from './modules/fechamentos/services/fechame
 import { createEquipeRepository } from './modules/equipe/models/repository.js'
 import { createEquipeService } from './modules/equipe/services/equipe.service.js'
 import { createClientesService } from './modules/clientes/services/clientes.service.js'
+import { createDocumentosRepository } from './modules/clientes/models/documentos.repository.js'
+import { createDocumentosService } from './modules/clientes/services/documentos.service.js'
 import { createSessoesRepository, createUsuariosRepository } from './modules/auth/models/repository.js'
 import { createAuthService } from './modules/auth/services/auth.service.js'
 import { createTokensService } from './modules/auth/services/tokens.js'
@@ -57,6 +59,7 @@ const tokens = createTokensService(env.JWT_SECRET, env.JWT_EXPIRES_IN)
 const auth = createAuthService(createUsuariosRepository(db.knex), createSessoesRepository(db.knex), tokens, { refreshTtlMs: env.REFRESH_TTL_DIAS * 24 * 3600_000 })
 
 const clientes = createClientesService(createClientesRepository(db.knex), createAuditoriaRepository(db.knex))
+const documentosCliente = createDocumentosService(createDocumentosRepository(db.knex), createClientesRepository(db.knex), createAuditoriaRepository(db.knex))
 
 const usuarios = createUsuariosService(createUsuariosListaRepository(db.knex))
 
@@ -113,7 +116,7 @@ const notificacoes = createNotificacoesService({
   aoCriar: (usuarioId, a) => push.enviar(usuarioId, { titulo: a.titulo, texto: a.texto, rota: a.rota, tag: a.chave }),
   atrasos: async (s) => (await recebimentos.cobrancas(s, { aba: 'atrasadas', limite: 1 })).contagens,
 })
-const app = await buildApp({ env, db, tokens, auth, notificacoes, push, clientes, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
+const app = await buildApp({ env, db, tokens, auth, notificacoes, push, clientes, documentosCliente, usuarios, indicadores, estoque, vendas, emprestimos, acordos, repasses, contaIndicador, propostas, caixa, caixaFechamentos, relatorios, contratos, config: createConfigService(configRepo), recebimentos, aprovacoes, fechamentos, equipe })
 
 const encerrar = async () => { await app.close(); await db.close(); process.exit(0) }
 process.on('SIGINT', encerrar)

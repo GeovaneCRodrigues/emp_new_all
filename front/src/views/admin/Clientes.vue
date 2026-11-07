@@ -5,6 +5,7 @@ import RestanteDaLista from '@/components/RestanteDaLista.vue'
 import { ErroApi, type ClienteApi, type Responsavel, type SalvoCliente } from '@/api/clientes'
 import { clientesApi } from '@/api/recursos'
 import ClienteForm from '@/components/ClienteForm.vue'
+import DocumentosCliente from '@/components/DocumentosCliente.vue'
 import Icon from '@/components/Icon.vue'
 import OperacaoCard from '@/components/OperacaoCard.vue'
 import Sheet from '@/components/Sheet.vue'
@@ -114,6 +115,7 @@ const linkZap = (fone: string) => `https://wa.me/55${fone}`
         </template>
       </div>
       <button v-if="podeEditar" class="btn b-out b-block" style="margin-top: 12px" @click="editar(ficha)">Editar cadastro</button>
+      <DocumentosCliente v-if="podeEditar" :cliente-id="ficha.id" />
       <template v-if="modoDemo && opsDoCliente.length">
         <div class="sec-t" style="margin: 16px 0 0"><h2>Operações</h2></div>
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px"><OperacaoCard v-for="o in opsDoCliente" :key="o.id" :o="o" :k="contas(o)" /></div>
