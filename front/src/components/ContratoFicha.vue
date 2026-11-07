@@ -7,6 +7,7 @@ import { useApp } from '@/composables/useApp'
 import { dmyA } from '@/domain/format'
 import Icon from './Icon.vue'
 import Sheet from './Sheet.vue'
+import { paraLinhas } from '@/domain/contratoLinhas'
 
 /** O contrato de uma venda: linha do tempo, o texto preenchido (o que falta aparece em laranja) e o que dá para fazer com ele. */
 const props = defineProps<{ contratoId: number | null }>()
@@ -37,6 +38,8 @@ watch(() => props.contratoId, (id) => { copiado.value = false; link.value = null
 
 const status = computed(() => d.value?.contrato.status ?? 'AGUARDANDO')
 const chip = computed(() => (status.value === 'ASSINADO' ? { cls: 'c-ok', txt: 'assinado' } : { cls: 'c-warn', txt: 'esperando assinatura' }))
+/** O texto em linhas, com recuo nas cláusulas e respiro nos títulos (só apresentação: o texto é o mesmo). */
+const linhas = computed(() => paraLinhas(d.value?.trechos ?? []))
 const passos = computed(() => {
   const c = d.value?.contrato
   if (!c) return []
@@ -139,7 +142,12 @@ function imprimir() {
         <div v-for="p in passos" :key="p.t" :class="{ ok: p.ok }"><span class="dot"><Icon v-if="p.ok" name="check" small /></span><span><b>{{ p.t }}</b><span class="small" style="display: block">{{ p.sub }}</span></span></div>
       </div>
       <div v-if="d.faltam.length" class="aviso" data-testid="ficha-faltam"><Icon name="file-signature" small /><span>Falta cadastrar: {{ d.faltam.join(', ') }}. Complete no cadastro do cliente ou em Empresa e taxas para sair no contrato.</span></div>
-      <div class="papel" style="margin-top: 12px; max-height: 30dvh" data-testid="ficha-texto"><template v-for="(t, i) in d.trechos" :key="i"><mark v-if="t.tipo === 'ok'">{{ t.v }}</mark><mark v-else-if="t.tipo === 'falta' || t.tipo === 'desconhecido'" class="f">{{ t.v }}</mark><template v-else>{{ t.v }}</template></template></div>
+      <div class="papel" style="margin-top: 12px; max-height: 30dvh" data-testid="ficha-texto">
+        <div v-for="(ln, i) in linhas" :key="i" class="ln" :class="`ln-${ln.tipo}`">
+          <span v-if="ln.numero" class="num">{{ ln.numero }}</span>
+          <span :class="{ tx: ln.numero }"><template v-for="(t, j) in ln.partes" :key="j"><mark v-if="t.tipo === 'ok'">{{ t.v }}</mark><mark v-else-if="t.tipo === 'falta' || t.tipo === 'desconhecido'" class="f">{{ t.v }}</mark><template v-else>{{ t.v }}</template></template></span>
+        </div>
+      </div>
       <div v-if="d.assinaturaVia === 'ZAPSIGN'" class="small" style="margin-top: 8px" data-testid="ficha-via-zapsign">{{ d.copiaArquivada ? 'Assinado pelo ZapSign. O PDF assinado, com a prova, está guardado aqui e também no ZapSign.' : 'Assinado pelo ZapSign (prova e PDF assinado ficam lá).' }}</div>
       <div v-if="d.assinatura" class="card pad" style="margin-top: 12px" data-testid="ficha-assinatura">
         <div class="lbl">Assinado pelo cliente</div>
