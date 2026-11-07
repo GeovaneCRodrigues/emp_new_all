@@ -13,6 +13,8 @@ test.describe('menu do administrador', () => {
     const ordem = await lateral.locator('[data-menu]').evaluateAll((bs) => bs.map((b) => b.getAttribute('data-menu')))
     expect(ordem).toEqual(['inicio', 'cobrancas', 'cronograma', 'caixa', 'simulador', 'clientes', 'estoque', 'operacoes', 'contratos', 'indicadores', 'usuarios', 'equipe', 'relatorios', 'config'])
     // Configurações fica logo acima do usuário, depois de todos os grupos
+    // em janela baixa o menu rola (o rodapé do usuário fica fixo): rola até o fim antes de medir
+    await lateral.locator('[data-menu="config"]').scrollIntoViewIfNeeded()
     const conf = await lateral.locator('[data-menu="config"]').boundingBox()
     const rodape = await lateral.locator('.rod').boundingBox()
     const relat = await lateral.locator('[data-menu="relatorios"]').boundingBox()
