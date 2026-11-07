@@ -5,6 +5,9 @@ import type { ContratoDetalheApi, ZapsignStatusApi } from '@/api/contratos'
 import { contratosApi } from '@/api/recursos'
 import { useApp } from '@/composables/useApp'
 import { dmyA } from '@/domain/format'
+import type { DocumentoClienteApi } from '@/api/clientes'
+import { documentosFaltando } from '@/domain/documentosCliente'
+import DocumentosCliente from './DocumentosCliente.vue'
 import Icon from './Icon.vue'
 import Sheet from './Sheet.vue'
 import { paraLinhas } from '@/domain/contratoLinhas'
@@ -27,6 +30,11 @@ const zap = ref<ZapsignStatusApi | null>(null)
 contratosApi.zapsignStatus(sessao.value).then((z) => { zap.value = z }).catch(() => { zap.value = null })
 const cpfMascarado = (cpf: string) => `***.***.***-${cpf.slice(9)}`
 const ehAdmin = computed(() => sessao.value.perfil === 'ADMIN')
+/** Documentos do cliente (CNH/RG, comprovante): quem emite vê na hora o que falta. Só avisa, não impede emitir ou enviar. */
+const veDocs = computed(() => sessao.value.perfil === 'ADMIN' || sessao.value.perfil === 'VENDEDOR')
+const docsAbertos = ref(false)
+const docsFaltam = ref<string[] | null>(null)
+const aoMudarDocs = (docs: DocumentoClienteApi[]) => { docsFaltam.value = documentosFaltando(docs) }
 
 let pedido = 0
 async function carregar(id: number) {
@@ -34,7 +42,7 @@ async function carregar(id: number) {
   carregando.value = true; erro.value = ''; d.value = null
   try { const r = await contratosApi.obter(sessao.value, id); if (meu === pedido) d.value = r } catch (e) { if (meu === pedido) erro.value = e instanceof ErroApi ? e.message : 'Não consegui abrir o contrato.' } finally { if (meu === pedido) carregando.value = false }
 }
-watch(() => props.contratoId, (id) => { copiado.value = false; link.value = null; linkCopiado.value = false; if (id !== null) carregar(id); else d.value = null }, { immediate: true })
+watch(() => props.contratoId, (id) => { docsAbertos.value = false; docsFaltam.value = null; copiado.value = false; link.value = null; linkCopiado.value = false; if (id !== null) carregar(id); else d.value = null }, { immediate: true })
 
 const status = computed(() => d.value?.contrato.status ?? 'AGUARDANDO')
 const chip = computed(() => (status.value === 'ASSINADO' ? { cls: 'c-ok', txt: 'assinado' } : { cls: 'c-warn', txt: 'esperando assinatura' }))
@@ -142,6 +150,13 @@ function imprimir() {
         <div v-for="p in passos" :key="p.t" :class="{ ok: p.ok }"><span class="dot"><Icon v-if="p.ok" name="check" small /></span><span><b>{{ p.t }}</b><span class="small" style="display: block">{{ p.sub }}</span></span></div>
       </div>
       <div v-if="d.faltam.length" class="aviso" data-testid="ficha-faltam"><Icon name="file-signature" small /><span>Falta cadastrar: {{ d.faltam.join(', ') }}. Complete no cadastro do cliente ou em Empresa e taxas para sair no contrato.</span></div>
+      <div v-if="veDocs && d.contrato.clienteId" data-testid="ficha-documentos">
+        <div v-if="docsFaltam !== null" class="aviso" :style="docsFaltam.length ? '' : 'background: var(--ok-soft); color: var(--ok)'" style="justify-content: space-between; gap: 8px">
+          <span data-testid="ficha-docs-resumo">{{ docsFaltam.length ? `Documentos do cliente: faltam ${docsFaltam.join(' e ')}.` : 'Documentos do cliente completos.' }}</span>
+          <button class="btn b-ghost b-sm" type="button" data-testid="ficha-docs-alternar" @click="docsAbertos = !docsAbertos">{{ docsAbertos ? 'Fechar' : docsFaltam.length ? 'Anexar' : 'Ver' }}</button>
+        </div>
+        <div v-show="docsAbertos"><DocumentosCliente :cliente-id="d.contrato.clienteId" @mudou="aoMudarDocs" /></div>
+      </div>
       <div class="papel" style="margin-top: 12px; max-height: 30dvh" data-testid="ficha-texto">
         <div v-for="(ln, i) in linhas" :key="i" class="ln" :class="`ln-${ln.tipo}`">
           <span v-if="ln.numero" class="num">{{ ln.numero }}</span>

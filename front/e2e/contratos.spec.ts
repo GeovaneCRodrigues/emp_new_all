@@ -54,6 +54,18 @@ test.describe('contratos (administrador)', () => {
     await expect(page.getByTestId('ficha-assinado')).toHaveCount(0)
   })
 
+  test('o contrato mostra os documentos do cliente: avisa o que falta e fecha quando anexa', async ({ page }) => {
+    await item(page, 'Ana Paula Ribeiro').click()
+    await expect(page.getByTestId('ficha-docs-resumo')).toContainText('faltam CNH ou RG e Comprovante de residência')
+    await page.getByTestId('ficha-docs-alternar').click()
+    await page.locator('[data-tipo="DOC_IDENTIDADE"] input[type=file]').setInputFiles({ name: 'cnh.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 x') })
+    await expect(page.getByTestId('ficha-docs-resumo')).toContainText('faltam Comprovante de residência')
+    await page.locator('[data-tipo="COMPROVANTE_RESIDENCIA"] input[type=file]').setInputFiles({ name: 'luz.png', mimeType: 'image/png', buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]) })
+    await expect(page.getByTestId('ficha-docs-resumo')).toHaveText('Documentos do cliente completos.')
+    // só avisa: o envio segue o fluxo normal (aqui continua barrado só pelo que falta no cadastro)
+    await expect(page.getByTestId('ficha-enviado')).toBeDisabled()
+  })
+
   test('fluxo completo: completa o cadastro, envia (o texto fecha) e depois marca assinado', async ({ page }) => {
     await completarCliente(page, 'Ana Paula Ribeiro')
     await item(page, 'Ana Paula Ribeiro').click()

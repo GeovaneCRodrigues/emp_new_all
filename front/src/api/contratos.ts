@@ -14,6 +14,7 @@ export interface ContratoItemApi {
   geradoEm: string
   enviadoEm: string | null
   assinadoEm: string | null
+  clienteId: number
   clienteNome: string
   /** só dígitos, com DDD */
   clienteFone: string
