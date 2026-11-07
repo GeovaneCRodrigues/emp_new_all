@@ -594,8 +594,11 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
     function falso(sandbox: boolean) {
       const docs = new Map<string, DocumentoZapsign>()
       const criados: PedidoDocumento[] = []
+      const baixados: string[] = []
+      const estado = { falharDownload: false }
       const cliente: ZapsignClient = {
         sandbox,
+        async baixarArquivo(url) { baixados.push(url); if (estado.falharDownload) throw new Error('S3 fora do ar'); return Buffer.from('%PDF-1.4 assinado pelo cliente') },
         async criarDocumento(p) {
           criados.push(p)
           const token = `doc-${criados.length}-${'a'.repeat(30)}`
@@ -605,7 +608,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
         },
         async obterDocumento(token) { const d = docs.get(token); if (!d) throw new Error('documento sumiu'); return { ...d } },
       }
-      return { cliente, docs, criados }
+      return { cliente, docs, criados, baixados, estado }
     }
     async function appCom(z: ZapsignClient | null) {
       const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: z })
@@ -728,30 +731,85 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       it('documento assinado no ZapSign: a consulta fecha o contrato sem aviso nenhum', async () => {
         const z = falso(false); const { cid, doc } = await enviadoPeloZapsign(z)
         doc.status = 'signed'
-        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 1 })
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 1, arquivados: 0 })
         expect((await detalhe(cid)).contrato.status).toBe('ASSINADO')
         expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade_id: cid }).first('usuario_id')).toMatchObject({ usuario_id: null })
         // já assinado: some da lista de pendentes e não é consultado de novo
-        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0, arquivados: 0 })
+      })
+      const LINK = 'https://zapsign.s3.amazonaws.com/2026/11/pdf/x/y.pdf?Expires=1'
+      const baixar = (a: FastifyInstance, cid: number, papel = 'admin') => a.inject({ method: 'GET', url: `/api/contratos/${cid}/assinado.pdf`, headers: { authorization: `Bearer ${t[papel]}` } })
+      it('assinou: guarda a cópia do PDF, e o download devolve exatamente o arquivo (com hash gravado)', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+          const doc = [...z.docs.values()][0]; doc.status = 'signed'; doc.arquivoAssinado = LINK
+          await servico(z.cliente).sincronizarZapsign()
+          expect(z.baixados).toEqual([LINK])
+          const r = await baixar(a, cid)
+          expect(r.statusCode).toBe(200); expect(r.headers['content-type']).toBe('application/pdf'); expect(r.headers['content-disposition']).toContain('assinado.pdf'); expect(r.headers['cache-control']).toBe('no-store')
+          expect(r.rawPayload.toString()).toBe('%PDF-1.4 assinado pelo cliente')
+          const linha = await db!('contrato_arquivos').where({ contrato_id: cid }).first('sha256', 'tamanho')
+          expect(linha).toMatchObject({ tamanho: Buffer.byteLength('%PDF-1.4 assinado pelo cliente') }); expect(linha.sha256).toMatch(/^[0-9a-f]{64}$/)
+          expect(((await a.inject({ method: 'GET', url: `/api/contratos/${cid}`, headers: { authorization: `Bearer ${t.admin}` } })).json() as { copiaArquivada: boolean }).copiaArquivada).toBe(true)
+        } finally { await a.close() }
+      })
+      it('o download do PDF falhar na hora de assinar não impede o contrato de fechar; a próxima consulta guarda a cópia', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+          const doc = [...z.docs.values()][0]; doc.status = 'signed'; doc.arquivoAssinado = LINK
+          z.estado.falharDownload = true
+          expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 1, arquivados: 0 })
+          expect((await detalhe(cid)).contrato.status).toBe('ASSINADO')
+          expect(await db!('contrato_arquivos').where({ contrato_id: cid }).first()).toBeUndefined()
+          z.estado.falharDownload = false
+          expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0, arquivados: 1 })
+          expect(await db!('contrato_arquivos').where({ contrato_id: cid }).first('contrato_id')).toBeTruthy()
+          // já tem cópia: não baixa de novo
+          expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0, arquivados: 0 })
+        } finally { await a.close() }
+      })
+      it('pedir o PDF de um assinado sem cópia busca no ZapSign na hora', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin')
+          const doc = [...z.docs.values()][0]; doc.status = 'signed'; doc.arquivoAssinado = LINK
+          z.estado.falharDownload = true
+          await servico(z.cliente).sincronizarZapsign()
+          z.estado.falharDownload = false
+          expect((await baixar(a, cid)).statusCode).toBe(200)
+        } finally { await a.close() }
+      })
+      it('sem PDF: contrato não assinado dá 409; assinado à mão (sem ZapSign) dá 404; sem login dá 401', async () => {
+        const z = falso(false); const a = await appCom(z.cliente)
+        try {
+          const cid = await pronto()
+          expect((await baixar(a, cid)).statusCode).toBe(409)
+          await post(a, `/api/contratos/${cid}/enviado`, 'admin')
+          await post(a, `/api/contratos/${cid}/assinado`, 'admin')
+          expect((await baixar(a, cid)).statusCode).toBe(404)
+          expect((await a.inject({ method: 'GET', url: `/api/contratos/${cid}/assinado.pdf` })).statusCode).toBe(401)
+        } finally { await a.close() }
       })
       it('ainda pendente no ZapSign: não mexe em nada', async () => {
         const z = falso(false); const { cid } = await enviadoPeloZapsign(z)
-        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0 })
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0, arquivados: 0 })
         expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
       })
       it('o ZapSign falhar ou responder outro número de contrato não derruba nem fecha nada', async () => {
         const z = falso(false); const { cid, doc } = await enviadoPeloZapsign(z)
         doc.status = 'signed'; doc.externalId = 'OUTRO-NUMERO'
-        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0 })
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0, arquivados: 0 })
         const quebrado: ZapsignClient = { ...z.cliente, obterDocumento: async () => { throw new Error('ZapSign fora do ar') } }
         const erros: string[] = []
         const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: quebrado, log: (m) => erros.push(m) })
-        expect(await svc.sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+        expect(await svc.sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0, arquivados: 0 })
         expect(erros).toHaveLength(1)
         expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
       })
       it('ZapSign desligado: não faz nada', async () => {
-        expect(await servico(null).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+        expect(await servico(null).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0, arquivados: 0 })
       })
     })
     describe('webhook', () => {

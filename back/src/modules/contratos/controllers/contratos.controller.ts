@@ -26,6 +26,10 @@ export function createContratosController(s: ContratosService) {
     },
     async zapsignStatus(req: FastifyRequest) { return s.zapsignStatus(sessaoOuErro(req)) },
     async enviarZapsign(req: FastifyRequest) { return s.enviarZapsign(sessaoOuErro(req), id(req)) },
+    async arquivoAssinado(req: FastifyRequest, reply: FastifyReply) {
+      const r = await s.arquivoAssinado(sessaoOuErro(req), id(req))
+      return reply.header('content-type', 'application/pdf').header('content-disposition', `attachment; filename="${r.nome}"`).header('cache-control', 'no-store').header('x-content-type-options', 'nosniff').send(r.pdf)
+    },
     async atualizarZapsign(req: FastifyRequest) { return s.atualizarZapsign(sessaoOuErro(req), id(req)) },
     // pública, sem segredo: o ZapSign só avisa que mexeu num documento; o status vem de uma consulta ao ZapSign, não do corpo do aviso
     async webhookZapsign(req: FastifyRequest) { return s.webhookZapsign(corpo(req)) },

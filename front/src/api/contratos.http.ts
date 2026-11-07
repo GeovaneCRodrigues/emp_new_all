@@ -1,5 +1,5 @@
 import { ErroApi } from './clientes'
-import type { AssinarPublicoApi, ContratosApi } from './contratos'
+import { salvarArquivo, type AssinarPublicoApi, type ContratosApi } from './contratos'
 
 type Requisicao = (url: string, init?: RequestInit) => Promise<Response>
 
@@ -27,6 +27,13 @@ export function criarContratosHttp(baseUrl: string, requisicao: Requisicao): Con
     zapsignStatus: () => chamar('/contratos/zapsign/status'),
     enviarZapsign: (_s, id) => chamar(`/contratos/${id}/zapsign`, json('POST')),
     atualizarZapsign: (_s, id) => chamar(`/contratos/${id}/zapsign/atualizar`, json('POST')),
+    async baixarAssinado(_s, id) {
+      let r: Response
+      try { r = await requisicao(`${baseUrl}/api/contratos/${id}/assinado.pdf`) } catch { throw new ErroApi(0, 'Sem conexão com o servidor. Tente de novo.') }
+      if (!r.ok) { const corpo = await r.json().catch(() => ({})); throw new ErroApi(r.status, corpo.erro ?? 'Não consegui baixar o PDF assinado.', corpo.codigo) }
+      const nome = /filename="([^"]+)"/.exec(r.headers.get('content-disposition') ?? '')?.[1] ?? `contrato-${id}-assinado.pdf`
+      salvarArquivo(await r.blob(), nome)
+    },
     modelo: () => chamar('/contratos/modelo'),
     salvarModelo: (_s, texto) => chamar('/contratos/modelo', json('PUT', { texto })),
     previa: (_s, texto, vendaId) => chamar('/contratos/modelo/previa', json('POST', { texto, vendaId })),
