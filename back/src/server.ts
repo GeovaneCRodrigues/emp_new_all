@@ -126,3 +126,15 @@ const SINCRONIZAR_MS = 60_000
 void notificacoes.sincronizar()
 const relogioAvisos = setInterval(() => { void notificacoes.sincronizar() }, SINCRONIZAR_MS)
 relogioAvisos.unref()
+
+// ZapSign: de 15 em 15 minutos (e uma vez na subida) pergunta pelos contratos que esperam assinatura. Cobre o aviso automático (webhook) que falhar.
+const CONSULTA_ZAPSIGN_MS = 15 * 60_000
+let consultandoZapsign = false
+async function consultarZapsign() {
+  if (consultandoZapsign) return
+  consultandoZapsign = true
+  try { const r = await contratos.sincronizarZapsign(); if (r.assinados > 0) console.log(`ZapSign: ${r.assinados} contrato(s) assinado(s) encontrado(s) na consulta periódica`) } catch (err) { console.error('ZapSign: falha na consulta periódica', err) } finally { consultandoZapsign = false }
+}
+void consultarZapsign()
+const relogioZapsign = setInterval(() => { void consultarZapsign() }, CONSULTA_ZAPSIGN_MS)
+relogioZapsign.unref()

@@ -51,6 +51,8 @@ export type ContratosService = {
   atualizarZapsign(s: Sessao, id: number): Promise<ContratoDetalhe>
   /** Público: aviso do ZapSign. Só vale com o segredo, e o estado é sempre conferido na API do ZapSign (o corpo do aviso não é confiado). */
   webhookZapsign(corpo: Record<string, unknown>): Promise<{ ok: true; ignorado?: true }>
+  /** Pergunta ao ZapSign por todos os contratos que esperam assinatura (rodado de 15 em 15 minutos, caso o aviso automático falhe). */
+  sincronizarZapsign(): Promise<{ conferidos: number; assinados: number }>
   /** Público (sem login): o contrato de um link. */
   verParaAssinar(token: string): Promise<ContratoParaAssinar>
   /** Público (sem login): o cliente confirma o CPF, assina e o contrato fecha. */
@@ -279,6 +281,23 @@ export function createContratosService(d: Dependencias): ContratosService {
       if (doc.externalId !== l.numero) return { ok: true, ignorado: true }
       await aplicarZapsign(l, doc.status, null)
       return { ok: true }
+    },
+
+    async sincronizarZapsign() {
+      const z = d.zapsign
+      if (!z) return { conferidos: 0, assinados: 0 }
+      let conferidos = 0; let assinados = 0
+      for (const l of await d.repo.pendentesZapsign(100)) {
+        if (!zapsignVivo(l)) continue
+        try {
+          const doc = await z.obterDocumento(l.zapsign!.token)
+          conferidos++
+          if (doc.externalId !== l.numero) continue
+          await aplicarZapsign(l, doc.status, null)
+          if (doc.status === 'signed') assinados++
+        } catch (err) { d.log?.(`ZapSign: não consegui conferir o contrato ${l.numero}`, err) }
+      }
+      return { conferidos, assinados }
     },
 
     async verParaAssinar(token) {
