@@ -90,7 +90,7 @@ export function criarContratosFake(dep: { vendas: VendasFake; clientes: Clientes
     const e = await estadoDe(r)
     return {
       id: r.id, vendaId: r.id, numero: numero(r), status: statusDe(r), modeloVersao: e.modeloVersao, geradoEm: `${r.dataVenda}T12:00:00.000Z`, enviadoEm: e.enviadoEm, assinadoEm: e.assinadoEm,
-      clienteNome: r.cliente.nome, clienteFone: (await dep.clientes.obter(ADM, r.cliente.id)).fone, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, dataVenda: r.dataVenda, vendaStatus: r.status,
+      clienteId: r.cliente.id, clienteNome: r.cliente.nome, clienteFone: (await dep.clientes.obter(ADM, r.cliente.id)).fone, aparelho: r.aparelho.gb > 0 ? `${r.aparelho.modelo} ${r.aparelho.gb} GB` : r.aparelho.modelo, dataVenda: r.dataVenda, vendaStatus: r.status,
     }
   }
   async function detalhe(r: Registro): Promise<ContratoDetalheApi> {

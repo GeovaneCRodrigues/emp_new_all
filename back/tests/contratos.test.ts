@@ -122,6 +122,7 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
       expect(r.statusCode).toBe(201)
       const d = r.json() as Detalhe
       expect(d.contrato).toMatchObject({ vendaId: v, numero: `2026-${String(v).padStart(4, '0')}`, status: 'AGUARDANDO', modeloVersao: 0, enviadoEm: null, assinadoEm: null })
+      expect((d.contrato as { clienteId?: number }).clienteId).toBe((await db!('vendas').where({ id: v }).first('cliente_id')).cliente_id) // a ficha usa para mostrar os documentos do cliente
       expect(d.congelado).toBe(false)
       expect(d.texto).toContain(`CONTRATO N°: 2026-${String(v).padStart(4, '0')}`)
       expect(d.texto).toContain('ANA SOUZA'); expect(d.texto).toContain('529.982.247-25'); expect(d.texto).toContain('IPHONE 15 128 GB'); expect(d.texto).toContain('COR: PRETO')

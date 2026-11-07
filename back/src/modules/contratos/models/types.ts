@@ -52,6 +52,7 @@ export type LinhaContrato = {
   textoEnviado: string | null
   assinaturaVia: ViaAssinatura | null
   zapsign: EnvioZapsign | null
+  clienteId: number
   clienteNome: string
   /** só dígitos, com DDD (para abrir o WhatsApp) */
   clienteFone: string

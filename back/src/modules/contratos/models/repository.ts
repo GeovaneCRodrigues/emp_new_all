@@ -50,13 +50,13 @@ export interface ContratosRepository {
 type Linha = {
   id: number; venda_id: number; numero: string; modelo_versao: number; gerado_em: Date; enviado_em: Date | null; assinado_em: Date | null; texto_enviado: string | null
   zapsign_token: string | null; zapsign_signer_token: string | null; zapsign_url: string | null; zapsign_status: string | null; zapsign_sandbox: boolean | null; assinatura_via: ViaAssinatura | null
-  cliente_nome: string; cliente_fone: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
+  cliente_id: number; cliente_nome: string; cliente_fone: string; modelo: string; gb: number; data_venda: Date | string; venda_status: string; contrato_status: StatusContrato
 }
 const dia = (d: Date | string) => (typeof d === 'string' ? d : d.toISOString()).slice(0, 10)
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
 const paraLinha = (l: Linha): LinhaContrato => ({
   id: l.id, vendaId: l.venda_id, numero: l.numero, status: l.contrato_status === 'ASSINADO' ? 'ASSINADO' : l.contrato_status === 'ENVIADO' ? 'ENVIADO' : 'AGUARDANDO', modeloVersao: l.modelo_versao,
-  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, assinaturaVia: l.assinatura_via,
+  geradoEm: l.gerado_em.toISOString(), enviadoEm: iso(l.enviado_em), assinadoEm: iso(l.assinado_em), textoEnviado: l.texto_enviado, clienteId: l.cliente_id, clienteNome: l.cliente_nome, clienteFone: l.cliente_fone, assinaturaVia: l.assinatura_via,
   zapsign: l.zapsign_token ? { token: l.zapsign_token, signerToken: l.zapsign_signer_token, url: l.zapsign_url, status: l.zapsign_status ?? 'pending', sandbox: l.zapsign_sandbox ?? false } : null,
   aparelho: l.gb > 0 ? `${l.modelo} ${l.gb} GB` : l.modelo, dataVenda: dia(l.data_venda), vendaStatus: l.venda_status,
 })
@@ -69,7 +69,7 @@ const CHAVES: Record<Exclude<keyof Empresa, 'temLogo'>, string> = {
 export function createContratosRepository(db: Knex): ContratosRepository {
   const base = (escopo: EscopoContratos) => {
     const q = db('contratos as ct').join('vendas as v', 'v.id', 'ct.venda_id').join('clientes as c', 'c.id', 'v.cliente_id').join('bens as b', 'b.id', 'v.bem_id')
-      .select<Linha[]>('ct.*', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'b.modelo', 'b.gb', 'v.data_venda', 'v.status as venda_status', 'v.contrato_status')
+      .select<Linha[]>('ct.*', 'v.cliente_id', 'c.nome as cliente_nome', 'c.fone as cliente_fone', 'b.modelo', 'b.gb', 'v.data_venda', 'v.status as venda_status', 'v.contrato_status')
     if (escopo.tipo === 'VENDEDOR') q.where((w) => w.where('v.vendedor_id', escopo.usuarioId).orWhere('c.responsavel_id', escopo.usuarioId))
     return q
   }
