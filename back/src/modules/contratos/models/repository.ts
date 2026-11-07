@@ -37,6 +37,8 @@ export interface ContratosRepository {
   /** Fecha o contrato como assinado pelo ZapSign. false = já estava assinado. */
   assinarViaZapsign(id: number): Promise<boolean>
   porTokenZapsign(token: string): Promise<LinhaContrato | null>
+  /** Contratos mandados ao ZapSign que ainda esperam a assinatura (os mais antigos primeiro). */
+  pendentesZapsign(limite: number): Promise<LinhaContrato[]>
 }
 
 type Linha = {
@@ -189,6 +191,9 @@ export function createContratosRepository(db: Knex): ContratosRepository {
         await trx('vendas').where({ id: c.venda_id }).update({ contrato_status: 'ASSINADO', updated_at: trx.fn.now() })
         return true
       })
+    },
+    async pendentesZapsign(limite) {
+      return (await base({ tipo: 'TODOS' }).where('ct.zapsign_status', 'pending').whereNull('ct.assinado_em').orderBy('ct.enviado_em').limit(limite)).map(paraLinha)
     },
     async porTokenZapsign(token) {
       const l = await base({ tipo: 'TODOS' }).where('ct.zapsign_token', token).first<Linha | undefined>()

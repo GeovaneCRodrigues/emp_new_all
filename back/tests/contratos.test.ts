@@ -719,6 +719,41 @@ describe.skipIf(!db)('contratos (Postgres de verdade)', () => {
         expect(z.criados).toHaveLength(2)
       } finally { await a.close() }
     })
+    describe('consulta periódica (se o aviso automático falhar)', () => {
+      const servico = (z: ZapsignClient | null) => createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: z })
+      async function enviadoPeloZapsign(z: ReturnType<typeof falso>) {
+        const a = await appCom(z.cliente)
+        try { const cid = await pronto(); await post(a, `/api/contratos/${cid}/zapsign`, 'admin'); return { cid, doc: [...z.docs.values()][0] } } finally { await a.close() }
+      }
+      it('documento assinado no ZapSign: a consulta fecha o contrato sem aviso nenhum', async () => {
+        const z = falso(false); const { cid, doc } = await enviadoPeloZapsign(z)
+        doc.status = 'signed'
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 1 })
+        expect((await detalhe(cid)).contrato.status).toBe('ASSINADO')
+        expect(await db!('auditoria').where({ acao: 'CONTRATO_ASSINADO_ZAPSIGN', entidade_id: cid }).first('usuario_id')).toMatchObject({ usuario_id: null })
+        // já assinado: some da lista de pendentes e não é consultado de novo
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+      })
+      it('ainda pendente no ZapSign: não mexe em nada', async () => {
+        const z = falso(false); const { cid } = await enviadoPeloZapsign(z)
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0 })
+        expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+      })
+      it('o ZapSign falhar ou responder outro número de contrato não derruba nem fecha nada', async () => {
+        const z = falso(false); const { cid, doc } = await enviadoPeloZapsign(z)
+        doc.status = 'signed'; doc.externalId = 'OUTRO-NUMERO'
+        expect(await servico(z.cliente).sincronizarZapsign()).toEqual({ conferidos: 1, assinados: 0 })
+        const quebrado: ZapsignClient = { ...z.cliente, obterDocumento: async () => { throw new Error('ZapSign fora do ar') } }
+        const erros: string[] = []
+        const svc = createContratosService({ repo: createContratosRepository(db!), auditoria: createAuditoriaRepository(db!), zapsign: quebrado, log: (m) => erros.push(m) })
+        expect(await svc.sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+        expect(erros).toHaveLength(1)
+        expect((await detalhe(cid)).contrato.status).toBe('ENVIADO')
+      })
+      it('ZapSign desligado: não faz nada', async () => {
+        expect(await servico(null).sincronizarZapsign()).toEqual({ conferidos: 0, assinados: 0 })
+      })
+    })
     describe('webhook', () => {
       const aviso = (a: FastifyInstance, corpo: object) => a.inject({ method: 'POST', url: '/api/zapsign/webhook', payload: corpo })
       async function enviado(z: ReturnType<typeof falso>, a: FastifyInstance) {
